@@ -7,6 +7,7 @@ import '../../../features/auth/providers/auth_provider.dart';
 import '../../../shared/models/user_role.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/routes/route_names.dart';
+import '../../../core/navigation/bottom_nav_visibility.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -59,6 +60,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _businessNameCtrl.dispose();
+    // Clean up override when leaving screen
+    Future.microtask(() {
+      try {
+        ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
+      } catch (_) {}
+    });
     super.dispose();
   }
 
@@ -76,7 +83,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
     
     if (mounted && !ref.read(authLoadingProvider)) {
-      setState(() => _isEditing = false);
+      setState(() {
+        _isEditing = false;
+        ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Profile updated successfully!'),
@@ -88,6 +98,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _handleLogout() async {
+    ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
     await ref.read(authProvider.notifier).logout();
     if (mounted) {
       context.go(RouteNames.roleSelection);
@@ -112,11 +123,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
 
+    final showBottomNav = ref.watch(bottomNavVisibilityProvider);
+    final bottomPadding = showBottomNav ? 100.0 : 16.0;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+        padding: EdgeInsets.fromLTRB(20, 20, 20, bottomPadding),
         child: Form(
           key: _formKey,
           child: Column(
@@ -131,9 +145,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     onPressed: () {
                       if (_isEditing) {
                         _initData();
-                        setState(() => _isEditing = false);
+                        setState(() {
+                          _isEditing = false;
+                          ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
+                        });
                       } else {
-                        setState(() => _isEditing = true);
+                        setState(() {
+                          _isEditing = true;
+                          ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(true);
+                        });
                       }
                     },
                     icon: Icon(

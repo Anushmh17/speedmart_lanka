@@ -8,6 +8,7 @@ import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_state_widgets.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/shared_floating_bottom_nav.dart';
+import '../../../../core/navigation/bottom_nav_visibility.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/providers/theme_provider.dart';
 
@@ -37,38 +38,22 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
     });
   }
 
-  /// List of routes where bottom navigation should be hidden
-  bool _shouldHideBottomNav(String location) {
-    // Full-screen workflows (outside shell) - use RouteNames constants
-    final fullScreenRoutes = [
-      RouteNames.customerCreateRequest,  // /customer/requests/create
-    ];
-
-    // Additional full-screen routes not in RouteNames
-    final additionalRoutes = [
-      '/customer/payment',
-      '/customer/orders/track',
-      '/customer/proposals/detail',
-      '/customer/vendor/shopfront',
-      '/chat',
-    ];
-
-    return (fullScreenRoutes + additionalRoutes).any((route) => location.startsWith(route));
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final location = GoRouterState.of(context).matchedLocation;
-    final hideBottomNav = _shouldHideBottomNav(location);
+    // Use GoRouterState directly - guaranteed to rebuild when child route changes
+    final shellLocation = GoRouterState.of(context).matchedLocation;
+
+    // Watch central bottom navigation visibility provider
+    final showBottomNav = ref.watch(bottomNavVisibilityProvider);
 
     int currentIndex = 0;
-    if (location == RouteNames.customerRequests) {
+    if (shellLocation == RouteNames.customerRequests) {
       currentIndex = 1;
-    } else if (location == RouteNames.customerOrders) {
+    } else if (shellLocation == RouteNames.customerOrders) {
       currentIndex = 2;
-    } else if (location == RouteNames.customerProfile) {
+    } else if (shellLocation == RouteNames.customerProfile) {
       currentIndex = 3;
     }
 
@@ -107,50 +92,51 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
         ],
       ),
       body: widget.child,
-      bottomNavigationBar: hideBottomNav
-          ? null
-          : SharedFloatingBottomNav(
-              currentIndex: currentIndex,
-              onTap: (index) {
-                switch (index) {
-                  case 0:
-                    context.go(RouteNames.customerHome);
-                    break;
-                  case 1:
-                    context.go(RouteNames.customerRequests);
-                    break;
-                  case 2:
-                    context.go(RouteNames.customerOrders);
-                    break;
-                  case 3:
-                    context.go(RouteNames.customerProfile);
-                    break;
-                }
-              },
-              activeColor: AppColors.customerColor,
-              items: const [
-                SharedFloatingBottomNavItem(
-                  unselectedIcon: Icons.grid_view_rounded,
-                  selectedIcon: Icons.grid_view_rounded,
-                  label: 'Home',
-                ),
-                SharedFloatingBottomNavItem(
-                  unselectedIcon: Icons.list_alt_rounded,
-                  selectedIcon: Icons.list_alt_rounded,
-                  label: 'Lists',
-                ),
-                SharedFloatingBottomNavItem(
-                  unselectedIcon: Icons.shopping_bag_outlined,
-                  selectedIcon: Icons.shopping_bag_rounded,
-                  label: 'Orders',
-                ),
-                SharedFloatingBottomNavItem(
-                  unselectedIcon: Icons.person_outline_rounded,
-                  selectedIcon: Icons.person_rounded,
-                  label: 'Profile',
-                ),
-              ],
+      bottomNavigationBar: AnimatedBottomNavWrapper(
+        visible: showBottomNav,
+        child: SharedFloatingBottomNav(
+          currentIndex: currentIndex,
+          onTap: (index) {
+            switch (index) {
+              case 0:
+                context.go(RouteNames.customerHome);
+                break;
+              case 1:
+                context.go(RouteNames.customerRequests);
+                break;
+              case 2:
+                context.go(RouteNames.customerOrders);
+                break;
+              case 3:
+                context.go(RouteNames.customerProfile);
+                break;
+            }
+          },
+          activeColor: AppColors.customerColor,
+          items: const [
+            SharedFloatingBottomNavItem(
+              unselectedIcon: Icons.grid_view_rounded,
+              selectedIcon: Icons.grid_view_rounded,
+              label: 'Home',
             ),
+            SharedFloatingBottomNavItem(
+              unselectedIcon: Icons.list_alt_rounded,
+              selectedIcon: Icons.list_alt_rounded,
+              label: 'Lists',
+            ),
+            SharedFloatingBottomNavItem(
+              unselectedIcon: Icons.shopping_bag_outlined,
+              selectedIcon: Icons.shopping_bag_rounded,
+              label: 'Orders',
+            ),
+            SharedFloatingBottomNavItem(
+              unselectedIcon: Icons.person_outline_rounded,
+              selectedIcon: Icons.person_rounded,
+              label: 'Profile',
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -742,7 +728,7 @@ class CustomerHomeTab extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(20),
                     child: InkWell(
                       onTap: () {
-                        Navigator.of(context).push(
+                        Navigator.of(context, rootNavigator: true).push(
                           MaterialPageRoute(
                             builder: (context) => RequestDetailsScreen(request: request),
                           ),

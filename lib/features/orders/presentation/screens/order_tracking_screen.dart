@@ -11,6 +11,7 @@ import '../../../requests/providers/request_provider.dart';
 import '../../models/order_model.dart';
 import '../../providers/order_provider.dart';
 import '../widgets/order_tracking_map.dart';
+import '../../../location/providers/location_provider.dart';
 
 class OrderTrackingScreen extends ConsumerStatefulWidget {
   const OrderTrackingScreen({super.key, required this.order});
@@ -150,13 +151,19 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
     }
 
     // ---------- Coordinate Resolution ----------
-    // Customer coordinates: look up the original request by requestId
+    // Customer coordinates: look up the order, request, or active location provider
     final requestState = ref.watch(requestProvider);
     final matchedRequest = requestState.requests
         .where((r) => r.id == activeOrder.requestId)
         .firstOrNull;
-    final customerLat = matchedRequest?.latitude ?? 6.9145; // Colombo 03 default
-    final customerLon = matchedRequest?.longitude ?? 79.8510;
+    final deliveryLocation = ref.watch(deliveryLocationProvider);
+
+    final double customerLat = activeOrder.customerLatitude != 0.0
+        ? activeOrder.customerLatitude
+        : (matchedRequest?.latitude ?? deliveryLocation?.latitude ?? 0.0);
+    final double customerLon = activeOrder.customerLongitude != 0.0
+        ? activeOrder.customerLongitude
+        : (matchedRequest?.longitude ?? deliveryLocation?.longitude ?? 0.0);
 
     // Vendor coordinates: use the vendor coordinates stored directly in activeOrder
     final vendorLat = activeOrder.vendorLatitude;

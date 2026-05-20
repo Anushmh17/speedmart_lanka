@@ -68,6 +68,8 @@ class OrderModel {
   final DateTime? updatedAt;
   final double vendorLatitude;
   final double vendorLongitude;
+  final double customerLatitude;
+  final double customerLongitude;
 
   OrderModel({
     required this.id,
@@ -88,8 +90,10 @@ class OrderModel {
     this.status = OrderStatus.preparing,
     required this.createdAt,
     this.updatedAt,
-    this.vendorLatitude = 6.9145,
-    this.vendorLongitude = 79.8510,
+    this.vendorLatitude = 0.0,
+    this.vendorLongitude = 0.0,
+    this.customerLatitude = 0.0,
+    this.customerLongitude = 0.0,
   });
 
   OrderModel copyWith({
@@ -113,6 +117,8 @@ class OrderModel {
     DateTime? updatedAt,
     double? vendorLatitude,
     double? vendorLongitude,
+    double? customerLatitude,
+    double? customerLongitude,
   }) {
     return OrderModel(
       id: id ?? this.id,
@@ -135,6 +141,8 @@ class OrderModel {
       updatedAt: updatedAt ?? this.updatedAt,
       vendorLatitude: vendorLatitude ?? this.vendorLatitude,
       vendorLongitude: vendorLongitude ?? this.vendorLongitude,
+      customerLatitude: customerLatitude ?? this.customerLatitude,
+      customerLongitude: customerLongitude ?? this.customerLongitude,
     );
   }
 }

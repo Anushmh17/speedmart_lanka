@@ -1,3 +1,4 @@
+import '../../location/models/delivery_location.dart';
 import 'request_item.dart';
 
 enum RequestStatus {
@@ -69,6 +70,7 @@ class ShoppingRequest {
   final double approximateDistance;
   final double latitude;
   final double longitude;
+  final DeliveryLocation? deliveryLocation;
 
   ShoppingRequest({
     required this.id,
@@ -77,13 +79,14 @@ class ShoppingRequest {
     this.status = RequestStatus.draft,
     required this.createdAt,
     this.updatedAt,
-    this.customerArea = 'Colombo 03',
-    this.deliveryAddress = '45 Galle Rd, Colombo 03',
-    this.customerPhone = '+94 77 123 4567',
-    this.customerName = 'Customer',
-    this.approximateDistance = 3.5,
-    this.latitude = 6.9145,
-    this.longitude = 79.8510,
+    this.customerArea = '',
+    this.deliveryAddress = '',
+    this.customerPhone = '',
+    this.customerName = '',
+    this.approximateDistance = 0.0,
+    this.latitude = 0.0,
+    this.longitude = 0.0,
+    this.deliveryLocation,
   });
 
   ShoppingRequest copyWith({
@@ -100,6 +103,7 @@ class ShoppingRequest {
     double? approximateDistance,
     double? latitude,
     double? longitude,
+    DeliveryLocation? deliveryLocation,
   }) {
     return ShoppingRequest(
       id: id ?? this.id,
@@ -115,6 +119,7 @@ class ShoppingRequest {
       approximateDistance: approximateDistance ?? this.approximateDistance,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
+      deliveryLocation: deliveryLocation ?? this.deliveryLocation,
     );
   }
 }

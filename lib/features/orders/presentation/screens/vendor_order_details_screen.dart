@@ -1,3 +1,5 @@
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -184,6 +186,111 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 24),
 
+                  Text('Delivery & Export Tools', style: AppTextStyles.h2(primaryText)),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (activeOrder.customerLatitude != 0.0 && activeOrder.customerLongitude != 0.0)
+                          ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue.shade600,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              minimumSize: const Size(double.infinity, 45),
+                              elevation: 0,
+                            ),
+                            icon: const Icon(Icons.navigation_rounded),
+                            label: const Text('Open Google Maps Navigation'),
+                            onPressed: () => _launchMaps(
+                              activeOrder.customerLatitude,
+                              activeOrder.customerLongitude,
+                              context,
+                            ),
+                          ),
+                        if (activeOrder.customerLatitude == 0.0 || activeOrder.customerLongitude == 0.0)
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.orange.withOpacity(0.2)),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.info_outline, color: Colors.orange, size: 18),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'GPS coordinates not available. Customer entered location manually.',
+                                    style: TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.w500),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(color: AppColors.vendorColor),
+                                  foregroundColor: AppColors.vendorColor,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  minimumSize: const Size(0, 45),
+                                ),
+                                icon: const Icon(Icons.share_rounded, size: 18),
+                                label: const Text('Share Rider Info', style: TextStyle(fontSize: 12)),
+                                onPressed: () {
+                                  final text = _generateRiderShareText(activeOrder);
+                                  Clipboard.setData(ClipboardData(text: text));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Rider delivery info copied to Clipboard!'),
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  side: BorderSide(color: AppColors.vendorColor),
+                                  foregroundColor: AppColors.vendorColor,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  minimumSize: const Size(0, 45),
+                                ),
+                                icon: const Icon(Icons.receipt_long_rounded, size: 18),
+                                label: const Text('Export Invoice', style: TextStyle(fontSize: 12)),
+                                onPressed: () {
+                                  final text = _generateInvoiceText(activeOrder);
+                                  Clipboard.setData(ClipboardData(text: text));
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Full structured invoice copied to Clipboard!'),
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
                   // Ordered Items
                   Text('Items for Preparation', style: AppTextStyles.h2(primaryText)),
                   const SizedBox(height: 12),
@@ -314,4 +421,61 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+Future<void> _launchMaps(double lat, double lng, BuildContext context) async {
+  final Uri url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+  if (await canLaunchUrl(url)) {
+    await launchUrl(url, mode: LaunchMode.externalApplication);
+  } else {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open Google Maps. Copying coordinates instead.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+}
+
+String _generateInvoiceText(OrderModel order) {
+  final buffer = StringBuffer();
+  buffer.writeln('========================================');
+  buffer.writeln('SPEEDMART LANKA - VENDOR INVOICE');
+  buffer.writeln('========================================');
+  buffer.writeln('Order ID:       ${order.id}');
+  buffer.writeln('Order Date:     ${order.createdAt.toLocal().toString().split('.')[0]}');
+  buffer.writeln('Payment Method: ${order.paymentMethod.displayName}');
+  buffer.writeln('Payment Status: ${order.paymentStatus.name.toUpperCase()}');
+  buffer.writeln('----------------------------------------');
+  buffer.writeln('CUSTOMER DETAILS:');
+  buffer.writeln('Name:           ${order.customerName}');
+  buffer.writeln('Phone:          ${order.customerPhone}');
+  buffer.writeln('Address:        ${order.deliveryAddress}');
+  buffer.writeln('----------------------------------------');
+  buffer.writeln('ITEMS:');
+  for (final item in order.items) {
+    if (item.status == ProposalItemStatus.unavailable) continue;
+    final name = item.status == ProposalItemStatus.alternative
+        ? '${item.alternativeName} (Alternative)'
+        : item.requestItemName;
+    buffer.writeln('- $name x ${item.quantity}: Rs. ${item.totalPrice.toStringAsFixed(2)}');
+  }
+  buffer.writeln('----------------------------------------');
+  buffer.writeln('Delivery Charge: Rs. ${order.deliveryCharge.toStringAsFixed(2)}');
+  buffer.writeln('TOTAL REVENUE:   Rs. ${order.totalPrice.toStringAsFixed(2)}');
+  buffer.writeln('========================================');
+  return buffer.toString();
+}
+
+String _generateRiderShareText(OrderModel order) {
+  return '''
+🛵 SPEEDMART LANKA DELIVERY RIDER INFO 🛵
+Order ID: ${order.id}
+Customer Name: ${order.customerName}
+Phone: ${order.customerPhone}
+Address: ${order.deliveryAddress}
+Navigate: https://www.google.com/maps/search/?api=1&query=${order.customerLatitude},${order.customerLongitude}
+''';
 }

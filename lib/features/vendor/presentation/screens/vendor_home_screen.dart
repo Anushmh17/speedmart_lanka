@@ -16,6 +16,7 @@ import '../../../orders/models/order_model.dart';
 import '../../../orders/providers/order_provider.dart';
 import '../../../shared/presentation/screens/profile_screen.dart';
 import '../../../../core/widgets/shared_floating_bottom_nav.dart';
+import '../../../../core/navigation/bottom_nav_visibility.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart' as ph;
 
@@ -28,6 +29,10 @@ class VendorHomeScreen extends ConsumerStatefulWidget {
 
 class _VendorHomeScreenState extends ConsumerState<VendorHomeScreen> {
   int _currentIndex = 0;
+
+  void _switchTab(int index) {
+    setState(() => _currentIndex = index);
+  }
 
   @override
   void initState() {
@@ -45,6 +50,9 @@ class _VendorHomeScreenState extends ConsumerState<VendorHomeScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final user = ref.watch(currentUserProvider);
     final isPending = user?.vendorApproved == false;
+
+    // Watch central bottom navigation visibility provider
+    final showBottomNav = ref.watch(bottomNavVisibilityProvider);
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
@@ -85,40 +93,41 @@ class _VendorHomeScreenState extends ConsumerState<VendorHomeScreen> {
                 const ProfileScreen(),
               ],
             ),
-      bottomNavigationBar: isPending
-          ? null
-          : SharedFloatingBottomNav(
-              currentIndex: _currentIndex,
-              onTap: (index) => setState(() => _currentIndex = index),
-              activeColor: AppColors.vendorColor,
-              items: const [
-                SharedFloatingBottomNavItem(
-                  unselectedIcon: Icons.dashboard_outlined,
-                  selectedIcon: Icons.dashboard_rounded,
-                  label: 'Dashboard',
-                ),
-                SharedFloatingBottomNavItem(
-                  unselectedIcon: Icons.inbox_outlined,
-                  selectedIcon: Icons.inbox_rounded,
-                  label: 'Requests',
-                ),
-                SharedFloatingBottomNavItem(
-                  unselectedIcon: Icons.assignment_outlined,
-                  selectedIcon: Icons.assignment_rounded,
-                  label: 'Proposals',
-                ),
-                SharedFloatingBottomNavItem(
-                  unselectedIcon: Icons.account_balance_wallet_outlined,
-                  selectedIcon: Icons.account_balance_wallet_rounded,
-                  label: 'Earnings',
-                ),
-                SharedFloatingBottomNavItem(
-                  unselectedIcon: Icons.person_outline_rounded,
-                  selectedIcon: Icons.person_rounded,
-                  label: 'Profile',
-                ),
-              ],
+      bottomNavigationBar: AnimatedBottomNavWrapper(
+        visible: !isPending && showBottomNav,
+        child: SharedFloatingBottomNav(
+          currentIndex: _currentIndex,
+          onTap: _switchTab,
+          activeColor: AppColors.vendorColor,
+          items: const [
+            SharedFloatingBottomNavItem(
+              unselectedIcon: Icons.dashboard_outlined,
+              selectedIcon: Icons.dashboard_rounded,
+              label: 'Dashboard',
             ),
+            SharedFloatingBottomNavItem(
+              unselectedIcon: Icons.inbox_outlined,
+              selectedIcon: Icons.inbox_rounded,
+              label: 'Requests',
+            ),
+            SharedFloatingBottomNavItem(
+              unselectedIcon: Icons.assignment_outlined,
+              selectedIcon: Icons.assignment_rounded,
+              label: 'Proposals',
+            ),
+            SharedFloatingBottomNavItem(
+              unselectedIcon: Icons.account_balance_wallet_outlined,
+              selectedIcon: Icons.account_balance_wallet_rounded,
+              label: 'Earnings',
+            ),
+            SharedFloatingBottomNavItem(
+              unselectedIcon: Icons.person_outline_rounded,
+              selectedIcon: Icons.person_rounded,
+              label: 'Profile',
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

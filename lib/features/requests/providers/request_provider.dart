@@ -4,6 +4,7 @@ import '../../auth/providers/auth_provider.dart';
 import '../data/mock_request_repository.dart';
 import '../models/request_item.dart';
 import '../models/shopping_request.dart';
+import '../../location/models/delivery_location.dart';
 
 class RequestState {
   final bool isLoading;
@@ -124,6 +125,7 @@ class RequestNotifier extends StateNotifier<RequestState> {
     required String deliveryAddress,
     required double latitude,
     required double longitude,
+    DeliveryLocation? deliveryLocation,
   }) async {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
@@ -137,6 +139,7 @@ class RequestNotifier extends StateNotifier<RequestState> {
         deliveryAddress: deliveryAddress,
         latitude: latitude,
         longitude: longitude,
+        deliveryLocation: deliveryLocation,
       );
       state = state.copyWith(
         isLoading: false,

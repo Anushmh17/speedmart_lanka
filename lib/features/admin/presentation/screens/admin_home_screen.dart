@@ -14,6 +14,7 @@ import '../../../orders/models/order_model.dart';
 import '../../../orders/providers/order_provider.dart';
 import '../../providers/admin_provider.dart';
 import '../../../../core/widgets/shared_floating_bottom_nav.dart';
+import '../../../../core/navigation/bottom_nav_visibility.dart';
 
 class AdminHomeScreen extends ConsumerStatefulWidget {
   const AdminHomeScreen({super.key});
@@ -44,6 +45,7 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final showBottomNav = ref.watch(bottomNavVisibilityProvider);
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
@@ -79,37 +81,40 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
           _PlatformSettingsTab(isDark: isDark),
         ],
       ),
-      bottomNavigationBar: SharedFloatingBottomNav(
-        currentIndex: _currentIndex,
-        onTap: _switchTab,
-        activeColor: AppColors.adminColor,
-        items: const [
-          SharedFloatingBottomNavItem(
-            unselectedIcon: Icons.dashboard_outlined,
-            selectedIcon: Icons.dashboard_rounded,
-            label: 'Dashboard',
-          ),
-          SharedFloatingBottomNavItem(
-            unselectedIcon: Icons.verified_user_outlined,
-            selectedIcon: Icons.verified_user_rounded,
-            label: 'Vendors',
-          ),
-          SharedFloatingBottomNavItem(
-            unselectedIcon: Icons.people_outline_rounded,
-            selectedIcon: Icons.people_rounded,
-            label: 'Users',
-          ),
-          SharedFloatingBottomNavItem(
-            unselectedIcon: Icons.receipt_long_outlined,
-            selectedIcon: Icons.receipt_long_rounded,
-            label: 'Orders',
-          ),
-          SharedFloatingBottomNavItem(
-            unselectedIcon: Icons.settings_outlined,
-            selectedIcon: Icons.settings_rounded,
-            label: 'Settings',
-          ),
-        ],
+      bottomNavigationBar: AnimatedBottomNavWrapper(
+        visible: showBottomNav,
+        child: SharedFloatingBottomNav(
+          currentIndex: _currentIndex,
+          onTap: _switchTab,
+          activeColor: AppColors.adminColor,
+          items: const [
+            SharedFloatingBottomNavItem(
+              unselectedIcon: Icons.dashboard_outlined,
+              selectedIcon: Icons.dashboard_rounded,
+              label: 'Dashboard',
+            ),
+            SharedFloatingBottomNavItem(
+              unselectedIcon: Icons.verified_user_outlined,
+              selectedIcon: Icons.verified_user_rounded,
+              label: 'Vendors',
+            ),
+            SharedFloatingBottomNavItem(
+              unselectedIcon: Icons.people_outline_rounded,
+              selectedIcon: Icons.people_rounded,
+              label: 'Users',
+            ),
+            SharedFloatingBottomNavItem(
+              unselectedIcon: Icons.receipt_long_outlined,
+              selectedIcon: Icons.receipt_long_rounded,
+              label: 'Orders',
+            ),
+            SharedFloatingBottomNavItem(
+              unselectedIcon: Icons.settings_outlined,
+              selectedIcon: Icons.settings_rounded,
+              label: 'Settings',
+            ),
+          ],
+        ),
       ),
     );
   }

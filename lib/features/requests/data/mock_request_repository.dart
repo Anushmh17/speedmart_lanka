@@ -1,6 +1,8 @@
 import 'dart:math';
 import '../models/request_item.dart';
 import '../models/shopping_request.dart';
+import '../../location/models/delivery_location.dart';
+import '../../location/services/location_service.dart';
 
 class MockRequestRepository {
   static final MockRequestRepository instance = MockRequestRepository._();
@@ -15,13 +17,18 @@ class MockRequestRepository {
         customerId: 'cust-999',
         status: RequestStatus.submitted,
         createdAt: DateTime.now().subtract(const Duration(minutes: 15)),
-        customerArea: 'Colombo 05',
+        customerArea: 'Havelock Town',
         approximateDistance: 2.3,
         latitude: 6.8920,
         longitude: 79.8660,
         customerName: 'Chaminda Silva',
         customerPhone: '+94 77 123 4567',
         deliveryAddress: '12/A, Havelock Road, Colombo 05',
+        deliveryLocation: LocationService.reverseGeocode(
+          latitude: 6.8920,
+          longitude: 79.8660,
+          streetAddress: '12/A, Havelock Road, Colombo 05',
+        ),
         items: [
           RequestItem(
             id: 'item-101',
@@ -59,6 +66,11 @@ class MockRequestRepository {
         customerName: 'Rukshan Perera',
         customerPhone: '+94 71 987 6543',
         deliveryAddress: '45/2, Hill Street, Dehiwala',
+        deliveryLocation: LocationService.reverseGeocode(
+          latitude: 6.8388,
+          longitude: 79.8767,
+          streetAddress: '45/2, Hill Street, Dehiwala',
+        ),
         items: [
           RequestItem(
             id: 'item-201',
@@ -89,6 +101,11 @@ class MockRequestRepository {
         customerName: 'Nimal Siriwardena',
         customerPhone: '+94 72 444 5555',
         deliveryAddress: '102 High Level Rd, Nugegoda',
+        deliveryLocation: LocationService.reverseGeocode(
+          latitude: 6.8745,
+          longitude: 79.8890,
+          streetAddress: '102 High Level Rd, Nugegoda',
+        ),
         items: [
           RequestItem(
             id: 'item-301',
@@ -153,21 +170,28 @@ class MockRequestRepository {
     required String deliveryAddress,
     required double latitude,
     required double longitude,
+    DeliveryLocation? deliveryLocation,
   }) async {
     await Future.delayed(const Duration(milliseconds: 1000));
+    final resolvedLocation = deliveryLocation ?? LocationService.reverseGeocode(
+      latitude: latitude,
+      longitude: longitude,
+      streetAddress: deliveryAddress,
+    );
     final newRequest = ShoppingRequest(
       id: 'REQ-${Random().nextInt(90000) + 10000}',
       customerId: customerId,
       items: items,
       status: RequestStatus.submitted,
       createdAt: DateTime.now(),
-      customerArea: customerArea,
-      deliveryAddress: deliveryAddress,
+      customerArea: resolvedLocation.suburb,
+      deliveryAddress: resolvedLocation.streetAddress,
       customerPhone: '+94 77 999 8888',
       customerName: 'Anush Hewage',
       approximateDistance: 1.5,
-      latitude: latitude,
-      longitude: longitude,
+      latitude: resolvedLocation.latitude ?? 0.0,
+      longitude: resolvedLocation.longitude ?? 0.0,
+      deliveryLocation: resolvedLocation,
     );
     _requests.insert(0, newRequest);
     return newRequest;

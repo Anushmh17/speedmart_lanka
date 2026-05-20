@@ -20,9 +20,33 @@ import '../../features/vendor/presentation/screens/vendor_home_screen.dart';
 import '../../features/vendor/presentation/screens/vendor_shopfront_screen.dart';
 import '../../features/chat/presentation/screens/chat_screen.dart';
 import '../../features/admin/presentation/screens/admin_home_screen.dart';
+import '../../features/requests/presentation/screens/request_list_screen.dart';
+import '../../shared/presentation/screens/profile_screen.dart';
 import '../../features/auth/providers/auth_provider.dart';
 import '../../shared/models/user_role.dart';
 import 'route_names.dart';
+
+final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
+final shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
+
+/// Notifier to watch the current route location reactively.
+class RouteLocationNotifier extends Notifier<String> {
+  @override
+  String build() {
+    final router = ref.watch(appRouterProvider);
+    final listener = () {
+      state = router.routeInformationProvider.value.uri.toString();
+    };
+    router.routeInformationProvider.addListener(listener);
+    ref.onDispose(() => router.routeInformationProvider.removeListener(listener));
+    return router.routeInformationProvider.value.uri.toString();
+  }
+}
+
+/// Provider to watch the current route location reactively.
+final currentRouteLocationProvider = NotifierProvider<RouteLocationNotifier, String>(
+  RouteLocationNotifier.new,
+);
 
 /// GoRouter instance exposed as a Riverpod provider.
 /// Auth-based redirects are handled here — roles cannot access each other's routes.
@@ -34,6 +58,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   });
 
   return GoRouter(
+    navigatorKey: rootNavigatorKey,
     initialLocation: RouteNames.splash,
     refreshListenable: authNotifier,
     redirect: (context, state) {
@@ -100,17 +125,41 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
 
-      // ── Customer ─────────────────────────────────────────────────────────
-      GoRoute(
-        path: RouteNames.customerHome,
-        builder: (_, __) => const CustomerHomeScreen(),
+      // ── Customer Shell ───────────────────────────────────────────────────
+      ShellRoute(
+        navigatorKey: shellNavigatorKey,
+        builder: (context, state, child) {
+          return CustomerHomeScreen(child: child);
+        },
+        routes: [
+          GoRoute(
+            path: RouteNames.customerHome,
+            builder: (_, __) => const CustomerHomeTab(),
+          ),
+          GoRoute(
+            path: RouteNames.customerRequests,
+            builder: (_, __) => const RequestListScreen(),
+          ),
+          GoRoute(
+            path: RouteNames.customerOrders,
+            builder: (_, __) => const CustomerOrdersTab(),
+          ),
+          GoRoute(
+            path: RouteNames.customerProfile,
+            builder: (_, __) => const ProfileScreen(),
+          ),
+        ],
       ),
+
+      // ── Customer Full-Screen Workflows (Outside Shell) ───────────────────
       GoRoute(
         path: RouteNames.customerCreateRequest,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, __) => const CreateRequestScreen(),
       ),
       GoRoute(
         path: '/customer/proposals/detail',
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) {
           final extraMap = state.extra as Map<String, dynamic>;
           final proposal = extraMap['proposal'] as Proposal;
@@ -123,6 +172,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/customer/payment',
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) {
           final extraMap = state.extra as Map<String, dynamic>;
           final proposal = extraMap['proposal'] as Proposal;
@@ -135,6 +185,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/customer/orders/track',
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) {
           final order = state.extra as OrderModel;
           return OrderTrackingScreen(order: order);
@@ -142,6 +193,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/customer/vendor/shopfront',
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) {
           final extraMap = state.extra as Map<String, dynamic>;
           final vendorName = extraMap['vendorName'] as String;
@@ -154,6 +206,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: '/chat',
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) {
           final extraMap = state.extra as Map<String, dynamic>;
           final proposalId = extraMap['proposalId'] as String;
