@@ -10,25 +10,24 @@ import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/shared_floating_bottom_nav.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/providers/theme_provider.dart';
-import '../../../requests/presentation/screens/request_list_screen.dart';
+
 import '../../../requests/presentation/screens/request_details_screen.dart';
 import '../../../requests/providers/request_provider.dart';
 import '../../../requests/models/shopping_request.dart';
 import '../../../orders/models/order_model.dart';
 import '../../../orders/providers/order_provider.dart';
 import '../../../proposals/models/proposal.dart';
-import '../../../shared/presentation/screens/profile_screen.dart';
+
 
 class CustomerHomeScreen extends ConsumerStatefulWidget {
-  const CustomerHomeScreen({super.key});
+  final Widget child;
+  const CustomerHomeScreen({super.key, required this.child});
 
   @override
   ConsumerState<CustomerHomeScreen> createState() => _CustomerHomeScreenState();
 }
 
 class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
-  int _currentIndex = 0;
-
   @override
   void initState() {
     super.initState();
@@ -38,10 +37,40 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
     });
   }
 
+  /// List of routes where bottom navigation should be hidden
+  bool _shouldHideBottomNav(String location) {
+    // Full-screen workflows (outside shell) - use RouteNames constants
+    final fullScreenRoutes = [
+      RouteNames.customerCreateRequest,  // /customer/requests/create
+    ];
+
+    // Additional full-screen routes not in RouteNames
+    final additionalRoutes = [
+      '/customer/payment',
+      '/customer/orders/track',
+      '/customer/proposals/detail',
+      '/customer/vendor/shopfront',
+      '/chat',
+    ];
+
+    return (fullScreenRoutes + additionalRoutes).any((route) => location.startsWith(route));
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final user = ref.watch(currentUserProvider);
+
+    final location = GoRouterState.of(context).matchedLocation;
+    final hideBottomNav = _shouldHideBottomNav(location);
+
+    int currentIndex = 0;
+    if (location == RouteNames.customerRequests) {
+      currentIndex = 1;
+    } else if (location == RouteNames.customerOrders) {
+      currentIndex = 2;
+    } else if (location == RouteNames.customerProfile) {
+      currentIndex = 3;
+    }
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
@@ -77,64 +106,58 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: [
-          _HomeTab(
-            user: user,
-            isDark: isDark,
-            onViewAll: () => setState(() => _currentIndex = 1),
-            onSwitchTab: (index) => setState(() => _currentIndex = index),
-          ),
-          const RequestListScreen(),
-          _MyOrdersTab(isDark: isDark),
-          const ProfileScreen(),
-        ],
-      ),
-      bottomNavigationBar: SharedFloatingBottomNav(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        activeColor: AppColors.customerColor,
-        items: const [
-          SharedFloatingBottomNavItem(
-            unselectedIcon: Icons.grid_view_rounded,
-            selectedIcon: Icons.grid_view_rounded,
-            label: 'Home',
-          ),
-          SharedFloatingBottomNavItem(
-            unselectedIcon: Icons.list_alt_rounded,
-            selectedIcon: Icons.list_alt_rounded,
-            label: 'Lists',
-          ),
-          SharedFloatingBottomNavItem(
-            unselectedIcon: Icons.shopping_bag_outlined,
-            selectedIcon: Icons.shopping_bag_rounded,
-            label: 'Orders',
-          ),
-          SharedFloatingBottomNavItem(
-            unselectedIcon: Icons.person_outline_rounded,
-            selectedIcon: Icons.person_rounded,
-            label: 'Profile',
-          ),
-        ],
-      ),
+      body: widget.child,
+      bottomNavigationBar: hideBottomNav
+          ? null
+          : SharedFloatingBottomNav(
+              currentIndex: currentIndex,
+              onTap: (index) {
+                switch (index) {
+                  case 0:
+                    context.go(RouteNames.customerHome);
+                    break;
+                  case 1:
+                    context.go(RouteNames.customerRequests);
+                    break;
+                  case 2:
+                    context.go(RouteNames.customerOrders);
+                    break;
+                  case 3:
+                    context.go(RouteNames.customerProfile);
+                    break;
+                }
+              },
+              activeColor: AppColors.customerColor,
+              items: const [
+                SharedFloatingBottomNavItem(
+                  unselectedIcon: Icons.grid_view_rounded,
+                  selectedIcon: Icons.grid_view_rounded,
+                  label: 'Home',
+                ),
+                SharedFloatingBottomNavItem(
+                  unselectedIcon: Icons.list_alt_rounded,
+                  selectedIcon: Icons.list_alt_rounded,
+                  label: 'Lists',
+                ),
+                SharedFloatingBottomNavItem(
+                  unselectedIcon: Icons.shopping_bag_outlined,
+                  selectedIcon: Icons.shopping_bag_rounded,
+                  label: 'Orders',
+                ),
+                SharedFloatingBottomNavItem(
+                  unselectedIcon: Icons.person_outline_rounded,
+                  selectedIcon: Icons.person_rounded,
+                  label: 'Profile',
+                ),
+              ],
+            ),
     );
   }
 }
 
 // ── Home Tab ──────────────────────────────────────────────────────────────
-class _HomeTab extends ConsumerWidget {
-  const _HomeTab({
-    required this.user,
-    required this.isDark,
-    required this.onViewAll,
-    required this.onSwitchTab,
-  });
-
-  final dynamic user;
-  final bool isDark;
-  final VoidCallback onViewAll;
-  final ValueChanged<int> onSwitchTab;
+class CustomerHomeTab extends ConsumerWidget {
+  const CustomerHomeTab({super.key});
 
   Widget _buildHeroStat(String label, String value, IconData icon, Color color, bool isDark) {
     return Column(
@@ -354,6 +377,8 @@ class _HomeTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(currentUserProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     
@@ -567,7 +592,7 @@ class _HomeTab extends ConsumerWidget {
                   'Track Orders',
                   Icons.local_shipping_rounded,
                   AppColors.info,
-                  () => onSwitchTab(2),
+                  () => context.go(RouteNames.customerOrders),
                   isDark,
                 ),
                 _buildQuickActionCard(
@@ -575,7 +600,7 @@ class _HomeTab extends ConsumerWidget {
                   'My Lists',
                   Icons.analytics_rounded,
                   AppColors.accent,
-                  () => onSwitchTab(1),
+                  () => context.go(RouteNames.customerRequests),
                   isDark,
                 ),
                 _buildQuickActionCard(
@@ -609,7 +634,7 @@ class _HomeTab extends ConsumerWidget {
               Text('Recent Activity', style: AppTextStyles.h2(primaryText)),
               if (requestState.requests.isNotEmpty)
                 TextButton(
-                  onPressed: onViewAll,
+                  onPressed: () => context.go(RouteNames.customerRequests),
                   child: Row(
                     children: [
                       Text(
@@ -794,12 +819,12 @@ class _HomeTab extends ConsumerWidget {
 }
 
 // ── Customer Orders Tab ──────────────────────────────────────────────────
-class _MyOrdersTab extends ConsumerWidget {
-  const _MyOrdersTab({required this.isDark});
-  final bool isDark;
+class CustomerOrdersTab extends ConsumerWidget {
+  const CustomerOrdersTab({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
