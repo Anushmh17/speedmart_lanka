@@ -1,0 +1,222 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../features/auth/domain/auth_state.dart';
+import '../../features/auth/presentation/screens/splash_screen.dart';
+import '../../features/auth/presentation/screens/role_selection_screen.dart';
+import '../../features/auth/presentation/screens/login_screen.dart';
+import '../../features/auth/presentation/screens/register_screen.dart';
+import '../../features/customer/presentation/screens/customer_home_screen.dart';
+import '../../features/requests/presentation/screens/create_request_screen.dart';
+import '../../features/requests/models/shopping_request.dart';
+import '../../features/proposals/models/proposal.dart';
+import '../../features/proposals/presentation/screens/customer_proposal_details_screen.dart';
+import '../../features/proposals/presentation/screens/proposal_create_screen.dart';
+import '../../features/payments/presentation/screens/payment_screen.dart';
+import '../../features/orders/models/order_model.dart';
+import '../../features/orders/presentation/screens/order_tracking_screen.dart';
+import '../../features/orders/presentation/screens/vendor_order_details_screen.dart';
+import '../../features/vendor/presentation/screens/vendor_home_screen.dart';
+import '../../features/vendor/presentation/screens/vendor_shopfront_screen.dart';
+import '../../features/chat/presentation/screens/chat_screen.dart';
+import '../../features/admin/presentation/screens/admin_home_screen.dart';
+import '../../features/auth/providers/auth_provider.dart';
+import '../../shared/models/user_role.dart';
+import 'route_names.dart';
+
+/// GoRouter instance exposed as a Riverpod provider.
+/// Auth-based redirects are handled here — roles cannot access each other's routes.
+final appRouterProvider = Provider<GoRouter>((ref) {
+  final authNotifier = ValueNotifier<AuthState>(const AuthState.initial());
+
+  ref.listen<AuthState>(authProvider, (_, next) {
+    authNotifier.value = next;
+  });
+
+  return GoRouter(
+    initialLocation: RouteNames.splash,
+    refreshListenable: authNotifier,
+    redirect: (context, state) {
+      final auth = authNotifier.value;
+
+      // While loading, stay on splash
+      if (auth.isLoading) return RouteNames.splash;
+
+      final location = state.matchedLocation;
+      final isOnAuthRoute = location == RouteNames.splash ||
+          location == RouteNames.roleSelection ||
+          location == RouteNames.login ||
+          location == RouteNames.register;
+
+      // Not authenticated → send to role selection
+      if (!auth.isAuthenticated) {
+        if (isOnAuthRoute) return null;
+        return RouteNames.roleSelection;
+      }
+
+      // Authenticated → prevent going back to auth screens
+      if (isOnAuthRoute) {
+        return _homeForRole(auth.user!.role);
+      }
+
+      // Role-based access guard
+      final role = auth.user!.role;
+      if (location.startsWith('/customer') && role != UserRole.customer) {
+        return _homeForRole(role);
+      }
+      if (location.startsWith('/vendor') && role != UserRole.vendor) {
+        return _homeForRole(role);
+      }
+      if (location.startsWith('/admin') && role != UserRole.admin) {
+        return _homeForRole(role);
+      }
+
+      return null;
+    },
+    routes: [
+      // ── Core ─────────────────────────────────────────────────────────────
+      GoRoute(
+        path: RouteNames.splash,
+        builder: (_, __) => const SplashScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.roleSelection,
+        builder: (_, __) => const RoleSelectionScreen(),
+      ),
+
+      // ── Auth ─────────────────────────────────────────────────────────────
+      GoRoute(
+        path: RouteNames.login,
+        builder: (_, state) {
+          final role = state.extra as UserRole? ?? UserRole.customer;
+          return LoginScreen(role: role);
+        },
+      ),
+      GoRoute(
+        path: RouteNames.register,
+        builder: (_, state) {
+          final role = state.extra as UserRole? ?? UserRole.customer;
+          return RegisterScreen(role: role);
+        },
+      ),
+
+      // ── Customer ─────────────────────────────────────────────────────────
+      GoRoute(
+        path: RouteNames.customerHome,
+        builder: (_, __) => const CustomerHomeScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.customerCreateRequest,
+        builder: (_, __) => const CreateRequestScreen(),
+      ),
+      GoRoute(
+        path: '/customer/proposals/detail',
+        builder: (_, state) {
+          final extraMap = state.extra as Map<String, dynamic>;
+          final proposal = extraMap['proposal'] as Proposal;
+          final requestId = extraMap['requestId'] as String;
+          return CustomerProposalDetailsScreen(
+            proposal: proposal,
+            requestId: requestId,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/customer/payment',
+        builder: (_, state) {
+          final extraMap = state.extra as Map<String, dynamic>;
+          final proposal = extraMap['proposal'] as Proposal;
+          final requestId = extraMap['requestId'] as String;
+          return PaymentScreen(
+            proposal: proposal,
+            requestId: requestId,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/customer/orders/track',
+        builder: (_, state) {
+          final order = state.extra as OrderModel;
+          return OrderTrackingScreen(order: order);
+        },
+      ),
+      GoRoute(
+        path: '/customer/vendor/shopfront',
+        builder: (_, state) {
+          final extraMap = state.extra as Map<String, dynamic>;
+          final vendorName = extraMap['vendorName'] as String;
+          final vendorPhone = extraMap['vendorPhone'] as String;
+          return VendorShopfrontScreen(
+            vendorName: vendorName,
+            vendorPhone: vendorPhone,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/chat',
+        builder: (_, state) {
+          final extraMap = state.extra as Map<String, dynamic>;
+          final proposalId = extraMap['proposalId'] as String;
+          final vendorName = extraMap['vendorName'] as String;
+          final isUnlocked = extraMap['isUnlocked'] as bool;
+          return ChatScreen(
+            proposalId: proposalId,
+            vendorName: vendorName,
+            isUnlocked: isUnlocked,
+          );
+        },
+      ),
+
+      // ── Vendor ───────────────────────────────────────────────────────────
+      GoRoute(
+        path: RouteNames.vendorHome,
+        builder: (_, __) => const VendorHomeScreen(),
+      ),
+      GoRoute(
+        path: '/vendor/proposals/create',
+        builder: (_, state) {
+          final request = state.extra as ShoppingRequest;
+          return ProposalCreateScreen(request: request);
+        },
+      ),
+      GoRoute(
+        path: '/vendor/orders/manage',
+        builder: (_, state) {
+          final order = state.extra as OrderModel;
+          return VendorOrderDetailsScreen(order: order);
+        },
+      ),
+
+      // ── Admin ─────────────────────────────────────────────────────────────
+      GoRoute(
+        path: RouteNames.adminDashboard,
+        builder: (_, __) => const AdminHomeScreen(),
+      ),
+    ],
+    errorBuilder: (context, state) => Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline_rounded, size: 48, color: Colors.red),
+            const SizedBox(height: 16),
+            Text('Page not found: ${state.matchedLocation}'),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: () => context.go(RouteNames.splash),
+              child: const Text('Go Home'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+});
+
+String _homeForRole(UserRole role) {
+  switch (role) {
+    case UserRole.customer: return RouteNames.customerHome;
+    case UserRole.vendor:   return RouteNames.vendorHome;
+    case UserRole.admin:    return RouteNames.adminDashboard;
+  }
+}
