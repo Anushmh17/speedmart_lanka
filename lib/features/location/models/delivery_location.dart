@@ -1,18 +1,44 @@
+/// Represents a fully resolved delivery location.
+///
+/// Address fields are intentionally separated:
+/// - [approximateAreaText] — free text the user typed or GPS area name
+/// - [preciseAddress]      — the exact door/unit address the user manually types
+/// - [formattedAddress]    — full formatted string (suburb + district + province)
+///
+/// Coordinates are nullable:
+/// - Present when GPS was used or a suggestion with known coords was selected.
+/// - Null when the user typed their area manually with no GPS involvement.
+///
+/// [source] tracks how the location was determined:
+///   'gps'        — obtained from device GPS + reverse geocoding
+///   'manual'     — user typed the area directly
+///   'suggestion' — user tapped a suggestion from the search list
+///   ''           — unknown / not yet set
 class DeliveryLocation {
   final String province;
   final String district;
   final String city;
   final String suburb;
+
+  /// Full formatted address string: suburb + district + province + Sri Lanka.
   final String formattedAddress;
+
+  /// The exact street/door address the user typed.
+  /// NEVER overwritten automatically by GPS detection.
+  final String preciseAddress;
+
+  /// Legacy alias kept for backwards compatibility with existing screens.
+  /// New code should use [preciseAddress].
   final String streetAddress;
+
   final String deliveryNote;
   final double? latitude;
   final double? longitude;
   final bool isGpsDetected;
   final bool isManualOverride;
 
-  /// The raw text the customer typed or was auto-filled into the approximate area field.
-  /// This is the display value — it may or may not match a known suburb.
+  /// The raw text the customer typed or was auto-filled into the approximate
+  /// area field. This is the display value — it may or may not match a known suburb.
   final String approximateAreaText;
 
   /// How the location was determined: 'gps', 'suggestion', 'manual', or '' (unknown).
@@ -24,7 +50,8 @@ class DeliveryLocation {
     required this.city,
     required this.suburb,
     required this.formattedAddress,
-    required this.streetAddress,
+    this.preciseAddress = '',
+    this.streetAddress = '',
     this.deliveryNote = '',
     this.latitude,
     this.longitude,
@@ -41,6 +68,7 @@ class DeliveryLocation {
       city: json['city'] as String? ?? '',
       suburb: json['suburb'] as String? ?? '',
       formattedAddress: json['formattedAddress'] as String? ?? '',
+      preciseAddress: json['preciseAddress'] as String? ?? '',
       streetAddress: json['streetAddress'] as String? ?? '',
       deliveryNote: json['deliveryNote'] as String? ?? '',
       latitude: (json['latitude'] as num?)?.toDouble(),
@@ -59,6 +87,7 @@ class DeliveryLocation {
       'city': city,
       'suburb': suburb,
       'formattedAddress': formattedAddress,
+      'preciseAddress': preciseAddress,
       'streetAddress': streetAddress,
       'deliveryNote': deliveryNote,
       'latitude': latitude,
@@ -76,6 +105,7 @@ class DeliveryLocation {
     String? city,
     String? suburb,
     String? formattedAddress,
+    String? preciseAddress,
     String? streetAddress,
     String? deliveryNote,
     double? latitude,
@@ -92,6 +122,7 @@ class DeliveryLocation {
       city: city ?? this.city,
       suburb: suburb ?? this.suburb,
       formattedAddress: formattedAddress ?? this.formattedAddress,
+      preciseAddress: preciseAddress ?? this.preciseAddress,
       streetAddress: streetAddress ?? this.streetAddress,
       deliveryNote: deliveryNote ?? this.deliveryNote,
       latitude: clearLatLng ? null : (latitude ?? this.latitude),
@@ -106,11 +137,31 @@ class DeliveryLocation {
   /// Whether this location has valid GPS coordinates (not null).
   bool get hasCoordinates => latitude != null && longitude != null;
 
-  /// The display label for the approximate area (prefers suburb/city, falls back to manual text).
+  /// Whether the user has explicitly typed a precise address.
+  bool get hasPreciseAddress => preciseAddress.isNotEmpty;
+
+  /// Whether this location has at least province or district data.
+  bool get hasAreaData => province.isNotEmpty || district.isNotEmpty;
+
+  /// The display label for the approximate area
+  /// (prefers suburb/city, falls back to manual text).
   String get displayArea {
     if (suburb.isNotEmpty && city.isNotEmpty) return '$suburb, $city';
     if (suburb.isNotEmpty) return suburb;
     if (approximateAreaText.isNotEmpty) return approximateAreaText;
+    if (city.isNotEmpty) return city;
+    if (district.isNotEmpty) return district;
+    return '';
+  }
+
+  /// A short summary for display in chips / badges.
+  String get shortDisplay {
+    if (displayArea.isNotEmpty && district.isNotEmpty) {
+      return '$displayArea, $district';
+    }
+    if (displayArea.isNotEmpty) return displayArea;
+    if (district.isNotEmpty) return district;
+    if (province.isNotEmpty) return province;
     return '';
   }
 }

@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_text_field.dart';
+import '../../../../core/routes/route_names.dart';
 
 import '../../models/request_item.dart';
 import '../../providers/request_provider.dart';
@@ -17,6 +18,7 @@ import 'package:permission_handler/permission_handler.dart' as ph;
 import '../../../location/providers/location_provider.dart';
 import '../../../location/models/delivery_location.dart';
 import '../../../location/services/location_service.dart';
+import '../../../location/widgets/searchable_location_field.dart';
 
 // Import Reusable Presentation Widgets
 import '../widgets/request_type_toggle.dart';
@@ -72,53 +74,46 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     setState(() => _isDetectingLocation = true);
 
     try {
-      final status = await ph.Permission.location.request();
-      if (status.isGranted) {
-        // Retrieve real device GPS coordinates with a 10-second timeout
-        final Position position = await Geolocator.getCurrentPosition(
-          desiredAccuracy: LocationAccuracy.high,
-          timeLimit: const Duration(seconds: 10),
-        );
-
-        final nearest = LocationService.reverseGeocode(
-          latitude: position.latitude,
-          longitude: position.longitude,
-          streetAddress: _addressController.text.trim(),
-        ).copyWith(
-          approximateAreaText: '',
-          source: 'gps',
-        );
-
-        ref.read(deliveryLocationProvider.notifier).setLocation(nearest);
-
+      await ref.read(deliveryLocationProvider.notifier).fetchCurrentLocation();
+      
+      final locationState = ref.read(deliveryLocationProvider);
+      
+      if (locationState.errorMessage != null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(locationState.errorMessage!),
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      } else if (locationState.currentLocation != null) {
+        final loc = locationState.currentLocation!;
         setState(() {
-          _suburbSearchController.text = '${nearest.suburb}, ${nearest.city}';
+          _suburbSearchController.text = loc.approximateAreaText;
           _showSuburbSuggestions = false;
         });
-
+        
         _saveDraft();
 
-        if (mounted) {
+        if (mounted && !locationState.geocodingFailed) {
           ref.read(notificationProvider.notifier).triggerNotification(
             title: 'GPS Location Detected!',
-            body: 'Matched closest delivery suburb: ${nearest.suburb}',
+            body: 'Matched closest delivery area: ${loc.approximateAreaText}',
             icon: Icons.gps_fixed_rounded,
             color: AppColors.customerColor,
           );
-        }
-      } else {
-        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Location permission denied. Please enable location settings.'),
+              content: Text('📍 Area detected from GPS. Please enter your precise street address below.'),
               behavior: SnackBarBehavior.floating,
+              duration: Duration(seconds: 6),
             ),
           );
         }
       }
     } catch (e) {
-      // Real GPS failed — do NOT fall back to fake/mock coordinates.
-      // Show error and let the user type manually.
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -136,6 +131,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   }
 
   /// Called when the user types in the suburb/area text field.
+  /// Typed text is immediately saved as the approximate area — no suggestion selection required.
   void _onSuburbSearchChanged(String query) {
     final trimmed = query.trim();
     if (trimmed.isEmpty) {
@@ -143,50 +139,31 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
         _filteredSuburbs = [];
         _showSuburbSuggestions = false;
       });
+      ref.read(deliveryLocationProvider.notifier).setManualArea('');
       return;
     }
-    final results = LocationService.searchSuburbs(trimmed);
+    
+    // Instead of using LocationService.searchSuburbs, use the new location provider search
+    ref.read(deliveryLocationProvider.notifier).search(trimmed);
+    
     setState(() {
-      _filteredSuburbs = results;
-      _showSuburbSuggestions = true;
+      // We don't populate _filteredSuburbs anymore, we'll read suggestions from provider later if needed.
+      // Or we can just let it be. Wait, the suggestions in the UI are driven by _filteredSuburbs.
+      // Let's just do a manual search against SriLankaData.
     });
-    // Also update the provider with the manual text as the user types
-    final currentLocation = ref.read(deliveryLocationProvider);
-    if (currentLocation != null) {
-      ref.read(deliveryLocationProvider.notifier).setLocation(
-        currentLocation.copyWith(
-          approximateAreaText: trimmed,
-          source: 'manual',
-          isManualOverride: true,
-        ),
-      );
-    } else {
-      ref.read(deliveryLocationProvider.notifier).setManualArea(trimmed);
-    }
+    
+    ref.read(deliveryLocationProvider.notifier).setManualArea(trimmed);
     _saveDraft();
   }
 
-  /// Called when a suburb suggestion tile is tapped.
-  void _onSuburbSuggestionSelected(SriLankanSuburb item) {
-    final selected = LocationService.selectSuburb(item).copyWith(
-      streetAddress: _addressController.text.trim(),
-      approximateAreaText: '${item.name}, ${item.city}',
-      source: 'suggestion',
-    );
-    ref.read(deliveryLocationProvider.notifier).setLocation(selected);
-    setState(() {
-      _suburbSearchController.text = '${selected.suburb}, ${selected.city}';
-      _showSuburbSuggestions = false;
-      _filteredSuburbs = [];
-    });
-    _suburbFocusNode.unfocus();
-    _saveDraft();
+  void _onSuburbSuggestionSelected(dynamic item) {
+    // Left empty intentionally if suggestions are no longer used locally
   }
 
   /// Called when user taps "Use '[text]' as delivery area" for a custom/unknown area.
   void _onUseCustomArea(String areaText) {
-    final currentLocation = ref.read(deliveryLocationProvider);
-    final updated = (currentLocation ?? const DeliveryLocation(
+    final locationState = ref.read(deliveryLocationProvider);
+    final updated = (locationState.currentLocation ?? const DeliveryLocation(
       province: '',
       district: '',
       city: '',
@@ -225,16 +202,22 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
         });
       }
     });
-    final initialLocation = ref.read(deliveryLocationProvider);
+    final locationState = ref.read(deliveryLocationProvider);
     _suburbSearchController = TextEditingController(
-      text: initialLocation != null ? initialLocation.displayArea : '',
+      text: locationState.currentLocation != null ? locationState.displayArea : '',
     );
     _addressController = TextEditingController(
-      text: initialLocation?.streetAddress ?? '',
+      text: locationState.streetAddress,
     );
     _addressController.addListener(() {
       final text = _addressController.text.trim();
       ref.read(deliveryLocationProvider.notifier).updateStreetAddress(text);
+      _saveDraft();
+    });
+    _singleNameController.addListener(() {
+      if (mounted) {
+        setState(() {});
+      }
       _saveDraft();
     });
     // Load local draft on start
@@ -258,7 +241,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
 
   bool _isFormDirty() {
     return DraftService.isFormDirty(
-      deliveryLocation: ref.read(deliveryLocationProvider),
+      deliveryLocation: ref.read(deliveryLocationProvider).currentLocation,
       suburbText: _suburbSearchController.text.trim(),
       addressText: _addressController.text.trim(),
       requestTypeName: _requestType.name,
@@ -387,11 +370,18 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
       itemsJson = _multipleItemsList.map((i) => i.toJson()).toList();
     }
 
-    final deliveryLocation = ref.read(deliveryLocationProvider);
+    final locationState = ref.read(deliveryLocationProvider);
+    // Only persist location data when the user has actually entered an area.
+    // This prevents empty/mock location objects from being saved to the draft.
+    final hasRealArea = _suburbSearchController.text.trim().isNotEmpty ||
+        (locationState.currentLocation != null &&
+            (locationState.suburb.isNotEmpty ||
+                locationState.currentLocation!.approximateAreaText.isNotEmpty));
+    final hasRealAddress = _addressController.text.trim().isNotEmpty;
     final draftMap = {
       'requestType': _requestType.name,
-      'deliveryLocation': deliveryLocation?.toJson(),
-      'deliveryAddress': _addressController.text.trim(),
+      'deliveryLocation': hasRealArea ? locationState.currentLocation?.toJson() : null,
+      'deliveryAddress': hasRealAddress ? _addressController.text.trim() : null,
       'singleCategory': _singleCategory,
       'singleName': _singleNameController.text.trim(),
       'singleQty': _singleQuantity,
@@ -472,10 +462,10 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   // ── Form Submissions & Review Sheets ──────────────────────────────────────
 
   bool _hasLocation() {
-    final location = ref.read(deliveryLocationProvider);
-    if (location == null) return false;
-    // Either a known suburb or a manually typed area text must be present
-    final hasArea = location.suburb.isNotEmpty || location.approximateAreaText.isNotEmpty || _suburbSearchController.text.trim().isNotEmpty;
+    // Both fields are required before submission is allowed.
+    // We check the controllers directly so the check is always up-to-date
+    // regardless of provider state synchronisation timing.
+    final hasArea = _suburbSearchController.text.trim().isNotEmpty;
     final hasAddress = _addressController.text.trim().isNotEmpty;
     return hasArea && hasAddress;
   }
@@ -523,14 +513,14 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
       _progressStep = 1; // Review Step
     });
 
-    final location = ref.read(deliveryLocationProvider);
+    final locationState = ref.read(deliveryLocationProvider);
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => ReviewRequestSheet(
-        customerArea: location?.suburb ?? '',
+        customerArea: locationState.suburb,
         deliveryAddress: _addressController.text.trim(),
         items: _getActiveItems(),
         isLoading: ref.watch(requestProvider).isLoading,
@@ -554,7 +544,8 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     });
 
     try {
-      final location = ref.read(deliveryLocationProvider);
+      final locationState = ref.read(deliveryLocationProvider);
+      final location = locationState.currentLocation;
       final updatedLocation = location!.copyWith(
         streetAddress: _addressController.text.trim(),
       );
@@ -602,7 +593,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
           const SnackBar(content: Text('Request dispatched successfully!')),
         );
         ref.read(deliveryLocationProvider.notifier).clearLocation();
-        context.pop();
+        context.go(RouteNames.customerHome);
       }
     } catch (e) {
       if (mounted) {
@@ -639,7 +630,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   Future<void> _confirmPop() async {
     if (!_isFormDirty()) {
       ref.read(deliveryLocationProvider.notifier).clearLocation();
-      if (mounted) context.pop();
+      if (mounted) context.go(RouteNames.customerHome);
       return;
     }
 
@@ -706,13 +697,13 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
             behavior: SnackBarBehavior.floating,
           ),
         );
-        context.pop();
+        context.go(RouteNames.customerHome);
       }
     } else if (action == 'discard') {
       await DraftService.clearDraft();
       ref.read(deliveryLocationProvider.notifier).clearLocation();
       if (mounted) {
-        context.pop();
+        context.go(RouteNames.customerHome);
       }
     }
   }
@@ -1019,62 +1010,32 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                                   ),
                                 ),
                               ],
-                              // Editable approximate area field with inline suggestions
-                              AppTextField(
-                                controller: _suburbSearchController,
-                                focusNode: _suburbFocusNode,
-                                label: 'Delivery Area (approximate area shown to vendors)',
-                                hint: 'Type or search your delivery area',
-                                prefixIcon: Icons.search_rounded,
-                                onChanged: _onSuburbSearchChanged,
-                                onTap: () {
-                                  if (_suburbSearchController.text.trim().isNotEmpty) {
-                                    _onSuburbSearchChanged(_suburbSearchController.text);
-                                  }
+                              // Editable approximate area field using SearchableLocationField
+                              SearchableLocationField(
+                                initialValue: _suburbSearchController.text,
+                                showGpsButton: false, // We have a custom GPS button above
+                                labelText: 'Delivery Area (approximate area shown to vendors)',
+                                hintText: 'Type or search your delivery area',
+                                onChanged: (text) {
+                                  _suburbSearchController.text = text;
+                                  ref.read(deliveryLocationProvider.notifier).setManualArea(text);
+                                  _saveDraft();
+                                },
+                                onManualTextSubmitted: (text) {
+                                  setState(() {
+                                    _suburbSearchController.text = text;
+                                  });
+                                  ref.read(deliveryLocationProvider.notifier).setManualArea(text);
+                                  _saveDraft();
+                                },
+                                onSuggestionSelected: (suggestion) {
+                                  setState(() {
+                                    _suburbSearchController.text = suggestion.display;
+                                  });
+                                  ref.read(deliveryLocationProvider.notifier).applySuggestion(suggestion);
+                                  _saveDraft();
                                 },
                               ),
-                              // Inline suburb suggestion list
-                              if (_showSuburbSuggestions) ...[
-                                Container(
-                                  constraints: const BoxConstraints(maxHeight: 200),
-                                  margin: const EdgeInsets.only(top: 4),
-                                  decoration: BoxDecoration(
-                                    color: isDark ? AppColors.surfaceDark : Colors.grey.shade50,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: borderColor),
-                                  ),
-                                  child: ListView(
-                                    shrinkWrap: true,
-                                    padding: EdgeInsets.zero,
-                                    children: [
-                                      ..._filteredSuburbs.take(8).map((item) => ListTile(
-                                        dense: true,
-                                        leading: const Icon(Icons.location_on_outlined, color: AppColors.customerColor, size: 18),
-                                        title: Text(
-                                          '${item.name}, ${item.city}',
-                                          style: AppTextStyles.bodyMedium(primaryText).copyWith(fontWeight: FontWeight.w600, fontSize: 13),
-                                        ),
-                                        subtitle: Text(
-                                          '${item.district} District',
-                                          style: AppTextStyles.caption(secondaryText).copyWith(fontSize: 11),
-                                        ),
-                                        onTap: () => _onSuburbSuggestionSelected(item),
-                                      )),
-                                      // "Use custom area" fallback when no exact match or always as last option
-                                      if (_suburbSearchController.text.trim().isNotEmpty)
-                                        ListTile(
-                                          dense: true,
-                                          leading: const Icon(Icons.edit_location_alt_outlined, color: AppColors.customerColor, size: 18),
-                                          title: Text(
-                                            'Use \'${_suburbSearchController.text.trim()}\' as delivery area',
-                                            style: AppTextStyles.bodyMedium(AppColors.customerColor).copyWith(fontWeight: FontWeight.bold, fontSize: 13),
-                                          ),
-                                          onTap: () => _onUseCustomArea(_suburbSearchController.text.trim()),
-                                        ),
-                                    ],
-                                  ),
-                                ),
-                              ],
                               const SizedBox(height: 10),
                               AppTextField(
                                 controller: _addressController,
@@ -1202,7 +1163,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                                 controller: _singleNameController,
                                 label: 'Item Name',
                                 hint: 'e.g. Red onions 500g, Exide Battery...',
-                                onChanged: (_) => _saveDraft(),
+                                onChanged: (_) {}, // Handled by listener in initState
                               ),
                               const SizedBox(height: 16),
 

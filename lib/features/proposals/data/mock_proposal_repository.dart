@@ -4,47 +4,7 @@ import '../models/proposal.dart';
 class MockProposalRepository {
   static final MockProposalRepository instance = MockProposalRepository._();
   MockProposalRepository._() {
-    // Pre-populate a mock proposal for request REQ-87421 (milk request) so customers see it immediately
-    _proposals.add(
-      Proposal(
-        id: 'PROP-12093',
-        requestId: 'REQ-87421',
-        vendorId: 'vendor-123',
-        vendorBusinessName: 'Super Liyana Grocery', // This will be masked on the UI
-        deliveryCharge: 250.0,
-        estimatedDeliveryTime: 'Within 2 hours',
-        totalPrice: 1650.0, // (400 * 2) + 600 + 250
-        createdAt: DateTime.now().subtract(const Duration(minutes: 5)),
-        status: ProposalStatus.submitted,
-        vendorLatitude: 6.9145,
-        vendorLongitude: 79.8510,
-        items: [
-          ProposalItem(
-            requestItemId: 'item-101',
-            requestItemName: 'Keells Fresh Milk 1L',
-            quantity: 2,
-            status: ProposalItemStatus.available,
-            price: 400.0,
-            description: 'Anchor Fresh Milk available (same brand category). Expiry date: 28/05/2026',
-          ),
-          ProposalItem(
-            requestItemId: 'item-102',
-            requestItemName: 'Fortune Coconut Oil 1L',
-            quantity: 1,
-            status: ProposalItemStatus.available,
-            price: 600.0,
-          ),
-          ProposalItem(
-            requestItemId: 'item-103',
-            requestItemName: 'Harischandra Coffee 200g',
-            quantity: 1,
-            status: ProposalItemStatus.unavailable,
-            description: 'Currently out of stock.',
-          ),
-        ],
-        missingItemIds: ['item-103'],
-      ),
-    );
+    // Start with empty list to ensure no mock locations appear in the system.
   }
 
   final List<Proposal> _proposals = [];

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/routes/route_names.dart';
@@ -28,14 +29,78 @@ class CustomerHomeScreen extends ConsumerStatefulWidget {
   ConsumerState<CustomerHomeScreen> createState() => _CustomerHomeScreenState();
 }
 
-class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
+class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
+    with WidgetsBindingObserver {
+  DateTime? _lastBackPressTime;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     Future.microtask(() {
       ref.read(requestProvider.notifier).loadMyRequests();
       ref.read(orderProvider.notifier).loadCustomerOrders();
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Called by the system BEFORE GoRouter's back-button dispatcher.
+  /// Returning [true] consumes the event; [false] lets GoRouter handle it.
+  @override
+  Future<bool> didPopRoute() async {
+    if (!mounted) return false;
+
+    // Determine current location from GoRouter.
+    final String location;
+    try {
+      location = GoRouter.of(context)
+          .routeInformationProvider
+          .value
+          .uri
+          .path;
+    } catch (_) {
+      return false;
+    }
+
+    // Only intercept on customer shell tabs.
+    const customerTabs = {
+      '/customer',
+      '/customer/requests',
+      '/customer/orders',
+      '/customer/profile',
+    };
+    if (!customerTabs.contains(location)) return false;
+
+    // Non-home tab: go back to Home tab.
+    if (location != RouteNames.customerHome) {
+      context.go(RouteNames.customerHome);
+      return true;
+    }
+
+    // Home tab: double-back to exit.
+    final now = DateTime.now();
+    if (_lastBackPressTime == null ||
+        now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+      _lastBackPressTime = now;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Swipe back again to exit'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      return true; // consumed – do NOT exit
+    }
+
+    // Second press within 2 s → let the system exit.
+    return false;
   }
 
   @override
@@ -57,84 +122,93 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen> {
       currentIndex = 3;
     }
 
-    return Scaffold(
-      backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-      appBar: AppBar(
-        title: const AppBarLogo(),
-        backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: Icon(
-              isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-              color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
-            ),
-            onPressed: () => ref.read(themeProvider.notifier).toggleTheme(),
-          ),
-          IconButton(
-            icon: Badge(
-              smallSize: 8,
-              child: Icon(
-                Icons.notifications_outlined,
+    // PopScope(canPop: false) suppresses the Android 13 predictive-back
+    // swipe preview so the UI doesn't flash a "going back" animation.
+    // The actual double-back logic lives in didPopRoute() above.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        // didPopRoute() already handled this event.
+      },
+      child: Scaffold(
+        backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+        appBar: AppBar(
+          title: const AppBarLogo(),
+          backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+          elevation: 0,
+          actions: [
+            IconButton(
+              icon: Icon(
+                isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
                 color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
               ),
+              onPressed: () => ref.read(themeProvider.notifier).toggleTheme(),
             ),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Notifications are configured and ready.'),
-                  behavior: SnackBarBehavior.floating,
+            IconButton(
+              icon: Badge(
+                smallSize: 8,
+                child: Icon(
+                  Icons.notifications_outlined,
+                  color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
                 ),
-              );
-            },
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: widget.child,
-      bottomNavigationBar: AnimatedBottomNavWrapper(
-        visible: showBottomNav,
-        child: SharedFloatingBottomNav(
-          currentIndex: currentIndex,
-          onTap: (index) {
-            switch (index) {
-              case 0:
-                context.go(RouteNames.customerHome);
-                break;
-              case 1:
-                context.go(RouteNames.customerRequests);
-                break;
-              case 2:
-                context.go(RouteNames.customerOrders);
-                break;
-              case 3:
-                context.go(RouteNames.customerProfile);
-                break;
-            }
-          },
-          activeColor: AppColors.customerColor,
-          items: const [
-            SharedFloatingBottomNavItem(
-              unselectedIcon: Icons.grid_view_rounded,
-              selectedIcon: Icons.grid_view_rounded,
-              label: 'Home',
+              ),
+              onPressed: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Notifications are configured and ready.'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              },
             ),
-            SharedFloatingBottomNavItem(
-              unselectedIcon: Icons.list_alt_rounded,
-              selectedIcon: Icons.list_alt_rounded,
-              label: 'Lists',
-            ),
-            SharedFloatingBottomNavItem(
-              unselectedIcon: Icons.shopping_bag_outlined,
-              selectedIcon: Icons.shopping_bag_rounded,
-              label: 'Orders',
-            ),
-            SharedFloatingBottomNavItem(
-              unselectedIcon: Icons.person_outline_rounded,
-              selectedIcon: Icons.person_rounded,
-              label: 'Profile',
-            ),
+            const SizedBox(width: 8),
           ],
+        ),
+        body: widget.child,
+        bottomNavigationBar: AnimatedBottomNavWrapper(
+          visible: showBottomNav,
+          child: SharedFloatingBottomNav(
+            currentIndex: currentIndex,
+            onTap: (index) {
+              switch (index) {
+                case 0:
+                  context.go(RouteNames.customerHome);
+                  break;
+                case 1:
+                  context.go(RouteNames.customerRequests);
+                  break;
+                case 2:
+                  context.go(RouteNames.customerOrders);
+                  break;
+                case 3:
+                  context.go(RouteNames.customerProfile);
+                  break;
+              }
+            },
+            activeColor: AppColors.customerColor,
+            items: const [
+              SharedFloatingBottomNavItem(
+                unselectedIcon: Icons.grid_view_rounded,
+                selectedIcon: Icons.grid_view_rounded,
+                label: 'Home',
+              ),
+              SharedFloatingBottomNavItem(
+                unselectedIcon: Icons.list_alt_rounded,
+                selectedIcon: Icons.list_alt_rounded,
+                label: 'Lists',
+              ),
+              SharedFloatingBottomNavItem(
+                unselectedIcon: Icons.shopping_bag_outlined,
+                selectedIcon: Icons.shopping_bag_rounded,
+                label: 'Orders',
+              ),
+              SharedFloatingBottomNavItem(
+                unselectedIcon: Icons.person_outline_rounded,
+                selectedIcon: Icons.person_rounded,
+                label: 'Profile',
+              ),
+            ],
+          ),
         ),
       ),
     );
