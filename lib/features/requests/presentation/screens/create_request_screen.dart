@@ -15,10 +15,10 @@ import '../../../../core/providers/notification_provider.dart';
 
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart' as ph;
-import '../../../location/providers/location_provider.dart';
-import '../../../location/models/delivery_location.dart';
-import '../../../location/services/location_service.dart';
-import '../../../location/widgets/searchable_location_field.dart';
+import 'package:speedmart_lanka/features/location/providers/location_provider.dart';
+import 'package:speedmart_lanka/features/location/models/delivery_location.dart';
+import 'package:speedmart_lanka/features/location/services/location_service.dart';
+import 'package:speedmart_lanka/features/location/widgets/searchable_location_field.dart';
 
 // Import Reusable Presentation Widgets
 import '../widgets/request_type_toggle.dart';
@@ -29,6 +29,9 @@ import '../widgets/manual_add_sheet.dart';
 import '../widgets/shopping_list_builder.dart';
 import '../widgets/sticky_submit_bar.dart';
 import '../widgets/review_request_sheet.dart';
+import 'package:speedmart_lanka/features/requests/presentation/widgets/phone_verification_sheet.dart';
+import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
+import 'package:speedmart_lanka/features/requests/data/sri_lanka_delivery_detector.dart';
 
 
 
@@ -310,6 +313,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
           _restoreDraftState(draft);
         } else if (action == 'new' && mounted) {
           await DraftService.clearDraft();
+          if (!mounted) return;
           ref.read(deliveryLocationProvider.notifier).clearLocation();
           setState(() {
             _suburbSearchController.clear();
@@ -539,6 +543,32 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     final activeItems = _getActiveItems();
     if (activeItems.isEmpty || !_hasLocation()) return;
 
+    // ── Phone verification gatekeeping ──────────────────────────────────────
+    // International / country-override customers must verify a phone number
+    // before submitting shopping requests for Sri Lankan delivery addresses.
+    final currentUser = ref.read(currentUserProvider);
+    if (currentUser != null) {
+      final isInternational = currentUser.selectedCountry != 'LK';
+      final isOverride = currentUser.countryOverride == true ||
+          currentUser.riskFlag == 'country_mismatch';
+      final needsPhoneVerification = isInternational || isOverride;
+
+      if (needsPhoneVerification && currentUser.verifiedPhone != true) {
+        final locationState = ref.read(deliveryLocationProvider);
+        final isSriLankanDelivery =
+            SriLankaDeliveryDetector.isSriLankanDelivery(
+                locationState.currentLocation);
+
+        if (isSriLankanDelivery) {
+          // Block submission — show phone verification dialog
+          final verified = await _showPhoneVerificationGate();
+          if (!mounted) return; // widget may have been disposed during dialog
+          if (!verified) return; // User cancelled
+        }
+      }
+    }
+
+    if (!mounted) return;
     setState(() {
       _progressStep = 2; // Submitting step
     });
@@ -551,6 +581,12 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
       );
       ref.read(deliveryLocationProvider.notifier).setLocation(updatedLocation);
 
+      // Capture notifier reference before async gaps so the delayed
+      // callback remains valid even after the screen is disposed/navigated.
+      final notifNotifier = ref.read(notificationProvider.notifier);
+      final suburbName = updatedLocation.suburb;
+      final itemCount = activeItems.length;
+
       await ref.read(requestProvider.notifier).createRequest(
         items: activeItems,
         customerArea: updatedLocation.suburb.isNotEmpty ? updatedLocation.suburb : updatedLocation.approximateAreaText,
@@ -560,41 +596,44 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
         deliveryLocation: updatedLocation,
       );
 
+      if (!mounted) return;
+
       // Clear draft since it is successfully submitted
       await DraftService.clearDraft();
 
-      if (mounted) {
-        setState(() {
-          _progressStep = 3; // Finished step
-        });
+      if (!mounted) return;
 
-        // Dismiss the Review Modal Sheet
-        Navigator.pop(context);
+      setState(() {
+        _progressStep = 3; // Finished step
+      });
 
-        // Trigger in-app notifications
-        ref.read(notificationProvider.notifier).triggerNotification(
-          title: 'Request Active!',
-          body: 'Your list has been dispatched to nearby vendors within 20km.',
-          icon: Icons.check_circle_rounded,
-          color: AppColors.customerColor,
+      // Dismiss the Review Modal Sheet
+      Navigator.pop(context);
+
+      // Trigger in-app notification before navigation
+      notifNotifier.triggerNotification(
+        title: 'Request Active!',
+        body: 'Your list has been dispatched to nearby vendors within 20km.',
+        icon: Icons.check_circle_rounded,
+        color: AppColors.customerColor,
+      );
+
+      // Simulate vendor dispatch after 2 seconds.
+      // Uses a pre-captured notifier — safe to call after screen disposes.
+      Future.delayed(const Duration(seconds: 2), () {
+        notifNotifier.triggerNotification(
+          title: 'New Request Nearby!',
+          body: 'A customer in $suburbName submitted a list of $itemCount items.',
+          icon: Icons.storefront_rounded,
+          color: AppColors.vendorColor,
         );
+      });
 
-        // Simulate vendor dispatch after 2 seconds
-        Future.delayed(const Duration(seconds: 2), () {
-          ref.read(notificationProvider.notifier).triggerNotification(
-            title: 'New Request Nearby!',
-            body: 'A customer in ${updatedLocation.suburb} submitted a list of ${activeItems.length} items.',
-            icon: Icons.storefront_rounded,
-            color: AppColors.vendorColor,
-          );
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Request dispatched successfully!')),
-        );
-        ref.read(deliveryLocationProvider.notifier).clearLocation();
-        context.go(RouteNames.customerHome);
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Request dispatched successfully!')),
+      );
+      ref.read(deliveryLocationProvider.notifier).clearLocation();
+      context.go(RouteNames.customerHome);
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -605,6 +644,73 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
         );
       }
     }
+  }
+
+  Future<bool> _showPhoneVerificationGate() async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogCtx) {
+        final isDark = Theme.of(dialogCtx).brightness == Brightness.dark;
+        final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+        final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          icon: Icon(
+            Icons.phone_locked_rounded,
+            size: 40,
+            color: AppColors.customerColor,
+          ),
+          title: Text(
+            'Phone verification required',
+            style: TextStyle(color: primaryText, fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            'To submit shopping requests for delivery in Sri Lanka, please verify a mobile phone number.',
+            style: TextStyle(color: secondaryText),
+            textAlign: TextAlign.center,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              style: TextButton.styleFrom(foregroundColor: secondaryText),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogCtx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.customerColor,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              ),
+              child: const Text('Verify Phone Number'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (result != true) return false;
+
+    // Show bottom sheet
+    if (!mounted) return false;
+    final verified = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => PhoneVerificationSheet(
+        onVerified: (normalisedPhone) {
+          // Success
+          Navigator.pop(sheetCtx, true);
+        },
+      ),
+    );
+
+    return verified == true;
   }
 
 

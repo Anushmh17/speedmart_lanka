@@ -84,6 +84,21 @@ class Validators {
     return null;
   }
 
+  /// Sri Lanka National Identity Card (NIC).
+  ///
+  /// Accepts:
+  ///   Old NIC — 9 digits + V or X  (e.g. 123456789V)
+  ///   New NIC — exactly 12 digits  (e.g. 200012345678)
+  static String? nic(String? value) {
+    if (value == null || value.trim().isEmpty) {
+      return AppStrings.fieldRequired;
+    }
+    final clean = value.trim().toUpperCase();
+    if (RegExp(r'^\d{9}[VX]$').hasMatch(clean)) return null;
+    if (RegExp(r'^\d{12}$').hasMatch(clean)) return null;
+    return 'Enter a valid NIC (e.g. 123456789V or 200012345678)';
+  }
+
   /// Generic min length
   static String? minLength(String? value, int min, {String? fieldName}) {
     if (value == null || value.trim().isEmpty) {

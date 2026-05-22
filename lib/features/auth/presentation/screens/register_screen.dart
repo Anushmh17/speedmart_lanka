@@ -29,6 +29,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _passwordCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
   final _businessCtrl = TextEditingController();
+  final _inviteCtrl = TextEditingController();
   final List<String> _selectedCategories = [];
 
   static const List<String> _allCategories = [
@@ -52,7 +53,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     _passwordCtrl.dispose();
     _confirmCtrl.dispose();
     _businessCtrl.dispose();
+    _inviteCtrl.dispose();
     super.dispose();
+  }
+
+  String _getLoginRoute() {
+    switch (widget.role) {
+      case UserRole.customer: return RouteNames.customerLogin;
+      case UserRole.vendor:   return RouteNames.vendorLogin;
+      case UserRole.admin:    return RouteNames.adminLogin;
+    }
   }
 
   Future<void> _register() async {
@@ -60,6 +70,12 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     if (widget.role == UserRole.vendor && _selectedCategories.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select at least one category')),
+      );
+      return;
+    }
+    if (widget.role == UserRole.admin && _inviteCtrl.text.trim() != 'SPEEDMART_ADMIN') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid admin invite code')),
       );
       return;
     }
@@ -118,10 +134,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     GestureDetector(
-                      onTap: () => context.go(
-                        RouteNames.login,
-                        extra: widget.role,
-                      ),
+                      onTap: () => context.go(_getLoginRoute()),
                       child: Container(
                         width: 38,
                         height: 38,
@@ -167,6 +180,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           icon: Icons.verified_user_outlined,
                           message:
                               'Vendor accounts require admin approval before you can start selling.',
+                          color: AppColors.vendorColor,
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+
+                      // Admin registration notice
+                      if (widget.role == UserRole.admin) ...[
+                        _InfoBanner(
+                          icon: Icons.warning_amber_rounded,
+                          message: 'Admin registration is for development/testing only.',
                           color: AppColors.warning,
                         ),
                         const SizedBox(height: 20),
@@ -280,12 +303,38 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         hint: 'Re-enter your password',
                         controller: _confirmCtrl,
                         obscureText: true,
-                        textInputAction: TextInputAction.done,
+                        textInputAction: widget.role == UserRole.admin
+                            ? TextInputAction.next
+                            : TextInputAction.done,
                         prefixIcon: Icons.lock_outline_rounded,
                         validator: (v) =>
                             Validators.confirmPassword(v, _passwordCtrl.text),
-                        onFieldSubmitted: (_) => _register(),
+                        onFieldSubmitted: widget.role == UserRole.admin
+                            ? null
+                            : (_) => _register(),
                       ),
+
+                      if (widget.role == UserRole.admin) ...[
+                        const SizedBox(height: 16),
+                        AppTextField(
+                          label: 'Admin Invite Code',
+                          hint: 'Enter admin invite code',
+                          controller: _inviteCtrl,
+                          obscureText: true,
+                          prefixIcon: Icons.vpn_key_outlined,
+                          textInputAction: TextInputAction.done,
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) {
+                              return 'Invite code is required';
+                            }
+                            if (v.trim() != 'SPEEDMART_ADMIN') {
+                              return 'Invalid invite code';
+                            }
+                            return null;
+                          },
+                          onFieldSubmitted: (_) => _register(),
+                        ),
+                      ],
                       const SizedBox(height: 28),
 
                       AppButton(
@@ -310,10 +359,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               ),
                             ),
                             GestureDetector(
-                              onTap: () => context.go(
-                                RouteNames.login,
-                                extra: widget.role,
-                              ),
+                              onTap: () => context.go(_getLoginRoute()),
                               child: Text(
                                 'Sign In',
                                 style: AppTextStyles.labelLarge(_roleColor),

@@ -9,7 +9,7 @@ import '../../../orders/providers/order_provider.dart';
 import '../../../proposals/models/proposal.dart';
 import '../../../requests/models/shopping_request.dart';
 import '../../../requests/providers/request_provider.dart';
-import '../../../location/providers/location_provider.dart';
+import 'package:speedmart_lanka/features/location/providers/location_provider.dart';
 
 class PaymentScreen extends ConsumerStatefulWidget {
   const PaymentScreen({

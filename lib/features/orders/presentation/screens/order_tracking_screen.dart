@@ -11,7 +11,7 @@ import '../../../requests/providers/request_provider.dart';
 import '../../models/order_model.dart';
 import '../../providers/order_provider.dart';
 import '../widgets/order_tracking_map.dart';
-import '../../../location/providers/location_provider.dart';
+import 'package:speedmart_lanka/features/location/providers/location_provider.dart';
 
 class OrderTrackingScreen extends ConsumerStatefulWidget {
   const OrderTrackingScreen({super.key, required this.order});

@@ -1,43 +1,30 @@
-# Fix Customer Home Navigation State and Android Back Behavior
+# Implementation Plan — Automatic Country Detection & Popup Logic
 
-This implementation plan outlines the steps to address:
-1. Bottom navigation bar visibility/state issues after submitting or exiting a shopping request.
-2. Double-back-to-exit gesture logic on the Customer Home page.
+This plan addresses the country detection reliability and fixes the persistent country selection popup.
 
 ## Proposed Changes
 
-### Requests Feature
+### 1. Persistent Storage (Saved Preference)
+- Add a new Riverpod provider `sharedPreferencesProvider` to access local storage.
+- Update `CustomerRegistrationState` to include:
+  - `hasSavedCountryPreference` (bool)
+  - `shouldShowCountryDialog` (bool)
+- Update `CustomerRegistrationNotifier` to:
+  - Check `SharedPreferences` for a saved country key (e.g. `speedmart_country_preference`) *before* running GPS/Locale detection.
+  - When the user manually taps "Change" or selects a country in the dialog, save their selection to `SharedPreferences`.
 
-#### [MODIFY] [create_request_screen.dart](file:///c:/App_developments/speedmart_lanka/lib/features/requests/presentation/screens/create_request_screen.dart)
+### 2. Country Detection Service (Robust Logic & Logging)
+- Update `CountryDetectionService.detect()` to run with robust debug logs printing the status of: GPS permission, GPS result, SIM result, Locale result, and Final decision.
+- **GPS**: Check bounding box (Lat 5.8 - 10.0, Lon 79.3 - 82.1). If true, return `LK` confidently.
+- **SIM/Network**: (Requires adding the `carrier_info` package to `pubspec.yaml` to read the SIM ISO code). If SIM ISO matches `LK`, return confidently.
+- **Locale**: Check `Platform.localeName`. If it indicates LK, return confidently.
+- Any confident result (or a saved preference) will entirely prevent the popup from showing.
 
-- In `_submitRequest()`, change `context.pop()` to `context.go(RouteNames.customerHome)` to ensure GoRouter's route state is correctly updated to `/customer` on submission.
-- In `_confirmPop()`, change all occurrences of `context.pop()` to `context.go(RouteNames.customerHome)` to ensure correct state updates and visibility when cancel/discard is selected.
+### 3. State & Popup Rules
+- **Production Mode**: `shouldShowCountryDialog` is set to `true` **only if** there is no saved preference AND GPS/SIM/Locale all fail to confidently detect the country.
+- **Development Mode**: If detection is completely ambiguous and there's no saved preference, automatically default to Sri Lanka (`LK`) without showing the popup. The user can still manually change it.
+- Remove the old `isCountryAmbiguous` listener trigger in `LoginScreen` and `CustomerRegistrationScreen`, replacing it with `shouldShowCountryDialog`.
 
----
-
-### Customer Feature
-
-#### [MODIFY] [customer_home_screen.dart](file:///c:/App_developments/speedmart_lanka/lib/features/customer/presentation/screens/customer_home_screen.dart)
-
-- Import `package:flutter/services.dart` to access `SystemNavigator.pop()`.
-- Declare `DateTime? _lastBackPressTime;` in `_CustomerHomeScreenState`.
-- Wrap the main `Scaffold` in a `PopScope` with `canPop: false`.
-- In `onPopInvokedWithResult`:
-  - If `currentIndex != 0`, navigate to `RouteNames.customerHome` (switching tabs back to Home first).
-  - If `currentIndex == 0`, implement the double-press check:
-    - If `_lastBackPressTime` is null or the time difference is greater than 2 seconds, show the SnackBar: `"Swipe back again to exit"`.
-    - Otherwise, call `SystemNavigator.pop()`.
-
-## Verification Plan
-
-### Automated Tests
-- Run `flutter analyze` to ensure zero static analysis or compile errors.
-
-### Manual Verification
-1. **Submit Request Flow:** Create a shopping request, submit it, and verify that the app returns to the Customer Home Screen (Home tab selected) and the bottom navigation bar is visible and correctly styled.
-2. **Exit Request Flow:** Open the Create Shopping Request screen, press back (top-left or Android swipe), select save/discard, and verify that the bottom navigation bar is restored correctly.
-3. **Double Back to Exit:**
-   - On the Customer Home Screen, press back on a non-Home tab (e.g. Orders) and verify it switches back to the Home tab.
-   - On the Home tab, swipe back once and verify the SnackBar `"Swipe back again to exit"` is shown.
-   - Swipe back again within 2 seconds and verify the app exits.
-   - Swipe back once, wait > 2 seconds, swipe again, and verify the SnackBar is shown again instead of exiting.
+### Open Questions for User
+> [!IMPORTANT]
+> To read the physical SIM/Network ISO country code in Flutter, we need to add a native plugin like `carrier_info` to `pubspec.yaml`. Are you okay with me adding this package, or would you prefer I skip the SIM check and rely only on GPS and Device Locale (which are already supported natively)?

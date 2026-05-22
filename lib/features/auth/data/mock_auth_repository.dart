@@ -62,6 +62,15 @@ class MockAuthRepository {
   final List<UserModel> _sessionUsers = List.from(_mockUsers);
   String? _currentToken;
 
+  /// Max number of registrations permitted in a single mock session.
+  int maxRegistrationsPerSession = 3;
+  int _registrationCount = 0;
+
+  /// Resets the registration cap count.
+  void resetRegistrationLimit() {
+    _registrationCount = 0;
+  }
+
   // ── Login ──────────────────────────────────────────────────────────────────
   /// Returns [UserModel] on success, throws [Exception] on failure.
   Future<({UserModel user, String token})> login({
@@ -92,6 +101,57 @@ class MockAuthRepository {
     return (user: user, token: _currentToken!);
   }
 
+  // ── Customer OTP Authentication ──────────────────────────────────────────
+  Future<bool> checkCustomerExists(String contact) async {
+    await Future.delayed(const Duration(milliseconds: 600));
+    final cleanContact = contact.replaceAll(RegExp(r'[^\d]'), '');
+    final isEmail = contact.contains('@');
+
+    return _sessionUsers.any((u) {
+      if (u.role != UserRole.customer) return false;
+      if (isEmail) {
+        return u.email.toLowerCase() == contact.toLowerCase().trim();
+      } else {
+        final cleanUserPhone = u.phone.replaceAll(RegExp(r'[^\d]'), '');
+        if (cleanContact.length >= 9 && cleanUserPhone.length >= 9) {
+          return cleanContact.endsWith(cleanUserPhone.substring(cleanUserPhone.length - 9));
+        }
+        return cleanContact == cleanUserPhone;
+      }
+    });
+  }
+
+  Future<({UserModel user, String token})> loginCustomerOtp(String contact) async {
+    await Future.delayed(const Duration(milliseconds: 1000));
+    final cleanContact = contact.replaceAll(RegExp(r'[^\d]'), '');
+    final isEmail = contact.contains('@');
+
+    final match = _sessionUsers.where((u) {
+      if (u.role != UserRole.customer) return false;
+      if (isEmail) {
+        return u.email.toLowerCase() == contact.toLowerCase().trim();
+      } else {
+        final cleanUserPhone = u.phone.replaceAll(RegExp(r'[^\d]'), '');
+        if (cleanContact.length >= 9 && cleanUserPhone.length >= 9) {
+          return cleanContact.endsWith(cleanUserPhone.substring(cleanUserPhone.length - 9));
+        }
+        return cleanContact == cleanUserPhone;
+      }
+    });
+
+    if (match.isEmpty) {
+      throw Exception('No customer account found with this contact details.');
+    }
+
+    final user = match.first;
+    if (!user.isActive) {
+      throw Exception('Your account has been suspended. Contact support.');
+    }
+
+    _currentToken = 'mock_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
+    return (user: user, token: _currentToken!);
+  }
+
   // ── Register ───────────────────────────────────────────────────────────────
   Future<({UserModel user, String token})> register({
     required String fullName,
@@ -101,8 +161,19 @@ class MockAuthRepository {
     required UserRole role,
     String? businessName,
     List<String>? categories,
+    String? detectedCountry,
+    String? selectedCountry,
+    bool? countryOverride,
+    String? detectionSource,
+    String? riskFlag,
+    bool? verifiedPhone,
+    bool? verifiedEmail,
   }) async {
     await Future.delayed(const Duration(milliseconds: 1500));
+
+    if (_registrationCount >= maxRegistrationsPerSession) {
+      throw Exception('Registration limit exceeded. Only $maxRegistrationsPerSession registrations allowed per development session.');
+    }
 
     // Check duplicate email
     final exists = _sessionUsers.any(
@@ -124,9 +195,17 @@ class MockAuthRepository {
       businessName: businessName,
       vendorApproved: role == UserRole.vendor ? false : null,
       vendorCategories: categories,
+      detectedCountry: detectedCountry,
+      selectedCountry: selectedCountry,
+      countryOverride: countryOverride,
+      detectionSource: detectionSource,
+      riskFlag: riskFlag,
+      verifiedPhone: verifiedPhone,
+      verifiedEmail: verifiedEmail,
     );
 
     _sessionUsers.add(newUser);
+    _registrationCount++;
     _currentToken = 'mock_token_${newUser.id}_${DateTime.now().millisecondsSinceEpoch}';
     return (user: newUser, token: _currentToken!);
   }

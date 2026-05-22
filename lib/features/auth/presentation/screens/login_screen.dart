@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -10,7 +11,9 @@ import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../../shared/models/user_role.dart';
 import '../../providers/auth_provider.dart';
-
+import '../../customer_registration/providers/customer_registration_provider.dart';
+import '../../customer_registration/widgets/phone_field_lk.dart';
+import '../../customer_registration/models/registration_step.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key, required this.role});
@@ -24,6 +27,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+
+  final _emailFocus = FocusNode();
+  final _phoneFocus = FocusNode();
+
+  bool _isSubmittingCustomerOtp = false;
 
   Color get _roleColor {
     switch (widget.role) {
@@ -34,10 +43,126 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.role == UserRole.customer) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ref.read(customerRegistrationProvider.notifier).setMode(isLogin: true);
+        ref.read(customerRegistrationProvider.notifier).detectCountry();
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
+    _phoneCtrl.dispose();
+    _emailFocus.dispose();
+    _phoneFocus.dispose();
     super.dispose();
+  }
+
+  void _showCountrySelectionDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Force selection
+      builder: (ctx) => AlertDialog(
+        title: const Text('Select your country'),
+        content: const Text('We could not confidently determine your country. Please select it manually.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              ref.read(customerRegistrationProvider.notifier).setLkUser(true);
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Sri Lanka 🇱🇰'),
+          ),
+          TextButton(
+            onPressed: () {
+              ref.read(customerRegistrationProvider.notifier).setLkUser(false);
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Other Country 🌍'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showCountryOverrideDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Use international registration?'),
+        content: const Text(
+          'We detected that you may be in Sri Lanka. International registration is intended for customers outside Sri Lanka. Some features may require extra verification.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              ref.read(customerRegistrationProvider.notifier).confirmCountryOverride();
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Continue as International'),
+          ),
+          TextButton(
+            onPressed: () {
+              ref.read(customerRegistrationProvider.notifier).cancelCountryOverride();
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Use Sri Lanka Phone OTP'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _loginCustomerOtp() async {
+    if (!_formKey.currentState!.validate()) return;
+    final notifier = ref.read(customerRegistrationProvider.notifier);
+    final authNotifier = ref.read(authProvider.notifier);
+
+    final isLk = ref.read(customerRegistrationProvider).isLkUser;
+    final contact = isLk ? _phoneCtrl.text.trim() : _emailCtrl.text.trim();
+
+    setState(() => _isSubmittingCustomerOtp = true);
+
+    try {
+      final exists = await authNotifier.checkCustomerExists(contact);
+      if (!exists) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('No account found for $contact. Please register.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        setState(() => _isSubmittingCustomerOtp = false);
+        return;
+      }
+
+      if (isLk) {
+        notifier.updatePhone(contact);
+      } else {
+        notifier.updateEmail(contact);
+      }
+
+      await notifier.sendOtp();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmittingCustomerOtp = false);
+      }
+    }
   }
 
   Future<void> _login() async {
@@ -48,11 +173,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           role: widget.role,
         );
   }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final authState = ref.watch(authProvider);
+    final custState = ref.watch(customerRegistrationProvider);
 
     // Navigate on successful login
     ref.listen(authProvider, (prev, next) {
@@ -64,6 +189,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         }
       }
     });
+
+    if (widget.role == UserRole.customer) {
+      ref.listen<CustomerRegistrationState>(customerRegistrationProvider, (prev, next) {
+        if (next.step == RegistrationStep.verifyOtp && prev?.step != RegistrationStep.verifyOtp) {
+          context.push(RouteNames.customerOtp);
+        }
+        if (next.shouldShowCountryDialog && !(prev?.shouldShowCountryDialog ?? false)) {
+          _showCountrySelectionDialog();
+        }
+        if (next.pendingOverrideConfirmation && !(prev?.pendingOverrideConfirmation ?? false)) {
+          _showCountryOverrideDialog();
+        }
+        if (next.data.isLkUser != prev?.data.isLkUser) {
+          _phoneCtrl.clear();
+          _emailCtrl.clear();
+        }
+      });
+    }
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
@@ -79,7 +222,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   gradient: LinearGradient(
                     colors: [
                       _roleColor,
-                      _roleColor.withOpacity(0.75),
+                      _roleColor.withValues(alpha: 0.75),
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
@@ -99,7 +242,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         width: 38,
                         height: 38,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: const Icon(Icons.arrow_back_ios_new_rounded,
@@ -140,7 +283,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             color: AppColors.errorContainer,
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                                color: AppColors.error.withOpacity(0.3)),
+                                color: AppColors.error.withValues(alpha: 0.3)),
                           ),
                           child: Row(
                             children: [
@@ -159,88 +302,251 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         const SizedBox(height: 20),
                       ],
 
-                      AppTextField(
-                        label: 'Email Address',
-                        hint: 'Enter your email',
-                        controller: _emailCtrl,
-                        keyboardType: TextInputType.emailAddress,
-                        textInputAction: TextInputAction.next,
-                        prefixIcon: Icons.email_outlined,
-                        validator: Validators.email,
-                        onChanged: (_) {
-                          if (authState.hasError) {
-                            ref.read(authProvider.notifier).clearError();
-                          }
-                        },
-                      ),
-                      const SizedBox(height: 16),
-
-                      AppTextField(
-                        label: 'Password',
-                        hint: 'Enter your password',
-                        controller: _passwordCtrl,
-                        obscureText: true,
-                        textInputAction: TextInputAction.done,
-                        prefixIcon: Icons.lock_outline_rounded,
-                        validator: Validators.password,
-                        onFieldSubmitted: (_) => _login(),
-                      ),
-                      const SizedBox(height: 10),
-
-                      // Forgot password
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton(
-                          onPressed: () {},
-                          child: Text(
-                            'Forgot Password?',
-                            style: AppTextStyles.labelMedium(_roleColor),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-
-                      // Login button
-                      AppButton(
-                        label: 'Sign In',
-                        onPressed: _login,
-                        isLoading: authState.isLoading,
-                        color: _roleColor,
-                        icon: Icons.login_rounded,
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Mock credentials hint
-                      Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? AppColors.cardDark
-                              : AppColors.backgroundLight,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isDark
-                                ? AppColors.borderDark
-                                : AppColors.borderLight,
-                          ),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
+                      if (widget.role == UserRole.customer) ...[
+                        if (custState.isDetectingCountry) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: AppColors.infoContainer,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
                               children: [
-                                Icon(Icons.info_outline_rounded,
-                                    size: 14, color: _roleColor),
-                                const SizedBox(width: 6),
-                                Text('Demo Credentials',
-                                    style: AppTextStyles.labelSmall(_roleColor)),
+                                const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: AppColors.info,
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'Detecting your region…',
+                                  style: AppTextStyles.bodySmall(AppColors.info),
+                                ),
                               ],
                             ),
-                            const SizedBox(height: 8),
-                            _demoCredential(),
-                          ],
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+
+                        if (custState.countryDetected) ...[
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                            decoration: BoxDecoration(
+                              color: _roleColor.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: _roleColor.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  custState.isLkUser ? Icons.phone_android_rounded : Icons.email_outlined,
+                                  size: 16,
+                                  color: _roleColor,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    custState.isLkUser ? '🇱🇰 Sri Lanka Mode' : '🌍 International Mode',
+                                    style: AppTextStyles.bodySmall(_roleColor)
+                                        .copyWith(fontWeight: FontWeight.w600),
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    ref.read(customerRegistrationProvider.notifier).toggleCountry();
+                                    _phoneCtrl.clear();
+                                    _emailCtrl.clear();
+                                  },
+                                  style: TextButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    minimumSize: Size.zero,
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  child: Text(
+                                    'Change',
+                                    style: AppTextStyles.labelSmall(_roleColor)
+                                        .copyWith(decoration: TextDecoration.underline),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                        ],
+
+                        // ── Dev-only country override switch ─────────
+                        if (kDebugMode) ...[  
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.purple.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                  color:
+                                      Colors.purple.withValues(alpha: 0.25)),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.developer_mode_rounded,
+                                    size: 13,
+                                    color: Colors.purple[400]),
+                                const SizedBox(width: 5),
+                                Text(
+                                  'Dev',
+                                  style: AppTextStyles.caption(
+                                          Colors.purple[400]!)
+                                      .copyWith(
+                                          fontWeight: FontWeight.w700),
+                                ),
+                                const Spacer(),
+                                _DevChip(
+                                  label: '🇱🇰 Sri Lanka',
+                                  selected: custState.isLkUser,
+                                  onTap: () {
+                                    ref
+                                        .read(customerRegistrationProvider
+                                            .notifier)
+                                        .setLkUser(true);
+                                    _phoneCtrl.clear();
+                                    _emailCtrl.clear();
+                                  },
+                                ),
+                                const SizedBox(width: 6),
+                                _DevChip(
+                                  label: '🌍 Other',
+                                  selected: !custState.isLkUser,
+                                  onTap: () {
+                                    ref
+                                        .read(customerRegistrationProvider
+                                            .notifier)
+                                        .setLkUser(false);
+                                    _phoneCtrl.clear();
+                                    _emailCtrl.clear();
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+
+                        if (custState.isLkUser) ...[
+                          PhoneFieldLk(
+                            controller: _phoneCtrl,
+                            focusNode: _phoneFocus,
+                            textInputAction: TextInputAction.done,
+                            onFieldSubmitted: (_) => _loginCustomerOtp(),
+                          ),
+                        ] else ...[
+                          AppTextField(
+                            label: 'Email Address',
+                            hint: 'Enter your email',
+                            controller: _emailCtrl,
+                            focusNode: _emailFocus,
+                            keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.done,
+                            prefixIcon: Icons.email_outlined,
+                            validator: Validators.email,
+                            onFieldSubmitted: (_) => _loginCustomerOtp(),
+                          ),
+                        ],
+                        const SizedBox(height: 24),
+
+                        AppButton(
+                          label: 'Send OTP',
+                          onPressed: _loginCustomerOtp,
+                          isLoading: _isSubmittingCustomerOtp || custState.isLoading,
+                          color: _roleColor,
+                          icon: Icons.send_rounded,
                         ),
-                      ),
+                      ] else ...[
+                        AppTextField(
+                          label: 'Email Address',
+                          hint: 'Enter your email',
+                          controller: _emailCtrl,
+                          keyboardType: TextInputType.emailAddress,
+                          textInputAction: TextInputAction.next,
+                          prefixIcon: Icons.email_outlined,
+                          validator: Validators.email,
+                          onChanged: (_) {
+                            if (authState.hasError) {
+                              ref.read(authProvider.notifier).clearError();
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 16),
+
+                        AppTextField(
+                          label: 'Password',
+                          hint: 'Enter your password',
+                          controller: _passwordCtrl,
+                          obscureText: true,
+                          textInputAction: TextInputAction.done,
+                          prefixIcon: Icons.lock_outline_rounded,
+                          validator: Validators.password,
+                          onFieldSubmitted: (_) => _login(),
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Forgot password
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: () {},
+                            child: Text(
+                              'Forgot Password?',
+                              style: AppTextStyles.labelMedium(_roleColor),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+
+                        // Login button
+                        AppButton(
+                          label: 'Sign In',
+                          onPressed: _login,
+                          isLoading: authState.isLoading,
+                          color: _roleColor,
+                          icon: Icons.login_rounded,
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Mock credentials hint
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? AppColors.cardDark
+                                : AppColors.backgroundLight,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: isDark
+                                  ? AppColors.borderDark
+                                  : AppColors.borderLight,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.info_outline_rounded,
+                                      size: 14, color: _roleColor),
+                                  const SizedBox(width: 6),
+                                  Text('Demo Credentials',
+                                      style: AppTextStyles.labelSmall(_roleColor)),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              _demoCredential(),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 32),
 
                       // Register link
@@ -257,10 +563,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                             ),
                             GestureDetector(
-                              onTap: () => context.go(
-                                RouteNames.register,
-                                extra: widget.role,
-                              ),
+                              onTap: () {
+                                if (widget.role == UserRole.customer) {
+                                  // Customer gets the dedicated registration flow
+                                  context.go(RouteNames.customerRegister);
+                                } else {
+                                  // Vendor / Admin use the generic register screen
+                                  context.go(
+                                    widget.role == UserRole.vendor
+                                        ? RouteNames.vendorRegister
+                                        : RouteNames.adminRegister,
+                                  );
+                                }
+                              },
                               child: Text(
                                 'Sign Up',
                                 style: AppTextStyles.labelLarge(_roleColor),
@@ -317,6 +632,48 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ).copyWith(fontWeight: FontWeight.w600),
         ),
       ],
+    );
+  }
+}
+
+/// Compact chip used only inside the kDebugMode country switch row.
+class _DevChip extends StatelessWidget {
+  const _DevChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: selected
+              ? Colors.purple.withValues(alpha: 0.18)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: selected
+                ? Colors.purple.withValues(alpha: 0.6)
+                : Colors.purple.withValues(alpha: 0.2),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
+            color: Colors.purple[selected ? 700 : 400],
+          ),
+        ),
+      ),
     );
   }
 }

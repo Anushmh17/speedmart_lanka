@@ -5,11 +5,18 @@ class RouteNames {
 
   // ── Core ──────────────────────────────────────────────────────────────────
   static const String splash = '/';
-  static const String roleSelection = '/role-select';
+  static const String roleSelection = '/auth/role-select';
 
   // ── Auth ──────────────────────────────────────────────────────────────────
-  static const String login = '/login';
-  static const String register = '/register';
+  static const String customerLogin = '/auth/customer/login';
+  static const String customerRegister = '/auth/customer/register';
+  static const String customerOtp = '/auth/customer/otp';
+
+  static const String vendorLogin = '/auth/vendor/login';
+  static const String vendorRegister = '/auth/vendor/register';
+
+  static const String adminLogin = '/auth/admin/login';
+  static const String adminRegister = '/auth/admin/register';
 
   // ── Customer Shell (with bottom nav) ───────────────────────────────────────
   static const String customerHome = '/customer';

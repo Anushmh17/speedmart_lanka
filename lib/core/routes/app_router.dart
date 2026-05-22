@@ -6,6 +6,8 @@ import '../../features/auth/presentation/screens/splash_screen.dart';
 import '../../features/auth/presentation/screens/role_selection_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
+import '../../features/auth/customer_registration/screens/customer_registration_screen.dart';
+import '../../features/auth/customer_registration/screens/otp_verification_screen.dart';
 import '../../features/customer/presentation/screens/customer_home_screen.dart';
 import '../../features/requests/presentation/screens/create_request_screen.dart';
 import '../../features/requests/models/shopping_request.dart';
@@ -70,8 +72,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final location = state.matchedLocation;
       final isOnAuthRoute = location == RouteNames.splash ||
           location == RouteNames.roleSelection ||
-          location == RouteNames.login ||
-          location == RouteNames.register;
+          location == RouteNames.customerLogin ||
+          location == RouteNames.customerRegister ||
+          location == RouteNames.customerOtp ||
+          location == RouteNames.vendorLogin ||
+          location == RouteNames.vendorRegister ||
+          location == RouteNames.adminLogin ||
+          location == RouteNames.adminRegister;
 
       // Not authenticated → send to role selection
       if (!auth.isAuthenticated) {
@@ -111,18 +118,32 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // ── Auth ─────────────────────────────────────────────────────────────
       GoRoute(
-        path: RouteNames.login,
-        builder: (_, state) {
-          final role = state.extra as UserRole? ?? UserRole.customer;
-          return LoginScreen(role: role);
-        },
+        path: RouteNames.customerLogin,
+        builder: (_, __) => const LoginScreen(role: UserRole.customer),
       ),
       GoRoute(
-        path: RouteNames.register,
-        builder: (_, state) {
-          final role = state.extra as UserRole? ?? UserRole.customer;
-          return RegisterScreen(role: role);
-        },
+        path: RouteNames.customerRegister,
+        builder: (_, __) => const CustomerRegistrationScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.customerOtp,
+        builder: (_, __) => const OtpVerificationScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.vendorLogin,
+        builder: (_, __) => const LoginScreen(role: UserRole.vendor),
+      ),
+      GoRoute(
+        path: RouteNames.vendorRegister,
+        builder: (_, __) => const RegisterScreen(role: UserRole.vendor),
+      ),
+      GoRoute(
+        path: RouteNames.adminLogin,
+        builder: (_, __) => const LoginScreen(role: UserRole.admin),
+      ),
+      GoRoute(
+        path: RouteNames.adminRegister,
+        builder: (_, __) => const RegisterScreen(role: UserRole.admin),
       ),
 
       // ── Customer Shell ───────────────────────────────────────────────────

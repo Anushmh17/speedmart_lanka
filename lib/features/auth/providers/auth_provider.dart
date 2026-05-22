@@ -66,6 +66,25 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  // ── Customer OTP Login ─────────────────────────────────────────────────────
+  Future<bool> checkCustomerExists(String contact) async {
+    return _repo.checkCustomerExists(contact);
+  }
+
+  Future<void> loginCustomerOtp({required String contact}) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final result = await _repo.loginCustomerOtp(contact);
+      await StorageService.saveToken(result.token);
+      await StorageService.saveUser(result.user.toJson());
+      await StorageService.saveRole(result.user.role.name);
+      state = AuthState.authenticated(result.user);
+    } catch (e) {
+      state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
+      rethrow;
+    }
+  }
+
   // ── Register ───────────────────────────────────────────────────────────────
   Future<void> register({
     required String fullName,
@@ -75,6 +94,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required UserRole role,
     String? businessName,
     List<String>? categories,
+    String? detectedCountry,
+    String? selectedCountry,
+    bool? countryOverride,
+    String? detectionSource,
+    String? riskFlag,
+    bool? verifiedPhone,
+    bool? verifiedEmail,
   }) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
@@ -86,6 +112,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
         role: role,
         businessName: businessName,
         categories: categories,
+        detectedCountry: detectedCountry,
+        selectedCountry: selectedCountry,
+        countryOverride: countryOverride,
+        detectionSource: detectionSource,
+        riskFlag: riskFlag,
+        verifiedPhone: verifiedPhone,
+        verifiedEmail: verifiedEmail,
       );
       await StorageService.saveToken(result.token);
       await StorageService.saveUser(result.user.toJson());
@@ -134,6 +167,28 @@ class AuthNotifier extends StateNotifier<AuthState> {
     } catch (e) {
       state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
     }
+  }
+
+  // ── Phone Verification (for request submission gatekeeping) ────────────────
+  /// Marks the current user's phone as verified and persists the update.
+  /// Called after a successful phone OTP verification from the request flow.
+  Future<void> markPhoneVerified({required String phone}) async {
+    final currentUser = state.user;
+    if (currentUser == null) return;
+
+    final updatedUser = currentUser.copyWith(
+      verifiedPhone: true,
+      phone: phone,
+    );
+
+    // Update in repository
+    final savedUser = await _repo.updateUser(updatedUser);
+
+    // Persist to local storage
+    await StorageService.saveUser(savedUser.toJson());
+
+    // Update state
+    state = AuthState.authenticated(savedUser);
   }
 
   // ── Clear error ────────────────────────────────────────────────────────────

@@ -1,20 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/routes/route_names.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../shared/models/user_role.dart';
+import '../../providers/auth_provider.dart';
+import '../../customer_registration/providers/customer_registration_provider.dart';
 
 /// Lets the user pick their role before logging in or registering.
-class RoleSelectionScreen extends StatefulWidget {
+class RoleSelectionScreen extends ConsumerStatefulWidget {
   const RoleSelectionScreen({super.key});
 
   @override
-  State<RoleSelectionScreen> createState() => _RoleSelectionScreenState();
+  ConsumerState<RoleSelectionScreen> createState() => _RoleSelectionScreenState();
 }
 
-class _RoleSelectionScreenState extends State<RoleSelectionScreen>
+class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen>
     with TickerProviderStateMixin {
   late List<AnimationController> _controllers;
   late List<Animation<double>> _fadeAnims;
@@ -59,7 +62,19 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen>
   }
 
   void _onRoleSelected(UserRole role) {
-    context.go(RouteNames.login, extra: role);
+    ref.read(authProvider.notifier).clearError();
+    ref.read(customerRegistrationProvider.notifier).reset();
+    switch (role) {
+      case UserRole.customer:
+        context.go(RouteNames.customerLogin);
+        break;
+      case UserRole.vendor:
+        context.go(RouteNames.vendorLogin);
+        break;
+      case UserRole.admin:
+        context.go(RouteNames.adminLogin);
+        break;
+    }
   }
 
   @override

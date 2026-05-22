@@ -18,6 +18,15 @@ class UserModel {
   final bool? vendorApproved;
   final List<String>? vendorCategories;
 
+  /// Country override and risk fields for anti-abuse audit
+  final String? detectedCountry;
+  final String? selectedCountry;
+  final bool? countryOverride;
+  final String? detectionSource;
+  final String? riskFlag;
+  final bool? verifiedPhone;
+  final bool? verifiedEmail;
+
   const UserModel({
     required this.id,
     required this.fullName,
@@ -31,6 +40,13 @@ class UserModel {
     this.businessName,
     this.vendorApproved,
     this.vendorCategories,
+    this.detectedCountry,
+    this.selectedCountry,
+    this.countryOverride,
+    this.detectionSource,
+    this.riskFlag,
+    this.verifiedPhone,
+    this.verifiedEmail,
   });
 
   /// Create from JSON (API response)
@@ -50,6 +66,13 @@ class UserModel {
       vendorCategories: (json['vendor_categories'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
+      detectedCountry: json['detected_country'] as String?,
+      selectedCountry: json['selected_country'] as String?,
+      countryOverride: json['country_override'] as bool?,
+      detectionSource: json['detection_source'] as String?,
+      riskFlag: json['risk_flag'] as String?,
+      verifiedPhone: json['verified_phone'] as bool?,
+      verifiedEmail: json['verified_email'] as bool?,
     );
   }
 
@@ -68,6 +91,13 @@ class UserModel {
       'business_name': businessName,
       'vendor_approved': vendorApproved,
       'vendor_categories': vendorCategories,
+      'detected_country': detectedCountry,
+      'selected_country': selectedCountry,
+      'country_override': countryOverride,
+      'detection_source': detectionSource,
+      'risk_flag': riskFlag,
+      'verified_phone': verifiedPhone,
+      'verified_email': verifiedEmail,
     };
   }
 
@@ -85,6 +115,13 @@ class UserModel {
     String? businessName,
     bool? vendorApproved,
     List<String>? vendorCategories,
+    String? detectedCountry,
+    String? selectedCountry,
+    bool? countryOverride,
+    String? detectionSource,
+    String? riskFlag,
+    bool? verifiedPhone,
+    bool? verifiedEmail,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -99,6 +136,13 @@ class UserModel {
       businessName: businessName ?? this.businessName,
       vendorApproved: vendorApproved ?? this.vendorApproved,
       vendorCategories: vendorCategories ?? this.vendorCategories,
+      detectedCountry: detectedCountry ?? this.detectedCountry,
+      selectedCountry: selectedCountry ?? this.selectedCountry,
+      countryOverride: countryOverride ?? this.countryOverride,
+      detectionSource: detectionSource ?? this.detectionSource,
+      riskFlag: riskFlag ?? this.riskFlag,
+      verifiedPhone: verifiedPhone ?? this.verifiedPhone,
+      verifiedEmail: verifiedEmail ?? this.verifiedEmail,
     );
   }
 
@@ -115,5 +159,5 @@ class UserModel {
   }
 
   @override
-  String toString() => 'UserModel(id: $id, name: $fullName, role: ${role.name})';
+  String toString() => 'UserModel(id: $id, name: $fullName, role: ${role.name}, riskFlag: $riskFlag)';
 }
