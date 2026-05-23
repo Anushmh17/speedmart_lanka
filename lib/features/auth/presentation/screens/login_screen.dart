@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +11,7 @@ import '../../../../core/widgets/app_text_field.dart';
 import '../../../../shared/models/user_role.dart';
 import '../../providers/auth_provider.dart';
 import '../../customer_registration/providers/customer_registration_provider.dart';
+import '../../customer_registration/widgets/country_mismatch_dialog.dart';
 import '../../customer_registration/widgets/phone_field_lk.dart';
 import '../../customer_registration/models/registration_step.dart';
 
@@ -91,31 +91,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   void _showCountryOverrideDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Use international registration?'),
-        content: const Text(
-          'We detected that you may be in Sri Lanka. International registration is intended for customers outside Sri Lanka. Some features may require extra verification.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              ref.read(customerRegistrationProvider.notifier).confirmCountryOverride();
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('Continue as International'),
-          ),
-          TextButton(
-            onPressed: () {
-              ref.read(customerRegistrationProvider.notifier).cancelCountryOverride();
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('Use Sri Lanka Phone OTP'),
-          ),
-        ],
-      ),
+    final notifier = ref.read(customerRegistrationProvider.notifier);
+    CountryMismatchDialog.show(
+      context,
+      onContinueInternational: notifier.confirmCountryOverride,
+      onUseSriLankaOtp: notifier.cancelCountryOverride,
     );
   }
 
@@ -377,63 +357,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           const SizedBox(height: 10),
                         ],
 
-                        // ── Dev-only country override switch ─────────
-                        if (kDebugMode) ...[  
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            decoration: BoxDecoration(
-                              color: Colors.purple.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                  color:
-                                      Colors.purple.withValues(alpha: 0.25)),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(Icons.developer_mode_rounded,
-                                    size: 13,
-                                    color: Colors.purple[400]),
-                                const SizedBox(width: 5),
-                                Text(
-                                  'Dev',
-                                  style: AppTextStyles.caption(
-                                          Colors.purple[400]!)
-                                      .copyWith(
-                                          fontWeight: FontWeight.w700),
-                                ),
-                                const Spacer(),
-                                _DevChip(
-                                  label: '🇱🇰 Sri Lanka',
-                                  selected: custState.isLkUser,
-                                  onTap: () {
-                                    ref
-                                        .read(customerRegistrationProvider
-                                            .notifier)
-                                        .setLkUser(true);
-                                    _phoneCtrl.clear();
-                                    _emailCtrl.clear();
-                                  },
-                                ),
-                                const SizedBox(width: 6),
-                                _DevChip(
-                                  label: '🌍 Other',
-                                  selected: !custState.isLkUser,
-                                  onTap: () {
-                                    ref
-                                        .read(customerRegistrationProvider
-                                            .notifier)
-                                        .setLkUser(false);
-                                    _phoneCtrl.clear();
-                                    _emailCtrl.clear();
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                        ],
-
                         if (custState.isLkUser) ...[
                           PhoneFieldLk(
                             controller: _phoneCtrl,
@@ -636,44 +559,3 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 }
 
-/// Compact chip used only inside the kDebugMode country switch row.
-class _DevChip extends StatelessWidget {
-  const _DevChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: selected
-              ? Colors.purple.withValues(alpha: 0.18)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: selected
-                ? Colors.purple.withValues(alpha: 0.6)
-                : Colors.purple.withValues(alpha: 0.2),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
-            color: Colors.purple[selected ? 700 : 400],
-          ),
-        ),
-      ),
-    );
-  }
-}

@@ -1,13 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/customer_registration_data.dart';
-import '../models/registration_step.dart';
-import '../models/country_override_info.dart';
-import '../services/country_detection_service.dart';
-import '../services/otp_service.dart';
+import 'package:speedmart_lanka/core/constants/app_constants.dart';
 import 'package:speedmart_lanka/features/location/models/sri_lanka_district.dart';
 import 'package:speedmart_lanka/features/location/models/sri_lanka_province.dart';
+import '../models/customer_registration_data.dart';
+import '../models/registration_step.dart';
+import '../services/country_detection_service.dart';
+import '../services/otp_service.dart';
 
 // ── State ──────────────────────────────────────────────────────────────────
 
@@ -51,17 +51,27 @@ class CustomerRegistrationState {
   /// Masked phone/email shown on the OTP screen ("OTP sent to ****1234").
   final String? maskedContact;
 
-  /// True if the user selected non-LK but was detected as LK, needing confirmation.
+  /// True when OTHER is selected but Sri Lanka was detected — show mismatch dialog.
   final bool pendingOverrideConfirmation;
 
-  /// True if a user preference was found and loaded from SharedPreferences.
+  /// True if a saved [selectedCountry] preference was loaded from SharedPreferences.
   final bool hasSavedCountryPreference;
 
-  /// True if the UI should force the user to pick a country because all detection failed.
+  /// True if the UI should force the user to pick a country because detection failed.
   final bool shouldShowCountryDialog;
 
   bool get hasError => error != null;
   bool get isLkUser => data.isLkUser;
+
+  /// User chose OTHER while GPS/locale detected Sri Lanka.
+  bool get hasCountryMismatch {
+    final info = data.overrideInfo;
+    return info.selectedCountry == 'OTHER' && info.detectedCountry == 'LK';
+  }
+
+  /// Blocks registration submit until user confirms international or switches to LK.
+  bool get hasCountryMismatchBlockingSubmit =>
+      hasCountryMismatch && !data.overrideInfo.isCountryOverride;
 
   CustomerRegistrationState copyWith({
     RegistrationStep? step,
@@ -90,8 +100,10 @@ class CustomerRegistrationState {
       maskedContact: maskedContact ?? this.maskedContact,
       pendingOverrideConfirmation:
           pendingOverrideConfirmation ?? this.pendingOverrideConfirmation,
-      hasSavedCountryPreference: hasSavedCountryPreference ?? this.hasSavedCountryPreference,
-      shouldShowCountryDialog: shouldShowCountryDialog ?? this.shouldShowCountryDialog,
+      hasSavedCountryPreference:
+          hasSavedCountryPreference ?? this.hasSavedCountryPreference,
+      shouldShowCountryDialog:
+          shouldShowCountryDialog ?? this.shouldShowCountryDialog,
     );
   }
 }
@@ -105,110 +117,109 @@ class CustomerRegistrationNotifier
 
   final CountryDetectionService _countryDetection;
   final OtpService _otp;
-  static const _prefKey = 'speedmart_country_preference';
 
   // ── Country detection ────────────────────────────────────────────────────
 
-  /// Should be called once when the registration/login screen mounts.
+  /// Loads saved [selectedCountry], always runs GPS/locale detection, then
+  /// compares detected vs selected for mismatch warnings.
   Future<void> detectCountry() async {
-    if (state.countryDetected) return; // idempotent
+    if (state.countryDetected) return;
     state = state.copyWith(isDetectingCountry: true);
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      final savedCountry = prefs.getString(_prefKey);
+      final savedSelected = await _loadSavedSelectedCountry(prefs);
 
-      if (savedCountry != null) {
-        debugPrint('[CountryDetection] Saved preference: $savedCountry');
-        debugPrint('[CountryDetection] Final country: $savedCountry');
-        debugPrint('[CountryDetection] Source: saved');
-        debugPrint('[CountryDetection] Confident: true');
+      debugPrint(
+        '[CountryDetection] Saved selectedCountry: ${savedSelected ?? 'none'}',
+      );
 
-        final isLk = savedCountry == 'LK';
-        state = state.copyWith(
-          isDetectingCountry: false,
-          countryDetected: true,
-          isCountryAmbiguous: false,
-          hasSavedCountryPreference: true,
-          shouldShowCountryDialog: false,
-          data: state.data.copyWith(
-            isLkUser: isLk,
-            country: isLk ? 'Sri Lanka' : '',
-            overrideInfo: state.data.overrideInfo.copyWith(
-              detectedCountry: savedCountry,
-              detectionSource: DetectionMethod.preference.name,
-              selectedCountry: savedCountry,
-            ),
-          ),
-        );
-        return;
-      }
-
-      debugPrint('[CountryDetection] Saved preference: none');
-
+      // Always run GPS/locale — saved preference must not skip detection.
       final result = await _countryDetection.detect();
+      final needsManualPick = !result.isConfident;
 
-      // Development mode fallback
-      bool finalIsLk = result.isLkUser;
-      bool showDialog = !result.isConfident;
+      final detectedCode = needsManualPick
+          ? 'UNKNOWN'
+          : (result.isLkUser ? 'LK' : (result.countryCode ?? 'OTHER'));
 
-      if (kDebugMode && !result.isConfident) {
-        finalIsLk = true; // Default to LK in dev mode
-        showDialog = false; // Do not show popup
-        debugPrint('[CountryDetection] Debug mode fallback applied');
-        debugPrint('[CountryDetection] Final country: LK');
-        debugPrint('[CountryDetection] Source: debug');
-        debugPrint('[CountryDetection] Confident: true (forced)');
+      debugPrint('[CountryDetection] detectedCountry: $detectedCode');
+      debugPrint('[CountryDetection] Source: ${result.method.name}');
+      debugPrint('[CountryDetection] Confident: ${result.isConfident}');
+
+      // selectedCountry: saved UI preference, else default from detection.
+      final String? selectedCode = savedSelected ??
+          (needsManualPick ? null : (result.isLkUser ? 'LK' : 'OTHER'));
+
+      if (selectedCode != null) {
+        debugPrint('[CountryDetection] selectedCountry: $selectedCode');
       }
 
-      final detectedCode = finalIsLk ? 'LK' : result.countryCode;
+      final isLk = selectedCode == 'LK';
+      final isMismatch = selectedCode == 'OTHER' && detectedCode == 'LK';
 
       state = state.copyWith(
         isDetectingCountry: false,
         countryDetected: true,
-        isCountryAmbiguous: !result.isConfident,
-        hasSavedCountryPreference: false,
-        shouldShowCountryDialog: showDialog,
+        isCountryAmbiguous: needsManualPick,
+        hasSavedCountryPreference: savedSelected != null,
+        shouldShowCountryDialog: needsManualPick && selectedCode == null,
+        pendingOverrideConfirmation: isMismatch,
         data: state.data.copyWith(
-          isLkUser: finalIsLk,
-          country: finalIsLk ? 'Sri Lanka' : '',
+          isLkUser: selectedCode != null ? isLk : false,
+          country: isLk ? 'Sri Lanka' : '',
           overrideInfo: state.data.overrideInfo.copyWith(
             detectedCountry: detectedCode,
             detectionSource: result.method.name,
-            selectedCountry: finalIsLk ? 'LK' : 'OTHER',
+            selectedCountry: selectedCode,
+            clearRiskFlag: isLk,
+            isCountryOverride: false,
           ),
         ),
       );
     } catch (e) {
-      // Complete failure fallback
       debugPrint('[CountryDetection] Exception during detection: $e');
-      debugPrint('[CountryDetection] Final country: LK');
-      debugPrint('[CountryDetection] Source: fallback');
-      debugPrint('[CountryDetection] Confident: false');
+      debugPrint('[CountryDetection] detectedCountry: UNKNOWN');
 
       state = state.copyWith(
         isDetectingCountry: false,
         countryDetected: true,
         isCountryAmbiguous: true,
-        shouldShowCountryDialog: !kDebugMode,
+        shouldShowCountryDialog: true,
         data: state.data.copyWith(
-          isLkUser: true,
-          country: 'Sri Lanka',
+          isLkUser: false,
+          country: '',
           overrideInfo: state.data.overrideInfo.copyWith(
-            detectedCountry: 'LK',
-            detectionSource: 'fallback',
-            selectedCountry: 'LK',
+            detectedCountry: 'UNKNOWN',
+            detectionSource: 'error',
+            selectedCountry: null,
           ),
         ),
       );
     }
   }
 
+  Future<String?> _loadSavedSelectedCountry(SharedPreferences prefs) async {
+    final selected = prefs.getString(AppConstants.selectedCountryKey);
+    if (selected != null) return selected;
+
+    final legacy = prefs.getString(AppConstants.legacyCountryPreferenceKey);
+    if (legacy != null) {
+      await prefs.setString(AppConstants.selectedCountryKey, legacy);
+      return legacy;
+    }
+    return null;
+  }
+
+  Future<void> _saveSelectedCountry(String code) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(AppConstants.selectedCountryKey, code);
+    await prefs.remove(AppConstants.legacyCountryPreferenceKey);
+  }
+
   // ── Manual Country Overrides ─────────────────────────────────────────────
 
   void setLkUser(bool isLk) {
-    // If selecting "Other" and detected country is Sri Lanka, trigger override dialog
-    if (!isLk && state.data.overrideInfo.detectedCountry == 'LK' && !state.hasSavedCountryPreference) {
+    if (!isLk && state.data.overrideInfo.detectedCountry == 'LK') {
       state = state.copyWith(pendingOverrideConfirmation: true);
       return;
     }
@@ -216,8 +227,7 @@ class CustomerRegistrationNotifier
   }
 
   void toggleCountry() {
-    final nextIsLk = !state.data.isLkUser;
-    setLkUser(nextIsLk);
+    setLkUser(!state.data.isLkUser);
   }
 
   void confirmCountryOverride() {
@@ -234,11 +244,19 @@ class CustomerRegistrationNotifier
     state = state.copyWith(pendingOverrideConfirmation: false);
   }
 
+  /// Call before registration submit when OTHER + detected LK without override.
+  void requestMismatchConfirmationBeforeSubmit() {
+    if (state.hasCountryMismatchBlockingSubmit) {
+      state = state.copyWith(pendingOverrideConfirmation: true);
+    }
+  }
+
   Future<void> _applyLkChange(bool isLk, {bool isOverride = false}) async {
     state = state.copyWith(
       isCountryAmbiguous: false,
-      shouldShowCountryDialog: false, // dismiss dialog
+      shouldShowCountryDialog: false,
       hasSavedCountryPreference: true,
+      pendingOverrideConfirmation: false,
       data: state.data.copyWith(
         isLkUser: isLk,
         country: isLk ? 'Sri Lanka' : '',
@@ -250,10 +268,8 @@ class CustomerRegistrationNotifier
         ),
       ),
     );
-    
-    // Save to SharedPreferences
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefKey, isLk ? 'LK' : 'OTHER');
+
+    await _saveSelectedCountry(isLk ? 'LK' : 'OTHER');
   }
 
   void setMode({required bool isLogin}) {
@@ -276,7 +292,6 @@ class CustomerRegistrationNotifier
       _updateData(state.data.copyWith(deliveryNote: v));
 
   void updateProvince(SriLankaProvince? p) {
-    // Changing province clears the district selection.
     _updateData(state.data.copyWith(
       province: p,
       clearDistrict: true,
@@ -286,7 +301,6 @@ class CustomerRegistrationNotifier
   void updateDistrict(SriLankaDistrict? d) =>
       _updateData(state.data.copyWith(district: d));
 
-  /// Called when GPS auto-detect fills province + district automatically.
   void applyGpsLocation({
     required SriLankaProvince province,
     required SriLankaDistrict district,
@@ -303,7 +317,6 @@ class CustomerRegistrationNotifier
 
   // ── OTP flow ─────────────────────────────────────────────────────────────
 
-  /// Sends OTP to the primary contact. On success advances to [RegistrationStep.verifyOtp].
   Future<void> sendOtp() async {
     state = state.copyWith(
       step: RegistrationStep.sendingOtp,
@@ -339,7 +352,6 @@ class CustomerRegistrationNotifier
     }
   }
 
-  /// Verifies [code] against the sent OTP. On success advances to [RegistrationStep.success].
   Future<bool> verifyOtp(String code) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
@@ -348,7 +360,7 @@ class CustomerRegistrationNotifier
       final ok = await _otp.verifyOtp(
         channel: channel,
         destination: contact,
-        code: code,
+        code: code.trim(),
       );
       if (ok) {
         state = state.copyWith(
@@ -378,7 +390,6 @@ class CustomerRegistrationNotifier
     }
   }
 
-  /// Returns to the details step (called from OTP screen "← Change details").
   void backToDetails() {
     state = state.copyWith(
       step: RegistrationStep.details,
@@ -386,21 +397,15 @@ class CustomerRegistrationNotifier
     );
   }
 
-  /// Resets the entire registration flow (e.g. user logs out mid-flow).
   void reset() {
     state = const CustomerRegistrationState();
   }
-
-  // ── Private helpers ───────────────────────────────────────────────────────
 
   void _updateData(CustomerRegistrationData d) {
     state = state.copyWith(data: d, clearError: true);
   }
 }
 
-// ── Providers ──────────────────────────────────────────────────────────────
-
-/// Service providers — swap these to inject real implementations.
 final countryDetectionServiceProvider = Provider<CountryDetectionService>(
   (_) => CountryDetectionService(),
 );
@@ -409,7 +414,6 @@ final otpServiceProvider = Provider<OtpService>(
   (_) => MockOtpService(mockValidCode: '123456'),
 );
 
-/// Main registration state provider.
 final customerRegistrationProvider = StateNotifierProvider<
     CustomerRegistrationNotifier, CustomerRegistrationState>(
   (ref) => CustomerRegistrationNotifier(

@@ -41,6 +41,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
   late final MockRequestRepository _requestRepo;
 
   Future<List<Proposal>> loadProposalsForRequest(String requestId) async {
+    await _repo.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final proposals = await _repo.getProposalsForRequest(requestId);
@@ -66,6 +67,8 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
   }
 
   Future<void> submitProposal(Proposal proposal) async {
+    await _repo.ensureInitialized();
+    await _requestRepo.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final newProposal = await _repo.createProposal(proposal);
@@ -82,6 +85,8 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
   }
 
   Future<void> acceptProposal(String proposalId, String requestId) async {
+    await _repo.ensureInitialized();
+    await _requestRepo.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       // Accept this proposal
@@ -106,6 +111,8 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
   }
 
   Future<void> rejectProposal(String proposalId, String requestId, String reason) async {
+    await _repo.ensureInitialized();
+    await _requestRepo.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       await _repo.updateProposalStatus(proposalId, ProposalStatus.rejected, rejectionReason: reason);
@@ -121,6 +128,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
   }
 
   Future<void> sendControlledMessage(String proposalId, {String? customerMsg, String? vendorMsg}) async {
+    await _repo.ensureInitialized();
     try {
       await _repo.sendControlledMessage(proposalId, customerMsg: customerMsg, vendorMsg: vendorMsg);
       // Reload matching proposals

@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_button.dart';
 import 'package:speedmart_lanka/features/auth/customer_registration/services/otp_service.dart';
+import 'package:speedmart_lanka/features/auth/customer_registration/providers/customer_registration_provider.dart';
 import 'package:speedmart_lanka/features/auth/customer_registration/widgets/phone_field_lk.dart';
 import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
 
@@ -13,8 +14,6 @@ import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
 ///
 /// After successful verification it calls [onVerified] with the normalised
 /// phone number so the caller can proceed (e.g. submit a shopping request).
-///
-/// Uses the existing [MockOtpService] with code `123456` during development.
 class PhoneVerificationSheet extends ConsumerStatefulWidget {
   const PhoneVerificationSheet({
     super.key,
@@ -36,13 +35,12 @@ class _PhoneVerificationSheetState
   final _otpControllers = List.generate(6, (_) => TextEditingController());
   final _otpFocusNodes = List.generate(6, (_) => FocusNode());
 
-  final _otp = MockOtpService(mockValidCode: '123456');
-
   bool _isSendingOtp = false;
   bool _isVerifyingOtp = false;
   bool _otpSent = false;
   String? _maskedContact;
   String? _error;
+  String? _verifiedDestination;
 
   // Resend cooldown
   int _resendCooldown = 0;
@@ -76,10 +74,13 @@ class _PhoneVerificationSheetState
     });
   }
 
+  String? _normalisedPhone() =>
+      PhoneFieldLk.normalise(_phoneCtrl.text.trim());
+
   Future<void> _sendOtp() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final normalised = PhoneFieldLk.normalise(_phoneCtrl.text.trim());
+    final normalised = _normalisedPhone();
     if (normalised == null) {
       setState(() => _error = 'Invalid phone number');
       return;
@@ -91,7 +92,8 @@ class _PhoneVerificationSheetState
     });
 
     try {
-      final result = await _otp.sendOtp(
+      final otp = ref.read(otpServiceProvider);
+      final result = await otp.sendOtp(
         channel: OtpChannel.phone,
         destination: normalised,
       );
@@ -102,10 +104,10 @@ class _PhoneVerificationSheetState
         setState(() {
           _otpSent = true;
           _maskedContact = result.maskedContact;
+          _verifiedDestination = normalised;
           _isSendingOtp = false;
         });
         _startResendCooldown();
-        // Focus the first OTP box
         _otpFocusNodes[0].requestFocus();
       } else {
         setState(() {
@@ -124,13 +126,15 @@ class _PhoneVerificationSheetState
   }
 
   Future<void> _verifyOtp() async {
-    final code = _otpControllers.map((c) => c.text).join();
+    if (_isVerifyingOtp) return;
+
+    final code = _otpControllers.map((c) => c.text.trim()).join().trim();
     if (code.length < 6) {
       setState(() => _error = 'Please enter all 6 digits');
       return;
     }
 
-    final normalised = PhoneFieldLk.normalise(_phoneCtrl.text.trim());
+    final normalised = _verifiedDestination ?? _normalisedPhone();
     if (normalised == null) return;
 
     setState(() {
@@ -139,7 +143,8 @@ class _PhoneVerificationSheetState
     });
 
     try {
-      final ok = await _otp.verifyOtp(
+      final otp = ref.read(otpServiceProvider);
+      final ok = await otp.verifyOtp(
         channel: OtpChannel.phone,
         destination: normalised,
         code: code,
@@ -148,21 +153,19 @@ class _PhoneVerificationSheetState
       if (!mounted) return;
 
       if (ok) {
-        // Update the user model with verifiedPhone = true
-        await ref.read(authProvider.notifier).markPhoneVerified(
-              phone: normalised,
-            );
-        if (mounted) {
-          widget.onVerified(normalised);
-          Navigator.of(context).pop();
-        }
+        final authNotifier = ref.read(authProvider.notifier);
+        await authNotifier.markPhoneVerified(phone: normalised);
+        if (!mounted) return;
+
+        setState(() => _isVerifyingOtp = false);
+        widget.onVerified(normalised);
       } else {
         setState(() {
           _error = 'Incorrect OTP code. Please try again.';
           _isVerifyingOtp = false;
         });
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         setState(() {
           _error = 'Verification failed. Please try again.';
@@ -174,7 +177,6 @@ class _PhoneVerificationSheetState
 
   void _resendOtp() {
     if (_resendCooldown > 0) return;
-    // Clear existing OTP fields
     for (final c in _otpControllers) {
       c.clear();
     }
@@ -204,7 +206,6 @@ class _PhoneVerificationSheetState
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Handle bar
               Container(
                 width: 40,
                 height: 4,
@@ -214,8 +215,6 @@ class _PhoneVerificationSheetState
                 ),
               ),
               const SizedBox(height: 20),
-
-              // Shield icon
               Container(
                 width: 56,
                 height: 56,
@@ -237,18 +236,12 @@ class _PhoneVerificationSheetState
                 ),
               ),
               const SizedBox(height: 16),
-
-              // Title
               Text(
-                _otpSent
-                    ? 'Verify your phone'
-                    : 'Phone verification required',
+                _otpSent ? 'Verify your phone' : 'Phone verification required',
                 style: AppTextStyles.h3(primaryText),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
-
-              // Subtitle
               Text(
                 _otpSent
                     ? 'Enter the 6-digit code sent to $_maskedContact'
@@ -257,8 +250,6 @@ class _PhoneVerificationSheetState
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 24),
-
-              // Error banner
               if (_error != null) ...[
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -284,9 +275,7 @@ class _PhoneVerificationSheetState
                 ),
                 const SizedBox(height: 16),
               ],
-
               if (!_otpSent) ...[
-                // Phone input
                 Form(
                   key: _formKey,
                   child: PhoneFieldLk(
@@ -296,17 +285,14 @@ class _PhoneVerificationSheetState
                   ),
                 ),
                 const SizedBox(height: 20),
-
-                // Send OTP button
                 AppButton(
                   label: 'Send OTP',
-                  onPressed: _sendOtp,
+                  onPressed: _isSendingOtp ? null : _sendOtp,
                   isLoading: _isSendingOtp,
                   color: AppColors.customerColor,
                   icon: Icons.send_rounded,
                 ),
               ] else ...[
-                // OTP input boxes
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: List.generate(6, (i) {
@@ -315,7 +301,7 @@ class _PhoneVerificationSheetState
                       height: 52,
                       margin: EdgeInsets.only(
                         right: i < 5 ? 8 : 0,
-                        left: i == 3 ? 8 : 0, // extra gap after 3rd digit
+                        left: i == 3 ? 8 : 0,
                       ),
                       child: TextFormField(
                         controller: _otpControllers[i],
@@ -352,11 +338,10 @@ class _PhoneVerificationSheetState
                           } else if (val.isEmpty && i > 0) {
                             _otpFocusNodes[i - 1].requestFocus();
                           }
-                          // Auto-verify when all 6 filled
                           if (i == 5 && val.isNotEmpty) {
-                            final code =
-                                _otpControllers.map((c) => c.text).join();
-                            if (code.length == 6) {
+                            final entered =
+                                _otpControllers.map((c) => c.text.trim()).join().trim();
+                            if (entered.length == 6) {
                               _verifyOtp();
                             }
                           }
@@ -366,18 +351,14 @@ class _PhoneVerificationSheetState
                   }),
                 ),
                 const SizedBox(height: 20),
-
-                // Verify button
                 AppButton(
                   label: 'Verify Phone',
-                  onPressed: _verifyOtp,
+                  onPressed: _isVerifyingOtp ? null : _verifyOtp,
                   isLoading: _isVerifyingOtp,
                   color: AppColors.customerColor,
                   icon: Icons.check_circle_rounded,
                 ),
                 const SizedBox(height: 12),
-
-                // Resend
                 Center(
                   child: _resendCooldown > 0
                       ? Text(
@@ -394,34 +375,6 @@ class _PhoneVerificationSheetState
                         ),
                 ),
               ],
-
-              const SizedBox(height: 8),
-
-              // Dev hint
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.purple.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.developer_mode_rounded,
-                        size: 12, color: Colors.purple[400]),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Dev OTP: 123456',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.purple[400],
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
             ],
           ),
         ),

@@ -2,19 +2,19 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/safe_request_image.dart';
 import '../../models/request_item.dart';
 
 class ReviewRequestSheet extends StatelessWidget {
-  final String customerArea;
-  final String deliveryAddress;
+  /// Human-readable suburb / city / approximate area for vendors.
+  final String suburbOrCity;
   final List<RequestItem> items;
   final VoidCallback onConfirm;
   final bool isLoading;
 
   const ReviewRequestSheet({
     super.key,
-    required this.customerArea,
-    required this.deliveryAddress,
+    required this.suburbOrCity,
     required this.items,
     required this.onConfirm,
     this.isLoading = false,
@@ -90,7 +90,7 @@ class ReviewRequestSheet extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Suburb / City: $customerArea (Shared with vendors)',
+                          'Suburb / City: $suburbOrCity',
                           style: AppTextStyles.bodyMedium(primaryText).copyWith(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 4),
@@ -100,7 +100,7 @@ class ReviewRequestSheet extends StatelessWidget {
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
-                                'Address: $deliveryAddress (Hidden until confirmation)',
+                                'Address: Hidden until confirmation',
                                 style: AppTextStyles.bodySmall(secondaryText),
                               ),
                             ),
@@ -184,14 +184,12 @@ class ReviewRequestSheet extends StatelessWidget {
                                         itemBuilder: (context, idx) {
                                           return Padding(
                                             padding: const EdgeInsets.only(right: 6),
-                                            child: ClipRRect(
+                                            child: SafeRequestImage(
+                                              path: item.imageUrls[idx],
+                                              width: 36,
+                                              height: 36,
+                                              fit: BoxFit.cover,
                                               borderRadius: BorderRadius.circular(6),
-                                              child: Image.network(
-                                                item.imageUrls[idx],
-                                                width: 36,
-                                                height: 36,
-                                                fit: BoxFit.cover,
-                                              ),
                                             ),
                                           );
                                         },

@@ -1,9 +1,9 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/widgets/safe_request_image.dart';
 
 class ImageUploadGrid extends StatelessWidget {
   final String? category;
@@ -16,12 +16,6 @@ class ImageUploadGrid extends StatelessWidget {
     required this.imageUrls,
     required this.onImagesChanged,
   });
-
-
-
-  bool _isNetworkUrl(String path) {
-    return path.startsWith('http://') || path.startsWith('https://');
-  }
 
   void _showImageSourceActionSheet(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -259,34 +253,11 @@ class ImageUploadGrid extends StatelessWidget {
             ),
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: _isNetworkUrl(url)
-                  ? Image.network(
-                      url,
-                      fit: BoxFit.contain,
-                      loadingBuilder: (context, child, progress) {
-                        if (progress == null) return child;
-                        return Container(
-                          height: 250,
-                          color: Colors.black26,
-                          child: const Center(
-                            child: CircularProgressIndicator(color: AppColors.customerColor),
-                          ),
-                        );
-                      },
-                    )
-                  : Image.file(
-                      File(url),
-                      fit: BoxFit.contain,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          height: 250,
-                          color: Colors.black26,
-                          child: const Center(
-                            child: Icon(Icons.broken_image_outlined, color: Colors.white, size: 48),
-                          ),
-                        );
-                      },
-                    ),
+              child: SafeRequestImage(
+                path: url,
+                height: 250,
+                fit: BoxFit.contain,
+              ),
             ),
             const SizedBox(height: 12),
             Text(
@@ -369,33 +340,12 @@ class ImageUploadGrid extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: borderColor),
                       ),
-                      child: ClipRRect(
+                      child: SafeRequestImage(
+                        path: url,
+                        width: 80,
+                        height: 80,
+                        fit: BoxFit.cover,
                         borderRadius: BorderRadius.circular(11),
-                        child: _isNetworkUrl(url)
-                            ? Image.network(
-                                url,
-                                fit: BoxFit.cover,
-                                loadingBuilder: (context, child, progress) {
-                                  if (progress == null) return child;
-                                  return const Center(
-                                    child: SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.customerColor),
-                                    ),
-                                  );
-                                },
-                                errorBuilder: (context, error, stackTrace) {
-                                  return const Icon(Icons.broken_image_outlined, size: 20);
-                                },
-                              )
-                            : Image.file(
-                                File(url),
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return const Icon(Icons.broken_image_outlined, size: 20);
-                                },
-                              ),
                       ),
                     ),
                   ),

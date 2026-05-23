@@ -27,7 +27,7 @@ extension RequestStatusExtension on RequestStatus {
       case RequestStatus.submitted:
         return 'Submitted';
       case RequestStatus.waitingForVendor:
-        return 'Waiting for Vendor';
+        return 'Awaiting Proposals';
       case RequestStatus.vendorAccepted:
         return 'Vendor Accepted';
       case RequestStatus.proposalSubmitted:
@@ -54,6 +54,25 @@ extension RequestStatusExtension on RequestStatus {
         return 'Expired';
     }
   }
+
+  /// Customer may cancel before a vendor bid is accepted.
+  bool get canBeCancelledByCustomer {
+    switch (this) {
+      case RequestStatus.submitted:
+      case RequestStatus.waitingForVendor:
+      case RequestStatus.proposalSubmitted:
+        return true;
+      default:
+        return false;
+    }
+  }
+
+  bool get isCancelled => this == RequestStatus.cancelled;
+
+  bool get isAwaitingVendorResponse =>
+      this == RequestStatus.submitted ||
+      this == RequestStatus.waitingForVendor ||
+      this == RequestStatus.proposalSubmitted;
 }
 
 class ShoppingRequest {
@@ -72,6 +91,11 @@ class ShoppingRequest {
   final double longitude;
   final DeliveryLocation? deliveryLocation;
 
+  // TODO: Persist cancellation metadata via backend API when integrated.
+  final DateTime? cancelledAt;
+  final String? cancelledReason;
+  final String? cancelledBy;
+
   ShoppingRequest({
     required this.id,
     required this.customerId,
@@ -87,7 +111,15 @@ class ShoppingRequest {
     this.latitude = 0.0,
     this.longitude = 0.0,
     this.deliveryLocation,
+    this.cancelledAt,
+    this.cancelledReason,
+    this.cancelledBy,
   });
+
+  bool canBeCancelledByCustomer({required bool hasAcceptedProposal}) {
+    if (hasAcceptedProposal) return false;
+    return status.canBeCancelledByCustomer;
+  }
 
   ShoppingRequest copyWith({
     String? id,
@@ -104,6 +136,9 @@ class ShoppingRequest {
     double? latitude,
     double? longitude,
     DeliveryLocation? deliveryLocation,
+    DateTime? cancelledAt,
+    String? cancelledReason,
+    String? cancelledBy,
   }) {
     return ShoppingRequest(
       id: id ?? this.id,
@@ -120,6 +155,70 @@ class ShoppingRequest {
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       deliveryLocation: deliveryLocation ?? this.deliveryLocation,
+      cancelledAt: cancelledAt ?? this.cancelledAt,
+      cancelledReason: cancelledReason ?? this.cancelledReason,
+      cancelledBy: cancelledBy ?? this.cancelledBy,
+    );
+  }
+
+  /// Serializes for local persistence (image paths only, not binary).
+  /// TODO: Replace local mock request persistence with backend API.
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'customerId': customerId,
+      'status': status.name,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
+      'customerArea': customerArea,
+      'deliveryAddress': deliveryAddress,
+      'customerPhone': customerPhone,
+      'customerName': customerName,
+      'approximateDistance': approximateDistance,
+      'latitude': latitude,
+      'longitude': longitude,
+      'deliveryLocation': deliveryLocation?.toJson(),
+      'cancelledAt': cancelledAt?.toIso8601String(),
+      'cancelledReason': cancelledReason,
+      'cancelledBy': cancelledBy,
+      'items': items.map((i) => i.toJson()).toList(),
+    };
+  }
+
+  factory ShoppingRequest.fromJson(Map<String, dynamic> json) {
+    return ShoppingRequest(
+      id: json['id'] as String? ?? '',
+      customerId: json['customerId'] as String? ?? '',
+      items: (json['items'] as List<dynamic>? ?? [])
+          .map((e) => RequestItem.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList(),
+      status: RequestStatus.values.firstWhere(
+        (s) => s.name == json['status'],
+        orElse: () => RequestStatus.submitted,
+      ),
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now(),
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.tryParse(json['updatedAt'] as String)
+          : null,
+      customerArea: json['customerArea'] as String? ?? '',
+      deliveryAddress: json['deliveryAddress'] as String? ?? '',
+      customerPhone: json['customerPhone'] as String? ?? '',
+      customerName: json['customerName'] as String? ?? '',
+      approximateDistance:
+          (json['approximateDistance'] as num?)?.toDouble() ?? 0.0,
+      latitude: (json['latitude'] as num?)?.toDouble() ?? 0.0,
+      longitude: (json['longitude'] as num?)?.toDouble() ?? 0.0,
+      deliveryLocation: json['deliveryLocation'] != null
+          ? DeliveryLocation.fromJson(
+              Map<String, dynamic>.from(json['deliveryLocation'] as Map),
+            )
+          : null,
+      cancelledAt: json['cancelledAt'] != null
+          ? DateTime.tryParse(json['cancelledAt'] as String)
+          : null,
+      cancelledReason: json['cancelledReason'] as String?,
+      cancelledBy: json['cancelledBy'] as String?,
     );
   }
 }

@@ -32,6 +32,9 @@ import '../widgets/review_request_sheet.dart';
 import 'package:speedmart_lanka/features/requests/presentation/widgets/phone_verification_sheet.dart';
 import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
 import 'package:speedmart_lanka/features/requests/data/sri_lanka_delivery_detector.dart';
+import 'package:speedmart_lanka/features/customer/delivery_address/providers/customer_delivery_address_provider.dart';
+import 'package:speedmart_lanka/features/customer/delivery_address/presentation/widgets/delivery_address_summary_card.dart';
+import 'package:speedmart_lanka/features/customer/delivery_address/presentation/widgets/confirm_delivery_address_sheet.dart';
 
 
 
@@ -72,6 +75,8 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   bool _isMixedCategory = false;
   String _globalCategory = 'Groceries';
   bool _isDetectingLocation = false;
+  bool _isSubmitting = false;
+  bool _deliveryAddressReady = false;
 
   Future<void> _detectLocationWithGPS() async {
     setState(() => _isDetectingLocation = true);
@@ -223,9 +228,9 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
       }
       _saveDraft();
     });
-    // Load local draft on start
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkAndLoadDraft();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _checkAndLoadDraft();
+      await _loadDefaultDeliveryAddress();
     });
   }
 
@@ -463,15 +468,50 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     });
   }
 
+  Future<void> _loadDefaultDeliveryAddress() async {
+    await ref.read(customerDeliveryAddressProvider.notifier).loadForCurrentUser();
+    final addrState = ref.read(customerDeliveryAddressProvider);
+    if (addrState.hasSavedAddress && ref.read(deliveryLocationProvider).currentLocation == null) {
+      await ref.read(customerDeliveryAddressProvider.notifier).applyActiveLocationToProvider();
+      final loc = ref.read(deliveryLocationProvider).currentLocation;
+      if (loc != null) {
+        _suburbSearchController.text = loc.approximateAreaText.isNotEmpty
+            ? loc.approximateAreaText
+            : loc.displayArea;
+        _addressController.text = loc.streetAddress;
+      }
+    }
+    if (mounted) setState(() => _deliveryAddressReady = true);
+  }
+
+  Future<void> _openDeliveryAddressEditor() async {
+    final result = await context.push<DeliveryLocation>(
+      RouteNames.customerDeliveryAddress,
+      extra: {'fromCreateRequest': true},
+    );
+    if (result != null && mounted) {
+      ref.read(deliveryLocationProvider.notifier).setLocation(result);
+      _suburbSearchController.text = result.approximateAreaText.isNotEmpty
+          ? result.approximateAreaText
+          : result.displayArea;
+      _addressController.text = result.streetAddress;
+      _saveDraft();
+      setState(() {});
+    }
+  }
+
   // ── Form Submissions & Review Sheets ──────────────────────────────────────
 
   bool _hasLocation() {
-    // Both fields are required before submission is allowed.
-    // We check the controllers directly so the check is always up-to-date
-    // regardless of provider state synchronisation timing.
-    final hasArea = _suburbSearchController.text.trim().isNotEmpty;
-    final hasAddress = _addressController.text.trim().isNotEmpty;
-    return hasArea && hasAddress;
+    final loc = ref.read(deliveryLocationProvider).currentLocation;
+    if (loc == null) return false;
+    final area = loc.approximateAreaText.isNotEmpty
+        ? loc.approximateAreaText
+        : loc.displayArea;
+    return loc.province.trim().isNotEmpty &&
+        loc.district.trim().isNotEmpty &&
+        area.trim().isNotEmpty &&
+        loc.streetAddress.trim().isNotEmpty;
   }
 
   List<RequestItem> _getActiveItems() {
@@ -512,34 +552,135 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     return false;
   }
 
-  void _triggerReviewSheet() {
-    setState(() {
-      _progressStep = 1; // Review Step
-    });
+  String _reviewSuburbOrCity() {
+    final typed = _suburbSearchController.text.trim();
+    if (typed.isNotEmpty) return typed;
 
     final locationState = ref.read(deliveryLocationProvider);
+    final display = locationState.displayArea.trim();
+    if (display.isNotEmpty) return display;
+
+    final suburb = locationState.suburb.trim();
+    if (suburb.isNotEmpty) return suburb;
+
+    return 'Not provided';
+  }
+
+  void _triggerReviewSheet() {
+    if (!_hasLocation()) return;
+
+    setState(() {
+      _progressStep = 1;
+    });
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => ReviewRequestSheet(
-        customerArea: locationState.suburb,
-        deliveryAddress: _addressController.text.trim(),
+        suburbOrCity: _reviewSuburbOrCity(),
         items: _getActiveItems(),
-        isLoading: ref.watch(requestProvider).isLoading,
-        onConfirm: _submitRequest,
+        isLoading: _isSubmitting,
+        onConfirm: () {
+          Navigator.pop(context);
+          _showConfirmDeliveryAddress();
+        },
       ),
     ).then((_) {
       if (mounted && _progressStep == 1) {
-        setState(() {
-          _progressStep = 0; // Return to editing
-        });
+        setState(() => _progressStep = 0);
       }
     });
   }
 
+  void _showConfirmDeliveryAddress() {
+    final loc = ref.read(deliveryLocationProvider).currentLocation;
+    if (loc == null) return;
+
+    ConfirmDeliveryAddressSheet.show(
+      context,
+      location: loc,
+      isLoading: _isSubmitting,
+      onChangeAddress: () {
+        Navigator.pop(context);
+        _openDeliveryAddressEditor();
+      },
+      onConfirm: () {
+        Navigator.pop(context);
+        _submitRequest();
+      },
+    );
+  }
+
+  Widget _buildDeliveryLocationSection({
+    required Color cardColor,
+    required Color borderColor,
+    required Color primaryText,
+    required Color secondaryText,
+  }) {
+    final addrState = ref.watch(customerDeliveryAddressProvider);
+    final loc = ref.watch(deliveryLocationProvider).currentLocation;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.location_on_outlined,
+                  color: AppColors.customerColor, size: 20),
+              const SizedBox(width: 8),
+              Text('Delivery Location',
+                  style: AppTextStyles.subtitle(primaryText)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (!_deliveryAddressReady || addrState.isLoading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 24),
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+            )
+          else if (loc != null && _hasLocation())
+            DeliveryAddressSummaryCard(
+              location: loc,
+              isRequestOnly: addrState.requestOnlyLocation != null,
+              onChange: _openDeliveryAddressEditor,
+            )
+          else ...[
+            Text(
+              'Add your delivery address to continue.',
+              style: AppTextStyles.bodyMedium(secondaryText),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _openDeliveryAddressEditor,
+                icon: const Icon(Icons.add_location_alt_outlined),
+                label: const Text('Add Delivery Address'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.customerColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
   Future<void> _submitRequest() async {
+    if (_isSubmitting) return;
+
     final activeItems = _getActiveItems();
     if (activeItems.isEmpty || !_hasLocation()) return;
 
@@ -548,10 +689,8 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     // before submitting shopping requests for Sri Lankan delivery addresses.
     final currentUser = ref.read(currentUserProvider);
     if (currentUser != null) {
-      final isInternational = currentUser.selectedCountry != 'LK';
-      final isOverride = currentUser.countryOverride == true ||
-          currentUser.riskFlag == 'country_mismatch';
-      final needsPhoneVerification = isInternational || isOverride;
+      final isOtherCountry = currentUser.selectedCountry == 'OTHER';
+      final needsPhoneVerification = isOtherCountry;
 
       if (needsPhoneVerification && currentUser.verifiedPhone != true) {
         final locationState = ref.read(deliveryLocationProvider);
@@ -570,26 +709,34 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
 
     if (!mounted) return;
     setState(() {
+      _isSubmitting = true;
       _progressStep = 2; // Submitting step
     });
+
+    final requestNotifier = ref.read(requestProvider.notifier);
+    final deliveryNotifier = ref.read(deliveryLocationProvider.notifier);
+    final notifNotifier = ref.read(notificationProvider.notifier);
 
     try {
       final locationState = ref.read(deliveryLocationProvider);
       final location = locationState.currentLocation;
-      final updatedLocation = location!.copyWith(
+      if (location == null) {
+        throw Exception('Delivery location is missing.');
+      }
+
+      final updatedLocation = location.copyWith(
         streetAddress: _addressController.text.trim(),
       );
-      ref.read(deliveryLocationProvider.notifier).setLocation(updatedLocation);
+      deliveryNotifier.setLocation(updatedLocation);
 
-      // Capture notifier reference before async gaps so the delayed
-      // callback remains valid even after the screen is disposed/navigated.
-      final notifNotifier = ref.read(notificationProvider.notifier);
-      final suburbName = updatedLocation.suburb;
+      final suburbName = updatedLocation.suburb.isNotEmpty
+          ? updatedLocation.suburb
+          : updatedLocation.approximateAreaText;
       final itemCount = activeItems.length;
 
-      await ref.read(requestProvider.notifier).createRequest(
+      await requestNotifier.createRequest(
         items: activeItems,
-        customerArea: updatedLocation.suburb.isNotEmpty ? updatedLocation.suburb : updatedLocation.approximateAreaText,
+        customerArea: suburbName,
         deliveryAddress: updatedLocation.streetAddress,
         latitude: updatedLocation.latitude ?? 0.0,
         longitude: updatedLocation.longitude ?? 0.0,
@@ -598,19 +745,17 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
 
       if (!mounted) return;
 
-      // Clear draft since it is successfully submitted
       await DraftService.clearDraft();
 
       if (!mounted) return;
 
       setState(() {
         _progressStep = 3; // Finished step
+        _isSubmitting = false;
       });
 
-      // Dismiss the Review Modal Sheet
       Navigator.pop(context);
 
-      // Trigger in-app notification before navigation
       notifNotifier.triggerNotification(
         title: 'Request Active!',
         body: 'Your list has been dispatched to nearby vendors within 20km.',
@@ -618,8 +763,6 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
         color: AppColors.customerColor,
       );
 
-      // Simulate vendor dispatch after 2 seconds.
-      // Uses a pre-captured notifier — safe to call after screen disposes.
       Future.delayed(const Duration(seconds: 2), () {
         notifNotifier.triggerNotification(
           title: 'New Request Nearby!',
@@ -629,15 +772,18 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
         );
       });
 
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Request dispatched successfully!')),
       );
-      ref.read(deliveryLocationProvider.notifier).clearLocation();
+      deliveryNotifier.clearLocation();
       context.go(RouteNames.customerHome);
     } catch (e) {
       if (mounted) {
         setState(() {
-          _progressStep = 0; // Reset back to editing
+          _isSubmitting = false;
+          _progressStep = 0;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
@@ -698,14 +844,18 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
 
     // Show bottom sheet
     if (!mounted) return false;
+    if (!mounted) return false;
     final verified = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
+      isDismissible: false,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
       builder: (sheetCtx) => PhoneVerificationSheet(
-        onVerified: (normalisedPhone) {
-          // Success
-          Navigator.pop(sheetCtx, true);
+        onVerified: (_) {
+          if (Navigator.of(sheetCtx).canPop()) {
+            Navigator.of(sheetCtx).pop(true);
+          }
         },
       ),
     );
@@ -890,8 +1040,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
-    final isLoading = ref.watch(requestProvider).isLoading;
-    final deliveryLocation = ref.watch(deliveryLocationProvider);
+    final isLoading = _isSubmitting || ref.watch(requestProvider).isLoading;
 
     // Configure system status bar colors & icons dynamically
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
@@ -930,230 +1079,14 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
               child: CustomScrollView(
                 physics: const BouncingScrollPhysics(),
                 slivers: [
-                   // Geolocation compact card section
                    SliverToBoxAdapter(
-                     child: Container(
-                       padding: const EdgeInsets.all(16),
-                       margin: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                       decoration: BoxDecoration(
-                         color: cardColor,
-                         borderRadius: BorderRadius.circular(20),
-                         border: Border.all(color: borderColor),
-                         boxShadow: [
-                           BoxShadow(
-                             color: Colors.black.withOpacity(0.02),
-                             blurRadius: 10,
-                             offset: const Offset(0, 4),
-                           )
-                         ],
-                       ),
-                       child: Column(
-                         crossAxisAlignment: CrossAxisAlignment.start,
-                         children: [
-                           Row(
-                             children: [
-                               const Icon(Icons.location_on_outlined, color: AppColors.customerColor, size: 20),
-                               const SizedBox(width: 8),
-                               Text('Delivery Location', style: AppTextStyles.subtitle(primaryText)),
-                               const Spacer(),
-                               if (deliveryLocation != null && !_isDetectingLocation)
-                                 TextButton.icon(
-                                   onPressed: _detectLocationWithGPS,
-                                   icon: const Icon(Icons.my_location_rounded, size: 14, color: AppColors.customerColor),
-                                   label: const Text('Detect GPS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.customerColor)),
-                                   style: TextButton.styleFrom(
-                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                     minimumSize: Size.zero,
-                                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                     backgroundColor: AppColors.customerColor.withOpacity(0.08),
-                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                   ),
-                                 ),
-                             ],
-                           ),
-                           const SizedBox(height: 12),
-                           if (_isDetectingLocation) ...[
-                             Container(
-                               padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-                               width: double.infinity,
-                               child: Column(
-                                 mainAxisAlignment: MainAxisAlignment.center,
-                                 children: [
-                                   const SizedBox(
-                                     width: 24,
-                                     height: 24,
-                                     child: CircularProgressIndicator(
-                                       strokeWidth: 2.5,
-                                       color: AppColors.customerColor,
-                                     ),
-                                   ),
-                                   const SizedBox(height: 12),
-                                   Text(
-                                     'Detecting your location...',
-                                     style: TextStyle(
-                                       fontSize: 13,
-                                       color: secondaryText,
-                                       fontWeight: FontWeight.w500,
-                                     ),
-                                   ),
-                                 ],
-                                ),
-                              ),
-                            ] else if (deliveryLocation == null) ...[
-                              Container(
-                                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-                                decoration: BoxDecoration(
-                                  color: isDark ? Colors.white.withOpacity(0.02) : Colors.grey.shade50,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: borderColor),
-                                ),
-                                child: Column(
-                                  children: [
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.location_off_outlined, color: secondaryText.withOpacity(0.6), size: 22),
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          'No delivery location selected',
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            color: secondaryText,
-                                            fontWeight: FontWeight.w500,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: ElevatedButton.icon(
-                                            onPressed: _detectLocationWithGPS,
-                                            icon: const Icon(Icons.gps_fixed_rounded, size: 16),
-                                            label: const Text('Use GPS', style: TextStyle(fontWeight: FontWeight.bold)),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: AppColors.customerColor,
-                                              foregroundColor: Colors.white,
-                                              padding: const EdgeInsets.symmetric(vertical: 12),
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Expanded(
-                                          child: OutlinedButton.icon(
-                                            onPressed: () {
-                                              ref.read(deliveryLocationProvider.notifier).setLocation(
-                                                const DeliveryLocation(
-                                                  province: '',
-                                                  district: '',
-                                                  city: '',
-                                                  suburb: '',
-                                                  formattedAddress: '',
-                                                  streetAddress: '',
-                                                  source: 'manual',
-                                                  isManualOverride: true,
-                                                ),
-                                              );
-                                            },
-                                            icon: const Icon(Icons.edit_location_alt_outlined, size: 16),
-                                            label: const Text('Enter Manually', style: TextStyle(fontWeight: FontWeight.bold)),
-                                            style: OutlinedButton.styleFrom(
-                                              padding: const EdgeInsets.symmetric(vertical: 12),
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ] else ...[
-                              if (deliveryLocation.isGpsDetected) ...[
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  margin: const EdgeInsets.only(bottom: 12),
-                                  decoration: BoxDecoration(
-                                    color: Colors.green.withOpacity(0.08),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: Colors.green.withOpacity(0.2)),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      const Icon(Icons.gps_fixed_rounded, size: 14, color: Colors.green),
-                                      const SizedBox(width: 6),
-                                      Expanded(
-                                        child: Text(
-                                          'GPS Located: ${deliveryLocation.suburb}, ${deliveryLocation.city}',
-                                          style: const TextStyle(fontSize: 11, color: Colors.green, fontWeight: FontWeight.w500),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ] else if (deliveryLocation.isManualOverride) ...[
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  margin: const EdgeInsets.only(bottom: 12),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.customerColor.withOpacity(0.08),
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: AppColors.customerColor.withOpacity(0.2)),
-                                  ),
-                                  child: const Row(
-                                    children: [
-                                      Icon(Icons.edit_location_alt_outlined, size: 14, color: AppColors.customerColor),
-                                      SizedBox(width: 6),
-                                      Expanded(
-                                        child: Text(
-                                          'Manual Override Active',
-                                          style: TextStyle(fontSize: 11, color: AppColors.customerColor, fontWeight: FontWeight.w500),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                              // Editable approximate area field using SearchableLocationField
-                              SearchableLocationField(
-                                initialValue: _suburbSearchController.text,
-                                showGpsButton: false, // We have a custom GPS button above
-                                labelText: 'Delivery Area (approximate area shown to vendors)',
-                                hintText: 'Type or search your delivery area',
-                                onChanged: (text) {
-                                  _suburbSearchController.text = text;
-                                  ref.read(deliveryLocationProvider.notifier).setManualArea(text);
-                                  _saveDraft();
-                                },
-                                onManualTextSubmitted: (text) {
-                                  setState(() {
-                                    _suburbSearchController.text = text;
-                                  });
-                                  ref.read(deliveryLocationProvider.notifier).setManualArea(text);
-                                  _saveDraft();
-                                },
-                                onSuggestionSelected: (suggestion) {
-                                  setState(() {
-                                    _suburbSearchController.text = suggestion.display;
-                                  });
-                                  ref.read(deliveryLocationProvider.notifier).applySuggestion(suggestion);
-                                  _saveDraft();
-                                },
-                              ),
-                              const SizedBox(height: 10),
-                              AppTextField(
-                                controller: _addressController,
-                                label: 'Precise Delivery Address (hidden until payment/order confirmation)',
-                                hint: 'Enter your full delivery address',
-                                onChanged: (_) => _saveDraft(),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
+                     child: _buildDeliveryLocationSection(
+                       cardColor: cardColor,
+                       borderColor: borderColor,
+                       primaryText: primaryText,
+                       secondaryText: secondaryText,
+                     ),
+                   ),
 
                   // Request Type Segmented Toggle
                   SliverToBoxAdapter(

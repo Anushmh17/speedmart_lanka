@@ -33,6 +33,27 @@ class AppConstants {
   static const String themeKey = 'theme_mode';
   static const String roleKey = 'user_role';
 
+  /// Local mock auth user registry (until backend API is ready).
+  static const String registeredUsersKey = 'mock_registered_users';
+
+  /// Local mock shopping requests (until backend API is ready).
+  static const String shoppingRequestsKey = 'mock_shopping_requests';
+
+  /// Local mock vendor proposals (until backend API is ready).
+  static const String vendorProposalsKey = 'mock_vendor_proposals';
+
+  /// Local mock orders (until backend API is ready).
+  static const String ordersKey = 'mock_orders';
+
+  /// UI country mode only (LK or OTHER). Does not replace GPS-detected country.
+  static const String selectedCountryKey = 'speedmart_selected_country';
+
+  /// Legacy key — migrated to [selectedCountryKey] on read.
+  static const String legacyCountryPreferenceKey = 'speedmart_country_preference';
+
+  /// Per-customer saved delivery address: `customer_delivery_address_{customerId}`.
+  static const String customerDeliveryAddressPrefix = 'customer_delivery_address_';
+
   /// Animation durations
   static const Duration shortAnim = Duration(milliseconds: 200);
   static const Duration mediumAnim = Duration(milliseconds: 350);

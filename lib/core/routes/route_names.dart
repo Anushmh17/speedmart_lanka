@@ -24,6 +24,7 @@ class RouteNames {
   static const String customerRequestDetail = '/customer/requests/:id';
   static const String customerOrders = '/customer/orders';
   static const String customerProfile = '/customer/profile';
+  static const String customerDeliveryAddress = '/customer/delivery-address';
 
   // ── Customer Full-Screen Routes (without bottom nav) ────────────────────────
   static const String customerCreateRequest = '/customer/requests/create';

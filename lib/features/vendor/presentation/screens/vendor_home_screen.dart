@@ -9,6 +9,7 @@ import '../../../../shared/models/location_model.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/providers/theme_provider.dart';
 import '../../../requests/models/shopping_request.dart';
+import '../../../customer/delivery_address/utils/vendor_delivery_privacy.dart';
 import '../../../requests/providers/request_provider.dart';
 import '../../../proposals/models/proposal.dart';
 import '../../../proposals/providers/proposal_provider.dart';
@@ -729,7 +730,8 @@ class _RequestCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Location Area: ${request.customerArea}',
+            'Area: ${request.vendorVisibleAreaLabel}'
+            '${request.deliveryLocation?.district.isNotEmpty == true ? ', ${request.deliveryLocation!.district}' : ''}',
             style: AppTextStyles.bodyMedium(secondaryText),
           ),
           const SizedBox(height: 4),

@@ -1,14 +1,21 @@
+import '../../../core/storage/storage_service.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/models/user_role.dart';
 
 /// Mock authentication repository.
-/// Replace the method bodies with real API calls (Dio) when backend is ready.
-/// The interface stays the same — no other files need to change.
+/// Users and sessions are persisted locally until the backend API is ready.
+/// TODO: Replace local mock auth persistence with backend API later.
 class MockAuthRepository {
-  MockAuthRepository._();
+  MockAuthRepository._() {
+    _initFuture = _initialize();
+  }
+
   static final MockAuthRepository instance = MockAuthRepository._();
 
-  // ── Hardcoded mock users for development/testing ──────────────────────────
+  late final Future<void> _initFuture;
+  bool _isInitialized = false;
+
+  // ── Seed users for development/testing ────────────────────────────────────
   static final List<UserModel> _mockUsers = [
     UserModel(
       id: 'cust-001',
@@ -58,27 +65,64 @@ class MockAuthRepository {
     ),
   ];
 
-  // ── In-memory registered users (persist across screens in same session) ───
-  final List<UserModel> _sessionUsers = List.from(_mockUsers);
+  final List<UserModel> _sessionUsers = [];
   String? _currentToken;
 
-  /// Max number of registrations permitted in a single mock session.
-  int maxRegistrationsPerSession = 3;
-  int _registrationCount = 0;
+  /// Ensures saved users are loaded before auth operations.
+  Future<void> ensureInitialized() => _initFuture;
 
-  /// Resets the registration cap count.
-  void resetRegistrationLimit() {
-    _registrationCount = 0;
+  Future<void> _initialize() async {
+    if (_isInitialized) return;
+
+    _sessionUsers
+      ..clear()
+      ..addAll(_mockUsers);
+
+    try {
+      final savedJson = await StorageService.getRegisteredUsers();
+      for (final json in savedJson) {
+        final user = UserModel.fromJson(json);
+        final index = _sessionUsers.indexWhere((u) => u.id == user.id);
+        if (index >= 0) {
+          _sessionUsers[index] = user;
+        } else {
+          _sessionUsers.add(user);
+        }
+      }
+    } catch (_) {
+      // Keep seed users if storage read fails.
+    }
+
+    _isInitialized = true;
+  }
+
+  Future<void> _persistUsers() async {
+    // TODO: Replace with POST/PUT to backend user API.
+    final payload = _sessionUsers.map((u) => u.toJson()).toList();
+    await StorageService.saveRegisteredUsers(payload);
+  }
+
+  static String _digitsOnly(String value) =>
+      value.replaceAll(RegExp(r'[^\d]'), '');
+
+  static bool _phoneMatches(String a, String b) {
+    final da = _digitsOnly(a);
+    final db = _digitsOnly(b);
+    if (da.isEmpty || db.isEmpty) return false;
+    if (da.length >= 9 && db.length >= 9) {
+      return da.endsWith(db.substring(db.length - 9)) ||
+          db.endsWith(da.substring(da.length - 9));
+    }
+    return da == db;
   }
 
   // ── Login ──────────────────────────────────────────────────────────────────
-  /// Returns [UserModel] on success, throws [Exception] on failure.
   Future<({UserModel user, String token})> login({
     required String email,
     required String password,
     required UserRole role,
   }) async {
-    // Simulate network delay
+    await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 1200));
 
     final match = _sessionUsers.where(
@@ -91,52 +135,42 @@ class MockAuthRepository {
       throw Exception('No account found with this email for the selected role.');
     }
 
-    // In mock mode, any password works for existing users
     final user = match.first;
     if (!user.isActive) {
       throw Exception('Your account has been suspended. Contact support.');
     }
 
-    _currentToken = 'mock_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
+    _currentToken =
+        'mock_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
     return (user: user, token: _currentToken!);
   }
 
   // ── Customer OTP Authentication ──────────────────────────────────────────
   Future<bool> checkCustomerExists(String contact) async {
+    await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 600));
-    final cleanContact = contact.replaceAll(RegExp(r'[^\d]'), '');
     final isEmail = contact.contains('@');
 
     return _sessionUsers.any((u) {
       if (u.role != UserRole.customer) return false;
       if (isEmail) {
         return u.email.toLowerCase() == contact.toLowerCase().trim();
-      } else {
-        final cleanUserPhone = u.phone.replaceAll(RegExp(r'[^\d]'), '');
-        if (cleanContact.length >= 9 && cleanUserPhone.length >= 9) {
-          return cleanContact.endsWith(cleanUserPhone.substring(cleanUserPhone.length - 9));
-        }
-        return cleanContact == cleanUserPhone;
       }
+      return _phoneMatches(contact, u.phone);
     });
   }
 
   Future<({UserModel user, String token})> loginCustomerOtp(String contact) async {
+    await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 1000));
-    final cleanContact = contact.replaceAll(RegExp(r'[^\d]'), '');
     final isEmail = contact.contains('@');
 
     final match = _sessionUsers.where((u) {
       if (u.role != UserRole.customer) return false;
       if (isEmail) {
         return u.email.toLowerCase() == contact.toLowerCase().trim();
-      } else {
-        final cleanUserPhone = u.phone.replaceAll(RegExp(r'[^\d]'), '');
-        if (cleanContact.length >= 9 && cleanUserPhone.length >= 9) {
-          return cleanContact.endsWith(cleanUserPhone.substring(cleanUserPhone.length - 9));
-        }
-        return cleanContact == cleanUserPhone;
       }
+      return _phoneMatches(contact, u.phone);
     });
 
     if (match.isEmpty) {
@@ -148,7 +182,8 @@ class MockAuthRepository {
       throw Exception('Your account has been suspended. Contact support.');
     }
 
-    _currentToken = 'mock_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
+    _currentToken =
+        'mock_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
     return (user: user, token: _currentToken!);
   }
 
@@ -168,29 +203,54 @@ class MockAuthRepository {
     String? riskFlag,
     bool? verifiedPhone,
     bool? verifiedEmail,
+    String? nic,
+    String? deliveryCountry,
+    String? deliveryProvince,
+    String? deliveryDistrict,
+    String? deliveryApproxArea,
+    String? deliveryPreciseAddress,
+    String? deliveryNote,
   }) async {
+    await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 1500));
 
-    if (_registrationCount >= maxRegistrationsPerSession) {
-      throw Exception('Registration limit exceeded. Only $maxRegistrationsPerSession registrations allowed per development session.');
+    final normalizedEmail = email.trim();
+    final normalizedPhone = phone.trim();
+
+    if (normalizedEmail.isNotEmpty) {
+      final emailExists = _sessionUsers.any(
+        (u) =>
+            u.email.isNotEmpty &&
+            u.email.toLowerCase() == normalizedEmail.toLowerCase(),
+      );
+      if (emailExists) {
+        throw Exception('An account with this email already exists.');
+      }
     }
 
-    // Check duplicate email
-    final exists = _sessionUsers.any(
-      (u) => u.email.toLowerCase() == email.toLowerCase(),
-    );
-    if (exists) {
-      throw Exception('An account with this email already exists.');
+    if (normalizedPhone.isNotEmpty) {
+      final phoneExists = _sessionUsers.any(
+        (u) => _phoneMatches(normalizedPhone, u.phone),
+      );
+      if (phoneExists) {
+        throw Exception('An account with this phone number already exists.');
+      }
     }
+
+    final resolvedEmail = normalizedEmail.isNotEmpty
+        ? normalizedEmail
+        : (normalizedPhone.isNotEmpty
+            ? '${_digitsOnly(normalizedPhone)}@customer.speedmart.local'
+            : '${role.name}-${DateTime.now().millisecondsSinceEpoch}@speedmart.local');
 
     final newUser = UserModel(
       id: '${role.name}-${DateTime.now().millisecondsSinceEpoch}',
       fullName: fullName,
-      email: email,
-      phone: phone,
+      email: resolvedEmail,
+      phone: normalizedPhone,
       role: role,
       isActive: true,
-      isVerified: role != UserRole.vendor, // vendors need admin verification
+      isVerified: role != UserRole.vendor,
       createdAt: DateTime.now(),
       businessName: businessName,
       vendorApproved: role == UserRole.vendor ? false : null,
@@ -202,11 +262,20 @@ class MockAuthRepository {
       riskFlag: riskFlag,
       verifiedPhone: verifiedPhone,
       verifiedEmail: verifiedEmail,
+      nic: nic,
+      deliveryCountry: deliveryCountry,
+      deliveryProvince: deliveryProvince,
+      deliveryDistrict: deliveryDistrict,
+      deliveryApproxArea: deliveryApproxArea,
+      deliveryPreciseAddress: deliveryPreciseAddress,
+      deliveryNote: deliveryNote,
     );
 
     _sessionUsers.add(newUser);
-    _registrationCount++;
-    _currentToken = 'mock_token_${newUser.id}_${DateTime.now().millisecondsSinceEpoch}';
+    await _persistUsers();
+
+    _currentToken =
+        'mock_token_${newUser.id}_${DateTime.now().millisecondsSinceEpoch}';
     return (user: newUser, token: _currentToken!);
   }
 
@@ -218,8 +287,8 @@ class MockAuthRepository {
 
   // ── Restore session ────────────────────────────────────────────────────────
   Future<UserModel?> restoreSession(String token) async {
+    await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 500));
-    // In mock mode, decode user ID from token format: mock_token_{id}_{ts}
     try {
       final parts = token.split('_');
       if (parts.length >= 3) {
@@ -234,11 +303,13 @@ class MockAuthRepository {
   }
 
   Future<List<UserModel>> getAllUsers() async {
+    await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 300));
     return List.from(_sessionUsers);
   }
 
   Future<void> approveVendor(String vendorId) async {
+    await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 400));
     final index = _sessionUsers.indexWhere((u) => u.id == vendorId);
     if (index != -1) {
@@ -246,26 +317,32 @@ class MockAuthRepository {
         vendorApproved: true,
         isVerified: true,
       );
+      await _persistUsers();
     }
   }
 
   Future<void> toggleUserActive(String userId) async {
+    await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 300));
     final index = _sessionUsers.indexWhere((u) => u.id == userId);
     if (index != -1) {
       _sessionUsers[index] = _sessionUsers[index].copyWith(
         isActive: !_sessionUsers[index].isActive,
       );
+      await _persistUsers();
     }
   }
 
   Future<UserModel> updateUser(UserModel user) async {
+    await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 500));
     final index = _sessionUsers.indexWhere((u) => u.id == user.id);
     if (index != -1) {
       _sessionUsers[index] = user;
-      return user;
+    } else {
+      _sessionUsers.add(user);
     }
-    throw Exception('User not found in session database.');
+    await _persistUsers();
+    return user;
   }
 }

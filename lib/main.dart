@@ -2,12 +2,26 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/routes/app_router.dart';
+import 'core/services/local_notification_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/global_notification_overlay.dart';
 import 'features/auth/providers/theme_provider.dart';
+import 'features/orders/data/mock_order_repository.dart';
+import 'features/proposals/data/mock_proposal_repository.dart';
+import 'features/requests/data/mock_request_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await LocalNotificationService.initialize();
+
+  // Load persisted mock request/proposal/order data before UI.
+  // TODO: Replace with backend API sync on app start.
+  await Future.wait([
+    MockRequestRepository.instance.ensureInitialized(),
+    MockProposalRepository.instance.ensureInitialized(),
+    MockOrderRepository.instance.ensureInitialized(),
+  ]);
 
   // Lock to portrait mode
   await SystemChrome.setPreferredOrientations([

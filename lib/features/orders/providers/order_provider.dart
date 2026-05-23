@@ -44,6 +44,7 @@ class OrderNotifier extends StateNotifier<OrderState> {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
 
+    await _repo.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final orders = await _repo.getOrdersForCustomer(user.id);
@@ -57,6 +58,7 @@ class OrderNotifier extends StateNotifier<OrderState> {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
 
+    await _repo.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final orders = await _repo.getOrdersForVendor(user.id);
@@ -67,6 +69,8 @@ class OrderNotifier extends StateNotifier<OrderState> {
   }
 
   Future<OrderModel> placeOrder(OrderModel order) async {
+    await _repo.ensureInitialized();
+    await _requestRepo.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final newOrder = await _repo.createOrder(order);
@@ -89,6 +93,8 @@ class OrderNotifier extends StateNotifier<OrderState> {
   }
 
   Future<void> updateOrderStatus(String orderId, OrderStatus status) async {
+    await _repo.ensureInitialized();
+    await _requestRepo.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       await _repo.updateOrderStatus(orderId, status);

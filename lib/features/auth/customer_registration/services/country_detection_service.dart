@@ -74,13 +74,13 @@ class CountryDetectionService {
       return localeResult;
     }
 
-    // ── Strategy 3: Fallback (Unknown) ────────────────────────────────────
-    _log('All confident detection methods failed — returning fallback');
+    // ── All methods failed — caller must prompt manual selection ──────────
+    _log('All confident detection methods failed');
     _log('Final country: UNKNOWN');
-    _log('Source: fallback');
     _log('Confident: false');
+    _log('Manual selection required');
     return const CountryDetectionResult(
-      isLkUser: true, // provider will decide final default
+      isLkUser: false,
       method: DetectionMethod.fallback,
       isConfident: false,
     );

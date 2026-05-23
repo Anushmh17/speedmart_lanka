@@ -7,6 +7,7 @@ import '../../../features/auth/providers/auth_provider.dart';
 import '../../../shared/models/user_role.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/routes/route_names.dart';
+import '../../../features/customer/delivery_address/providers/customer_delivery_address_provider.dart';
 import '../../../core/navigation/bottom_nav_visibility.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -25,6 +26,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late TextEditingController _businessNameCtrl;
   
   List<String> _selectedCategories = [];
+
+  bool _deliveryAddressLoadScheduled = false;
   
   final List<String> _availableCategories = [
     'Groceries', 'Electronics', 'Clothing', 'Home Appliances', 
@@ -37,12 +40,32 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _nameCtrl = TextEditingController();
     _phoneCtrl = TextEditingController();
     _businessNameCtrl = TextEditingController();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _initData();
+      _scheduleDeliveryAddressLoad();
+    });
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _initData();
+  }
+
+  void _scheduleDeliveryAddressLoad() {
+    if (_deliveryAddressLoadScheduled) return;
+    final user = ref.read(currentUserProvider);
+    if (user?.role != UserRole.customer) return;
+
+    _deliveryAddressLoadScheduled = true;
+    Future.microtask(() async {
+      if (!mounted) return;
+      await ref
+          .read(customerDeliveryAddressProvider.notifier)
+          .loadForCurrentUser();
+    });
   }
 
   void _initData() {
@@ -279,6 +302,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 validator: (v) => v == null || v.isEmpty ? 'Required' : null,
               ),
 
+              if (user.role == UserRole.customer) ...[
+                const SizedBox(height: 32),
+                Text('Delivery Address', style: AppTextStyles.subtitle(primaryText)),
+                const SizedBox(height: 12),
+                _buildCustomerDeliveryAddressCard(
+                  context: context,
+                  cardColor: cardColor,
+                  borderColor: borderColor,
+                  primaryText: primaryText,
+                  secondaryText: secondaryText,
+                  primaryColor: primaryColor,
+                ),
+              ],
+
               if (user.role == UserRole.vendor) ...[
                 const SizedBox(height: 32),
                 Row(
@@ -399,6 +436,70 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildCustomerDeliveryAddressCard({
+    required BuildContext context,
+    required Color cardColor,
+    required Color borderColor,
+    required Color primaryText,
+    required Color secondaryText,
+    required Color primaryColor,
+  }) {
+    final addrState = ref.watch(customerDeliveryAddressProvider);
+    final saved = addrState.savedAddress;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (addrState.isLoading)
+            const Center(child: Padding(
+              padding: EdgeInsets.all(12),
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ))
+          else if (saved == null || !saved.isComplete) ...[
+            Text(
+              'No delivery address saved yet.',
+              style: AppTextStyles.bodyMedium(secondaryText),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: () => context.push(RouteNames.customerDeliveryAddress),
+              icon: const Icon(Icons.add_location_alt_outlined),
+              label: const Text('Add Delivery Address'),
+              style: FilledButton.styleFrom(backgroundColor: primaryColor),
+            ),
+          ] else ...[
+            Text(saved.approximateArea, style: AppTextStyles.bodyLarge(primaryText)),
+            const SizedBox(height: 4),
+            Text(
+              '${saved.district}, ${saved.province}',
+              style: AppTextStyles.bodySmall(secondaryText),
+            ),
+            const SizedBox(height: 4),
+            Text(saved.streetAddress, style: AppTextStyles.bodySmall(secondaryText)),
+            if (saved.deliveryNote.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text('Note: ${saved.deliveryNote}', style: AppTextStyles.caption(secondaryText)),
+            ],
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () => context.push(RouteNames.customerDeliveryAddress),
+              icon: const Icon(Icons.edit_location_alt_outlined),
+              label: const Text('Edit Address'),
+            ),
+          ],
+        ],
       ),
     );
   }

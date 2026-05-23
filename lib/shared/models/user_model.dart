@@ -27,6 +27,17 @@ class UserModel {
   final bool? verifiedPhone;
   final bool? verifiedEmail;
 
+  /// Sri Lanka NIC (old or new format).
+  final String? nic;
+
+  /// Default delivery profile captured at registration.
+  final String? deliveryCountry;
+  final String? deliveryProvince;
+  final String? deliveryDistrict;
+  final String? deliveryApproxArea;
+  final String? deliveryPreciseAddress;
+  final String? deliveryNote;
+
   const UserModel({
     required this.id,
     required this.fullName,
@@ -47,6 +58,13 @@ class UserModel {
     this.riskFlag,
     this.verifiedPhone,
     this.verifiedEmail,
+    this.nic,
+    this.deliveryCountry,
+    this.deliveryProvince,
+    this.deliveryDistrict,
+    this.deliveryApproxArea,
+    this.deliveryPreciseAddress,
+    this.deliveryNote,
   });
 
   /// Create from JSON (API response)
@@ -73,6 +91,13 @@ class UserModel {
       riskFlag: json['risk_flag'] as String?,
       verifiedPhone: json['verified_phone'] as bool?,
       verifiedEmail: json['verified_email'] as bool?,
+      nic: json['nic'] as String?,
+      deliveryCountry: json['delivery_country'] as String?,
+      deliveryProvince: json['delivery_province'] as String?,
+      deliveryDistrict: json['delivery_district'] as String?,
+      deliveryApproxArea: json['delivery_approx_area'] as String?,
+      deliveryPreciseAddress: json['delivery_precise_address'] as String?,
+      deliveryNote: json['delivery_note'] as String?,
     );
   }
 
@@ -98,6 +123,13 @@ class UserModel {
       'risk_flag': riskFlag,
       'verified_phone': verifiedPhone,
       'verified_email': verifiedEmail,
+      'nic': nic,
+      'delivery_country': deliveryCountry,
+      'delivery_province': deliveryProvince,
+      'delivery_district': deliveryDistrict,
+      'delivery_approx_area': deliveryApproxArea,
+      'delivery_precise_address': deliveryPreciseAddress,
+      'delivery_note': deliveryNote,
     };
   }
 
@@ -122,6 +154,13 @@ class UserModel {
     String? riskFlag,
     bool? verifiedPhone,
     bool? verifiedEmail,
+    String? nic,
+    String? deliveryCountry,
+    String? deliveryProvince,
+    String? deliveryDistrict,
+    String? deliveryApproxArea,
+    String? deliveryPreciseAddress,
+    String? deliveryNote,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -143,6 +182,14 @@ class UserModel {
       riskFlag: riskFlag ?? this.riskFlag,
       verifiedPhone: verifiedPhone ?? this.verifiedPhone,
       verifiedEmail: verifiedEmail ?? this.verifiedEmail,
+      nic: nic ?? this.nic,
+      deliveryCountry: deliveryCountry ?? this.deliveryCountry,
+      deliveryProvince: deliveryProvince ?? this.deliveryProvince,
+      deliveryDistrict: deliveryDistrict ?? this.deliveryDistrict,
+      deliveryApproxArea: deliveryApproxArea ?? this.deliveryApproxArea,
+      deliveryPreciseAddress:
+          deliveryPreciseAddress ?? this.deliveryPreciseAddress,
+      deliveryNote: deliveryNote ?? this.deliveryNote,
     );
   }
 

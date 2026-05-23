@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../shared/models/location_model.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../data/mock_request_repository.dart';
+import '../../proposals/data/mock_proposal_repository.dart';
+import '../../proposals/models/proposal.dart';
 import '../models/request_item.dart';
 import '../models/shopping_request.dart';
 import '../../location/models/delivery_location.dart';
@@ -50,23 +52,29 @@ class RequestState {
 class RequestNotifier extends StateNotifier<RequestState> {
   RequestNotifier(this.ref) : super(const RequestState()) {
     _repo = MockRequestRepository.instance;
-    final user = ref.read(currentUserProvider);
-    if (user != null) {
-      if (user.role.name == 'customer') {
-        loadMyRequests();
-      } else if (user.role.name == 'vendor') {
-        loadNearbyRequests();
-      }
-    }
+    _bootstrap();
   }
 
   final Ref ref;
   late final MockRequestRepository _repo;
 
+  Future<void> _bootstrap() async {
+    await _repo.ensureInitialized();
+    await MockProposalRepository.instance.ensureInitialized();
+    final user = ref.read(currentUserProvider);
+    if (user == null) return;
+    if (user.role.name == 'customer') {
+      await loadMyRequests();
+    } else if (user.role.name == 'vendor') {
+      await loadNearbyRequests();
+    }
+  }
+
   Future<void> loadMyRequests() async {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
 
+    await _repo.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final requests = await _repo.getCustomerRequests(user.id);
@@ -77,6 +85,7 @@ class RequestNotifier extends StateNotifier<RequestState> {
   }
 
   Future<void> loadNearbyRequests() async {
+    await _repo.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final rawRequests = await _repo.getNearbyRequests();
@@ -130,6 +139,7 @@ class RequestNotifier extends StateNotifier<RequestState> {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
 
+    await _repo.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final newReq = await _repo.createRequest(
@@ -140,11 +150,64 @@ class RequestNotifier extends StateNotifier<RequestState> {
         latitude: latitude,
         longitude: longitude,
         deliveryLocation: deliveryLocation,
+        customerName: user.fullName,
+        customerPhone: user.phone,
       );
       state = state.copyWith(
         isLoading: false,
         requests: [newReq, ...state.requests],
       );
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
+    }
+  }
+
+  /// Cancels a request if still before vendor acceptance.
+  Future<ShoppingRequest?> cancelRequest(
+    String requestId, {
+    String? reason,
+  }) async {
+    await _repo.ensureInitialized();
+    await MockProposalRepository.instance.ensureInitialized();
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final proposals =
+          await MockProposalRepository.instance.getProposalsForRequest(requestId);
+      final hasAccepted =
+          proposals.any((p) => p.status == ProposalStatus.accepted);
+
+      final existingIndex =
+          state.requests.indexWhere((r) => r.id == requestId);
+      if (existingIndex != -1) {
+        final existing = state.requests[existingIndex];
+        if (!existing.canBeCancelledByCustomer(
+            hasAcceptedProposal: hasAccepted)) {
+          throw Exception(
+            'This request can no longer be cancelled. Contact support if you need help.',
+          );
+        }
+      }
+
+      if (hasAccepted) {
+        throw Exception(
+          'A vendor proposal has already been accepted for this request.',
+        );
+      }
+
+      final cancelled = await _repo.cancelRequest(
+        requestId,
+        reason: reason,
+        cancelledBy: 'customer',
+      );
+      await MockProposalRepository.instance.cancelProposalsForRequest(requestId);
+
+      final updatedList = state.requests.map((r) {
+        return r.id == requestId ? cancelled : r;
+      }).toList();
+
+      state = state.copyWith(isLoading: false, requests: updatedList);
+      return cancelled;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
       rethrow;

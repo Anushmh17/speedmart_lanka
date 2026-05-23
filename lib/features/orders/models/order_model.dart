@@ -145,4 +145,73 @@ class OrderModel {
       customerLongitude: customerLongitude ?? this.customerLongitude,
     );
   }
+
+  /// TODO: Replace local mock order persistence with backend API.
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'proposalId': proposalId,
+      'requestId': requestId,
+      'customerId': customerId,
+      'vendorId': vendorId,
+      'vendorBusinessName': vendorBusinessName,
+      'vendorPhone': vendorPhone,
+      'customerName': customerName,
+      'customerPhone': customerPhone,
+      'deliveryAddress': deliveryAddress,
+      'items': items.map((i) => i.toJson()).toList(),
+      'deliveryCharge': deliveryCharge,
+      'totalPrice': totalPrice,
+      'paymentMethod': paymentMethod.name,
+      'paymentStatus': paymentStatus.name,
+      'status': status.name,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
+      'vendorLatitude': vendorLatitude,
+      'vendorLongitude': vendorLongitude,
+      'customerLatitude': customerLatitude,
+      'customerLongitude': customerLongitude,
+    };
+  }
+
+  factory OrderModel.fromJson(Map<String, dynamic> json) {
+    return OrderModel(
+      id: json['id'] as String? ?? '',
+      proposalId: json['proposalId'] as String? ?? '',
+      requestId: json['requestId'] as String? ?? '',
+      customerId: json['customerId'] as String? ?? '',
+      vendorId: json['vendorId'] as String? ?? '',
+      vendorBusinessName: json['vendorBusinessName'] as String? ?? '',
+      vendorPhone: json['vendorPhone'] as String? ?? '',
+      customerName: json['customerName'] as String? ?? '',
+      customerPhone: json['customerPhone'] as String? ?? '',
+      deliveryAddress: json['deliveryAddress'] as String? ?? '',
+      items: (json['items'] as List<dynamic>? ?? [])
+          .map((e) => ProposalItem.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList(),
+      deliveryCharge: (json['deliveryCharge'] as num?)?.toDouble() ?? 0.0,
+      totalPrice: (json['totalPrice'] as num?)?.toDouble() ?? 0.0,
+      paymentMethod: PaymentMethod.values.firstWhere(
+        (m) => m.name == json['paymentMethod'],
+        orElse: () => PaymentMethod.cashOnDelivery,
+      ),
+      paymentStatus: PaymentStatus.values.firstWhere(
+        (s) => s.name == json['paymentStatus'],
+        orElse: () => PaymentStatus.pending,
+      ),
+      status: OrderStatus.values.firstWhere(
+        (s) => s.name == json['status'],
+        orElse: () => OrderStatus.preparing,
+      ),
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now(),
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.tryParse(json['updatedAt'] as String)
+          : null,
+      vendorLatitude: (json['vendorLatitude'] as num?)?.toDouble() ?? 0.0,
+      vendorLongitude: (json['vendorLongitude'] as num?)?.toDouble() ?? 0.0,
+      customerLatitude: (json['customerLatitude'] as num?)?.toDouble() ?? 0.0,
+      customerLongitude: (json['customerLongitude'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
 }

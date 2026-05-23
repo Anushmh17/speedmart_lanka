@@ -89,13 +89,116 @@ class StorageService {
     await prefs.remove('draft_request');
   }
 
-  // ── Clear all ─────────────────────────────────────────────────────────────
+  // ── Mock registered users (SharedPreferences, until backend is ready) ───
 
-  /// Call on logout — clears both secure and shared storage
+  /// Persists the local mock user registry.
+  /// TODO: Replace with backend user sync when API is available.
+  static Future<void> saveRegisteredUsers(
+    List<Map<String, dynamic>> users,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      AppConstants.registeredUsersKey,
+      jsonEncode(users),
+    );
+  }
+
+  static Future<void> _saveJsonList(
+    String key,
+    List<Map<String, dynamic>> items,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(key, jsonEncode(items));
+  }
+
+  static Future<List<Map<String, dynamic>>> _loadJsonList(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(key);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final decoded = jsonDecode(raw) as List<dynamic>;
+      return decoded
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// TODO: Replace with backend request API.
+  static Future<void> saveShoppingRequests(
+    List<Map<String, dynamic>> requests,
+  ) async {
+    await _saveJsonList(AppConstants.shoppingRequestsKey, requests);
+  }
+
+  static Future<List<Map<String, dynamic>>> getShoppingRequests() async {
+    return _loadJsonList(AppConstants.shoppingRequestsKey);
+  }
+
+  /// TODO: Replace with backend proposal API.
+  static Future<void> saveVendorProposals(
+    List<Map<String, dynamic>> proposals,
+  ) async {
+    await _saveJsonList(AppConstants.vendorProposalsKey, proposals);
+  }
+
+  static Future<List<Map<String, dynamic>>> getVendorProposals() async {
+    return _loadJsonList(AppConstants.vendorProposalsKey);
+  }
+
+  /// TODO: Replace with backend order API.
+  static Future<void> saveOrders(List<Map<String, dynamic>> orders) async {
+    await _saveJsonList(AppConstants.ordersKey, orders);
+  }
+
+  static Future<List<Map<String, dynamic>>> getOrders() async {
+    return _loadJsonList(AppConstants.ordersKey);
+  }
+
+  static Future<List<Map<String, dynamic>>> getRegisteredUsers() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(AppConstants.registeredUsersKey);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      final decoded = jsonDecode(raw) as List<dynamic>;
+      return decoded
+          .map((e) => Map<String, dynamic>.from(e as Map))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  // ── Clear session / all ───────────────────────────────────────────────────
+
+  /// Clears logged-in session only. Keeps registered users and app preferences.
+  static Future<void> clearSession() async {
+    await deleteToken();
+    await deleteUser();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(AppConstants.roleKey);
+  }
+
+  /// Full wipe (e.g. uninstall simulation). Preserves registered users + theme.
   static Future<void> clearAll() async {
+    final users = await getRegisteredUsers();
+    final theme = await getThemeMode();
+    final draft = await getDraftRequest();
+    final requests = await getShoppingRequests();
+    final proposals = await getVendorProposals();
+    final orders = await getOrders();
+
     await _secure.deleteAll();
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
+
+    if (theme != null) await saveThemeMode(theme);
+    if (users.isNotEmpty) await saveRegisteredUsers(users);
+    if (draft != null) await saveDraftRequest(draft);
+    if (requests.isNotEmpty) await saveShoppingRequests(requests);
+    if (proposals.isNotEmpty) await saveVendorProposals(proposals);
+    if (orders.isNotEmpty) await saveOrders(orders);
   }
 }
 

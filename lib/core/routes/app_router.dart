@@ -10,6 +10,7 @@ import '../../features/auth/customer_registration/screens/customer_registration_
 import '../../features/auth/customer_registration/screens/otp_verification_screen.dart';
 import '../../features/customer/presentation/screens/customer_home_screen.dart';
 import '../../features/requests/presentation/screens/create_request_screen.dart';
+import '../../features/customer/delivery_address/presentation/screens/customer_delivery_address_screen.dart';
 import '../../features/requests/models/shopping_request.dart';
 import '../../features/proposals/models/proposal.dart';
 import '../../features/proposals/presentation/screens/customer_proposal_details_screen.dart';
@@ -31,24 +32,11 @@ import 'route_names.dart';
 final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 final shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
 
-/// Notifier to watch the current route location reactively.
-class RouteLocationNotifier extends Notifier<String> {
-  @override
-  String build() {
-    final router = ref.watch(appRouterProvider);
-    final listener = () {
-      state = router.routeInformationProvider.value.uri.toString();
-    };
-    router.routeInformationProvider.addListener(listener);
-    ref.onDispose(() => router.routeInformationProvider.removeListener(listener));
-    return router.routeInformationProvider.value.uri.toString();
-  }
-}
-
-/// Provider to watch the current route location reactively.
-final currentRouteLocationProvider = NotifierProvider<RouteLocationNotifier, String>(
-  RouteLocationNotifier.new,
-);
+/// Provider to watch the current route location
+final currentRouteLocationProvider = Provider<String>((ref) {
+  final router = ref.watch(appRouterProvider);
+  return router.routeInformationProvider.value.location;
+});
 
 /// GoRouter instance exposed as a Riverpod provider.
 /// Auth-based redirects are handled here — roles cannot access each other's routes.
@@ -70,15 +58,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (auth.isLoading) return RouteNames.splash;
 
       final location = state.matchedLocation;
-      final isOnAuthRoute = location == RouteNames.splash ||
-          location == RouteNames.roleSelection ||
-          location == RouteNames.customerLogin ||
-          location == RouteNames.customerRegister ||
-          location == RouteNames.customerOtp ||
-          location == RouteNames.vendorLogin ||
-          location == RouteNames.vendorRegister ||
-          location == RouteNames.adminLogin ||
-          location == RouteNames.adminRegister;
+      final isOnAuthRoute =
+          location == RouteNames.splash || location.startsWith('/auth');
 
       // Not authenticated → send to role selection
       if (!auth.isAuthenticated) {
@@ -177,6 +158,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: RouteNames.customerCreateRequest,
         parentNavigatorKey: rootNavigatorKey,
         builder: (_, __) => const CreateRequestScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.customerDeliveryAddress,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, state) {
+          final extra = state.extra;
+          final fromCreateRequest = extra is Map &&
+              (extra['fromCreateRequest'] == true);
+          return CustomerDeliveryAddressScreen(
+            fromCreateRequest: fromCreateRequest,
+          );
+        },
       ),
       GoRoute(
         path: '/customer/proposals/detail',

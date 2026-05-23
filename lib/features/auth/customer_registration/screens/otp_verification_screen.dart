@@ -10,6 +10,8 @@ import '../../../../core/widgets/app_button.dart';
 import '../../../../shared/models/user_role.dart';
 import '../../providers/auth_provider.dart';
 import '../providers/customer_registration_provider.dart';
+import '../../../customer/delivery_address/models/customer_delivery_address.dart';
+import '../../../customer/delivery_address/providers/customer_delivery_address_provider.dart';
 import '../widgets/registration_header.dart';
 import '../models/registration_step.dart';
 
@@ -100,10 +102,10 @@ class _OtpVerificationScreenState
   }
 
   String get _enteredCode =>
-      _controllers.map((c) => c.text).join();
+      _controllers.map((c) => c.text.trim()).join().trim();
 
   Future<void> _verify() async {
-    final code = _enteredCode;
+    final code = _enteredCode.trim();
     if (code.length < _otpLength) {
       if (!mounted) return;
       setState(() => _verifyError = 'Please enter all 6 digits.');
@@ -112,20 +114,21 @@ class _OtpVerificationScreenState
     if (!mounted) return;
     setState(() => _verifyError = null);
 
-    final ok = await ref
-        .read(customerRegistrationProvider.notifier)
-        .verifyOtp(code);
+    final regNotifier = ref.read(customerRegistrationProvider.notifier);
+    final authNotifier = ref.read(authProvider.notifier);
+
+    final ok = await regNotifier.verifyOtp(code);
 
     if (!mounted) return;
     if (ok) {
       final regState = ref.read(customerRegistrationProvider);
       try {
         if (regState.isLogin) {
-          await ref.read(authProvider.notifier).loginCustomerOtp(
+          await authNotifier.loginCustomerOtp(
             contact: regState.data.primaryContact,
           );
         } else {
-          await ref.read(authProvider.notifier).register(
+          await authNotifier.register(
             fullName: regState.data.fullName,
             email: regState.data.email,
             phone: regState.data.phone,
@@ -138,7 +141,28 @@ class _OtpVerificationScreenState
             riskFlag: regState.data.overrideInfo.riskFlag,
             verifiedPhone: regState.data.overrideInfo.verifiedPhone,
             verifiedEmail: regState.data.overrideInfo.verifiedEmail,
+            nic: regState.data.nic,
+            deliveryCountry: regState.data.country,
+            deliveryProvince: regState.data.province?.name,
+            deliveryDistrict: regState.data.district?.name,
+            deliveryApproxArea: regState.data.approxArea,
+            deliveryPreciseAddress: regState.data.preciseAddress,
+            deliveryNote: regState.data.deliveryNote,
           );
+          final user = ref.read(currentUserProvider);
+          if (user != null) {
+            final defaultAddress = CustomerDeliveryAddress.fromUserFields(
+              customerId: user.id,
+              deliveryProvince: regState.data.province?.name,
+              deliveryDistrict: regState.data.district?.name,
+              deliveryApproxArea: regState.data.approxArea,
+              deliveryPreciseAddress: regState.data.preciseAddress,
+              deliveryNote: regState.data.deliveryNote,
+            );
+            await ref
+                .read(customerDeliveryAddressProvider.notifier)
+                .saveDefaultAddress(defaultAddress);
+          }
         }
         if (!mounted) return;
         await _successAnimCtrl.forward();
@@ -268,8 +292,6 @@ class _OtpVerificationScreenState
 
                       const SizedBox(height: 32),
 
-                      // ── Dev hint (mock code) ────────────────────────
-                      _DevHintBanner(isDark: isDark),
                     ]),
                   ),
                 ),
@@ -527,42 +549,3 @@ class _ResendRow extends StatelessWidget {
   }
 }
 
-class _DevHintBanner extends StatelessWidget {
-  const _DevHintBanner({required this.isDark});
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.warningContainer,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.developer_mode_rounded,
-              color: AppColors.warning, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Dev Mode — Mock OTP',
-                  style: AppTextStyles.labelSmall(AppColors.warning),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Use code  123456  to verify',
-                  style: AppTextStyles.bodySmall(AppColors.warning),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

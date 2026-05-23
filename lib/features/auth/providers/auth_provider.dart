@@ -9,37 +9,42 @@ import '../domain/auth_state.dart';
 /// UI listens to [authProvider]; screens call methods on [authNotifier].
 class AuthNotifier extends StateNotifier<AuthState> {
   AuthNotifier() : super(const AuthState.initial()) {
-    _restoreSession();
+    _bootstrap();
   }
 
   final _repo = MockAuthRepository.instance;
 
+  Future<void> _bootstrap() async {
+    try {
+      await _repo.ensureInitialized();
+      await _restoreSession();
+    } catch (_) {
+      await StorageService.clearSession();
+      state = const AuthState.unauthenticated();
+    }
+  }
+
   // ── Restore saved session on app start ────────────────────────────────────
   Future<void> _restoreSession() async {
-    try {
-      final token = await StorageService.getToken();
-      if (token == null) {
-        state = const AuthState.unauthenticated();
-        return;
-      }
+    final token = await StorageService.getToken();
+    if (token == null) {
+      state = const AuthState.unauthenticated();
+      return;
+    }
 
-      final userJson = await StorageService.getUser();
-      if (userJson != null) {
-        final user = UserModel.fromJson(userJson);
-        state = AuthState.authenticated(user);
-      } else {
-        // Token exists but no user — try to restore via repo
-        final user = await _repo.restoreSession(token);
-        if (user != null) {
-          await StorageService.saveUser(user.toJson());
-          state = AuthState.authenticated(user);
-        } else {
-          await StorageService.clearAll();
-          state = const AuthState.unauthenticated();
-        }
-      }
-    } catch (_) {
-      await StorageService.clearAll();
+    final userJson = await StorageService.getUser();
+    if (userJson != null) {
+      final user = UserModel.fromJson(userJson);
+      state = AuthState.authenticated(user);
+      return;
+    }
+
+    final user = await _repo.restoreSession(token);
+    if (user != null) {
+      await StorageService.saveUser(user.toJson());
+      state = AuthState.authenticated(user);
+    } else {
+      await StorageService.clearSession();
       state = const AuthState.unauthenticated();
     }
   }
@@ -68,6 +73,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   // ── Customer OTP Login ─────────────────────────────────────────────────────
   Future<bool> checkCustomerExists(String contact) async {
+    await _repo.ensureInitialized();
     return _repo.checkCustomerExists(contact);
   }
 
@@ -101,6 +107,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
     String? riskFlag,
     bool? verifiedPhone,
     bool? verifiedEmail,
+    String? nic,
+    String? deliveryCountry,
+    String? deliveryProvince,
+    String? deliveryDistrict,
+    String? deliveryApproxArea,
+    String? deliveryPreciseAddress,
+    String? deliveryNote,
   }) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
@@ -119,6 +132,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
         riskFlag: riskFlag,
         verifiedPhone: verifiedPhone,
         verifiedEmail: verifiedEmail,
+        nic: nic,
+        deliveryCountry: deliveryCountry,
+        deliveryProvince: deliveryProvince,
+        deliveryDistrict: deliveryDistrict,
+        deliveryApproxArea: deliveryApproxArea,
+        deliveryPreciseAddress: deliveryPreciseAddress,
+        deliveryNote: deliveryNote,
       );
       await StorageService.saveToken(result.token);
       await StorageService.saveUser(result.user.toJson());
@@ -133,7 +153,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> logout() async {
     state = state.copyWith(isLoading: true);
     await _repo.logout();
-    await StorageService.clearAll();
+    await StorageService.clearSession();
     state = const AuthState.unauthenticated();
   }
 

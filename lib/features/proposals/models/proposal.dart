@@ -60,6 +60,39 @@ class ProposalItem {
   });
 
   double get totalPrice => status == ProposalItemStatus.unavailable ? 0.0 : price * quantity;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'requestItemId': requestItemId,
+      'requestItemName': requestItemName,
+      'quantity': quantity,
+      'status': status.name,
+      'price': price,
+      'description': description,
+      'alternativeName': alternativeName,
+      'alternativeBrand': alternativeBrand,
+      'alternativeReason': alternativeReason,
+      'imageUrl': imageUrl,
+    };
+  }
+
+  factory ProposalItem.fromJson(Map<String, dynamic> json) {
+    return ProposalItem(
+      requestItemId: json['requestItemId'] as String? ?? '',
+      requestItemName: json['requestItemName'] as String? ?? '',
+      quantity: json['quantity'] as int? ?? 1,
+      status: ProposalItemStatus.values.firstWhere(
+        (s) => s.name == json['status'],
+        orElse: () => ProposalItemStatus.available,
+      ),
+      price: (json['price'] as num?)?.toDouble() ?? 0.0,
+      description: json['description'] as String?,
+      alternativeName: json['alternativeName'] as String?,
+      alternativeBrand: json['alternativeBrand'] as String?,
+      alternativeReason: json['alternativeReason'] as String?,
+      imageUrl: json['imageUrl'] as String?,
+    );
+  }
 }
 
 class Proposal {
@@ -134,6 +167,57 @@ class Proposal {
       vendorResponse: vendorResponse ?? this.vendorResponse,
       vendorLatitude: vendorLatitude ?? this.vendorLatitude,
       vendorLongitude: vendorLongitude ?? this.vendorLongitude,
+    );
+  }
+
+  /// TODO: Replace local mock proposal persistence with backend API.
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'requestId': requestId,
+      'vendorId': vendorId,
+      'vendorBusinessName': vendorBusinessName,
+      'items': items.map((i) => i.toJson()).toList(),
+      'missingItemIds': missingItemIds,
+      'deliveryCharge': deliveryCharge,
+      'estimatedDeliveryTime': estimatedDeliveryTime,
+      'totalPrice': totalPrice,
+      'status': status.name,
+      'createdAt': createdAt.toIso8601String(),
+      'rejectionReason': rejectionReason,
+      'customerResponse': customerResponse,
+      'vendorResponse': vendorResponse,
+      'vendorLatitude': vendorLatitude,
+      'vendorLongitude': vendorLongitude,
+    };
+  }
+
+  factory Proposal.fromJson(Map<String, dynamic> json) {
+    return Proposal(
+      id: json['id'] as String? ?? '',
+      requestId: json['requestId'] as String? ?? '',
+      vendorId: json['vendorId'] as String? ?? '',
+      vendorBusinessName: json['vendorBusinessName'] as String? ?? '',
+      items: (json['items'] as List<dynamic>? ?? [])
+          .map((e) => ProposalItem.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList(),
+      missingItemIds: (json['missingItemIds'] as List<dynamic>? ?? [])
+          .map((e) => e.toString())
+          .toList(),
+      deliveryCharge: (json['deliveryCharge'] as num?)?.toDouble() ?? 0.0,
+      estimatedDeliveryTime: json['estimatedDeliveryTime'] as String? ?? '',
+      totalPrice: (json['totalPrice'] as num?)?.toDouble() ?? 0.0,
+      status: ProposalStatus.values.firstWhere(
+        (s) => s.name == json['status'],
+        orElse: () => ProposalStatus.submitted,
+      ),
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now(),
+      rejectionReason: json['rejectionReason'] as String?,
+      customerResponse: json['customerResponse'] as String?,
+      vendorResponse: json['vendorResponse'] as String?,
+      vendorLatitude: (json['vendorLatitude'] as num?)?.toDouble() ?? 6.9145,
+      vendorLongitude: (json['vendorLongitude'] as num?)?.toDouble() ?? 79.8510,
     );
   }
 }
