@@ -7,6 +7,7 @@ import '../../../auth/providers/auth_provider.dart';
 import '../../../orders/models/order_model.dart';
 import '../../../orders/providers/order_provider.dart';
 import '../../../proposals/models/proposal.dart';
+import '../../../proposals/providers/proposal_provider.dart';
 import '../../../requests/models/shopping_request.dart';
 import '../../../requests/providers/request_provider.dart';
 import 'package:speedmart_lanka/features/location/providers/location_provider.dart';
@@ -91,6 +92,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     setState(() {
       _isProcessing = true;
     });
+
+    if (widget.proposal.status != ProposalStatus.accepted) {
+      await ref.read(proposalProvider.notifier).acceptProposal(
+            widget.proposal.id,
+            widget.requestId,
+          );
+    }
 
     // Simulate processing
     await Future.delayed(const Duration(seconds: 2));

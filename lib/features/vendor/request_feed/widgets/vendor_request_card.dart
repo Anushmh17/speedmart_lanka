@@ -1,0 +1,273 @@
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/widgets/app_state_widgets.dart';
+import '../models/vendor_feed_enums.dart';
+import '../models/vendor_feed_request.dart';
+
+class VendorRequestCard extends StatelessWidget {
+  const VendorRequestCard({
+    super.key,
+    required this.feedRequest,
+    required this.isDark,
+    this.animationDelay = Duration.zero,
+  });
+
+  final VendorFeedRequest feedRequest;
+  final bool isDark;
+  final Duration animationDelay;
+
+  Color _urgencyColor(RequestUrgency urgency) {
+    switch (urgency) {
+      case RequestUrgency.high:
+        return AppColors.error;
+      case RequestUrgency.medium:
+        return AppColors.warning;
+      case RequestUrgency.normal:
+        return AppColors.vendorColor.withOpacity(0.85);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryText =
+        isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final secondaryText = isDark
+        ? AppColors.textSecondaryDark
+        : AppColors.textSecondaryLight;
+    final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 12),
+            child: child,
+          ),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: borderColor),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.vendorColor.withOpacity(isDark ? 0.06 : 0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: () {
+              context.push(
+                '/vendor/requests/detail',
+                extra: feedRequest.request,
+              );
+            },
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.vendorColor.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          feedRequest.primaryCategory,
+                          style: AppTextStyles.caption(AppColors.vendorColor)
+                              .copyWith(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      const Spacer(),
+                      StatusBadge(
+                        label: feedRequest.urgency.label,
+                        color: _urgencyColor(feedRequest.urgency),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              feedRequest.approximateArea,
+                              style: AppTextStyles.subtitle(primaryText),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (feedRequest.district.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.map_outlined,
+                                    size: 14,
+                                    color: secondaryText,
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    feedRequest.district,
+                                    style: AppTextStyles.bodySmall(secondaryText),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            feedRequest.distanceKm > 0
+                                ? '${feedRequest.distanceKm} km'
+                                : 'Nearby',
+                            style: AppTextStyles.subtitle(AppColors.vendorColor),
+                          ),
+                          Text(
+                            'within ${feedRequest.maxRadiusKm.toStringAsFixed(0)} km',
+                            style: AppTextStyles.caption(secondaryText),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _MetaChip(
+                        icon: Icons.inventory_2_outlined,
+                        label: '${feedRequest.itemCount} items',
+                        isDark: isDark,
+                      ),
+                      _MetaChip(
+                        icon: Icons.schedule_rounded,
+                        label: feedRequest.timePostedLabel,
+                        isDark: isDark,
+                      ),
+                      _MetaChip(
+                        icon: Icons.gavel_rounded,
+                        label: '${feedRequest.proposalCount} bids',
+                        isDark: isDark,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  const Divider(height: 1),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: StatusBadge(
+                          label: feedRequest.statusLabel,
+                          color: AppColors.vendorColor,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.vendorColor,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              minimumSize: const Size(0, 36),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onPressed: () {
+                              context.push(
+                                '/vendor/requests/detail',
+                                extra: feedRequest.request,
+                              );
+                            },
+                            icon: const Icon(Icons.send_rounded, size: 16),
+                            label: Text(
+                              'Submit bid',
+                              style: AppTextStyles.button(Colors.white)
+                                  .copyWith(fontSize: 13),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MetaChip extends StatelessWidget {
+  const _MetaChip({
+    required this.icon,
+    required this.label,
+    required this.isDark,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = isDark ? Colors.white10 : AppColors.vendorColor.withOpacity(0.06);
+    final text = isDark
+        ? AppColors.textSecondaryDark
+        : AppColors.textSecondaryLight;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: AppColors.vendorColor),
+          const SizedBox(width: 6),
+          Text(label, style: AppTextStyles.caption(text)),
+        ],
+      ),
+    );
+  }
+}

@@ -49,13 +49,24 @@ class MockRequestRepository {
   }
 
   Future<List<ShoppingRequest>> getNearbyRequests() async {
+    return getMarketplaceActiveRequests();
+  }
+
+  /// Active customer requests visible on the vendor marketplace feed.
+  Future<List<ShoppingRequest>> getMarketplaceActiveRequests() async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 300));
     return _requests
         .where((r) =>
             r.status == RequestStatus.submitted ||
-            r.status == RequestStatus.waitingForVendor)
+            r.status == RequestStatus.waitingForVendor ||
+            r.status == RequestStatus.proposalSubmitted)
         .toList();
+  }
+
+  Future<List<ShoppingRequest>> getAllRequests() async {
+    await ensureInitialized();
+    return List<ShoppingRequest>.unmodifiable(_requests);
   }
 
   Future<ShoppingRequest?> getRequestById(String id) async {

@@ -6,11 +6,8 @@ import '../../features/auth/presentation/screens/splash_screen.dart';
 import '../../features/auth/presentation/screens/role_selection_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
-import '../../features/auth/customer_registration/screens/customer_registration_screen.dart';
-import '../../features/auth/customer_registration/screens/otp_verification_screen.dart';
 import '../../features/customer/presentation/screens/customer_home_screen.dart';
 import '../../features/requests/presentation/screens/create_request_screen.dart';
-import '../../features/customer/delivery_address/presentation/screens/customer_delivery_address_screen.dart';
 import '../../features/requests/models/shopping_request.dart';
 import '../../features/proposals/models/proposal.dart';
 import '../../features/proposals/presentation/screens/customer_proposal_details_screen.dart';
@@ -58,8 +55,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (auth.isLoading) return RouteNames.splash;
 
       final location = state.matchedLocation;
-      final isOnAuthRoute =
-          location == RouteNames.splash || location.startsWith('/auth');
+      final isOnAuthRoute = location == RouteNames.splash ||
+          location == RouteNames.roleSelection ||
+          location == RouteNames.login ||
+          location == RouteNames.register;
 
       // Not authenticated → send to role selection
       if (!auth.isAuthenticated) {
@@ -99,32 +98,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // ── Auth ─────────────────────────────────────────────────────────────
       GoRoute(
-        path: RouteNames.customerLogin,
-        builder: (_, __) => const LoginScreen(role: UserRole.customer),
+        path: RouteNames.login,
+        builder: (_, state) {
+          final role = state.extra as UserRole? ?? UserRole.customer;
+          return LoginScreen(role: role);
+        },
       ),
       GoRoute(
-        path: RouteNames.customerRegister,
-        builder: (_, __) => const CustomerRegistrationScreen(),
-      ),
-      GoRoute(
-        path: RouteNames.customerOtp,
-        builder: (_, __) => const OtpVerificationScreen(),
-      ),
-      GoRoute(
-        path: RouteNames.vendorLogin,
-        builder: (_, __) => const LoginScreen(role: UserRole.vendor),
-      ),
-      GoRoute(
-        path: RouteNames.vendorRegister,
-        builder: (_, __) => const RegisterScreen(role: UserRole.vendor),
-      ),
-      GoRoute(
-        path: RouteNames.adminLogin,
-        builder: (_, __) => const LoginScreen(role: UserRole.admin),
-      ),
-      GoRoute(
-        path: RouteNames.adminRegister,
-        builder: (_, __) => const RegisterScreen(role: UserRole.admin),
+        path: RouteNames.register,
+        builder: (_, state) {
+          final role = state.extra as UserRole? ?? UserRole.customer;
+          return RegisterScreen(role: role);
+        },
       ),
 
       // ── Customer Shell ───────────────────────────────────────────────────
@@ -158,18 +143,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: RouteNames.customerCreateRequest,
         parentNavigatorKey: rootNavigatorKey,
         builder: (_, __) => const CreateRequestScreen(),
-      ),
-      GoRoute(
-        path: RouteNames.customerDeliveryAddress,
-        parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) {
-          final extra = state.extra;
-          final fromCreateRequest = extra is Map &&
-              (extra['fromCreateRequest'] == true);
-          return CustomerDeliveryAddressScreen(
-            fromCreateRequest: fromCreateRequest,
-          );
-        },
       ),
       GoRoute(
         path: '/customer/proposals/detail',

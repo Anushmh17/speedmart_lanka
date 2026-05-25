@@ -1,46 +1,63 @@
 enum ProposalStatus {
-  pending,
+  draft,
   submitted,
+  updated,
+  withdrawn,
   accepted,
   rejected,
   expired,
-  cancelled
 }
 
 extension ProposalStatusExtension on ProposalStatus {
   String get displayName {
     switch (this) {
-      case ProposalStatus.pending:
-        return 'Pending';
+      case ProposalStatus.draft:
+        return 'Draft';
       case ProposalStatus.submitted:
         return 'Submitted';
+      case ProposalStatus.updated:
+        return 'Updated';
+      case ProposalStatus.withdrawn:
+        return 'Withdrawn';
       case ProposalStatus.accepted:
         return 'Accepted';
       case ProposalStatus.rejected:
         return 'Rejected';
       case ProposalStatus.expired:
         return 'Expired';
-      case ProposalStatus.cancelled:
-        return 'Cancelled';
     }
+  }
+
+  bool get isEditableByVendor {
+    return this == ProposalStatus.draft ||
+        this == ProposalStatus.submitted ||
+        this == ProposalStatus.updated;
+  }
+
+  bool get isVisibleToCustomer {
+    return this == ProposalStatus.submitted ||
+        this == ProposalStatus.updated ||
+        this == ProposalStatus.accepted ||
+        this == ProposalStatus.rejected;
   }
 }
 
 enum ProposalItemStatus {
   available,
   unavailable,
-  alternative
+  alternative,
 }
 
 class ProposalItem {
   final String requestItemId;
   final String requestItemName;
+  final String itemName;
   final int quantity;
   final ProposalItemStatus status;
-  final double price; // unit price
+  final double price;
+  final String? offeredBrandModel;
+  final int? availableStock;
   final String? description;
-  
-  // Alternative product details if status is alternative
   final String? alternativeName;
   final String? alternativeBrand;
   final String? alternativeReason;
@@ -48,26 +65,38 @@ class ProposalItem {
 
   ProposalItem({
     required this.requestItemId,
-    required this.requestItemName,
+    String? requestItemName,
+    String? itemName,
     required this.quantity,
     required this.status,
     this.price = 0.0,
+    this.offeredBrandModel,
+    this.availableStock,
     this.description,
     this.alternativeName,
     this.alternativeBrand,
     this.alternativeReason,
     this.imageUrl,
-  });
+  })  : requestItemName = requestItemName ?? itemName ?? '',
+        itemName = itemName ?? requestItemName ?? '';
 
-  double get totalPrice => status == ProposalItemStatus.unavailable ? 0.0 : price * quantity;
+  double get unitPrice => price;
+
+  double get subtotal =>
+      status == ProposalItemStatus.unavailable ? 0.0 : price * quantity;
+
+  double get totalPrice => subtotal;
 
   Map<String, dynamic> toJson() {
     return {
       'requestItemId': requestItemId,
       'requestItemName': requestItemName,
+      'itemName': itemName,
       'quantity': quantity,
       'status': status.name,
       'price': price,
+      'offeredBrandModel': offeredBrandModel,
+      'availableStock': availableStock,
       'description': description,
       'alternativeName': alternativeName,
       'alternativeBrand': alternativeBrand,
@@ -77,20 +106,59 @@ class ProposalItem {
   }
 
   factory ProposalItem.fromJson(Map<String, dynamic> json) {
+    final name = json['itemName'] as String? ??
+        json['requestItemName'] as String? ??
+        '';
     return ProposalItem(
       requestItemId: json['requestItemId'] as String? ?? '',
-      requestItemName: json['requestItemName'] as String? ?? '',
+      requestItemName: name,
+      itemName: name,
       quantity: json['quantity'] as int? ?? 1,
       status: ProposalItemStatus.values.firstWhere(
         (s) => s.name == json['status'],
         orElse: () => ProposalItemStatus.available,
       ),
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
+      offeredBrandModel: json['offeredBrandModel'] as String? ??
+          json['alternativeBrand'] as String?,
+      availableStock: json['availableStock'] as int?,
       description: json['description'] as String?,
       alternativeName: json['alternativeName'] as String?,
       alternativeBrand: json['alternativeBrand'] as String?,
       alternativeReason: json['alternativeReason'] as String?,
       imageUrl: json['imageUrl'] as String?,
+    );
+  }
+
+  ProposalItem copyWith({
+    String? requestItemId,
+    String? requestItemName,
+    String? itemName,
+    int? quantity,
+    ProposalItemStatus? status,
+    double? price,
+    String? offeredBrandModel,
+    int? availableStock,
+    String? description,
+    String? alternativeName,
+    String? alternativeBrand,
+    String? alternativeReason,
+    String? imageUrl,
+  }) {
+    return ProposalItem(
+      requestItemId: requestItemId ?? this.requestItemId,
+      requestItemName: requestItemName ?? this.requestItemName,
+      itemName: itemName ?? this.itemName,
+      quantity: quantity ?? this.quantity,
+      status: status ?? this.status,
+      price: price ?? this.price,
+      offeredBrandModel: offeredBrandModel ?? this.offeredBrandModel,
+      availableStock: availableStock ?? this.availableStock,
+      description: description ?? this.description,
+      alternativeName: alternativeName ?? this.alternativeName,
+      alternativeBrand: alternativeBrand ?? this.alternativeBrand,
+      alternativeReason: alternativeReason ?? this.alternativeReason,
+      imageUrl: imageUrl ?? this.imageUrl,
     );
   }
 }
@@ -104,12 +172,15 @@ class Proposal {
   final List<String> missingItemIds;
   final double deliveryCharge;
   final String estimatedDeliveryTime;
-  final double totalPrice; // Sum of available + alternative items + delivery charge
+  final double totalPrice;
   final ProposalStatus status;
   final DateTime createdAt;
+  final DateTime? updatedAt;
+  final String? notes;
+  final List<String> productImageUrls;
   final String? rejectionReason;
-  final String? customerResponse; // suggested response
-  final String? vendorResponse; // suggested response
+  final String? customerResponse;
+  final String? vendorResponse;
   final double vendorLatitude;
   final double vendorLongitude;
 
@@ -125,12 +196,23 @@ class Proposal {
     required this.totalPrice,
     this.status = ProposalStatus.submitted,
     required this.createdAt,
+    this.updatedAt,
+    this.notes,
+    this.productImageUrls = const [],
     this.rejectionReason,
     this.customerResponse,
     this.vendorResponse,
     this.vendorLatitude = 6.9145,
     this.vendorLongitude = 79.8510,
   });
+
+  double get subtotal => items.fold<double>(0, (sum, i) => sum + i.subtotal);
+
+  double get deliveryFee => deliveryCharge;
+
+  bool get canEdit => status.isEditableByVendor;
+
+  bool get canWithdraw => status.isEditableByVendor;
 
   Proposal copyWith({
     String? id,
@@ -144,6 +226,9 @@ class Proposal {
     double? totalPrice,
     ProposalStatus? status,
     DateTime? createdAt,
+    DateTime? updatedAt,
+    String? notes,
+    List<String>? productImageUrls,
     String? rejectionReason,
     String? customerResponse,
     String? vendorResponse,
@@ -158,10 +243,14 @@ class Proposal {
       items: items ?? this.items,
       missingItemIds: missingItemIds ?? this.missingItemIds,
       deliveryCharge: deliveryCharge ?? this.deliveryCharge,
-      estimatedDeliveryTime: estimatedDeliveryTime ?? this.estimatedDeliveryTime,
+      estimatedDeliveryTime:
+          estimatedDeliveryTime ?? this.estimatedDeliveryTime,
       totalPrice: totalPrice ?? this.totalPrice,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      notes: notes ?? this.notes,
+      productImageUrls: productImageUrls ?? this.productImageUrls,
       rejectionReason: rejectionReason ?? this.rejectionReason,
       customerResponse: customerResponse ?? this.customerResponse,
       vendorResponse: vendorResponse ?? this.vendorResponse,
@@ -184,12 +273,29 @@ class Proposal {
       'totalPrice': totalPrice,
       'status': status.name,
       'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
+      'notes': notes,
+      'productImageUrls': productImageUrls,
       'rejectionReason': rejectionReason,
       'customerResponse': customerResponse,
       'vendorResponse': vendorResponse,
       'vendorLatitude': vendorLatitude,
       'vendorLongitude': vendorLongitude,
     };
+  }
+
+  static ProposalStatus _parseStatus(String? raw) {
+    switch (raw) {
+      case 'pending':
+        return ProposalStatus.draft;
+      case 'cancelled':
+        return ProposalStatus.withdrawn;
+      default:
+        return ProposalStatus.values.firstWhere(
+          (s) => s.name == raw,
+          orElse: () => ProposalStatus.submitted,
+        );
+    }
   }
 
   factory Proposal.fromJson(Map<String, dynamic> json) {
@@ -207,12 +313,16 @@ class Proposal {
       deliveryCharge: (json['deliveryCharge'] as num?)?.toDouble() ?? 0.0,
       estimatedDeliveryTime: json['estimatedDeliveryTime'] as String? ?? '',
       totalPrice: (json['totalPrice'] as num?)?.toDouble() ?? 0.0,
-      status: ProposalStatus.values.firstWhere(
-        (s) => s.name == json['status'],
-        orElse: () => ProposalStatus.submitted,
-      ),
+      status: _parseStatus(json['status'] as String?),
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.now(),
+      updatedAt: json['updatedAt'] != null
+          ? DateTime.tryParse(json['updatedAt'] as String)
+          : null,
+      notes: json['notes'] as String?,
+      productImageUrls: (json['productImageUrls'] as List<dynamic>? ?? [])
+          .map((e) => e.toString())
+          .toList(),
       rejectionReason: json['rejectionReason'] as String?,
       customerResponse: json['customerResponse'] as String?,
       vendorResponse: json['vendorResponse'] as String?,

@@ -9,6 +9,10 @@ import '../../models/shopping_request.dart';
 import '../../providers/request_provider.dart';
 import '../../../proposals/providers/proposal_provider.dart';
 import '../../../proposals/models/proposal.dart';
+import '../../../customer/proposals/providers/customer_proposal_comparison_provider.dart';
+import '../../../customer/proposals/widgets/customer_proposal_card.dart';
+import '../../../customer/proposals/widgets/proposal_comparison_bar.dart';
+import '../../../requests/data/mock_request_repository.dart';
 import '../widgets/request_item_list_tile.dart';
 import 'request_item_details_screen.dart';
 
@@ -30,9 +34,13 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
   void initState() {
     super.initState();
     _request = widget.request;
-    Future.microtask(() {
+    Future.microtask(() async {
       if (!mounted) return;
-      ref.read(proposalProvider.notifier).loadProposalsForRequest(_request.id);
+      await ref
+          .read(proposalProvider.notifier)
+          .loadProposalsForRequest(_request.id);
+      if (!mounted) return;
+      _syncComparison(ref.read(proposalProvider).proposals);
     });
   }
 
@@ -145,6 +153,99 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
     }
   }
 
+  void _syncComparison(List<Proposal> proposals) {
+    ref
+        .read(customerProposalComparisonProvider(_request.id).notifier)
+        .updateFrom(proposals: proposals, request: _request);
+  }
+
+  Future<void> _acceptProposal(Proposal proposal) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Accept this bid?'),
+        content: Text(
+          'Request ${_request.id} will be locked to this vendor. '
+          'Other bids will be declined automatically.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Accept & continue'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    try {
+      await ref
+          .read(proposalProvider.notifier)
+          .acceptProposal(proposal.id, _request.id);
+      final refreshed =
+          await MockRequestRepository.instance.getRequestById(_request.id);
+      if (refreshed != null && mounted) {
+        setState(() => _request = refreshed);
+      }
+      if (!mounted) return;
+      context.push('/customer/payment', extra: {
+        'proposal': proposal,
+        'requestId': _request.id,
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+      );
+    }
+  }
+
+  Future<void> _rejectProposal(Proposal proposal) async {
+    final reasons = [
+      'Price too high',
+      'Delivery too slow',
+      'Product mismatch',
+      'Prefer another vendor',
+    ];
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Reject bid'),
+        children: reasons
+            .map(
+              (r) => SimpleDialogOption(
+                child: Text(r),
+                onPressed: () => Navigator.pop(ctx, r),
+              ),
+            )
+            .toList(),
+      ),
+    );
+    if (reason == null || !mounted) return;
+
+    try {
+      await ref.read(proposalProvider.notifier).rejectProposal(
+            proposal.id,
+            _request.id,
+            reason,
+          );
+      _syncComparison(ref.read(proposalProvider).proposals);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bid rejected')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+      );
+    }
+  }
+
   void _openItemDetails(RequestItem item) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -168,7 +269,16 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
 
     final proposalState = ref.watch(proposalProvider);
+    final comparisonState =
+        ref.watch(customerProposalComparisonProvider(_request.id));
+    ref.listen<ProposalState>(proposalProvider, (previous, next) {
+      if (previous?.proposals != next.proposals) {
+        _syncComparison(next.proposals);
+      }
+    });
     final requestLoading = ref.watch(requestProvider).isLoading;
+    final hasAcceptedProposal = proposalState.proposals
+        .any((p) => p.status == ProposalStatus.accepted);
     final canCancel = _canCancel(proposalState.proposals) && !_isCancelled;
     final proposalsEnabled = !_isCancelled;
 
@@ -357,18 +467,68 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
                       primaryText: primaryText,
                       secondaryText: secondaryText,
                     )
-                  else
-                    ...proposalState.proposals.map(
-                      (proposal) => _ProposalCard(
-                        proposal: proposal,
-                        requestId: _request.id,
-                        enabled: proposalsEnabled,
-                        cardColor: cardColor,
-                        borderColor: borderColor,
-                        primaryText: primaryText,
-                        secondaryText: secondaryText,
-                      ),
+                  else ...[
+                    ProposalComparisonBar(
+                      selectedMode: comparisonState.mode,
+                      proposalCount: comparisonState.views.length,
+                      onModeChanged: (mode) {
+                        ref
+                            .read(
+                              customerProposalComparisonProvider(_request.id)
+                                  .notifier,
+                            )
+                            .setMode(
+                              mode,
+                              proposals: proposalState.proposals,
+                              request: _request,
+                            );
+                      },
                     ),
+                    const SizedBox(height: 12),
+                    if (hasAcceptedProposal)
+                      Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.success.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.success.withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: const Text(
+                          'A vendor bid has been accepted. Complete payment to confirm your order.',
+                          style: TextStyle(
+                            color: AppColors.success,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ...comparisonState.views.map(
+                      (view) {
+                        final canAct = proposalsEnabled &&
+                            (view.canAcceptOrReject && !hasAcceptedProposal);
+                        return CustomerProposalCard(
+                          view: view,
+                          requestId: _request.id,
+                          enabled: proposalsEnabled,
+                          onAccept: view.isAccepted
+                              ? () {
+                                  context.push('/customer/payment', extra: {
+                                    'proposal': view.proposal,
+                                    'requestId': _request.id,
+                                  });
+                                }
+                              : canAct
+                                  ? () => _acceptProposal(view.proposal)
+                                  : null,
+                          onReject:
+                              canAct ? () => _rejectProposal(view.proposal) : null,
+                        );
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -542,124 +702,6 @@ class _DisabledBidsNotice extends StatelessWidget {
         'Merchant bids are closed for cancelled requests.',
         style: AppTextStyles.bodyMedium(secondaryText),
         textAlign: TextAlign.center,
-      ),
-    );
-  }
-}
-
-class _ProposalCard extends StatelessWidget {
-  const _ProposalCard({
-    required this.proposal,
-    required this.requestId,
-    required this.enabled,
-    required this.cardColor,
-    required this.borderColor,
-    required this.primaryText,
-    required this.secondaryText,
-  });
-
-  final Proposal proposal;
-  final String requestId;
-  final bool enabled;
-  final Color cardColor;
-  final Color borderColor;
-  final Color primaryText;
-  final Color secondaryText;
-
-  @override
-  Widget build(BuildContext context) {
-    final maskedVendorName =
-        'Partner Merchant #${proposal.vendorId.hashCode.toString().substring(0, 4)}';
-    final availableCount = proposal.items
-        .where((i) => i.status == ProposalItemStatus.available)
-        .length;
-    final altCount = proposal.items
-        .where((i) => i.status == ProposalItemStatus.alternative)
-        .length;
-
-    final isProposalCancelled = proposal.status == ProposalStatus.cancelled;
-
-    return Opacity(
-      opacity: enabled && !isProposalCancelled ? 1 : 0.5,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: cardColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor),
-        ),
-        child: InkWell(
-          onTap: enabled && !isProposalCancelled
-              ? () {
-                  context.push('/customer/proposals/detail', extra: {
-                    'proposal': proposal,
-                    'requestId': requestId,
-                  });
-                }
-              : null,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      maskedVendorName,
-                      style: AppTextStyles.subtitle(primaryText),
-                    ),
-                    StatusBadge(
-                      label: proposal.status.displayName,
-                      color: proposal.status == ProposalStatus.accepted
-                          ? AppColors.success
-                          : (proposal.status == ProposalStatus.rejected ||
-                                  proposal.status == ProposalStatus.cancelled
-                              ? AppColors.error
-                              : AppColors.customerColor),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Delivery: ${proposal.estimatedDeliveryTime} · Fee: Rs. ${proposal.deliveryCharge.toStringAsFixed(0)}',
-                  style: AppTextStyles.bodySmall(secondaryText),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  '$availableCount available · $altCount alternatives',
-                  style: AppTextStyles.caption(secondaryText),
-                ),
-                const Divider(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Total bid',
-                      style: AppTextStyles.caption(secondaryText),
-                    ),
-                    Text(
-                      'Rs. ${proposal.totalPrice.toStringAsFixed(2)}',
-                      style: AppTextStyles.subtitle(AppColors.customerColor),
-                    ),
-                  ],
-                ),
-                if (enabled && !isProposalCancelled) ...[
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: Text(
-                      'Tap to review →',
-                      style: AppTextStyles.caption(AppColors.customerColor)
-                          .copyWith(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
       ),
     );
   }

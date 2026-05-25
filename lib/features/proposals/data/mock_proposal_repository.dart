@@ -41,13 +41,27 @@ class MockProposalRepository {
   Future<List<Proposal>> getProposalsForRequest(String requestId) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 300));
+    return _proposals
+        .where((p) =>
+            p.requestId == requestId && p.status.isVisibleToCustomer)
+        .toList();
+  }
+
+  Future<List<Proposal>> getAllProposalsForRequest(String requestId) async {
+    await ensureInitialized();
     return _proposals.where((p) => p.requestId == requestId).toList();
   }
 
   Future<List<Proposal>> getProposalsForVendor(String vendorId) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 300));
-    return _proposals.where((p) => p.vendorId == vendorId).toList();
+    return _proposals.where((p) => p.vendorId == vendorId).toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
+  Future<List<Proposal>> getAllProposals() async {
+    await ensureInitialized();
+    return List<Proposal>.unmodifiable(_proposals);
   }
 
   Future<Proposal?> getProposalById(String id) async {
@@ -55,6 +69,20 @@ class MockProposalRepository {
     await Future.delayed(const Duration(milliseconds: 200));
     try {
       return _proposals.firstWhere((p) => p.id == id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<Proposal?> getVendorProposalForRequest({
+    required String vendorId,
+    required String requestId,
+  }) async {
+    await ensureInitialized();
+    try {
+      return _proposals.firstWhere(
+        (p) => p.vendorId == vendorId && p.requestId == requestId,
+      );
     } catch (_) {
       return null;
     }
@@ -74,6 +102,58 @@ class MockProposalRepository {
     return newProposal;
   }
 
+  Future<Proposal> saveProposal(Proposal proposal) async {
+    await ensureInitialized();
+    final index = _proposals.indexWhere((p) => p.id == proposal.id);
+    if (index >= 0) {
+      _proposals[index] = proposal.copyWith(updatedAt: DateTime.now());
+      await _persistProposals();
+      return _proposals[index];
+    }
+    return createProposal(proposal);
+  }
+
+  Future<Proposal> updateProposal(Proposal proposal) async {
+    await ensureInitialized();
+    await Future.delayed(const Duration(milliseconds: 300));
+    final index = _proposals.indexWhere((p) => p.id == proposal.id);
+    if (index == -1) {
+      throw Exception('Proposal not found');
+    }
+    final existing = _proposals[index];
+    if (!existing.canEdit) {
+      throw Exception(
+        'Proposal cannot be edited in status ${existing.status.name}',
+      );
+    }
+
+    final nextStatus = proposal.status == ProposalStatus.submitted &&
+            existing.status != ProposalStatus.draft
+        ? ProposalStatus.updated
+        : proposal.status;
+
+    _proposals[index] = proposal.copyWith(
+      status: nextStatus,
+      updatedAt: DateTime.now(),
+    );
+    await _persistProposals();
+    return _proposals[index];
+  }
+
+  Future<void> withdrawProposal(String proposalId) async {
+    await ensureInitialized();
+    final index = _proposals.indexWhere((p) => p.id == proposalId);
+    if (index == -1) return;
+    if (!_proposals[index].canWithdraw) {
+      throw Exception('Proposal cannot be withdrawn');
+    }
+    _proposals[index] = _proposals[index].copyWith(
+      status: ProposalStatus.withdrawn,
+      updatedAt: DateTime.now(),
+    );
+    await _persistProposals();
+  }
+
   Future<void> cancelProposalsForRequest(String requestId) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 150));
@@ -82,8 +162,9 @@ class MockProposalRepository {
       if (_proposals[i].requestId == requestId &&
           _proposals[i].status != ProposalStatus.accepted) {
         _proposals[i] = _proposals[i].copyWith(
-          status: ProposalStatus.cancelled,
+          status: ProposalStatus.withdrawn,
           rejectionReason: 'Request cancelled by customer',
+          updatedAt: DateTime.now(),
         );
         changed = true;
       }
@@ -103,6 +184,7 @@ class MockProposalRepository {
       _proposals[index] = _proposals[index].copyWith(
         status: status,
         rejectionReason: rejectionReason,
+        updatedAt: DateTime.now(),
       );
       await _persistProposals();
     }
@@ -120,6 +202,7 @@ class MockProposalRepository {
       _proposals[index] = _proposals[index].copyWith(
         customerResponse: customerMsg ?? _proposals[index].customerResponse,
         vendorResponse: vendorMsg ?? _proposals[index].vendorResponse,
+        updatedAt: DateTime.now(),
       );
       await _persistProposals();
     }

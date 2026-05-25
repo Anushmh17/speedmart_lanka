@@ -5,12 +5,11 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_state_widgets.dart';
-import '../../../../shared/models/location_model.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../auth/providers/theme_provider.dart';
-import '../../../requests/models/shopping_request.dart';
-import '../../../customer/delivery_address/utils/vendor_delivery_privacy.dart';
-import '../../../requests/providers/request_provider.dart';
+import '../../request_feed/presentation/vendor_request_feed_screen.dart';
+import '../../request_feed/providers/vendor_request_feed_provider.dart';
+import '../../request_feed/widgets/vendor_request_card.dart';
 import '../../../proposals/models/proposal.dart';
 import '../../../proposals/providers/proposal_provider.dart';
 import '../../../orders/models/order_model.dart';
@@ -18,8 +17,6 @@ import '../../../orders/providers/order_provider.dart';
 import '../../../shared/presentation/screens/profile_screen.dart';
 import '../../../../core/widgets/shared_floating_bottom_nav.dart';
 import '../../../../core/navigation/bottom_nav_visibility.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:permission_handler/permission_handler.dart' as ph;
 
 class VendorHomeScreen extends ConsumerStatefulWidget {
   const VendorHomeScreen({super.key});
@@ -40,7 +37,7 @@ class _VendorHomeScreenState extends ConsumerState<VendorHomeScreen> {
     super.initState();
     // Load data asynchronously on screen entry
     Future.microtask(() {
-      ref.read(requestProvider.notifier).loadNearbyRequests();
+      ref.read(vendorRequestFeedProvider.notifier).loadFeed();
       ref.read(proposalProvider.notifier).loadVendorProposals();
       ref.read(orderProvider.notifier).loadVendorOrders();
     });
@@ -88,7 +85,7 @@ class _VendorHomeScreenState extends ConsumerState<VendorHomeScreen> {
               index: _currentIndex,
               children: [
                 _DashboardTab(user: user, isDark: isDark),
-                _NearbyRequestsTab(isDark: isDark),
+                VendorRequestFeedScreen(isDark: isDark),
                 _MyProposalsTab(isDark: isDark),
                 const _VendorWalletTab(),
                 const ProfileScreen(),
@@ -145,11 +142,11 @@ class _DashboardTab extends ConsumerWidget {
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
 
-    final requestState = ref.watch(requestProvider);
+    final feedState = ref.watch(vendorRequestFeedProvider);
     final proposalState = ref.watch(proposalProvider);
     final orderState = ref.watch(orderProvider);
 
-    final newRequestsCount = requestState.nearbyRequests.length.toString();
+    final newRequestsCount = feedState.items.length.toString();
     final proposalsSentCount = proposalState.proposals.length.toString();
     
     final activeOrders = orderState.orders.where((o) => o.status != OrderStatus.delivered).toList();
@@ -162,7 +159,7 @@ class _DashboardTab extends ConsumerWidget {
 
     return RefreshIndicator(
       onRefresh: () async {
-        await ref.read(requestProvider.notifier).loadNearbyRequests();
+        await ref.read(vendorRequestFeedProvider.notifier).refresh();
         await ref.read(proposalProvider.notifier).loadVendorProposals();
         await ref.read(orderProvider.notifier).loadVendorOrders();
       },
@@ -199,7 +196,7 @@ class _DashboardTab extends ConsumerWidget {
                   Text('Welcome back, ${user?.firstName ?? ''}',
                       style: AppTextStyles.bodyMedium(Colors.white70)),
                   const SizedBox(height: 14),
-                  StatusBadge(label: '● Active & Verified', color: Colors.white),
+                  StatusBadge(label: 'â— Active & Verified', color: Colors.white),
                 ],
               ),
             ),
@@ -273,27 +270,29 @@ class _DashboardTab extends ConsumerWidget {
             Text('Recent Nearby Requests', style: AppTextStyles.h2(primaryText)),
             const SizedBox(height: 12),
 
-            if (requestState.isLoading)
+            if (feedState.isLoading)
               const Center(
                 child: Padding(
                   padding: EdgeInsets.all(32.0),
                   child: CircularProgressIndicator(color: AppColors.vendorColor),
                 ),
               )
-            else if (requestState.nearbyRequests.isEmpty)
+            else if (feedState.items.isEmpty)
               const AppEmptyState(
                 icon: Icons.location_searching_rounded,
-                title: 'No Nearby Requests',
-                subtitle: 'Customer requests within 20 km will appear here.',
+                title: 'No nearby requests',
+                subtitle: 'Active requests in your categories and radius will appear here.',
               )
             else
               ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                itemCount: requestState.nearbyRequests.length > 2 ? 2 : requestState.nearbyRequests.length,
+                itemCount: feedState.items.length > 2 ? 2 : feedState.items.length,
                 itemBuilder: (context, index) {
-                  final request = requestState.nearbyRequests[index];
-                  return _RequestCard(request: request, isDark: isDark);
+                  return VendorRequestCard(
+                    feedRequest: feedState.items[index],
+                    isDark: isDark,
+                  );
                 },
               ),
           ],
@@ -303,205 +302,6 @@ class _DashboardTab extends ConsumerWidget {
   }
 }
 
-class _NearbyRequestsTab extends ConsumerWidget {
-  const _NearbyRequestsTab({required this.isDark});
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final requestState = ref.watch(requestProvider);
-
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: RefreshIndicator(
-        onRefresh: () => ref.read(requestProvider.notifier).loadNearbyRequests(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 5),
-              child: Text(
-                'Customer Requests within 20km',
-                style: AppTextStyles.h2(primaryText),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: isDark ? AppColors.cardDark : AppColors.cardLight,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: isDark ? AppColors.borderDark : AppColors.borderLight),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.storefront_rounded, color: AppColors.vendorColor, size: 24),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('My Shop Base Suburb', style: AppTextStyles.caption(isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight)),
-                          Text(requestState.vendorArea, style: AppTextStyles.bodyMedium(primaryText).copyWith(fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      style: IconButton.styleFrom(
-                        backgroundColor: AppColors.vendorColor.withOpacity(0.12),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      icon: const Icon(Icons.edit_location_alt_rounded, color: AppColors.vendorColor, size: 20),
-                      onPressed: () {
-                        Future<void> detectVendorGPS() async {
-                          try {
-                            final status = await ph.Permission.location.request();
-                            if (status.isGranted) {
-                              final position = await Geolocator.getCurrentPosition(
-                                desiredAccuracy: LocationAccuracy.high,
-                                timeLimit: const Duration(seconds: 5),
-                              );
-                              final nearest = LocationModel.findNearest(position.latitude, position.longitude);
-                              await ref.read(requestProvider.notifier).updateVendorLocation(
-                                latitude: position.latitude,
-                                longitude: position.longitude,
-                                area: '${nearest.name} (GPS)',
-                              );
-                              if (context.mounted) {
-                                Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Shop GPS matched closest suburb: ${nearest.name}!'),
-                                    backgroundColor: AppColors.vendorColor,
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
-                              }
-                            } else {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Location permission denied. Please enable location settings.'),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
-                              }
-                            }
-                          } catch (e) {
-                            final nearest = LocationModel.findNearest(6.9271, 79.8485);
-                            await ref.read(requestProvider.notifier).updateVendorLocation(
-                              latitude: 6.9271,
-                              longitude: 79.8485,
-                              area: '${nearest.name} (GPS Simulated)',
-                            );
-                            if (context.mounted) {
-                              Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Shop GPS simulated: ${nearest.name}!'),
-                                  backgroundColor: AppColors.vendorColor,
-                                  behavior: SnackBarBehavior.floating,
-                                ),
-                              );
-                            }
-                          }
-                        }
-
-                        showModalBottomSheet(
-                          context: context,
-                          backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                          ),
-                          builder: (context) {
-                            return SafeArea(
-                              child: Container(
-                                padding: const EdgeInsets.all(20),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Select Shop Base Suburb', style: AppTextStyles.h3(primaryText)),
-                                    const SizedBox(height: 6),
-                                    Text('Simulate shop coordinates to filter customer requests under 20km.', style: AppTextStyles.caption(isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight)),
-                                    const Divider(height: 16),
-                                    ListTile(
-                                      leading: CircleAvatar(
-                                        backgroundColor: AppColors.vendorColor.withOpacity(0.12),
-                                        child: const Icon(Icons.my_location_rounded, color: AppColors.vendorColor, size: 20),
-                                      ),
-                                      title: const Text('Detect Current GPS Location', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.vendorColor)),
-                                      subtitle: const Text('Uses device sensors for high-accuracy coordinates', style: TextStyle(fontSize: 11)),
-                                      onTap: detectVendorGPS,
-                                    ),
-                                    const Divider(height: 16),
-                                    Expanded(
-                                      child: ListView.builder(
-                                        shrinkWrap: true,
-                                        itemCount: LocationModel.sriLankanLocations.length,
-                                        itemBuilder: (context, idx) {
-                                          final loc = LocationModel.sriLankanLocations[idx];
-                                          final isSelected = loc.name == requestState.vendorArea;
-                                          return ListTile(
-                                            title: Text(loc.name, style: AppTextStyles.bodyLarge(primaryText)),
-                                            trailing: isSelected ? const Icon(Icons.check_circle_rounded, color: AppColors.vendorColor) : null,
-                                            onTap: () {
-                                              ref.read(requestProvider.notifier).updateVendorLocation(
-                                                latitude: loc.latitude,
-                                                longitude: loc.longitude,
-                                                area: loc.name,
-                                              );
-                                              Navigator.pop(context);
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                SnackBar(
-                                                  content: Text('Shop location updated to ${loc.name}. Dynamic distances recalculating...'),
-                                                  backgroundColor: AppColors.vendorColor,
-                                                  behavior: SnackBarBehavior.floating,
-                                                ),
-                                              );
-                                            },
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Expanded(
-              child: requestState.isLoading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.vendorColor))
-                  : requestState.nearbyRequests.isEmpty
-                      ? const AppEmptyState(
-                          icon: Icons.location_searching_rounded,
-                          title: 'No Active Requests Nearby',
-                          subtitle: 'New customer lists in your radius will show up here.',
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                          itemCount: requestState.nearbyRequests.length,
-                          itemBuilder: (context, index) {
-                            final request = requestState.nearbyRequests[index];
-                            return _RequestCard(request: request, isDark: isDark);
-                          },
-                        ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _MyProposalsTab extends ConsumerWidget {
   const _MyProposalsTab({required this.isDark});
@@ -509,16 +309,17 @@ class _MyProposalsTab extends ConsumerWidget {
 
   Color _getStatusColor(ProposalStatus status) {
     switch (status) {
-      case ProposalStatus.pending:
+      case ProposalStatus.draft:
         return AppColors.warning;
       case ProposalStatus.submitted:
+      case ProposalStatus.updated:
         return AppColors.vendorColor;
       case ProposalStatus.accepted:
         return AppColors.success;
       case ProposalStatus.rejected:
+      case ProposalStatus.withdrawn:
+      case ProposalStatus.expired:
         return AppColors.error;
-      default:
-        return Colors.grey;
     }
   }
 
@@ -565,7 +366,17 @@ class _MyProposalsTab extends ConsumerWidget {
                             final altCount = proposal.items.where((i) => i.status == ProposalItemStatus.alternative).length;
                             final missingCount = proposal.items.where((i) => i.status == ProposalItemStatus.unavailable).length;
 
-                            return Container(
+                            return Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(16),
+                                onTap: () {
+                                  context.push(
+                                    '/vendor/proposals/detail',
+                                    extra: proposal,
+                                  );
+                                },
+                                child: Container(
                               margin: const EdgeInsets.only(bottom: 12),
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
@@ -670,14 +481,16 @@ class _MyProposalsTab extends ConsumerWidget {
                                           Text('Suggested Communication Log:', style: AppTextStyles.caption(secondaryText)),
                                           const SizedBox(height: 4),
                                           if (proposal.customerResponse != null)
-                                            Text('💬 Customer: "${proposal.customerResponse}"', style: AppTextStyles.bodySmall(primaryText)),
+                                            Text('ðŸ’¬ Customer: "${proposal.customerResponse}"', style: AppTextStyles.bodySmall(primaryText)),
                                           if (proposal.vendorResponse != null)
-                                            Text('💬 You: "${proposal.vendorResponse}"', style: AppTextStyles.bodySmall(AppColors.vendorColor)),
+                                            Text('ðŸ’¬ You: "${proposal.vendorResponse}"', style: AppTextStyles.bodySmall(AppColors.vendorColor)),
                                         ],
                                       ),
                                     ),
                                   ]
                                 ],
+                              ),
+                            ),
                               ),
                             );
                           },
@@ -690,88 +503,6 @@ class _MyProposalsTab extends ConsumerWidget {
   }
 }
 
-class _RequestCard extends StatelessWidget {
-  const _RequestCard({required this.request, required this.isDark});
-  final ShoppingRequest request;
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
-    final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
-    final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
-
-    final itemNames = request.items.map((i) => i.name).join(', ');
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                request.id,
-                style: AppTextStyles.subtitle(primaryText),
-              ),
-              StatusBadge(
-                label: '${request.approximateDistance} km away',
-                color: AppColors.vendorColor,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Area: ${request.vendorVisibleAreaLabel}'
-            '${request.deliveryLocation?.district.isNotEmpty == true ? ', ${request.deliveryLocation!.district}' : ''}',
-            style: AppTextStyles.bodyMedium(secondaryText),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Requested items: $itemNames',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.bodySmall(secondaryText),
-          ),
-          const Divider(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                '${request.items.length} items listed',
-                style: AppTextStyles.caption(secondaryText),
-              ),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.vendorColor,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                ),
-                onPressed: () {
-                  context.push('/vendor/proposals/create', extra: request);
-                },
-                icon: const Icon(Icons.check_rounded, color: Colors.white, size: 18),
-                label: Text(
-                  'Accept & Bid',
-                  style: AppTextStyles.button(Colors.white).copyWith(fontSize: 13),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _StatCard extends StatelessWidget {
   const _StatCard({

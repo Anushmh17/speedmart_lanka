@@ -5,6 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../models/proposal.dart';
 import '../../providers/proposal_provider.dart';
+import '../../../customer/proposals/services/proposal_comparison_service.dart';
 
 class CustomerProposalDetailsScreen extends ConsumerStatefulWidget {
   const CustomerProposalDetailsScreen({
@@ -32,7 +33,26 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
     'Need exact product only',
   ];
 
-  void _handleAccept() {
+  Future<void> _handleAccept() async {
+    if (widget.proposal.status != ProposalStatus.accepted) {
+      try {
+        await ref.read(proposalProvider.notifier).acceptProposal(
+              widget.proposal.id,
+              widget.requestId,
+            );
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.toString().replaceAll('Exception: ', '')),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        return;
+      }
+    }
+    if (!mounted) return;
     context.push('/customer/payment', extra: {
       'proposal': widget.proposal,
       'requestId': widget.requestId,
@@ -111,8 +131,11 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
 
-    // Mask Vendor Identity (privacy barrier rule)
-    final maskedVendorName = 'Partner Merchant #${widget.proposal.vendorId.hashCode.toString().substring(0, 4)}';
+    const comparisonService = ProposalComparisonService();
+    final maskedVendorName =
+        comparisonService.maskedVendorName(widget.proposal.vendorId);
+    final rating =
+        comparisonService.ratingPlaceholderFor(widget.proposal.vendorId);
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
@@ -176,6 +199,17 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                         ),
                       ],
                     ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Icon(Icons.star_rounded, color: Colors.amber.shade700, size: 18),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$rating vendor rating (preview)',
+                        style: AppTextStyles.bodySmall(secondaryText),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 20),
 
@@ -377,7 +411,8 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                   ],
 
                   // Suggested Predefined Responses (Controlled Communication)
-                  if (widget.proposal.status == ProposalStatus.submitted) ...[
+                  if (widget.proposal.status == ProposalStatus.submitted ||
+                      widget.proposal.status == ProposalStatus.updated) ...[
                     Text('Send Predefined Response', style: AppTextStyles.h2(primaryText)),
                     const SizedBox(height: 8),
                     Container(
@@ -432,7 +467,8 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
           ),
 
           // Accept / Reject Buttons
-          if (widget.proposal.status == ProposalStatus.submitted)
+          if (widget.proposal.status == ProposalStatus.submitted ||
+              widget.proposal.status == ProposalStatus.updated)
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
