@@ -1,16 +1,18 @@
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_text_styles.dart';
-import '../../../../core/widgets/app_state_widgets.dart';
-import '../../../proposals/models/proposal.dart';
-import '../../data/mock_order_repository.dart';
-import '../../models/order_model.dart';
-import '../../providers/order_provider.dart';
-import '../../../../core/providers/notification_provider.dart';
+import 'package:speedmart_lanka/core/theme/app_colors.dart';
+import 'package:speedmart_lanka/core/theme/app_text_styles.dart';
+import 'package:speedmart_lanka/core/widgets/app_state_widgets.dart';
+import 'package:speedmart_lanka/features/proposals/models/proposal.dart';
+import 'package:speedmart_lanka/features/orders/data/mock_order_repository.dart';
+import 'package:speedmart_lanka/features/orders/models/order_model.dart';
+import 'package:speedmart_lanka/features/orders/providers/order_provider.dart';
+import 'package:speedmart_lanka/features/orders/services/vendor_delivery_access_service.dart';
+import 'package:speedmart_lanka/core/providers/notification_provider.dart';
+import 'package:speedmart_lanka/features/payments/models/payment.dart';
+import 'package:speedmart_lanka/features/location/services/location_service.dart';
 
 class VendorOrderDetailsScreen extends ConsumerWidget {
   const VendorOrderDetailsScreen({super.key, required this.order});
@@ -181,6 +183,48 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                             ),
                           ],
                         ),
+                        if (VendorDeliveryAccessService.canViewLocationAccuracy(activeOrder) && activeOrder.accuracy != null) ...[
+                          const SizedBox(height: 16),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.gps_fixed_rounded, color: AppColors.vendorColor, size: 20),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('GPS Accuracy', style: AppTextStyles.caption(secondaryText)),
+                                    Text('±${activeOrder.accuracy!.toStringAsFixed(1)}m', style: AppTextStyles.bodyMedium(primaryText)),
+                                    if (activeOrder.accuracy! > 150)
+                                      Text('Low accuracy - move outdoors for better precision', style: AppTextStyles.caption(Colors.orange)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ] else if (!VendorDeliveryAccessService.canViewLocationAccuracy(activeOrder))
+                          Container(
+                            margin: const EdgeInsets.only(top: 16),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.warning.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppColors.warning.withOpacity(0.2)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.lock_outlined, color: AppColors.warning, size: 16),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'GPS accuracy hidden until payment confirmed',
+                                    style: AppTextStyles.caption(AppColors.warning),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                       ],
                     ),
                   ),
@@ -198,7 +242,7 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (activeOrder.customerLatitude != 0.0 && activeOrder.customerLongitude != 0.0)
+                        if (VendorDeliveryAccessService.canViewFullAddress(activeOrder) && activeOrder.customerLatitude != 0.0 && activeOrder.customerLongitude != 0.0)
                           ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.blue.shade600,
@@ -215,7 +259,28 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                               context,
                             ),
                           ),
-                        if (activeOrder.customerLatitude == 0.0 || activeOrder.customerLongitude == 0.0)
+                        if (!VendorDeliveryAccessService.canViewFullAddress(activeOrder))
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.orange.withOpacity(0.2)),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.lock_outlined, color: Colors.orange, size: 18),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Waiting for payment confirmation to unlock navigation',
+                                    style: TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.w500),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else if (activeOrder.customerLatitude == 0.0 || activeOrder.customerLongitude == 0.0)
                           Container(
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
@@ -338,7 +403,7 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
           ),
 
           // Order status state management actions
-          if (activeOrder.status != OrderStatus.delivered)
+          if (activeOrder.status != OrderStatus.delivered && activeOrder.status != OrderStatus.completed && activeOrder.status != OrderStatus.cancelled)
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -357,12 +422,19 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                     ),
                     onPressed: () async {
                       OrderStatus nextStatus = OrderStatus.preparing;
-                      if (activeOrder.status == OrderStatus.preparing) {
+
+                      if (activeOrder.status == OrderStatus.accepted) {
+                        nextStatus = OrderStatus.preparing;
+                      } else if (activeOrder.status == OrderStatus.preparing) {
+                        nextStatus = OrderStatus.readyForDelivery;
+                      } else if (activeOrder.status == OrderStatus.readyForDelivery) {
                         nextStatus = OrderStatus.outForDelivery;
                       } else if (activeOrder.status == OrderStatus.outForDelivery) {
                         nextStatus = OrderStatus.delivered;
+                      } else if (activeOrder.status == OrderStatus.delivered) {
+                        nextStatus = OrderStatus.completed;
                       }
-                      
+
                       await ref.read(orderProvider.notifier).updateOrderStatus(activeOrder.id, nextStatus);
 
                       // Trigger simulated Customer Notifications based on status update!
@@ -371,6 +443,13 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                           title: 'Order Preparing! 📦',
                           body: 'Merchant is packing your items for order ${activeOrder.id}.',
                           icon: Icons.inventory_2_rounded,
+                          color: AppColors.customerColor,
+                        );
+                      } else if (nextStatus == OrderStatus.readyForDelivery) {
+                        ref.read(notificationProvider.notifier).triggerNotification(
+                          title: 'Order Ready! 🚀',
+                          body: 'Your order ${activeOrder.id} is ready for pickup/delivery.',
+                          icon: Icons.check_circle_rounded,
                           color: AppColors.customerColor,
                         );
                       } else if (nextStatus == OrderStatus.outForDelivery) {
@@ -408,9 +487,15 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                       }
                     },
                     child: Text(
-                      activeOrder.status == OrderStatus.preparing
-                          ? 'Dispatch (Mark Out for Delivery)'
-                          : 'Confirm Delivery (Mark as Delivered)',
+                      activeOrder.status == OrderStatus.accepted
+                          ? 'Start Preparing Order'
+                          : activeOrder.status == OrderStatus.preparing
+                              ? 'Mark Ready for Delivery'
+                              : activeOrder.status == OrderStatus.readyForDelivery
+                                  ? 'Dispatch Order (Out for Delivery)'
+                                  : activeOrder.status == OrderStatus.outForDelivery
+                                      ? 'Confirm Delivery (Mark as Delivered)'
+                                      : 'Mark Complete',
                       style: AppTextStyles.button(Colors.white),
                     ),
                   ),
@@ -424,15 +509,15 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
 }
 
 Future<void> _launchMaps(double lat, double lng, BuildContext context) async {
-  final Uri url = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
-  if (await canLaunchUrl(url)) {
-    await launchUrl(url, mode: LaunchMode.externalApplication);
-  } else {
+  try {
+    await LocationService.openMap(latitude: lat, longitude: lng);
+  } on Exception catch (e) {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not open Google Maps. Copying coordinates instead.'),
+        SnackBar(
+          content: Text('Could not open maps: ${e.toString().replaceFirst('Exception: ', '')}'),
           behavior: SnackBarBehavior.floating,
+          backgroundColor: Colors.red.shade400,
         ),
       );
     }

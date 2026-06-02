@@ -76,14 +76,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ref.read(customerRegistrationProvider.notifier).setLkUser(true);
               Navigator.of(ctx).pop();
             },
-            child: const Text('Sri Lanka 🇱🇰'),
+            child: const Text('Sri Lanka'),
           ),
           TextButton(
             onPressed: () {
               ref.read(customerRegistrationProvider.notifier).setLkUser(false);
               Navigator.of(ctx).pop();
             },
-            child: const Text('Other Country 🌍'),
+            child: const Text('Other Country'),
           ),
         ],
       ),
@@ -162,10 +162,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     // Navigate on successful login
     ref.listen(authProvider, (prev, next) {
       if (next.isAuthenticated && !next.isLoading) {
-        switch (next.user!.role) {
-          case UserRole.customer: context.go(RouteNames.customerHome);
-          case UserRole.vendor:   context.go(RouteNames.vendorHome);
-          case UserRole.admin:    context.go(RouteNames.adminDashboard);
+        final role = next.user!.role;
+        switch (role) {
+          case UserRole.customer:
+            debugPrint('[Auth] Customer login success → Navigating to customer home');
+            context.go(RouteNames.customerHome);
+          case UserRole.vendor:
+            debugPrint('[Auth] Vendor login success → Navigating to vendor home');
+            context.go(RouteNames.vendorHome);
+          case UserRole.admin:
+            debugPrint('[Auth] Admin login success → Navigating to admin dashboard');
+            context.go(RouteNames.adminDashboard);
         }
       }
     });
@@ -188,9 +195,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       });
     }
 
-    return Scaffold(
-      backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-      body: SafeArea(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go(RouteNames.roleSelection);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+        body: SafeArea(
         child: SingleChildScrollView(
           child: Column(
             children: [
@@ -217,7 +234,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   children: [
                     // Back button
                     GestureDetector(
-                      onTap: () => context.go(RouteNames.roleSelection),
+                      onTap: () => context.pop(),
                       child: Container(
                         width: 38,
                         height: 38,
@@ -489,10 +506,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               onTap: () {
                                 if (widget.role == UserRole.customer) {
                                   // Customer gets the dedicated registration flow
-                                  context.go(RouteNames.customerRegister);
+                                  context.push(RouteNames.customerRegister);
                                 } else {
                                   // Vendor / Admin use the generic register screen
-                                  context.go(
+                                  context.push(
                                     widget.role == UserRole.vendor
                                         ? RouteNames.vendorRegister
                                         : RouteNames.adminRegister,
@@ -514,6 +531,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

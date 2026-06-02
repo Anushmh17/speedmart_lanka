@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../models/delivery_location.dart';
 import '../models/gps_location_result.dart';
 import '../models/location_suggestion.dart';
@@ -168,6 +169,24 @@ class SriLankaLocationService {
     GpsLocationResult gpsResult, {
     String? existingPreciseAddress,
   }) {
+    // Log accuracy info
+    final accuracyStr = gpsResult.accuracy?.toStringAsFixed(1) ?? 'N/A';
+    debugPrint('[Location] GPS detected at: ${gpsResult.detectedAt}');
+    debugPrint('[Location] GPS accuracy: ${accuracyStr}m');
+
+    // Determine accuracy level
+    String accuracyLevel = 'unknown';
+    if (gpsResult.accuracy != null) {
+      if (gpsResult.accuracy! <= 50) {
+        accuracyLevel = 'high';
+      } else if (gpsResult.accuracy! <= 150) {
+        accuracyLevel = 'medium';
+      } else {
+        accuracyLevel = 'low';
+      }
+    }
+    debugPrint('[Location] GPS accuracy level: $accuracyLevel');
+
     if (!gpsResult.geocodingSucceeded) {
       // Geocoding failed — return coords only, leave address fields empty
       // so the UI can ask the user to type manually.
@@ -185,6 +204,8 @@ class SriLankaLocationService {
         isGpsDetected: true,
         isManualOverride: false,
         source: 'gps',
+        accuracy: gpsResult.accuracy,
+        detectedAt: gpsResult.detectedAt,
       );
     }
 
@@ -208,6 +229,8 @@ class SriLankaLocationService {
       isGpsDetected: true,
       isManualOverride: false,
       source: 'gps',
+      accuracy: gpsResult.accuracy,
+      detectedAt: gpsResult.detectedAt,
     );
   }
 

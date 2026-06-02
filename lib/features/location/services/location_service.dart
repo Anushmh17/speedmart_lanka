@@ -1,4 +1,6 @@
 import 'dart:math';
+import 'package:flutter/foundation.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../models/delivery_location.dart';
 
 class SriLankanSuburb {
@@ -327,5 +329,40 @@ class LocationService {
   /// Generate a Google Maps URL for direct device navigation
   static String getGoogleMapsUrl(double latitude, double longitude) {
     return 'https://www.google.com/maps/search/?api=1&query=$latitude,$longitude';
+  }
+
+  /// Open map with location coordinates using platform-specific handlers
+  /// Tries geo: URI first (native maps), falls back to Google Maps web
+  /// Validates coordinates before attempting to open
+  static Future<void> openMap({
+    required double latitude,
+    required double longitude,
+  }) async {
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
+      throw Exception('Invalid coordinates: latitude must be between -90 and 90, longitude between -180 and 180');
+    }
+
+    final geoUri = Uri.parse('geo:$latitude,$longitude?q=$latitude,$longitude');
+    final googleMapsWebUri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$latitude,$longitude');
+
+    try {
+      if (await canLaunchUrl(geoUri)) {
+        await launchUrl(geoUri, mode: LaunchMode.externalApplication);
+        return;
+      }
+    } catch (e) {
+      debugPrint('[LocationService] Geo URI launch failed: $e');
+    }
+
+    try {
+      if (await canLaunchUrl(googleMapsWebUri)) {
+        await launchUrl(googleMapsWebUri, mode: LaunchMode.externalApplication);
+        return;
+      }
+    } catch (e) {
+      debugPrint('[LocationService] Google Maps web launch failed: $e');
+    }
+
+    throw Exception('Could not open maps - no suitable app or browser available');
   }
 }

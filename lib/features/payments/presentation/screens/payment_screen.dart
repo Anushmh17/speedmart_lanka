@@ -1,16 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_text_styles.dart';
-import '../../../auth/providers/auth_provider.dart';
-import '../../../orders/models/order_model.dart';
-import '../../../orders/providers/order_provider.dart';
-import '../../../proposals/models/proposal.dart';
-import '../../../proposals/providers/proposal_provider.dart';
-import '../../../requests/models/shopping_request.dart';
-import '../../../requests/providers/request_provider.dart';
-import 'package:speedmart_lanka/features/location/providers/location_provider.dart';
+import 'package:speedmart_lanka/core/theme/app_colors.dart';
+import 'package:speedmart_lanka/core/theme/app_text_styles.dart';
+import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
+import 'package:speedmart_lanka/core/routes/route_names.dart';
+import 'package:speedmart_lanka/features/orders/models/order_model.dart';
+import 'package:speedmart_lanka/features/orders/providers/order_provider.dart';
+import 'package:speedmart_lanka/features/proposals/models/proposal.dart';
+import 'package:speedmart_lanka/features/proposals/providers/proposal_provider.dart';
+import 'package:speedmart_lanka/features/requests/models/shopping_request.dart';
+import 'package:speedmart_lanka/features/requests/providers/request_provider.dart';
+import 'package:speedmart_lanka/features/notifications/models/notification_type.dart';
+import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart' as notification_feature;
+import 'package:speedmart_lanka/features/payments/models/payment.dart';
+import 'package:speedmart_lanka/features/payments/providers/payment_provider.dart';
 
 class PaymentScreen extends ConsumerStatefulWidget {
   const PaymentScreen({
@@ -28,9 +32,8 @@ class PaymentScreen extends ConsumerStatefulWidget {
 
 class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   final _formKey = GlobalKey<FormState>();
-  late final TextEditingController _addressController;
   late final TextEditingController _phoneController;
-  
+
   PaymentMethod _selectedMethod = PaymentMethod.cashOnDelivery;
 
   // Card controllers
@@ -40,17 +43,18 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   final _cardNameController = TextEditingController();
 
   bool _isProcessing = false;
+  ShoppingRequest? _request;
+  String? _missingAddressError;
 
   @override
   void initState() {
     super.initState();
     final user = ref.read(currentUserProvider);
-    
+
     // Look up the corresponding request to find the delivery address
     final requestsState = ref.read(requestProvider);
-    ShoppingRequest? correspondingRequest;
     try {
-      correspondingRequest = requestsState.requests.firstWhere(
+      _request = requestsState.requests.firstWhere(
         (r) => r.id == widget.requestId,
         orElse: () => requestsState.nearbyRequests.firstWhere(
           (r) => r.id == widget.requestId,
@@ -58,23 +62,21 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       );
     } catch (_) {}
 
-    // Check if there is an active delivery location in the shared provider first
-    final sharedLocation = ref.read(deliveryLocationProvider);
+    // Block payment if no delivery address
+    if (_request == null || (_request!.deliveryAddress.trim().isEmpty && _request!.deliveryLocation == null)) {
+      _missingAddressError = 'Delivery address missing. Please update your request delivery address.';
+    }
 
-    final initialAddress = sharedLocation?.streetAddress ?? correspondingRequest?.deliveryAddress ?? '';
-    final initialPhone = correspondingRequest?.customerPhone ?? user?.phone ?? '';
-
-    _addressController = TextEditingController(text: initialAddress);
+    final initialPhone = _request?.customerPhone ?? user?.phone ?? '';
     _phoneController = TextEditingController(text: initialPhone);
 
-    _addressController.addListener(() {
+    _phoneController.addListener(() {
       setState(() {});
     });
   }
 
   @override
   void dispose() {
-    _addressController.dispose();
     _phoneController.dispose();
     _cardNumberController.dispose();
     _cardExpiryController.dispose();
@@ -84,10 +86,29 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   }
 
   Future<void> _handleConfirmPayment() async {
+    // Block if no delivery address
+    if (_missingAddressError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_missingAddressError!), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) return;
+    if (_request == null) return;
 
     final customer = ref.read(currentUserProvider);
     if (customer == null) return;
+
+    if (_selectedMethod == PaymentMethod.bankTransfer || _selectedMethod == PaymentMethod.cardPlaceholder) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('This payment method is a placeholder in mock mode.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     setState(() {
       _isProcessing = true;
@@ -100,116 +121,152 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           );
     }
 
-    // Simulate processing
-    await Future.delayed(const Duration(seconds: 2));
+    final double customerLat = _request!.latitude;
+    final double customerLng = _request!.longitude;
+    final deliveryAddress = _request!.deliveryAddress.isNotEmpty
+        ? _request!.deliveryAddress
+        : (_request!.deliveryLocation?.streetAddress ?? '');
 
-    final requestsState = ref.read(requestProvider);
-    ShoppingRequest? correspondingRequest;
-    try {
-      correspondingRequest = requestsState.requests.firstWhere(
-        (r) => r.id == widget.requestId,
-        orElse: () => requestsState.nearbyRequests.firstWhere(
-          (r) => r.id == widget.requestId,
-        ),
-      );
-    } catch (_) {}
+    final subtotal = widget.proposal.subtotal;
+    final deliveryFee = widget.proposal.deliveryCharge;
+    final serviceFee = subtotal * 0.22;
+    final totalAmount = subtotal + deliveryFee + serviceFee;
+    final receiptNumber = 'RCPT-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+    final transactionReference = _selectedMethod == PaymentMethod.mockOnline
+        ? 'MOCK-${DateTime.now().millisecondsSinceEpoch}'
+        : 'COD-${DateTime.now().millisecondsSinceEpoch}';
 
-    final sharedLocation = ref.read(deliveryLocationProvider);
-    final double customerLat = sharedLocation?.latitude ?? correspondingRequest?.latitude ?? 0.0;
-    final double customerLng = sharedLocation?.longitude ?? correspondingRequest?.longitude ?? 0.0;
-
-    final order = OrderModel(
-      id: '', // Generated by repo
-      proposalId: widget.proposal.id,
-      requestId: widget.requestId,
+    final pendingPayment = PaymentModel(
+      id: '',
+      orderId: '',
       customerId: customer.id,
       vendorId: widget.proposal.vendorId,
       vendorBusinessName: widget.proposal.vendorBusinessName,
-      vendorPhone: '+94 77 555 4321', // Revealed mock phone number
-      customerName: customer.fullName,
-      customerPhone: _phoneController.text,
-      deliveryAddress: _addressController.text,
-      items: widget.proposal.items,
-      deliveryCharge: widget.proposal.deliveryCharge,
-      totalPrice: widget.proposal.totalPrice + (widget.proposal.totalPrice - widget.proposal.deliveryCharge) * (0.015 + 0.025 + 0.18),
+      proposalId: widget.proposal.id,
+      amount: totalAmount,
+      subtotal: subtotal,
+      deliveryFee: deliveryFee,
+      serviceFee: serviceFee,
       paymentMethod: _selectedMethod,
-      paymentStatus: _selectedMethod == PaymentMethod.cardPayment
-          ? PaymentStatus.paid
-          : PaymentStatus.pending,
-      status: OrderStatus.preparing,
+      paymentStatus: PaymentStatus.pending,
       createdAt: DateTime.now(),
-      vendorLatitude: widget.proposal.vendorLatitude,
-      vendorLongitude: widget.proposal.vendorLongitude,
-      customerLatitude: customerLat,
-      customerLongitude: customerLng,
+      transactionReference: transactionReference,
+      receiptNumber: receiptNumber,
     );
 
+    PaymentModel? createdPayment;
     try {
+      createdPayment = await ref.read(paymentProvider.notifier).createPayment(pendingPayment);
+      PaymentModel finalPayment = createdPayment;
+
+      if (_selectedMethod == PaymentMethod.mockOnline) {
+        await Future.delayed(const Duration(seconds: 2));
+        finalPayment = await ref.read(paymentProvider.notifier).markPaid(createdPayment.id) ?? createdPayment;
+      }
+
+      final order = OrderModel(
+        id: '',
+        proposalId: widget.proposal.id,
+        requestId: widget.requestId,
+        customerId: customer.id,
+        vendorId: widget.proposal.vendorId,
+        vendorBusinessName: widget.proposal.vendorBusinessName,
+        vendorPhone: '+94 77 555 4321',
+        customerName: customer.fullName,
+        customerPhone: _phoneController.text,
+        deliveryAddress: deliveryAddress,
+        items: widget.proposal.items,
+        deliveryCharge: deliveryFee,
+        totalPrice: totalAmount,
+        paymentId: finalPayment.id,
+        paymentMethod: _selectedMethod,
+        paymentStatus: finalPayment.paymentStatus,
+        isAddressReleased: true,
+        addressReleasedAt: DateTime.now(),
+        status: OrderStatus.accepted,
+        createdAt: DateTime.now(),
+        vendorLatitude: widget.proposal.vendorLatitude,
+        vendorLongitude: widget.proposal.vendorLongitude,
+        customerLatitude: customerLat,
+        customerLongitude: customerLng,
+        accuracy: _request!.deliveryLocation?.accuracy,
+        detectedAt: _request!.deliveryLocation?.detectedAt,
+      );
+
       final createdOrder = await ref.read(orderProvider.notifier).placeOrder(order);
-      
+      finalPayment = await ref.read(paymentProvider.notifier).assignOrderId(createdPayment.id, createdOrder.id) ?? finalPayment;
+
+      if (_selectedMethod == PaymentMethod.mockOnline) {
+        await ref.read(notification_feature.notificationProvider.notifier).createNotification(
+          type: NotificationType.orderStatusUpdated,
+          title: 'Payment Confirmed',
+          body: 'Payment for order ${createdOrder.id} has been confirmed.',
+          userId: widget.proposal.vendorId,
+          relatedId: createdOrder.id,
+        );
+        await ref.read(notification_feature.notificationProvider.notifier).createNotification(
+          type: NotificationType.receiptGenerated,
+          title: 'Receipt Generated',
+          body: 'Your payment for order ${createdOrder.id} is successful and receipt is available.',
+          userId: customer.id,
+          relatedId: createdOrder.id,
+        );
+      } else {
+        await ref.read(notification_feature.notificationProvider.notifier).createNotification(
+          type: NotificationType.cashOnDeliveryConfirmed,
+          title: 'COD Order Confirmed',
+          body: 'Customer confirmed COD for order ${createdOrder.id}.',
+          userId: widget.proposal.vendorId,
+          relatedId: createdOrder.id,
+        );
+        await ref.read(notification_feature.notificationProvider.notifier).createNotification(
+          type: NotificationType.receiptGenerated,
+          title: 'COD Receipt Ready',
+          body: 'Your COD order ${createdOrder.id} has been confirmed successfully.',
+          userId: customer.id,
+          relatedId: createdOrder.id,
+        );
+      }
+
+      await ref.read(orderProvider.notifier).loadCustomerOrders();
+      await ref.read(paymentProvider.notifier).loadCustomerPayments();
+
+      if (!mounted) return;
+
       setState(() {
         _isProcessing = false;
       });
 
-      if (mounted) {
-        _showSuccessDialog(createdOrder);
-      }
+      context.push(RouteNames.customerPaymentReceipt, extra: {
+        'order': createdOrder,
+        'payment': finalPayment,
+      });
     } catch (e) {
       setState(() {
         _isProcessing = false;
       });
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Payment failed: ${e.toString()}'),
+            content: Text('Payment error: ${e.toString()}'),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),
         );
       }
-    }
-  }
 
-  void _showSuccessDialog(OrderModel order) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        final isDark = Theme.of(ctx).brightness == Brightness.dark;
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: const Row(
-            children: [
-              Icon(Icons.check_circle, color: AppColors.success, size: 28),
-              SizedBox(width: 10),
-              Text('Order Confirmed!'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Your order ${order.id} has been successfully placed.', style: AppTextStyles.bodyMedium(isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
-              const SizedBox(height: 12),
-              Text('Merchant and Delivery details are now unlocked and visible on your tracking screen.', style: AppTextStyles.caption(AppColors.success)),
-            ],
-          ),
-          actions: [
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.customerColor,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              onPressed: () {
-                Navigator.pop(ctx); // Close dialog
-                context.go('/customer'); // Redirect to customer dashboard
-              },
-              child: const Text('Go to Dashboard', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        );
-      },
-    );
+      if (createdPayment != null) {
+        await ref.read(paymentProvider.notifier).markFailed(createdPayment.id);
+      }
+      await ref.read(notification_feature.notificationProvider.notifier).createNotification(
+        type: NotificationType.paymentFailed,
+        title: 'Payment Failed',
+        body: 'Your payment attempt for the selected proposal failed. Please try again.',
+        userId: customer.id,
+        relatedId: widget.proposal.id,
+      );
+    }
   }
 
   @override
@@ -219,6 +276,57 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+
+    // If no delivery address, show error and block payment
+    if (_missingAddressError != null) {
+      return Scaffold(
+        backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+        appBar: AppBar(
+          title: const Text('Checkout & Payment'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+            onPressed: () => context.pop(),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.location_off_rounded, size: 64, color: Colors.red.withOpacity(0.6)),
+                const SizedBox(height: 16),
+                Text(
+                  _missingAddressError!,
+                  textAlign: TextAlign.center,
+                  style: AppTextStyles.bodyMedium(primaryText),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: () => context.pop(),
+                  icon: const Icon(Icons.arrow_back),
+                  label: const Text('Update Delivery Address'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_request == null) {
+      return Scaffold(
+        backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+        appBar: AppBar(
+          title: const Text('Checkout & Payment'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+            onPressed: () => context.pop(),
+          ),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
@@ -247,7 +355,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Delivery Details Section
+                    // Delivery Details Section (Read-only)
                     Text('Delivery Details', style: AppTextStyles.h2(primaryText)),
                     const SizedBox(height: 12),
                     Container(
@@ -258,49 +366,105 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                         border: Border.all(color: borderColor),
                       ),
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (_addressController.text.trim().isEmpty) ...[
-                            Container(
-                              padding: const EdgeInsets.all(12),
-                              margin: const EdgeInsets.only(bottom: 16),
-                              decoration: BoxDecoration(
-                                color: Colors.red.withOpacity(0.08),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.red.withOpacity(0.2)),
-                              ),
-                              child: const Row(
-                                children: [
-                                  Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 20),
-                                  SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      'No delivery location selected. Please add your delivery location.',
-                                      style: TextStyle(
-                                        color: Colors.redAccent,
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                          // Approximate Area (Read-only)
+                          Row(
+                            children: [
+                              Icon(Icons.location_on_rounded, color: AppColors.customerColor, size: 20),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('Approximate Area', style: AppTextStyles.labelMedium(secondaryText)),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _request!.deliveryLocation?.approximateAreaText.isNotEmpty == true
+                                          ? _request!.deliveryLocation!.approximateAreaText
+                                          : _request!.customerArea,
+                                      style: AppTextStyles.bodyMedium(primaryText),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
-                          TextFormField(
-                            controller: _addressController,
-                            decoration: InputDecoration(
-                              labelText: 'Full Delivery Address',
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              prefixIcon: const Icon(Icons.location_on_outlined),
-                            ),
-                            validator: (val) {
-                              if (val == null || val.trim().isEmpty) {
-                                return 'Please add your delivery location';
-                              }
-                              return null;
-                            },
+                            ],
                           ),
                           const SizedBox(height: 16),
+
+                          // District (Read-only)
+                          Row(
+                            children: [
+                              Icon(Icons.public_rounded, color: AppColors.customerColor, size: 20),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('District', style: AppTextStyles.labelMedium(secondaryText)),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      _request!.deliveryLocation?.district.isNotEmpty == true
+                                          ? _request!.deliveryLocation!.district
+                                          : 'Not specified',
+                                      style: AppTextStyles.bodyMedium(primaryText),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Full Address (Read-only)
+                          if (_request!.deliveryAddress.isNotEmpty) ...[
+                            Row(
+                              children: [
+                                Icon(Icons.home_rounded, color: AppColors.customerColor, size: 20),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('Precise Street Address', style: AppTextStyles.labelMedium(secondaryText)),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        _request!.deliveryAddress,
+                                        style: AppTextStyles.bodyMedium(primaryText),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+
+                          // Delivery Note (if available)
+                          if (_request!.deliveryLocation?.deliveryNote.isNotEmpty == true) ...[
+                            Row(
+                              children: [
+                                Icon(Icons.note_rounded, color: AppColors.customerColor, size: 20),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text('Delivery Note', style: AppTextStyles.labelMedium(secondaryText)),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        _request!.deliveryLocation!.deliveryNote,
+                                        style: AppTextStyles.bodySmall(primaryText),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+
+                          // Contact Phone Number (Editable)
                           TextFormField(
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
@@ -313,6 +477,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                               if (val == null || val.isEmpty) return 'Enter contact number';
                               return null;
                             },
+                          ),
+
+                          const SizedBox(height: 8),
+                          Text(
+                            'Your exact address is shared with vendors only after order confirmation.',
+                            style: AppTextStyles.caption(secondaryText),
                           ),
                         ],
                       ),
@@ -352,12 +522,48 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                           RadioListTile<PaymentMethod>(
                             title: Row(
                               children: [
-                                const Icon(Icons.credit_card_outlined, color: AppColors.customerColor),
+                                const Icon(Icons.payment_outlined, color: AppColors.customerColor),
                                 const SizedBox(width: 12),
-                                Text('Credit / Debit Card', style: AppTextStyles.bodyMedium(primaryText)),
+                                Text('Mock Online Payment', style: AppTextStyles.bodyMedium(primaryText)),
                               ],
                             ),
-                            value: PaymentMethod.cardPayment,
+                            value: PaymentMethod.mockOnline,
+                            groupValue: _selectedMethod,
+                            activeColor: AppColors.customerColor,
+                            onChanged: (val) {
+                              setState(() {
+                                _selectedMethod = val!;
+                              });
+                            },
+                          ),
+                          const Divider(height: 1),
+                          RadioListTile<PaymentMethod>(
+                            title: Row(
+                              children: [
+                                const Icon(Icons.account_balance_outlined, color: AppColors.customerColor),
+                                const SizedBox(width: 12),
+                                Text('Bank Transfer (Placeholder)', style: AppTextStyles.bodyMedium(primaryText)),
+                              ],
+                            ),
+                            value: PaymentMethod.bankTransfer,
+                            groupValue: _selectedMethod,
+                            activeColor: AppColors.customerColor,
+                            onChanged: (val) {
+                              setState(() {
+                                _selectedMethod = val!;
+                              });
+                            },
+                          ),
+                          const Divider(height: 1),
+                          RadioListTile<PaymentMethod>(
+                            title: Row(
+                              children: [
+                                const Icon(Icons.credit_card_outlined, color: AppColors.customerColor),
+                                const SizedBox(width: 12),
+                                Text('Card Payment (Placeholder)', style: AppTextStyles.bodyMedium(primaryText)),
+                              ],
+                            ),
+                            value: PaymentMethod.cardPlaceholder,
                             groupValue: _selectedMethod,
                             activeColor: AppColors.customerColor,
                             onChanged: (val) {
@@ -372,7 +578,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                     const SizedBox(height: 24),
 
                     // Card Fields (Conditional)
-                    if (_selectedMethod == PaymentMethod.cardPayment) ...[
+                    if (_selectedMethod == PaymentMethod.cardPlaceholder) ...[
                       Text('Card Information', style: AppTextStyles.h2(primaryText)),
                       const SizedBox(height: 12),
                       Container(
@@ -451,78 +657,31 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                     ],
 
                     // Pricing breakdown card
-                    Builder(
-                      builder: (context) {
-                        final subtotal = widget.proposal.totalPrice - widget.proposal.deliveryCharge;
-                        final serviceCharge = subtotal * 0.015;
-                        final sscl = subtotal * 0.025;
-                        final vat = subtotal * 0.18;
-                        final deliveryCharge = widget.proposal.deliveryCharge;
-                        final grandTotal = subtotal + serviceCharge + sscl + vat + deliveryCharge;
-
-                        return Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: cardColor,
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: borderColor),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: borderColor),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Order Summary', style: AppTextStyles.subtitle(primaryText).copyWith(fontWeight: FontWeight.bold)),
+                          const Divider(height: 20),
+                          _summaryRow('Items Subtotal', 'Rs. ${widget.proposal.subtotal.toStringAsFixed(2)}', primaryText),
+                          const SizedBox(height: 8),
+                          _summaryRow('Delivery Fee', 'Rs. ${widget.proposal.deliveryCharge.toStringAsFixed(2)}', primaryText),
+                          const SizedBox(height: 8),
+                          _summaryRow('Service Fee (22%)', 'Rs. ${(widget.proposal.subtotal * 0.22).toStringAsFixed(2)}', primaryText),
+                          const Divider(height: 20),
+                          _summaryRow(
+                            'Total Amount',
+                            'Rs. ${(widget.proposal.subtotal + widget.proposal.deliveryCharge + widget.proposal.subtotal * 0.22).toStringAsFixed(2)}',
+                            AppColors.customerColor,
                           ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('Sri Lankan Billing Invoice', style: AppTextStyles.subtitle(primaryText).copyWith(fontWeight: FontWeight.bold)),
-                              const Divider(height: 20),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text('Items Subtotal', style: AppTextStyles.bodyMedium(secondaryText)),
-                                  Text('Rs. ${subtotal.toStringAsFixed(2)}', style: AppTextStyles.bodyMedium(primaryText)),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text('Shop Delivery Charge', style: AppTextStyles.bodyMedium(secondaryText)),
-                                  Text('Rs. ${deliveryCharge.toStringAsFixed(2)}', style: AppTextStyles.bodyMedium(primaryText)),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text('Platform Service Charge (1.5%)', style: AppTextStyles.bodyMedium(secondaryText)),
-                                  Text('Rs. ${serviceCharge.toStringAsFixed(2)}', style: AppTextStyles.bodyMedium(primaryText)),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text('SSCL Tax Levy (2.5%)', style: AppTextStyles.bodyMedium(secondaryText)),
-                                  Text('Rs. ${sscl.toStringAsFixed(2)}', style: AppTextStyles.bodyMedium(primaryText)),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text('VAT Regulatory Tax (18%)', style: AppTextStyles.bodyMedium(secondaryText)),
-                                  Text('Rs. ${vat.toStringAsFixed(2)}', style: AppTextStyles.bodyMedium(primaryText)),
-                                ],
-                              ),
-                              const Divider(height: 20),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text('Grand Total Payable:', style: AppTextStyles.subtitle(primaryText).copyWith(fontWeight: FontWeight.bold)),
-                                  Text('Rs. ${grandTotal.toStringAsFixed(2)}', style: AppTextStyles.h2(AppColors.customerColor)),
-                                ],
-                              ),
-                            ],
-                          ),
-                        );
-                      }
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 30),
 
@@ -538,7 +697,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                         ),
                         onPressed: _handleConfirmPayment,
                         child: Text(
-                          _selectedMethod == PaymentMethod.cardPayment ? 'Confirm & Pay Securely' : 'Confirm Cash on Delivery',
+                          _selectedMethod == PaymentMethod.cashOnDelivery
+                              ? 'Confirm Cash on Delivery'
+                              : _selectedMethod == PaymentMethod.mockOnline
+                                  ? 'Confirm & Pay Mock Online'
+                                  : 'Placeholder payment method',
                           style: AppTextStyles.button(Colors.white),
                         ),
                       ),
@@ -548,6 +711,17 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 ),
               ),
             ),
+    );
+  }
+
+  /// Helper widget for displaying a row in the order summary.
+  Widget _summaryRow(String label, String value, Color color) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: AppTextStyles.bodyMedium(color)),
+        Text(value, style: AppTextStyles.subtitle(color).copyWith(fontWeight: FontWeight.bold)),
+      ],
     );
   }
 }

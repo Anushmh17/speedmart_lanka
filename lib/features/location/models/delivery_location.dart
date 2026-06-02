@@ -44,6 +44,12 @@ class DeliveryLocation {
   /// How the location was determined: 'gps', 'suggestion', 'manual', or '' (unknown).
   final String source;
 
+  /// GPS accuracy in meters. Null if location was not GPS-detected.
+  final double? accuracy;
+
+  /// When GPS detection occurred. Null if location was not GPS-detected.
+  final DateTime? detectedAt;
+
   const DeliveryLocation({
     required this.province,
     required this.district,
@@ -59,6 +65,8 @@ class DeliveryLocation {
     this.isManualOverride = false,
     this.approximateAreaText = '',
     this.source = '',
+    this.accuracy,
+    this.detectedAt,
   });
 
   factory DeliveryLocation.fromJson(Map<String, dynamic> json) {
@@ -77,6 +85,8 @@ class DeliveryLocation {
       isManualOverride: json['isManualOverride'] as bool? ?? false,
       approximateAreaText: json['approximateAreaText'] as String? ?? '',
       source: json['source'] as String? ?? '',
+      accuracy: (json['accuracy'] as num?)?.toDouble(),
+      detectedAt: json['detectedAt'] != null ? DateTime.parse(json['detectedAt'] as String) : null,
     );
   }
 
@@ -96,6 +106,8 @@ class DeliveryLocation {
       'isManualOverride': isManualOverride,
       'approximateAreaText': approximateAreaText,
       'source': source,
+      'accuracy': accuracy,
+      'detectedAt': detectedAt?.toIso8601String(),
     };
   }
 
@@ -114,6 +126,8 @@ class DeliveryLocation {
     bool? isManualOverride,
     String? approximateAreaText,
     String? source,
+    double? accuracy,
+    DateTime? detectedAt,
     bool clearLatLng = false,
   }) {
     return DeliveryLocation(
@@ -131,6 +145,8 @@ class DeliveryLocation {
       isManualOverride: isManualOverride ?? this.isManualOverride,
       approximateAreaText: approximateAreaText ?? this.approximateAreaText,
       source: source ?? this.source,
+      accuracy: accuracy ?? this.accuracy,
+      detectedAt: detectedAt ?? this.detectedAt,
     );
   }
 
@@ -163,5 +179,18 @@ class DeliveryLocation {
     if (district.isNotEmpty) return district;
     if (province.isNotEmpty) return province;
     return '';
+  }
+
+  /// GPS accuracy classification helpers.
+  bool get hasHighAccuracy => accuracy != null && accuracy! <= 50;
+  bool get hasMediumAccuracy => accuracy != null && accuracy! > 50 && accuracy! <= 150;
+  bool get hasLowAccuracy => accuracy != null && accuracy! > 150;
+
+  /// Formatted accuracy label for display.
+  String get accuracyLabel {
+    if (accuracy == null) return '';
+    if (hasHighAccuracy) return 'High accuracy • ±25m';
+    if (hasMediumAccuracy) return 'Medium accuracy • ±90m';
+    return 'Low accuracy • ±250m';
   }
 }

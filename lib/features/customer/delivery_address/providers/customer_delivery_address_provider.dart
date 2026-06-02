@@ -5,6 +5,7 @@ import '../../../auth/providers/auth_provider.dart';
 import '../../../location/models/delivery_location.dart';
 import '../../../location/providers/location_provider.dart';
 import '../../../../shared/models/user_model.dart';
+import '../../../../shared/models/user_role.dart';
 import '../data/customer_delivery_address_repository.dart';
 import '../models/customer_delivery_address.dart';
 
@@ -60,7 +61,8 @@ class CustomerDeliveryAddressNotifier
 
   Future<void> loadForCurrentUser({bool force = false}) async {
     final user = ref.read(currentUserProvider);
-    if (user == null) {
+    if (user == null || user.role != UserRole.customer) {
+      debugPrint('[DeliveryAddress] Skipping load: user is not customer');
       state = state.copyWith(isLoading: false);
       return;
     }
@@ -143,6 +145,14 @@ class CustomerDeliveryAddressNotifier
 
   void clearRequestOnlyLocation() {
     state = state.copyWith(clearRequestOnly: true);
+  }
+
+  void reset() {
+    state = const CustomerDeliveryAddressState();
+    _loadInProgress = false;
+    _hasLoadedForUser = false;
+    _loadedUserId = null;
+    debugPrint('[DeliveryAddress] Provider reset to initial state');
   }
 
   Future<void> applyActiveLocationToProvider() async {

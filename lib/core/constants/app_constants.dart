@@ -45,6 +45,12 @@ class AppConstants {
   /// Local mock orders (until backend API is ready).
   static const String ordersKey = 'mock_orders';
 
+  /// Local mock payments (until backend API is ready).
+  static const String paymentsKey = 'mock_payments';
+
+  /// Local mock notifications (until backend API / Firebase is ready).
+  static const String notificationsKey = 'mock_notifications';
+
   /// UI country mode only (LK or OTHER). Does not replace GPS-detected country.
   static const String selectedCountryKey = 'speedmart_selected_country';
 

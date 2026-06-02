@@ -73,8 +73,33 @@ class _VendorProposalDetailScreenState
       );
       if (!mounted) return;
 
+      // Reload proposal to show updated message
+      final updatedProposal = await proposalNotifier.loadProposalById(_proposal.id);
+      if (!mounted) return;
+
+      // Update local state with the fresh proposal data
+      if (updatedProposal != null) {
+        setState(() {
+          _proposal = updatedProposal;
+          _messageController.text = _proposal.vendorResponse ?? '';
+        });
+      }
+
+      // Dismiss keyboard
+      FocusScope.of(context).unfocus();
+
       messenger.showSnackBar(
-        const SnackBar(content: Text('Message saved to proposal')),
+        const SnackBar(
+          content: Text('Message saved to proposal'),
+          duration: Duration(milliseconds: 1500),
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Error saving message: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
       );
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -262,7 +287,39 @@ class _VendorProposalDetailScreenState
                 width: double.infinity,
                 child: OutlinedButton(
                   onPressed: _busy ? null : _saveMessage,
-                  child: const Text('Save message'),
+                  child: _busy
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.vendorColor),
+                          ),
+                        )
+                      : const Text('Save message'),
+                ),
+              ),
+            ],
+            if (_proposal.vendorResponse != null && _proposal.vendorResponse!.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.vendorColor.withOpacity(0.1),
+                  border: Border.all(color: AppColors.vendorColor.withOpacity(0.3)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle_outline, color: AppColors.vendorColor, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Saved: "${_proposal.vendorResponse}"',
+                        style: AppTextStyles.bodySmall(AppColors.vendorColor),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

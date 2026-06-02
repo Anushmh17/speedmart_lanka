@@ -25,6 +25,8 @@ class RouteNames {
   static const String customerOrders = '/customer/orders';
   static const String customerProfile = '/customer/profile';
   static const String customerDeliveryAddress = '/customer/delivery-address';
+  static const String customerPaymentReceipt = '/customer/payment/receipt';
+  static const String customerPaymentHistory = '/customer/payments';
 
   // ── Customer Full-Screen Routes (without bottom nav) ────────────────────────
   static const String customerCreateRequest = '/customer/requests/create';
@@ -40,8 +42,11 @@ class RouteNames {
   // ── Vendor Shell ──────────────────────────────────────────────────────────
   static const String vendorHome = '/vendor';
   static const String vendorNearbyRequests = '/vendor/requests';
-  static const String vendorRequestDetail = '/vendor/requests/:id';
+  static const String vendorRequestDetail = '/vendor/requests/detail';
   static const String vendorProposals = '/vendor/proposals';
+  static const String vendorProposalCreate = '/vendor/proposals/create';
+  static const String vendorProposalDetail = '/vendor/proposals/detail';
+  static const String vendorProposalEdit = '/vendor/proposals/edit';
   static const String vendorOrders = '/vendor/orders';
   static const String vendorEarnings = '/vendor/earnings';
   static const String vendorProfile = '/vendor/profile';
@@ -49,6 +54,8 @@ class RouteNames {
   // ── Admin Shell ───────────────────────────────────────────────────────────
   static const String adminDashboard = '/admin';
   static const String adminVendorApprovals = '/admin/vendor-approvals';
+  static const String adminVendorManagement = '/admin/vendor-management';
+  static const String adminVendorAssignment = '/admin/vendor-assignment/:id';
   static const String adminUsers = '/admin/users';
   static const String adminCategories = '/admin/categories';
   static const String adminRequests = '/admin/requests';

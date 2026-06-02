@@ -7,6 +7,7 @@ extension VendorDeliveryPrivacy on ShoppingRequest {
       case RequestStatus.paid:
       case RequestStatus.cashOnDeliveryConfirmed:
       case RequestStatus.preparingOrder:
+      case RequestStatus.readyForDelivery:
       case RequestStatus.outForDelivery:
       case RequestStatus.delivered:
         return true;

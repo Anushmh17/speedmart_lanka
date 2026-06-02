@@ -159,14 +159,14 @@ class _CustomerRegistrationScreenState
               ref.read(customerRegistrationProvider.notifier).setLkUser(true);
               Navigator.of(ctx).pop();
             },
-            child: const Text('Sri Lanka 🇱🇰'),
+            child: const Text('Sri Lanka'),
           ),
           TextButton(
             onPressed: () {
               ref.read(customerRegistrationProvider.notifier).setLkUser(false);
               Navigator.of(ctx).pop();
             },
-            child: const Text('Other Country 🌍'),
+            child: const Text('Other Country'),
           ),
         ],
       ),

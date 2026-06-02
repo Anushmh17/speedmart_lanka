@@ -8,6 +8,8 @@ import '../../../shared/models/user_role.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/routes/route_names.dart';
 import '../../../features/customer/delivery_address/providers/customer_delivery_address_provider.dart';
+import '../../../features/auth/customer_registration/providers/customer_registration_provider.dart';
+import '../../../features/location/providers/location_provider.dart';
 import '../../../core/navigation/bottom_nav_visibility.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -121,11 +123,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _handleLogout() async {
-    ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
-    await ref.read(authProvider.notifier).logout();
-    if (mounted) {
-      context.go(RouteNames.roleSelection);
-    }
+    debugPrint('[Auth] Logout started');
+
+    // Capture all provider notifiers BEFORE any await
+    final bottomNavNotifier = ref.read(bottomNavVisibilityProvider.notifier);
+    final authNotifier = ref.read(authProvider.notifier);
+    final customerRegistrationNotifier = ref.read(customerRegistrationProvider.notifier);
+    final deliveryLocationNotifier = ref.read(deliveryLocationProvider.notifier);
+    final customerDeliveryAddressNotifier = ref.read(customerDeliveryAddressProvider.notifier);
+
+    bottomNavNotifier.setManualHidden(false);
+
+    await authNotifier.logout();
+    debugPrint('[Auth] Session cleared');
+
+    // Reset customer-specific providers to prevent state contamination
+    customerRegistrationNotifier.reset();
+    deliveryLocationNotifier.clearLocation();
+    customerDeliveryAddressNotifier.reset();
+    debugPrint('[Auth] Role-specific providers reset');
+
+    if (!mounted) return;
+    context.go(RouteNames.roleSelection);
   }
 
   @override
@@ -313,6 +332,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   primaryText: primaryText,
                   secondaryText: secondaryText,
                   primaryColor: primaryColor,
+                ),
+                const SizedBox(height: 24),
+                Text('Payment History', style: AppTextStyles.subtitle(primaryText)),
+                const SizedBox(height: 12),
+                GestureDetector(
+                  onTap: () => context.go(RouteNames.customerPaymentHistory),
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      leading: Icon(Icons.history_rounded, color: primaryColor),
+                      title: Text('View Payment History', style: AppTextStyles.bodyMedium(primaryText)),
+                      subtitle: Text('See your past COD and online payments.', style: AppTextStyles.caption(secondaryText)),
+                      trailing: Icon(Icons.arrow_forward_ios_rounded, size: 18, color: secondaryText),
+                    ),
+                  ),
                 ),
               ],
 

@@ -55,11 +55,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   late final TextEditingController _suburbSearchController;
   late final TextEditingController _addressController;
   late final FocusNode _suburbFocusNode;
-  
-  // Inline suburb suggestions state
-  bool _showSuburbSuggestions = false;
-  List<SriLankanSuburb> _filteredSuburbs = [];
-  
+
   // Single Item Form State
   String? _singleCategory;
   final _singleNameController = TextEditingController();
@@ -74,127 +70,8 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   List<RequestItem> _multipleItemsList = [];
   bool _isMixedCategory = false;
   String _globalCategory = 'Groceries';
-  bool _isDetectingLocation = false;
   bool _isSubmitting = false;
   bool _deliveryAddressReady = false;
-
-  Future<void> _detectLocationWithGPS() async {
-    setState(() => _isDetectingLocation = true);
-
-    try {
-      await ref.read(deliveryLocationProvider.notifier).fetchCurrentLocation();
-      
-      final locationState = ref.read(deliveryLocationProvider);
-      
-      if (locationState.errorMessage != null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(locationState.errorMessage!),
-              behavior: SnackBarBehavior.floating,
-              duration: const Duration(seconds: 4),
-            ),
-          );
-        }
-      } else if (locationState.currentLocation != null) {
-        final loc = locationState.currentLocation!;
-        setState(() {
-          _suburbSearchController.text = loc.approximateAreaText;
-          _showSuburbSuggestions = false;
-        });
-        
-        _saveDraft();
-
-        if (mounted && !locationState.geocodingFailed) {
-          ref.read(notificationProvider.notifier).triggerNotification(
-            title: 'GPS Location Detected!',
-            body: 'Matched closest delivery area: ${loc.approximateAreaText}',
-            icon: Icons.gps_fixed_rounded,
-            color: AppColors.customerColor,
-          );
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('📍 Area detected from GPS. Please enter your precise street address below.'),
-              behavior: SnackBarBehavior.floating,
-              duration: Duration(seconds: 6),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Could not detect your location. Please type manually.'),
-            behavior: SnackBarBehavior.floating,
-            duration: Duration(seconds: 4),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isDetectingLocation = false);
-      }
-    }
-  }
-
-  /// Called when the user types in the suburb/area text field.
-  /// Typed text is immediately saved as the approximate area — no suggestion selection required.
-  void _onSuburbSearchChanged(String query) {
-    final trimmed = query.trim();
-    if (trimmed.isEmpty) {
-      setState(() {
-        _filteredSuburbs = [];
-        _showSuburbSuggestions = false;
-      });
-      ref.read(deliveryLocationProvider.notifier).setManualArea('');
-      return;
-    }
-    
-    // Instead of using LocationService.searchSuburbs, use the new location provider search
-    ref.read(deliveryLocationProvider.notifier).search(trimmed);
-    
-    setState(() {
-      // We don't populate _filteredSuburbs anymore, we'll read suggestions from provider later if needed.
-      // Or we can just let it be. Wait, the suggestions in the UI are driven by _filteredSuburbs.
-      // Let's just do a manual search against SriLankaData.
-    });
-    
-    ref.read(deliveryLocationProvider.notifier).setManualArea(trimmed);
-    _saveDraft();
-  }
-
-  void _onSuburbSuggestionSelected(dynamic item) {
-    // Left empty intentionally if suggestions are no longer used locally
-  }
-
-  /// Called when user taps "Use '[text]' as delivery area" for a custom/unknown area.
-  void _onUseCustomArea(String areaText) {
-    final locationState = ref.read(deliveryLocationProvider);
-    final updated = (locationState.currentLocation ?? const DeliveryLocation(
-      province: '',
-      district: '',
-      city: '',
-      suburb: '',
-      formattedAddress: '',
-      streetAddress: '',
-    )).copyWith(
-      suburb: areaText,
-      approximateAreaText: areaText,
-      formattedAddress: areaText,
-      source: 'manual',
-      isManualOverride: true,
-      clearLatLng: true,
-    );
-    ref.read(deliveryLocationProvider.notifier).setLocation(updated);
-    setState(() {
-      _suburbSearchController.text = areaText;
-      _showSuburbSuggestions = false;
-      _filteredSuburbs = [];
-    });
-    _suburbFocusNode.unfocus();
-    _saveDraft();
-  }
 
   @override
   void initState() {
@@ -205,7 +82,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
         // Delay hiding suggestions so tap events on suggestions can fire first
         Future.delayed(const Duration(milliseconds: 200), () {
           if (mounted && !_suburbFocusNode.hasFocus) {
-            setState(() => _showSuburbSuggestions = false);
+            // Suggestion state removed
           }
         });
       }

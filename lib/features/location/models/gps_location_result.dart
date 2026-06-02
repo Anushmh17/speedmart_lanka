@@ -25,6 +25,12 @@ class GpsLocationResult {
   /// Whether reverse geocoding succeeded.
   final bool geocodingSucceeded;
 
+  /// GPS accuracy in meters (from Position.accuracy). Null if not captured.
+  final double? accuracy;
+
+  /// When GPS detection occurred (usually same as timestamp but explicit).
+  final DateTime? detectedAt;
+
   const GpsLocationResult({
     required this.latitude,
     required this.longitude,
@@ -34,6 +40,8 @@ class GpsLocationResult {
     this.district,
     this.city,
     this.geocodingSucceeded = false,
+    this.accuracy,
+    this.detectedAt,
   });
 
   /// Convenience: true when coordinates are valid.
@@ -42,7 +50,12 @@ class GpsLocationResult {
   /// Convenience: true when we have at least some address info.
   bool get hasAddress => address != null && address!.isNotEmpty;
 
+  /// GPS accuracy classification.
+  bool get hasHighAccuracy => accuracy != null && accuracy! <= 50;
+  bool get hasMediumAccuracy => accuracy != null && accuracy! > 50 && accuracy! <= 150;
+  bool get hasLowAccuracy => accuracy != null && accuracy! > 150;
+
   @override
   String toString() =>
-      'GpsLocationResult(lat=$latitude, lng=$longitude, geocoded=$geocodingSucceeded)';
+      'GpsLocationResult(lat=$latitude, lng=$longitude, accuracy=${accuracy}m, geocoded=$geocodingSucceeded)';
 }

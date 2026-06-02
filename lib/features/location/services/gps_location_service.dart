@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/gps_location_result.dart';
 
@@ -102,9 +103,12 @@ class GpsLocationService {
   /// Builds a [GpsLocationResult] from a raw [Position].
   /// Geocoding is NOT performed here.
   GpsLocationResult positionToResult(Position position) {
+    debugPrint('[Location] GPS accuracy: ${position.accuracy}m');
     return GpsLocationResult(
       latitude: position.latitude,
       longitude: position.longitude,
+      accuracy: position.accuracy,
+      detectedAt: DateTime.now(),
       timestamp: DateTime.now(),
       geocodingSucceeded: false,
     );

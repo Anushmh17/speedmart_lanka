@@ -76,6 +76,7 @@ class VendorRequestFilterService {
     required ShoppingRequest request,
     required double vendorLat,
     required double vendorLon,
+    double? assignedRadiusKm,
     List<String> vendorCategories = const [],
   }) {
     if (request.latitude == 0 && request.longitude == 0) {
@@ -87,10 +88,8 @@ class VendorRequestFilterService {
       lat2: vendorLat,
       lon2: vendorLon,
     );
-    final maxRadius = maxRadiusForRequest(
-      request,
-      vendorCategories: vendorCategories,
-    );
+    // Use admin-assigned radius, default to 20km if not set
+    final maxRadius = assignedRadiusKm ?? 20.0;
     return distance <= maxRadius;
   }
 
@@ -136,6 +135,7 @@ class VendorRequestFilterService {
     required double vendorLatitude,
     required double vendorLongitude,
     required bool vendorApproved,
+    double? assignedRadiusKm,
     String? categoryFilter,
   }) {
     if (!vendorIsApproved(vendorApproved: vendorApproved)) {
@@ -151,6 +151,7 @@ class VendorRequestFilterService {
         request: request,
         vendorLat: vendorLatitude,
         vendorLon: vendorLongitude,
+        assignedRadiusKm: assignedRadiusKm,
         vendorCategories: vendorCategories,
       )) {
         return false;
@@ -162,6 +163,8 @@ class VendorRequestFilterService {
       }
       return true;
     });
+
+    final assignedRadius = assignedRadiusKm ?? 20.0;
 
     return matched.map((request) {
       final distance = request.latitude == 0 && request.longitude == 0
@@ -181,10 +184,7 @@ class VendorRequestFilterService {
         primaryCategory: primaryCategoryFor(request),
         approximateArea: approximateAreaFor(request),
         district: districtFor(request),
-        maxRadiusKm: maxRadiusForRequest(
-          request,
-          vendorCategories: vendorCategories,
-        ),
+        maxRadiusKm: assignedRadius,
       );
     }).toList();
   }

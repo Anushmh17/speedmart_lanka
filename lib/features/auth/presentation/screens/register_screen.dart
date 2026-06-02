@@ -57,14 +57,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     super.dispose();
   }
 
-  String _getLoginRoute() {
-    switch (widget.role) {
-      case UserRole.customer: return RouteNames.customerLogin;
-      case UserRole.vendor:   return RouteNames.vendorLogin;
-      case UserRole.admin:    return RouteNames.adminLogin;
-    }
-  }
-
   Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
     if (widget.role == UserRole.vendor && _selectedCategories.isEmpty) {
@@ -108,10 +100,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       }
     });
 
-    return Scaffold(
-      backgroundColor:
-          isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-      body: SafeArea(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go(RouteNames.roleSelection);
+        }
+      },
+      child: Scaffold(
+        backgroundColor:
+            isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+        body: SafeArea(
         child: SingleChildScrollView(
           child: Column(
             children: [
@@ -134,7 +136,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     GestureDetector(
-                      onTap: () => context.go(_getLoginRoute()),
+                      onTap: () => context.pop(),
                       child: Container(
                         width: 38,
                         height: 38,
@@ -359,7 +361,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               ),
                             ),
                             GestureDetector(
-                              onTap: () => context.go(_getLoginRoute()),
+                              onTap: () => context.pop(),
                               child: Text(
                                 'Sign In',
                                 style: AppTextStyles.labelLarge(_roleColor),
@@ -376,6 +378,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

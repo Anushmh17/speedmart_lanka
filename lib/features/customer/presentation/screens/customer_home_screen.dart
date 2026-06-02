@@ -1,24 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/routes/route_names.dart';
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_text_styles.dart';
-import '../../../../core/widgets/app_logo.dart';
-import '../../../../core/widgets/app_state_widgets.dart';
-import '../../../../core/widgets/app_button.dart';
-import '../../../../core/widgets/shared_floating_bottom_nav.dart';
-import '../../../../core/navigation/bottom_nav_visibility.dart';
-import '../../../auth/providers/auth_provider.dart';
-import '../../../auth/providers/theme_provider.dart';
-
-import '../../../requests/presentation/screens/request_details_screen.dart';
-import '../../../requests/providers/request_provider.dart';
-import '../../../requests/models/shopping_request.dart';
-import '../../../orders/models/order_model.dart';
-import '../../../orders/providers/order_provider.dart';
-import '../../../proposals/models/proposal.dart';
+import 'package:speedmart_lanka/core/routes/route_names.dart';
+import 'package:speedmart_lanka/core/theme/app_colors.dart';
+import 'package:speedmart_lanka/core/theme/app_text_styles.dart';
+import 'package:speedmart_lanka/core/widgets/app_logo.dart';
+import 'package:speedmart_lanka/core/widgets/app_state_widgets.dart';
+import 'package:speedmart_lanka/core/widgets/app_button.dart';
+import 'package:speedmart_lanka/core/widgets/shared_floating_bottom_nav.dart';
+import 'package:speedmart_lanka/core/navigation/bottom_nav_visibility.dart';
+import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
+import 'package:speedmart_lanka/features/auth/providers/theme_provider.dart';
+import 'package:speedmart_lanka/features/requests/presentation/screens/request_details_screen.dart';
+import 'package:speedmart_lanka/features/requests/providers/request_provider.dart';
+import 'package:speedmart_lanka/features/requests/models/shopping_request.dart';
+import 'package:speedmart_lanka/features/orders/models/order_model.dart';
+import 'package:speedmart_lanka/features/orders/providers/order_provider.dart';
+import 'package:speedmart_lanka/features/proposals/models/proposal.dart';
+import 'package:speedmart_lanka/features/payments/models/payment.dart';
+import 'package:speedmart_lanka/shared/models/user_role.dart';
 
 
 class CustomerHomeScreen extends ConsumerStatefulWidget {
@@ -38,6 +38,11 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     Future.microtask(() {
+      final user = ref.read(currentUserProvider);
+      if (user?.role != UserRole.customer) {
+        debugPrint('[CustomerHome] Skipping customer data load for non-customer user');
+        return;
+      }
       ref.read(requestProvider.notifier).loadMyRequests();
       ref.read(orderProvider.notifier).loadCustomerOrders();
     });

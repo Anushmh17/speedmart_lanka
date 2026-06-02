@@ -23,17 +23,26 @@ class AdminHomeScreen extends ConsumerStatefulWidget {
   ConsumerState<AdminHomeScreen> createState() => _AdminHomeScreenState();
 }
 
-class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
+class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen>
+    with WidgetsBindingObserver {
   int _currentIndex = 0;
+  DateTime? _lastBackPressTime;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     Future.microtask(() {
       ref.read(adminProvider.notifier).loadAllUsers();
       ref.read(requestProvider.notifier).loadNearbyRequests();
       ref.read(orderProvider.notifier).loadCustomerOrders(); // Just to load mock database orders if any
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   void _switchTab(int index) {
@@ -42,12 +51,77 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
     });
   }
 
+  /// Called by the system BEFORE GoRouter's back-button dispatcher.
+  /// Returning [true] consumes the event; [false] lets GoRouter handle it.
+  @override
+  Future<bool> didPopRoute() async {
+    if (!mounted) return false;
+
+    // Only intercept on admin shell tabs.
+    const adminTabs = {
+      '/admin',
+      '/admin/vendor-approvals',
+      '/admin/users',
+      '/admin/categories',
+      '/admin/requests',
+      '/admin/orders',
+      '/admin/payments',
+      '/admin/disputes',
+      '/admin/settings',
+    };
+
+    // Determine current location from GoRouter.
+    final String location;
+    try {
+      location = GoRouter.of(context)
+          .routeInformationProvider
+          .value
+          .uri
+          .path;
+    } catch (_) {
+      return false;
+    }
+
+    if (!adminTabs.contains(location)) return false;
+
+    // Non-home tab: go back to Home tab.
+    if (_currentIndex != 0) {
+      setState(() => _currentIndex = 0);
+      return true;
+    }
+
+    // Home tab: double-back to exit.
+    final now = DateTime.now();
+    if (_lastBackPressTime == null ||
+        now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+      _lastBackPressTime = now;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Swipe back again to exit'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      return true; // consumed – do NOT exit
+    }
+
+    // Second press within 2 s → let the system exit.
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final showBottomNav = ref.watch(bottomNavVisibilityProvider);
 
-    return Scaffold(
+    // PopScope(canPop: false) suppresses the Android 13 predictive-back
+    // swipe preview so the UI doesn't flash a "going back" animation.
+    // The actual double-back logic lives in didPopRoute() above.
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
       appBar: AppBar(
         title: const AppBarLogo(),
@@ -115,6 +189,7 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -216,6 +291,9 @@ class _AdminDashboardTab extends ConsumerWidget {
             Text('Platform Control Actions', style: AppTextStyles.h2(primaryText)),
             const SizedBox(height: 14),
             _quickActionCard(Icons.verified_user_rounded, 'Vendor Approvals', '$pendingApprovals pending applications', AppColors.warning, () => switchTab(1)),
+            _quickActionCard(Icons.storefront_rounded, 'Vendor Management', 'Assign stores & approve vendors', AppColors.vendorColor, () {
+              context.push(RouteNames.adminVendorManagement);
+            }),
             _quickActionCard(Icons.people_rounded, 'User Directories', 'Suspend/Activate users', AppColors.info, () => switchTab(2)),
             _quickActionCard(Icons.receipt_long_rounded, 'Monitor Orders', 'Commission & Dispatch status', AppColors.success, () => switchTab(3)),
             _quickActionCard(Icons.settings_rounded, 'Platform Config', 'Commission percentages & values', AppColors.accent, () => switchTab(4)),
@@ -407,7 +485,14 @@ class _VendorApprovalsTab extends ConsumerWidget {
                                           label: const Text('Approve Access', style: TextStyle(color: Colors.white, fontSize: 12)),
                                         )
                                       else
-                                        const Text('✅ Verified merchant partner', style: TextStyle(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.bold)),
+                                        Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.verified_outlined, color: AppColors.success, size: 14),
+                                            const SizedBox(width: 6),
+                                            const Text('Verified merchant partner', style: TextStyle(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.bold)),
+                                          ],
+                                        ),
                                     ],
                                   )
                                 ],

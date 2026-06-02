@@ -18,6 +18,14 @@ class UserModel {
   final bool? vendorApproved;
   final List<String>? vendorCategories;
 
+  /// Admin-assigned vendor shop location (not user-editable)
+  final String? shopName;
+  final String? shopAddress;
+  final double? shopLatitude;
+  final double? shopLongitude;
+  final double? assignedRadiusKm;
+  final bool? isShopLocationAssigned;
+
   /// Country override and risk fields for anti-abuse audit
   final String? detectedCountry;
   final String? selectedCountry;
@@ -65,6 +73,12 @@ class UserModel {
     this.deliveryApproxArea,
     this.deliveryPreciseAddress,
     this.deliveryNote,
+    this.shopName,
+    this.shopAddress,
+    this.shopLatitude,
+    this.shopLongitude,
+    this.assignedRadiusKm,
+    this.isShopLocationAssigned,
   });
 
   /// Create from JSON (API response)
@@ -98,6 +112,12 @@ class UserModel {
       deliveryApproxArea: json['delivery_approx_area'] as String?,
       deliveryPreciseAddress: json['delivery_precise_address'] as String?,
       deliveryNote: json['delivery_note'] as String?,
+      shopName: json['shop_name'] as String?,
+      shopAddress: json['shop_address'] as String?,
+      shopLatitude: (json['shop_latitude'] as num?)?.toDouble(),
+      shopLongitude: (json['shop_longitude'] as num?)?.toDouble(),
+      assignedRadiusKm: (json['assigned_radius_km'] as num?)?.toDouble(),
+      isShopLocationAssigned: json['is_shop_location_assigned'] as bool?,
     );
   }
 
@@ -130,6 +150,12 @@ class UserModel {
       'delivery_approx_area': deliveryApproxArea,
       'delivery_precise_address': deliveryPreciseAddress,
       'delivery_note': deliveryNote,
+      'shop_name': shopName,
+      'shop_address': shopAddress,
+      'shop_latitude': shopLatitude,
+      'shop_longitude': shopLongitude,
+      'assigned_radius_km': assignedRadiusKm,
+      'is_shop_location_assigned': isShopLocationAssigned,
     };
   }
 
@@ -161,6 +187,12 @@ class UserModel {
     String? deliveryApproxArea,
     String? deliveryPreciseAddress,
     String? deliveryNote,
+    String? shopName,
+    String? shopAddress,
+    double? shopLatitude,
+    double? shopLongitude,
+    double? assignedRadiusKm,
+    bool? isShopLocationAssigned,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -190,6 +222,12 @@ class UserModel {
       deliveryPreciseAddress:
           deliveryPreciseAddress ?? this.deliveryPreciseAddress,
       deliveryNote: deliveryNote ?? this.deliveryNote,
+      shopName: shopName ?? this.shopName,
+      shopAddress: shopAddress ?? this.shopAddress,
+      shopLatitude: shopLatitude ?? this.shopLatitude,
+      shopLongitude: shopLongitude ?? this.shopLongitude,
+      assignedRadiusKm: assignedRadiusKm ?? this.assignedRadiusKm,
+      isShopLocationAssigned: isShopLocationAssigned ?? this.isShopLocationAssigned,
     );
   }
 

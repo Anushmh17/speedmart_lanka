@@ -1,22 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_text_styles.dart';
-import '../../../../core/widgets/app_logo.dart';
-import '../../../../core/widgets/app_state_widgets.dart';
-import '../../../auth/providers/auth_provider.dart';
-import '../../../auth/providers/theme_provider.dart';
-import '../../request_feed/presentation/vendor_request_feed_screen.dart';
-import '../../request_feed/providers/vendor_request_feed_provider.dart';
-import '../../request_feed/widgets/vendor_request_card.dart';
-import '../../../proposals/models/proposal.dart';
-import '../../../proposals/providers/proposal_provider.dart';
-import '../../../orders/models/order_model.dart';
-import '../../../orders/providers/order_provider.dart';
-import '../../../shared/presentation/screens/profile_screen.dart';
-import '../../../../core/widgets/shared_floating_bottom_nav.dart';
-import '../../../../core/navigation/bottom_nav_visibility.dart';
+import 'package:speedmart_lanka/core/theme/app_colors.dart';
+import 'package:speedmart_lanka/core/theme/app_text_styles.dart';
+import 'package:speedmart_lanka/core/widgets/app_logo.dart';
+import 'package:speedmart_lanka/core/widgets/app_state_widgets.dart';
+import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
+import 'package:speedmart_lanka/features/auth/providers/theme_provider.dart';
+import 'package:speedmart_lanka/shared/models/user_role.dart';
+import 'package:speedmart_lanka/features/vendor/request_feed/presentation/vendor_request_feed_screen.dart';
+import 'package:speedmart_lanka/features/vendor/request_feed/providers/vendor_request_feed_provider.dart';
+import 'package:speedmart_lanka/features/vendor/request_feed/widgets/vendor_request_card.dart';
+import 'package:speedmart_lanka/features/proposals/models/proposal.dart';
+import 'package:speedmart_lanka/features/proposals/providers/proposal_provider.dart';
+import 'package:speedmart_lanka/features/orders/models/order_model.dart';
+import 'package:speedmart_lanka/features/orders/providers/order_provider.dart';
+import 'package:speedmart_lanka/features/shared/presentation/screens/profile_screen.dart';
+import 'package:speedmart_lanka/core/widgets/shared_floating_bottom_nav.dart';
+import 'package:speedmart_lanka/core/navigation/bottom_nav_visibility.dart';
+import 'package:speedmart_lanka/features/payments/models/payment.dart';
 
 class VendorHomeScreen extends ConsumerStatefulWidget {
   const VendorHomeScreen({super.key});
@@ -25,8 +27,10 @@ class VendorHomeScreen extends ConsumerStatefulWidget {
   ConsumerState<VendorHomeScreen> createState() => _VendorHomeScreenState();
 }
 
-class _VendorHomeScreenState extends ConsumerState<VendorHomeScreen> {
+class _VendorHomeScreenState extends ConsumerState<VendorHomeScreen>
+    with WidgetsBindingObserver {
   int _currentIndex = 0;
+  DateTime? _lastBackPressTime;
 
   void _switchTab(int index) {
     setState(() => _currentIndex = index);
@@ -35,12 +39,92 @@ class _VendorHomeScreenState extends ConsumerState<VendorHomeScreen> {
   @override
   void initState() {
     super.initState();
+    debugPrint('[VendorHome] init');
+    WidgetsBinding.instance.addObserver(this);
+
     // Load data asynchronously on screen entry
     Future.microtask(() {
-      ref.read(vendorRequestFeedProvider.notifier).loadFeed();
-      ref.read(proposalProvider.notifier).loadVendorProposals();
-      ref.read(orderProvider.notifier).loadVendorOrders();
+      final user = ref.read(currentUserProvider);
+      debugPrint('[VendorHome] current user role: ${user?.role}');
+
+      if (user?.role != UserRole.vendor) {
+        debugPrint('[VendorHome] user is not vendor, skipping data load');
+        return;
+      }
+
+      debugPrint('[VendorHome] loading dashboard data');
+      try {
+        ref.read(vendorRequestFeedProvider.notifier).loadFeed();
+        ref.read(proposalProvider.notifier).loadVendorProposals();
+        ref.read(orderProvider.notifier).loadVendorOrders();
+        debugPrint('[VendorHome] dashboard data load initiated');
+      } catch (e) {
+        debugPrint('[VendorHome] dashboard load failed: $e');
+      }
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Called by the system BEFORE GoRouter's back-button dispatcher.
+  /// Returning [true] consumes the event; [false] lets GoRouter handle it.
+  @override
+  Future<bool> didPopRoute() async {
+    if (!mounted) return false;
+
+    // Only intercept on vendor shell tabs.
+    const vendorTabs = {
+      '/vendor',
+      '/vendor/requests',
+      '/vendor/proposals',
+      '/vendor/orders',
+      '/vendor/earnings',
+      '/vendor/profile',
+    };
+
+    // Determine current location from GoRouter.
+    final String location;
+    try {
+      location = GoRouter.of(context)
+          .routeInformationProvider
+          .value
+          .uri
+          .path;
+    } catch (_) {
+      return false;
+    }
+
+    if (!vendorTabs.contains(location)) return false;
+
+    // Non-home tab: go back to Home tab.
+    if (_currentIndex != 0) {
+      setState(() => _currentIndex = 0);
+      return true;
+    }
+
+    // Home tab: double-back to exit.
+    final now = DateTime.now();
+    if (_lastBackPressTime == null ||
+        now.difference(_lastBackPressTime!) > const Duration(seconds: 2)) {
+      _lastBackPressTime = now;
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(
+          const SnackBar(
+            content: Text('Swipe back again to exit'),
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      return true; // consumed – do NOT exit
+    }
+
+    // Second press within 2 s → let the system exit.
+    return false;
   }
 
   @override
@@ -52,9 +136,14 @@ class _VendorHomeScreenState extends ConsumerState<VendorHomeScreen> {
     // Watch central bottom navigation visibility provider
     final showBottomNav = ref.watch(bottomNavVisibilityProvider);
 
-    return Scaffold(
-      backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-      appBar: AppBar(
+    // PopScope(canPop: false) suppresses the Android 13 predictive-back
+    // swipe preview so the UI doesn't flash a "going back" animation.
+    // The actual double-back logic lives in didPopRoute() above.
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+        appBar: AppBar(
         title: const AppBarLogo(),
         actions: [
           IconButton(
@@ -126,6 +215,7 @@ class _VendorHomeScreenState extends ConsumerState<VendorHomeScreen> {
           ],
         ),
       ),
+      ),
     );
   }
 }
@@ -137,6 +227,24 @@ class _DashboardTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Role check - critical for preventing blank dashboard
+    if (user == null || user.role != UserRole.vendor) {
+      debugPrint('[VendorHome] Dashboard: user not vendor');
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.lock_outline, size: 64, color: AppColors.vendorColor),
+              const SizedBox(height: 16),
+              Text('Vendor account required', style: AppTextStyles.h3(isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
+            ],
+          ),
+        ),
+      );
+    }
+
     final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
@@ -146,16 +254,79 @@ class _DashboardTab extends ConsumerWidget {
     final proposalState = ref.watch(proposalProvider);
     final orderState = ref.watch(orderProvider);
 
+    // Check overall loading state
+    final isLoading = feedState.isLoading || proposalState.isLoading || orderState.isLoading;
+    final hasError = feedState.error != null || proposalState.error != null || orderState.error != null;
+
+    // Show loading state if any provider is loading on first load
+    if (isLoading && feedState.items.isEmpty && proposalState.proposals.isEmpty && orderState.orders.isEmpty) {
+      debugPrint('[VendorHome] dashboard loading...');
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(color: AppColors.vendorColor),
+            const SizedBox(height: 16),
+            Text('Loading dashboard...', style: AppTextStyles.bodyMedium(primaryText)),
+          ],
+        ),
+      );
+    }
+
+    // Show error state if there are errors
+    if (hasError) {
+      debugPrint('[VendorHome] dashboard error state');
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, size: 64, color: AppColors.error),
+              const SizedBox(height: 16),
+              Text('Failed to load dashboard', style: AppTextStyles.h3(primaryText)),
+              const SizedBox(height: 8),
+              Text(feedState.error ?? proposalState.error ?? orderState.error ?? 'Unknown error',
+                style: AppTextStyles.bodyMedium(secondaryText),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final newRequestsCount = feedState.items.length.toString();
     final proposalsSentCount = proposalState.proposals.length.toString();
-    
-    final activeOrders = orderState.orders.where((o) => o.status != OrderStatus.delivered).toList();
+
+    // Active orders: anything not in completed/cancelled/delivered state
+    final activeOrders = orderState.orders.where((o) =>
+      o.status != OrderStatus.delivered &&
+      o.status != OrderStatus.completed &&
+      o.status != OrderStatus.cancelled
+    ).toList();
     final activeOrdersCount = activeOrders.length.toString();
 
-    // Calculate completed earnings from mock orders
-    final earnings = orderState.orders
-        .where((o) => o.status == OrderStatus.delivered && o.paymentStatus == PaymentStatus.paid)
+    // Completed orders: successfully delivered
+    final completedOrders = orderState.orders.where((o) =>
+      o.status == OrderStatus.delivered || o.status == OrderStatus.completed
+    ).toList();
+    final completedOrdersCount = completedOrders.length.toString();
+
+    // Calculate completed earnings from delivered orders
+    final paidEarnings = orderState.orders
+        .where((o) => (o.status == OrderStatus.delivered || o.status == OrderStatus.completed) &&
+                      o.paymentStatus == PaymentStatus.paid)
         .fold<double>(0, (sum, o) => sum + o.totalPrice);
+
+    // Calculate pending earnings from active orders
+    final pendingEarnings = orderState.orders
+        .where((o) => o.status != OrderStatus.cancelled &&
+                      o.status != OrderStatus.completed &&
+                      o.status != OrderStatus.delivered)
+        .fold<double>(0, (sum, o) => sum + o.totalPrice);
+
+    debugPrint('[VendorHome] dashboard rendered with ${feedState.items.length} requests, ${proposalState.proposals.length} proposals, ${orderState.orders.length} orders');
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -196,7 +367,7 @@ class _DashboardTab extends ConsumerWidget {
                   Text('Welcome back, ${user?.firstName ?? ''}',
                       style: AppTextStyles.bodyMedium(Colors.white70)),
                   const SizedBox(height: 14),
-                  StatusBadge(label: 'â— Active & Verified', color: Colors.white),
+                  StatusBadge(label: 'Active & Verified', color: Colors.white),
                 ],
               ),
             ),
@@ -207,13 +378,19 @@ class _DashboardTab extends ConsumerWidget {
             Row(children: [
               Expanded(child: _StatCard(label: 'New Requests', value: newRequestsCount, icon: Icons.inbox_rounded, color: AppColors.vendorColor, isDark: isDark)),
               const SizedBox(width: 12),
-              Expanded(child: _StatCard(label: 'Proposals Sent', value: proposalsSentCount, icon: Icons.send_rounded, color: AppColors.success, isDark: isDark)),
+              Expanded(child: _StatCard(label: 'Active Proposals', value: proposalsSentCount, icon: Icons.send_rounded, color: AppColors.success, isDark: isDark)),
             ]),
             const SizedBox(height: 12),
             Row(children: [
               Expanded(child: _StatCard(label: 'Active Orders', value: activeOrdersCount, icon: Icons.shopping_cart_rounded, color: AppColors.warning, isDark: isDark)),
               const SizedBox(width: 12),
-              Expanded(child: _StatCard(label: 'Earnings (LKR)', value: earnings.toStringAsFixed(2), icon: Icons.account_balance_wallet_rounded, color: AppColors.accent, isDark: isDark)),
+              Expanded(child: _StatCard(label: 'Completed', value: completedOrdersCount, icon: Icons.task_alt_rounded, color: AppColors.success, isDark: isDark)),
+            ]),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(child: _StatCard(label: 'Paid (LKR)', value: paidEarnings.toStringAsFixed(0), icon: Icons.account_balance_wallet_rounded, color: AppColors.accent, isDark: isDark)),
+              const SizedBox(width: 12),
+              Expanded(child: _StatCard(label: 'Pending (LKR)', value: pendingEarnings.toStringAsFixed(0), icon: Icons.schedule_rounded, color: Colors.orange, isDark: isDark)),
             ]),
             const SizedBox(height: 28),
 
@@ -253,6 +430,8 @@ class _DashboardTab extends ConsumerWidget {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.vendorColor,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            minimumSize: const Size(0, 44),
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
                           onPressed: () {
                             context.push('/vendor/orders/manage', extra: order);
@@ -267,14 +446,74 @@ class _DashboardTab extends ConsumerWidget {
               const SizedBox(height: 20),
             ],
 
-            Text('Recent Nearby Requests', style: AppTextStyles.h2(primaryText)),
+            // Completed Orders Section
+            if (completedOrders.isNotEmpty) ...[
+              Text('Recently Completed Orders', style: AppTextStyles.h2(primaryText)),
+              const SizedBox(height: 12),
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: completedOrders.length > 3 ? 3 : completedOrders.length,
+                itemBuilder: (context, index) {
+                  final order = completedOrders[index];
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(order.id, style: AppTextStyles.subtitle(primaryText)),
+                              const SizedBox(height: 4),
+                              Text('Customer: ${order.customerName}', style: AppTextStyles.bodySmall(secondaryText)),
+                              Text('Earned: Rs. ${order.totalPrice.toStringAsFixed(2)}', style: AppTextStyles.caption(AppColors.success)),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: AppColors.success.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.check_circle_outline, size: 14, color: AppColors.success),
+                              const SizedBox(width: 6),
+                              Text('Completed', style: AppTextStyles.caption(AppColors.success).copyWith(fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              const SizedBox(height: 20),
+            ],
+
             const SizedBox(height: 12),
 
             if (feedState.isLoading)
-              const Center(
+              Center(
                 child: Padding(
-                  padding: EdgeInsets.all(32.0),
-                  child: CircularProgressIndicator(color: AppColors.vendorColor),
+                  padding: const EdgeInsets.all(32.0),
+                  child: Column(
+                    children: [
+                      const CircularProgressIndicator(color: AppColors.vendorColor),
+                      const SizedBox(height: 12),
+                      Text('Loading requests...', style: AppTextStyles.bodyMedium(primaryText)),
+                    ],
+                  ),
                 ),
               )
             else if (feedState.items.isEmpty)
@@ -478,12 +717,38 @@ class _MyProposalsTab extends ConsumerWidget {
                                       child: Column(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          Text('Suggested Communication Log:', style: AppTextStyles.caption(secondaryText)),
-                                          const SizedBox(height: 4),
+                                          Text('Message Log:', style: AppTextStyles.caption(secondaryText)),
+                                          const SizedBox(height: 8),
                                           if (proposal.customerResponse != null)
-                                            Text('ðŸ’¬ Customer: "${proposal.customerResponse}"', style: AppTextStyles.bodySmall(primaryText)),
-                                          if (proposal.vendorResponse != null)
-                                            Text('ðŸ’¬ You: "${proposal.vendorResponse}"', style: AppTextStyles.bodySmall(AppColors.vendorColor)),
+                                            Row(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Icon(Icons.person_outline, size: 16, color: primaryText),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    'Customer: ' + (proposal.customerResponse ?? ''),
+                                                    style: AppTextStyles.bodySmall(primaryText),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          if (proposal.vendorResponse != null) ...[
+                                            const SizedBox(height: 8),
+                                            Row(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Icon(Icons.check_circle_outline, size: 16, color: AppColors.vendorColor),
+                                                const SizedBox(width: 8),
+                                                Expanded(
+                                                  child: Text(
+                                                    'You: ' + (proposal.vendorResponse ?? ''),
+                                                    style: AppTextStyles.bodySmall(AppColors.vendorColor),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
                                         ],
                                       ),
                                     ),

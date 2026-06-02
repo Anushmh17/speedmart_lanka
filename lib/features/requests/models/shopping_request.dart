@@ -13,10 +13,12 @@ enum RequestStatus {
   paid,
   cashOnDeliveryConfirmed,
   preparingOrder,
+  readyForDelivery,
   outForDelivery,
   delivered,
   cancelled,
-  expired
+  expired,
+  accepted,
 }
 
 extension RequestStatusExtension on RequestStatus {
@@ -44,6 +46,8 @@ extension RequestStatusExtension on RequestStatus {
         return 'COD Confirmed';
       case RequestStatus.preparingOrder:
         return 'Preparing Order';
+      case RequestStatus.readyForDelivery:
+        return 'Ready for Delivery';
       case RequestStatus.outForDelivery:
         return 'Out for Delivery';
       case RequestStatus.delivered:
@@ -52,6 +56,8 @@ extension RequestStatusExtension on RequestStatus {
         return 'Cancelled';
       case RequestStatus.expired:
         return 'Expired';
+      case RequestStatus.accepted:
+        return 'Accepted';
     }
   }
 

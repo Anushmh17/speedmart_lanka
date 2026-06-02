@@ -37,7 +37,13 @@ class MockAuthRepository {
       isVerified: true,
       businessName: 'Silva Super Store',
       vendorApproved: true,
-      vendorCategories: ['Groceries', 'Home Appliances'],
+      vendorCategories: ['groceries', 'home appliances'],
+      shopName: 'Speedmart Silva Main',
+      shopAddress: 'Main Street, Colombo 03',
+      shopLatitude: 6.9271,
+      shopLongitude: 80.7789,
+      assignedRadiusKm: 20.0,
+      isShopLocationAssigned: true,
       createdAt: DateTime(2025, 2, 10),
     ),
     UserModel(
@@ -49,9 +55,29 @@ class MockAuthRepository {
       isActive: true,
       isVerified: false,
       businessName: 'Fernando Electronics',
-      vendorApproved: false,
-      vendorCategories: ['Electronics', 'Stationery'],
+      vendorApproved: true,
+      vendorCategories: ['electronics', 'stationery'],
+      isShopLocationAssigned: false,
       createdAt: DateTime(2025, 3, 5),
+    ),
+    UserModel(
+      id: 'vend-003',
+      fullName: 'Ravi Chandran',
+      email: 'vendor3@test.com',
+      phone: '0757654321',
+      role: UserRole.vendor,
+      isActive: true,
+      isVerified: true,
+      businessName: 'Chandran Pharma Store',
+      vendorApproved: true,
+      vendorCategories: ['pharmacy'],
+      shopName: 'Chandran Pharmacy Jaffna',
+      shopAddress: 'Nallur Street, Jaffna',
+      shopLatitude: 9.6615,
+      shopLongitude: 80.0255,
+      assignedRadiusKm: 15.0,
+      isShopLocationAssigned: true,
+      createdAt: DateTime(2025, 1, 20),
     ),
     UserModel(
       id: 'admin-001',
@@ -306,6 +332,16 @@ class MockAuthRepository {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 300));
     return List.from(_sessionUsers);
+  }
+
+  Future<UserModel?> getUserById(String userId) async {
+    await ensureInitialized();
+    await Future.delayed(const Duration(milliseconds: 200));
+    try {
+      return _sessionUsers.firstWhere((u) => u.id == userId);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> approveVendor(String vendorId) async {

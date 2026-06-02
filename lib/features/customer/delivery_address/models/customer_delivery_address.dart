@@ -17,6 +17,8 @@ class CustomerDeliveryAddress {
     this.longitude,
     this.isGpsDetected = false,
     this.isManualOverride = false,
+    this.accuracy,
+    this.detectedAt,
     required this.updatedAt,
   });
 
@@ -33,6 +35,8 @@ class CustomerDeliveryAddress {
   final double? longitude;
   final bool isGpsDetected;
   final bool isManualOverride;
+  final double? accuracy;
+  final DateTime? detectedAt;
   final DateTime updatedAt;
 
   bool get isComplete =>
@@ -62,6 +66,8 @@ class CustomerDeliveryAddress {
       isManualOverride: isManualOverride,
       approximateAreaText: approximateArea.isNotEmpty ? approximateArea : suburb,
       source: isGpsDetected ? 'gps' : (isManualOverride ? 'manual' : ''),
+      accuracy: accuracy,
+      detectedAt: detectedAt,
     );
   }
 
@@ -97,6 +103,8 @@ class CustomerDeliveryAddress {
       longitude: location.longitude,
       isGpsDetected: location.isGpsDetected,
       isManualOverride: location.isManualOverride,
+      accuracy: location.accuracy,
+      detectedAt: location.detectedAt,
       updatedAt: DateTime.now(),
     );
   }
@@ -108,6 +116,8 @@ class CustomerDeliveryAddress {
     String? deliveryApproxArea,
     String? deliveryPreciseAddress,
     String? deliveryNote,
+    double? accuracy,
+    DateTime? detectedAt,
   }) {
     final area = deliveryApproxArea?.trim() ?? '';
     final street = deliveryPreciseAddress?.trim() ?? '';
@@ -123,6 +133,8 @@ class CustomerDeliveryAddress {
           .join(', '),
       deliveryNote: deliveryNote?.trim() ?? '',
       isManualOverride: true,
+      accuracy: accuracy,
+      detectedAt: detectedAt,
       updatedAt: DateTime.now(),
     );
   }
@@ -142,6 +154,8 @@ class CustomerDeliveryAddress {
       longitude: (json['longitude'] as num?)?.toDouble(),
       isGpsDetected: json['isGpsDetected'] as bool? ?? false,
       isManualOverride: json['isManualOverride'] as bool? ?? false,
+      accuracy: (json['accuracy'] as num?)?.toDouble(),
+      detectedAt: json['detectedAt'] != null ? DateTime.parse(json['detectedAt'] as String) : null,
       updatedAt: DateTime.tryParse(json['updatedAt'] as String? ?? '') ??
           DateTime.now(),
     );
@@ -161,6 +175,8 @@ class CustomerDeliveryAddress {
         'longitude': longitude,
         'isGpsDetected': isGpsDetected,
         'isManualOverride': isManualOverride,
+        'accuracy': accuracy,
+        'detectedAt': detectedAt?.toIso8601String(),
         'updatedAt': updatedAt.toIso8601String(),
       };
 
@@ -177,6 +193,8 @@ class CustomerDeliveryAddress {
     double? longitude,
     bool? isGpsDetected,
     bool? isManualOverride,
+    double? accuracy,
+    DateTime? detectedAt,
     DateTime? updatedAt,
     bool clearLatLng = false,
   }) {
@@ -194,7 +212,22 @@ class CustomerDeliveryAddress {
       longitude: clearLatLng ? null : (longitude ?? this.longitude),
       isGpsDetected: isGpsDetected ?? this.isGpsDetected,
       isManualOverride: isManualOverride ?? this.isManualOverride,
+      accuracy: accuracy ?? this.accuracy,
+      detectedAt: detectedAt ?? this.detectedAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
+  }
+
+  /// GPS accuracy classification helpers.
+  bool get hasHighAccuracy => accuracy != null && accuracy! <= 50;
+  bool get hasMediumAccuracy => accuracy != null && accuracy! > 50 && accuracy! <= 150;
+  bool get hasLowAccuracy => accuracy != null && accuracy! > 150;
+
+  /// Formatted accuracy label for display.
+  String get accuracyLabel {
+    if (accuracy == null) return '';
+    if (hasHighAccuracy) return 'High accuracy • ±25m';
+    if (hasMediumAccuracy) return 'Medium accuracy • ±90m';
+    return 'Low accuracy • ±250m';
   }
 }

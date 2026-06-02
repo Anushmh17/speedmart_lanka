@@ -211,6 +211,45 @@ class AuthNotifier extends StateNotifier<AuthState> {
     state = AuthState.authenticated(savedUser);
   }
 
+  // ── Admin: Vendor Shop Assignment ──────────────────────────────────────────
+  /// Admin assigns shop location and details to a vendor.
+  Future<void> updateVendorShopAssignment({
+    required String vendorId,
+    required String shopName,
+    required String shopAddress,
+    required double shopLatitude,
+    required double shopLongitude,
+    required double assignedRadiusKm,
+    required bool vendorApproved,
+    required List<String> vendorCategories,
+  }) async {
+    // Get the vendor from repository
+    final vendor = await _repo.getUserById(vendorId);
+    if (vendor == null) throw Exception('Vendor not found');
+
+    final updatedVendor = vendor.copyWith(
+      shopName: shopName,
+      shopAddress: shopAddress,
+      shopLatitude: shopLatitude,
+      shopLongitude: shopLongitude,
+      assignedRadiusKm: assignedRadiusKm,
+      vendorApproved: vendorApproved,
+      vendorCategories: vendorCategories,
+      isShopLocationAssigned: true,
+    );
+
+    // Update in repository
+    await _repo.updateUser(updatedVendor);
+
+    // Persist to local storage
+    await StorageService.saveUser(updatedVendor.toJson());
+
+    // If updating current user, update state
+    if (state.user?.id == vendorId) {
+      state = AuthState.authenticated(updatedVendor);
+    }
+  }
+
   // ── Clear error ────────────────────────────────────────────────────────────
   void clearError() {
     state = state.copyWith(clearError: true);

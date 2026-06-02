@@ -2,16 +2,18 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/theme/app_colors.dart';
-import '../../../../core/theme/app_text_styles.dart';
-import '../../../../core/widgets/app_state_widgets.dart';
-import '../../../../core/providers/notification_provider.dart';
-import '../../../proposals/models/proposal.dart';
-import '../../../requests/providers/request_provider.dart';
-import '../../models/order_model.dart';
-import '../../providers/order_provider.dart';
-import '../widgets/order_tracking_map.dart';
+import 'package:speedmart_lanka/core/theme/app_colors.dart';
+import 'package:speedmart_lanka/core/theme/app_text_styles.dart';
+import 'package:speedmart_lanka/core/widgets/app_state_widgets.dart';
+import 'package:speedmart_lanka/core/providers/notification_provider.dart';
+import 'package:speedmart_lanka/features/proposals/models/proposal.dart';
+import 'package:speedmart_lanka/features/requests/providers/request_provider.dart';
+import 'package:speedmart_lanka/features/orders/models/order_model.dart';
+import 'package:speedmart_lanka/features/orders/providers/order_provider.dart';
+import 'package:speedmart_lanka/features/orders/presentation/widgets/order_timeline_widget.dart';
+import 'package:speedmart_lanka/features/orders/presentation/widgets/order_tracking_map.dart';
 import 'package:speedmart_lanka/features/location/providers/location_provider.dart';
+import 'package:speedmart_lanka/features/payments/models/payment.dart';
 
 class OrderTrackingScreen extends ConsumerStatefulWidget {
   const OrderTrackingScreen({super.key, required this.order});
@@ -113,7 +115,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
             children: [
               Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
               SizedBox(width: 10),
-              Text('🎉 Order delivered successfully!'),
+              Text('Order delivered successfully!'),
             ],
           ),
           backgroundColor: AppColors.success,
@@ -209,56 +211,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
             // ─────────────────────────────────────────────────────────────
             Text('Delivery Timeline', style: AppTextStyles.h2(primaryText)),
             const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: borderColor),
-              ),
-              child: Column(
-                children: [
-                  _StatusStep(
-                    title: 'Order Confirmed',
-                    subtitle: 'Merchant has accepted and confirmed your bid.',
-                    isCompleted: true,
-                    isActive: activeOrder.status == OrderStatus.preparing,
-                  ),
-                  _StatusLine(isCompleted: true),
-                  _StatusStep(
-                    title: 'Preparing Order',
-                    subtitle: 'Merchant is gathering and packaging your items.',
-                    isCompleted: activeOrder.status == OrderStatus.preparing ||
-                        activeOrder.status == OrderStatus.outForDelivery ||
-                        activeOrder.status == OrderStatus.delivered,
-                    isActive: activeOrder.status == OrderStatus.preparing,
-                  ),
-                  _StatusLine(
-                      isCompleted:
-                          activeOrder.status == OrderStatus.outForDelivery ||
-                              activeOrder.status == OrderStatus.delivered),
-                  _StatusStep(
-                    title: 'Out for Delivery',
-                    subtitle: 'Rider is on the way to your location.',
-                    isCompleted:
-                        activeOrder.status == OrderStatus.outForDelivery ||
-                            activeOrder.status == OrderStatus.delivered,
-                    isActive: activeOrder.status == OrderStatus.outForDelivery,
-                  ),
-                  _StatusLine(
-                      isCompleted:
-                          activeOrder.status == OrderStatus.delivered),
-                  _StatusStep(
-                    title: 'Delivered',
-                    subtitle: 'Package successfully delivered. Thank you!',
-                    isCompleted:
-                        activeOrder.status == OrderStatus.delivered,
-                    isActive: activeOrder.status == OrderStatus.delivered,
-                    isLast: true,
-                  ),
-                ],
-              ),
-            ),
+            OrderTimelineWidget(order: activeOrder, isVendorView: false),
             const SizedBox(height: 24),
 
             // ─────────────────────────────────────────────────────────────

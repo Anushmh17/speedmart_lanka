@@ -22,6 +22,7 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen>
   late List<AnimationController> _controllers;
   late List<Animation<double>> _fadeAnims;
   late List<Animation<Offset>> _slideAnims;
+  DateTime? _lastBackPress;
 
   @override
   void initState() {
@@ -66,13 +67,13 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen>
     ref.read(customerRegistrationProvider.notifier).reset();
     switch (role) {
       case UserRole.customer:
-        context.go(RouteNames.customerLogin);
+        context.push(RouteNames.customerLogin);
         break;
       case UserRole.vendor:
-        context.go(RouteNames.vendorLogin);
+        context.push(RouteNames.vendorLogin);
         break;
       case UserRole.admin:
-        context.go(RouteNames.adminLogin);
+        context.push(RouteNames.adminLogin);
         break;
     }
   }
@@ -82,7 +83,28 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? AppColors.backgroundDark : AppColors.backgroundLight;
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        final now = DateTime.now();
+        if (_lastBackPress != null && now.difference(_lastBackPress!) < const Duration(seconds: 2)) {
+          // Double-back within 2 seconds: exit app
+          if (context.mounted) {
+            Navigator.of(context).pop();
+          }
+        } else {
+          // First back: show snackbar
+          _lastBackPress = now;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Press back again to exit'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      },
+      child: Scaffold(
       backgroundColor: bg,
       body: SafeArea(
         child: SingleChildScrollView(
@@ -117,6 +139,7 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen>
             ],
           ),
         ),
+      ),
       ),
     );
   }

@@ -1,45 +1,57 @@
+import '../../payments/models/payment.dart';
 import '../../proposals/models/proposal.dart';
 
-enum PaymentMethod {
-  cashOnDelivery,
-  cardPayment
-}
-
-extension PaymentMethodExtension on PaymentMethod {
-  String get displayName {
-    switch (this) {
-      case PaymentMethod.cashOnDelivery:
-        return 'Cash on Delivery';
-      case PaymentMethod.cardPayment:
-        return 'Card Payment';
-    }
-  }
-}
-
-enum PaymentStatus {
-  pending,
-  paid,
-  failed
-}
-
 enum OrderStatus {
+  submitted,
+  accepted,
   preparing,
+  readyForDelivery,
   outForDelivery,
   delivered,
-  cancelled
+  completed,
+  cancelled,
 }
 
 extension OrderStatusExtension on OrderStatus {
   String get displayName {
     switch (this) {
+      case OrderStatus.submitted:
+        return 'Order Submitted';
+      case OrderStatus.accepted:
+        return 'Accepted by Merchant';
       case OrderStatus.preparing:
         return 'Preparing Order';
+      case OrderStatus.readyForDelivery:
+        return 'Ready for Delivery';
       case OrderStatus.outForDelivery:
         return 'Out for Delivery';
       case OrderStatus.delivered:
         return 'Delivered';
+      case OrderStatus.completed:
+        return 'Completed';
       case OrderStatus.cancelled:
         return 'Cancelled';
+    }
+  }
+
+  String get statusIcon {
+    switch (this) {
+      case OrderStatus.submitted:
+        return '📝';
+      case OrderStatus.accepted:
+        return '✅';
+      case OrderStatus.preparing:
+        return '📦';
+      case OrderStatus.readyForDelivery:
+        return '🚀';
+      case OrderStatus.outForDelivery:
+        return '🛵';
+      case OrderStatus.delivered:
+        return '📍';
+      case OrderStatus.completed:
+        return '🎉';
+      case OrderStatus.cancelled:
+        return '❌';
     }
   }
 }
@@ -61,8 +73,11 @@ class OrderModel {
   final List<ProposalItem> items;
   final double deliveryCharge;
   final double totalPrice;
+  final String? paymentId;
   final PaymentMethod paymentMethod;
   final PaymentStatus paymentStatus;
+  final bool isAddressReleased;
+  final DateTime? addressReleasedAt;
   final OrderStatus status;
   final DateTime createdAt;
   final DateTime? updatedAt;
@@ -70,6 +85,8 @@ class OrderModel {
   final double vendorLongitude;
   final double customerLatitude;
   final double customerLongitude;
+  final double? accuracy;
+  final DateTime? detectedAt;
 
   OrderModel({
     required this.id,
@@ -85,15 +102,20 @@ class OrderModel {
     required this.items,
     required this.deliveryCharge,
     required this.totalPrice,
+    this.paymentId,
     required this.paymentMethod,
     this.paymentStatus = PaymentStatus.pending,
-    this.status = OrderStatus.preparing,
+    this.isAddressReleased = false,
+    this.addressReleasedAt,
+    this.status = OrderStatus.submitted,
     required this.createdAt,
     this.updatedAt,
     this.vendorLatitude = 0.0,
     this.vendorLongitude = 0.0,
     this.customerLatitude = 0.0,
     this.customerLongitude = 0.0,
+    this.accuracy,
+    this.detectedAt,
   });
 
   OrderModel copyWith({
@@ -110,8 +132,11 @@ class OrderModel {
     List<ProposalItem>? items,
     double? deliveryCharge,
     double? totalPrice,
+    String? paymentId,
     PaymentMethod? paymentMethod,
     PaymentStatus? paymentStatus,
+    bool? isAddressReleased,
+    DateTime? addressReleasedAt,
     OrderStatus? status,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -119,6 +144,8 @@ class OrderModel {
     double? vendorLongitude,
     double? customerLatitude,
     double? customerLongitude,
+    double? accuracy,
+    DateTime? detectedAt,
   }) {
     return OrderModel(
       id: id ?? this.id,
@@ -134,8 +161,11 @@ class OrderModel {
       items: items ?? this.items,
       deliveryCharge: deliveryCharge ?? this.deliveryCharge,
       totalPrice: totalPrice ?? this.totalPrice,
+      paymentId: paymentId ?? this.paymentId,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       paymentStatus: paymentStatus ?? this.paymentStatus,
+      isAddressReleased: isAddressReleased ?? this.isAddressReleased,
+      addressReleasedAt: addressReleasedAt ?? this.addressReleasedAt,
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -143,6 +173,8 @@ class OrderModel {
       vendorLongitude: vendorLongitude ?? this.vendorLongitude,
       customerLatitude: customerLatitude ?? this.customerLatitude,
       customerLongitude: customerLongitude ?? this.customerLongitude,
+      accuracy: accuracy ?? this.accuracy,
+      detectedAt: detectedAt ?? this.detectedAt,
     );
   }
 
@@ -162,8 +194,11 @@ class OrderModel {
       'items': items.map((i) => i.toJson()).toList(),
       'deliveryCharge': deliveryCharge,
       'totalPrice': totalPrice,
+      'paymentId': paymentId,
       'paymentMethod': paymentMethod.name,
       'paymentStatus': paymentStatus.name,
+      'isAddressReleased': isAddressReleased,
+      'addressReleasedAt': addressReleasedAt?.toIso8601String(),
       'status': status.name,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
@@ -171,6 +206,8 @@ class OrderModel {
       'vendorLongitude': vendorLongitude,
       'customerLatitude': customerLatitude,
       'customerLongitude': customerLongitude,
+      'accuracy': accuracy,
+      'detectedAt': detectedAt?.toIso8601String(),
     };
   }
 
@@ -191,6 +228,7 @@ class OrderModel {
           .toList(),
       deliveryCharge: (json['deliveryCharge'] as num?)?.toDouble() ?? 0.0,
       totalPrice: (json['totalPrice'] as num?)?.toDouble() ?? 0.0,
+      paymentId: json['paymentId'] as String?,
       paymentMethod: PaymentMethod.values.firstWhere(
         (m) => m.name == json['paymentMethod'],
         orElse: () => PaymentMethod.cashOnDelivery,
@@ -199,9 +237,13 @@ class OrderModel {
         (s) => s.name == json['paymentStatus'],
         orElse: () => PaymentStatus.pending,
       ),
+      isAddressReleased: json['isAddressReleased'] as bool? ?? false,
+      addressReleasedAt: json['addressReleasedAt'] != null
+          ? DateTime.tryParse(json['addressReleasedAt'] as String)
+          : null,
       status: OrderStatus.values.firstWhere(
         (s) => s.name == json['status'],
-        orElse: () => OrderStatus.preparing,
+        orElse: () => OrderStatus.submitted,
       ),
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
           DateTime.now(),
@@ -212,6 +254,8 @@ class OrderModel {
       vendorLongitude: (json['vendorLongitude'] as num?)?.toDouble() ?? 0.0,
       customerLatitude: (json['customerLatitude'] as num?)?.toDouble() ?? 0.0,
       customerLongitude: (json['customerLongitude'] as num?)?.toDouble() ?? 0.0,
+      accuracy: (json['accuracy'] as num?)?.toDouble(),
+      detectedAt: json['detectedAt'] != null ? DateTime.tryParse(json['detectedAt'] as String) : null,
     );
   }
 }

@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../proposals/data/mock_proposal_repository.dart';
 import '../../../requests/data/mock_request_repository.dart';
-import '../../../requests/providers/request_provider.dart';
 import '../models/vendor_feed_enums.dart';
 import '../models/vendor_feed_request.dart';
 import '../services/vendor_request_filter_service.dart';
@@ -73,7 +72,6 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
 
   Future<void> loadFeed() async {
     final user = ref.read(currentUserProvider);
-    final requestState = ref.read(requestProvider);
     final filterService = ref.read(vendorRequestFilterServiceProvider);
 
     if (user == null) {
@@ -106,6 +104,18 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
       return;
     }
 
+    // Check if shop location is assigned by admin
+    final shopLocationAssigned = user.isShopLocationAssigned == true;
+    if (!shopLocationAssigned) {
+      state = state.copyWith(isLoading: false, items: []);
+      return;
+    }
+
+    // Use admin-assigned shop location (not user-editable)
+    final vendorLat = user.shopLatitude ?? 0.0;
+    final vendorLon = user.shopLongitude ?? 0.0;
+    final assignedRadius = user.assignedRadiusKm;
+
     try {
       await MockRequestRepository.instance.ensureInitialized();
       await MockProposalRepository.instance.ensureInitialized();
@@ -119,10 +129,11 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
         allRequests: requests,
         allProposals: proposals,
         vendorCategories: categories,
-        vendorLatitude: requestState.vendorLatitude,
-        vendorLongitude: requestState.vendorLongitude,
+        vendorLatitude: vendorLat,
+        vendorLongitude: vendorLon,
         vendorApproved: approved,
         categoryFilter: state.categoryFilter,
+        assignedRadiusKm: assignedRadius,
       );
 
       final sorted = filterService.applySort(built, state.sortMode);

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 
@@ -212,6 +213,10 @@ class LocationNotifier extends StateNotifier<LocationState> {
         approximateAreaText: location.approximateAreaText,
         permissionStatus: LocationPermission.always,
       );
+
+      if (location.accuracy != null) {
+        debugPrint('[Location] Accuracy saved to delivery address: ${location.accuracy}m');
+      }
     } on LocationException catch (e) {
       final permission = await GpsLocationService().checkPermission();
       state = state.copyWith(

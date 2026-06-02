@@ -156,6 +156,26 @@ class StorageService {
     return _loadJsonList(AppConstants.ordersKey);
   }
 
+  /// TODO: Replace with backend payment API.
+  static Future<void> savePayments(List<Map<String, dynamic>> payments) async {
+    await _saveJsonList(AppConstants.paymentsKey, payments);
+  }
+
+  static Future<List<Map<String, dynamic>>> getPayments() async {
+    return _loadJsonList(AppConstants.paymentsKey);
+  }
+
+  /// TODO: Replace with backend notification API / Firebase Cloud Messaging.
+  static Future<void> saveNotifications(
+    List<Map<String, dynamic>> notifications,
+  ) async {
+    await _saveJsonList(AppConstants.notificationsKey, notifications);
+  }
+
+  static Future<List<Map<String, dynamic>>> getNotifications() async {
+    return _loadJsonList(AppConstants.notificationsKey);
+  }
+
   static Future<List<Map<String, dynamic>>> getRegisteredUsers() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(AppConstants.registeredUsersKey);

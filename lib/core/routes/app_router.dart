@@ -6,22 +6,31 @@ import '../../features/auth/presentation/screens/splash_screen.dart';
 import '../../features/auth/presentation/screens/role_selection_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
+import '../../features/auth/customer_registration/screens/otp_verification_screen.dart';
 import '../../features/customer/presentation/screens/customer_home_screen.dart';
 import '../../features/requests/presentation/screens/create_request_screen.dart';
 import '../../features/requests/models/shopping_request.dart';
 import '../../features/proposals/models/proposal.dart';
 import '../../features/proposals/presentation/screens/customer_proposal_details_screen.dart';
-import '../../features/proposals/presentation/screens/proposal_create_screen.dart';
+import '../../features/payments/models/payment.dart';
+import '../../features/payments/presentation/screens/customer_payment_history_screen.dart';
 import '../../features/payments/presentation/screens/payment_screen.dart';
+import '../../features/payments/presentation/screens/payment_receipt_screen.dart';
 import '../../features/orders/models/order_model.dart';
 import '../../features/orders/presentation/screens/order_tracking_screen.dart';
 import '../../features/orders/presentation/screens/vendor_order_details_screen.dart';
 import '../../features/vendor/presentation/screens/vendor_home_screen.dart';
 import '../../features/vendor/presentation/screens/vendor_shopfront_screen.dart';
+import '../../features/vendor/proposals/presentation/vendor_request_detail_screen.dart';
+import '../../features/vendor/proposals/presentation/vendor_proposal_form_screen.dart';
+import '../../features/vendor/proposals/presentation/vendor_proposal_detail_screen.dart';
 import '../../features/chat/presentation/screens/chat_screen.dart';
 import '../../features/admin/presentation/screens/admin_home_screen.dart';
+import '../../features/admin/presentation/screens/admin_vendor_management_screen.dart';
+import '../../features/admin/presentation/screens/admin_vendor_assignment_screen.dart';
 import '../../features/requests/presentation/screens/request_list_screen.dart';
 import '../../shared/presentation/screens/profile_screen.dart';
+import '../../features/customer/delivery_address/presentation/screens/customer_delivery_address_screen.dart';
 import '../../features/auth/providers/auth_provider.dart';
 import '../../shared/models/user_role.dart';
 import 'route_names.dart';
@@ -57,8 +66,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final location = state.matchedLocation;
       final isOnAuthRoute = location == RouteNames.splash ||
           location == RouteNames.roleSelection ||
-          location == RouteNames.login ||
-          location == RouteNames.register;
+          location.startsWith('/auth');
 
       // Not authenticated → send to role selection
       if (!auth.isAuthenticated) {
@@ -96,20 +104,34 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const RoleSelectionScreen(),
       ),
 
-      // ── Auth ─────────────────────────────────────────────────────────────
+      // ── Auth Routes (Role-Specific) ──────────────────────────────────────
       GoRoute(
-        path: RouteNames.login,
-        builder: (_, state) {
-          final role = state.extra as UserRole? ?? UserRole.customer;
-          return LoginScreen(role: role);
-        },
+        path: RouteNames.customerLogin,
+        builder: (_, __) => const LoginScreen(role: UserRole.customer),
       ),
       GoRoute(
-        path: RouteNames.register,
-        builder: (_, state) {
-          final role = state.extra as UserRole? ?? UserRole.customer;
-          return RegisterScreen(role: role);
-        },
+        path: RouteNames.customerRegister,
+        builder: (_, __) => const RegisterScreen(role: UserRole.customer),
+      ),
+      GoRoute(
+        path: RouteNames.customerOtp,
+        builder: (_, __) => const OtpVerificationScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.vendorLogin,
+        builder: (_, __) => const LoginScreen(role: UserRole.vendor),
+      ),
+      GoRoute(
+        path: RouteNames.vendorRegister,
+        builder: (_, __) => const RegisterScreen(role: UserRole.vendor),
+      ),
+      GoRoute(
+        path: RouteNames.adminLogin,
+        builder: (_, __) => const LoginScreen(role: UserRole.admin),
+      ),
+      GoRoute(
+        path: RouteNames.adminRegister,
+        builder: (_, __) => const RegisterScreen(role: UserRole.admin),
       ),
 
       // ── Customer Shell ───────────────────────────────────────────────────
@@ -171,6 +193,38 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: RouteNames.customerPaymentReceipt,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, state) {
+          final extraMap = state.extra as Map<String, dynamic>;
+          final order = extraMap['order'] as OrderModel;
+          final payment = extraMap['payment'];
+          if (payment is! PaymentModel) {
+            return const Scaffold(
+              body: Center(child: Text('Receipt data not found.')),
+            );
+          }
+          return PaymentReceiptScreen(order: order, payment: payment);
+        },
+      ),
+      GoRoute(
+        path: RouteNames.customerPaymentHistory,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, __) => const CustomerPaymentHistoryScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.customerDeliveryAddress,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, state) {
+          final fromCreateRequest = (state.extra as Map<String, dynamic>?)
+                  ?['fromCreateRequest'] as bool? ??
+              false;
+          return CustomerDeliveryAddressScreen(
+            fromCreateRequest: fromCreateRequest,
+          );
+        },
+      ),
+      GoRoute(
         path: '/customer/orders/track',
         parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) {
@@ -213,10 +267,69 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (_, __) => const VendorHomeScreen(),
       ),
       GoRoute(
-        path: '/vendor/proposals/create',
+        path: RouteNames.vendorRequestDetail,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (_, state) {
-          final request = state.extra as ShoppingRequest;
-          return ProposalCreateScreen(request: request);
+          final request = state.extra as ShoppingRequest?;
+          if (request == null) {
+            return const Scaffold(
+              body: Center(
+                child: Text('Request not found. Please select again from your vendor dashboard.'),
+              ),
+            );
+          }
+          return VendorRequestDetailScreen(request: request);
+        },
+      ),
+      GoRoute(
+        path: RouteNames.vendorProposalCreate,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, state) {
+          final request = state.extra as ShoppingRequest?;
+          if (request == null) {
+            return const Scaffold(
+              body: Center(
+                child: Text('Request not found. Please select a request to create a proposal.'),
+              ),
+            );
+          }
+          return VendorProposalFormScreen(request: request);
+        },
+      ),
+      GoRoute(
+        path: RouteNames.vendorProposalDetail,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, state) {
+          final proposal = state.extra as Proposal?;
+          if (proposal == null) {
+            return const Scaffold(
+              body: Center(
+                child: Text('Proposal not found. Please open it again from your proposals list.'),
+              ),
+            );
+          }
+          return VendorProposalDetailScreen(proposal: proposal);
+        },
+      ),
+      GoRoute(
+        path: RouteNames.vendorProposalEdit,
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, state) {
+          final extraMap = state.extra as Map<String, dynamic>?;
+          final proposal = extraMap?['proposal'] as Proposal?;
+          final request = extraMap?['request'] as ShoppingRequest?;
+
+          if (proposal == null || request == null) {
+            return const Scaffold(
+              body: Center(
+                child: Text('Proposal or request not found. Please open it again from your proposals list.'),
+              ),
+            );
+          }
+          return VendorProposalFormScreen(
+            request: request,
+            existingProposal: proposal,
+          );
         },
       ),
       GoRoute(
@@ -231,6 +344,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.adminDashboard,
         builder: (_, __) => const AdminHomeScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.adminVendorManagement,
+        builder: (_, __) => const AdminVendorManagementScreen(),
+      ),
+      GoRoute(
+        path: RouteNames.adminVendorAssignment,
+        builder: (context, state) {
+          final vendor = state.extra;
+          return AdminVendorAssignmentScreen(vendor: vendor);
+        },
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

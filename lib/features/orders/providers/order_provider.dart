@@ -1,9 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../auth/providers/auth_provider.dart';
-import '../../requests/data/mock_request_repository.dart';
-import '../../requests/models/shopping_request.dart';
-import '../data/mock_order_repository.dart';
-import '../models/order_model.dart';
+import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
+import 'package:speedmart_lanka/features/requests/data/mock_request_repository.dart';
+import 'package:speedmart_lanka/features/requests/models/shopping_request.dart';
+import 'package:speedmart_lanka/features/orders/data/mock_order_repository.dart';
+import 'package:speedmart_lanka/features/orders/models/order_model.dart';
+import 'package:speedmart_lanka/features/payments/models/payment.dart';
 
 class OrderState {
   final bool isLoading;
@@ -80,7 +81,7 @@ class OrderNotifier extends StateNotifier<OrderState> {
       );
       
       // Update the request status depending on payment method
-      final nextStatus = order.paymentMethod == PaymentMethod.cardPayment
+      final nextStatus = order.paymentMethod == PaymentMethod.mockOnline
           ? RequestStatus.paid
           : RequestStatus.cashOnDeliveryConfirmed;
       await _requestRepo.updateRequestStatus(order.requestId, nextStatus);
@@ -98,16 +99,22 @@ class OrderNotifier extends StateNotifier<OrderState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       await _repo.updateOrderStatus(orderId, status);
-      
+
       // Also sync request status if order completes
       final OrderModel? order = await _repo.getOrderById(orderId);
       if (order != null) {
         RequestStatus? reqStatus;
-        if (status == OrderStatus.preparing) {
+        if (status == OrderStatus.accepted) {
+          reqStatus = RequestStatus.accepted;
+        } else if (status == OrderStatus.preparing) {
           reqStatus = RequestStatus.preparingOrder;
+        } else if (status == OrderStatus.readyForDelivery) {
+          reqStatus = RequestStatus.readyForDelivery;
         } else if (status == OrderStatus.outForDelivery) {
           reqStatus = RequestStatus.outForDelivery;
         } else if (status == OrderStatus.delivered) {
+          reqStatus = RequestStatus.delivered;
+        } else if (status == OrderStatus.completed) {
           reqStatus = RequestStatus.delivered;
         } else if (status == OrderStatus.cancelled) {
           reqStatus = RequestStatus.cancelled;
