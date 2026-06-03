@@ -76,8 +76,9 @@ class _AdminVendorAssignmentScreenState
   Future<void> _saveAssignment() async {
     if (!_formKey.currentState!.validate()) return;
 
+    debugPrint('[AdminVendor] Categories selected in UI: $_selectedCategories');
     debugPrint('[AdminVendor] Submitted categories: ${widget.vendor.vendorCategories}');
-    debugPrint('[AdminVendor] Selected categories before save: $_selectedCategories');
+    debugPrint('[AdminVendor] Categories before save: $_selectedCategories');
 
     // Validate required shop fields for approval
     if (_isApproved) {

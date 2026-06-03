@@ -18,6 +18,9 @@ class MockAuthRepository {
   late final Future<void> _initFuture;
   bool _isInitialized = false;
 
+  /// Password storage: email -> password hash (mock implementation)
+  final Map<String, String> _passwordStore = {};
+
   // ── Seed users for development/testing ────────────────────────────────────
   static final List<UserModel> _mockUsers = [
     UserModel(
@@ -233,6 +236,19 @@ class MockAuthRepository {
     }
 
     final user = match.first;
+
+    // Check password
+    final storedPassword = _passwordStore[email];
+    debugPrint('[AuthAudit] Stored password hash exists: ${storedPassword != null}');
+    debugPrint('[AuthAudit] Login password entered: ${password.isNotEmpty}');
+
+    if (storedPassword != password) {
+      debugPrint('[AuthAudit] Password match: false');
+      debugPrint('[AuthAudit] Login rejected: password mismatch');
+      throw Exception('Incorrect password. Please try again.');
+    }
+    debugPrint('[AuthAudit] Password match: true');
+
     debugPrint('[Auth] User found: ${user.email}, vendorStatus=${user.vendorStatus}, isActive=${user.isActive}');
 
     if (!user.isActive) {
@@ -395,8 +411,10 @@ class MockAuthRepository {
     );
 
     _sessionUsers.add(newUser);
+    _passwordStore[resolvedEmail] = password; // Store password for later login verification
     await _persistUsers();
 
+    debugPrint('[AuthAudit] Stored password hash exists: true');
     debugPrint('[Auth] Vendor registration saved: email=$resolvedEmail, id=${newUser.id}, status=${newUser.vendorStatus}');
     debugPrint('[Auth] Shop details submitted: address=${shopAddress}, lat=$shopLatitude, lng=$shopLongitude');
     debugPrint('[Auth] Total users in memory: ${_sessionUsers.length}');

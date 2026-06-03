@@ -53,12 +53,23 @@ class DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
   void _applyFromLocationState(LocationState locationState) {
     final loc = locationState.currentLocation;
 
+    debugPrint('[CustomerLocation] _applyFromLocationState called');
+    debugPrint('[CustomerLocation] locationState.approximateAreaText: ${locationState.approximateAreaText}');
+    debugPrint('[CustomerLocation] currentLocation: ${loc != null ? 'exists' : 'null'}');
     if (loc != null) {
-      _areaCtrl.text = locationState.approximateAreaText.isNotEmpty
+      debugPrint('[CustomerLocation] loc.approximateAreaText: ${loc.approximateAreaText}');
+      debugPrint('[CustomerLocation] loc.displayArea: ${loc.displayArea}');
+    }
+
+    if (loc != null) {
+      final areaText = locationState.approximateAreaText.isNotEmpty
           ? locationState.approximateAreaText
           : (loc.approximateAreaText.isNotEmpty
               ? loc.approximateAreaText
               : loc.displayArea);
+      _areaCtrl.text = areaText;
+      debugPrint('[CustomerLocation] Restored controller value: $areaText');
+
       _streetCtrl.text = locationState.preciseAddress.isNotEmpty
           ? locationState.preciseAddress
           : loc.streetAddress;
