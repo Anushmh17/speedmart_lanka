@@ -40,9 +40,8 @@ class DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) syncFromProvider();
-    });
+    // DO NOT sync from provider here - let the parent screen control the timing
+    // The parent screen will call syncFromProvider() explicitly after loading address
   }
 
   /// Syncs local dropdown/controllers from [deliveryLocationProvider].

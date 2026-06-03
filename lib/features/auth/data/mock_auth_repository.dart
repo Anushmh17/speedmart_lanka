@@ -46,6 +46,7 @@ class MockAuthRepository {
       vendorApproved: true,
       vendorStatus: VendorStatus.approved,
       vendorCategories: ['groceries', 'home appliances'],
+      allowedCategories: ['groceries', 'home appliances'], // Admin-approved categories
       shopName: 'Speedmart Silva Main',
       shopAddress: 'Main Street, Colombo 03',
       shopLatitude: 6.9271,
@@ -83,6 +84,7 @@ class MockAuthRepository {
       vendorApproved: true,
       vendorStatus: VendorStatus.approved,
       vendorCategories: ['pharmacy'],
+      allowedCategories: ['pharmacy'], // Admin-approved categories
       shopName: 'Chandran Pharmacy Jaffna',
       shopAddress: 'Nallur Street, Jaffna',
       shopLatitude: 9.6615,

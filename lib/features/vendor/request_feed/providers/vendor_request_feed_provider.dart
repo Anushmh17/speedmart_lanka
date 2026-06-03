@@ -77,6 +77,7 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
     final filterService = ref.read(vendorRequestFilterServiceProvider);
 
     if (user == null) {
+      debugPrint('[FeedAudit] No authenticated user, returning empty feed');
       state = state.copyWith(
         isLoading: false,
         items: [],
@@ -85,6 +86,11 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
       return;
     }
 
+    debugPrint('[FeedAudit] ===== VENDOR FEED LOAD START =====');
+    debugPrint('[FeedAudit] vendor.id: ${user.id}');
+    debugPrint('[FeedAudit] vendor.vendorStatus: ${user.vendorStatus}');
+    debugPrint('[FeedAudit] vendor.vendorApproved: ${user.vendorApproved}');
+
     // *** SOURCE OF TRUTH: allowedCategories (admin-approved) ***
     final allowedCategories = user.allowedCategories ?? user.vendorCategories ?? [];
     debugPrint('[CategoryAudit] SOURCE OF TRUTH: allowedCategories');
@@ -92,6 +98,7 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
     debugPrint('[CategoryAudit] Ignoring legacy vendorCategories for matching: ${user.vendorCategories}');
 
     final approved = user.vendorStatus == VendorStatus.approved;
+    debugPrint('[FeedAudit] Vendor approval check: vendorStatus=${user.vendorStatus}, approved=$approved');
 
     state = state.copyWith(
       isLoading: true,
@@ -107,15 +114,16 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
     );
 
     if (!approved) {
-      debugPrint('[FeedAudit] Vendor not approved, no requests shown');
+      debugPrint('[FeedAudit] ===== REJECTION: Vendor not approved =====');
       state = state.copyWith(isLoading: false, items: []);
       return;
     }
 
     // Check if shop location is assigned by admin
     final shopLocationAssigned = user.isShopLocationAssigned == true;
+    debugPrint('[FeedAudit] Shop location check: isShopLocationAssigned=$shopLocationAssigned');
     if (!shopLocationAssigned) {
-      debugPrint('[FeedAudit] Shop location not assigned, no requests shown');
+      debugPrint('[FeedAudit] ===== REJECTION: Shop location not assigned =====');
       state = state.copyWith(isLoading: false, items: []);
       return;
     }
@@ -141,6 +149,9 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
           await MockProposalRepository.instance.getAllProposals();
 
       debugPrint('[RequestAudit] Total active requests: ${requests.length}');
+      if (requests.isEmpty) {
+        debugPrint('[FeedAudit] ===== REJECTION: No active requests found in repository =====');
+      }
       for (final req in requests) {
         debugPrint('[RequestAudit] request.id: ${req.id}, area: ${req.customerArea}, lat: ${req.latitude}, lng: ${req.longitude}');
         debugPrint('[RequestAudit] request.items: ${req.items.map((i) => i.itemName).join(", ")}');
@@ -158,6 +169,9 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
       );
 
       debugPrint('[FeedAudit] Requests visible to vendor after filtering: ${built.length}');
+      if (built.isEmpty && requests.isNotEmpty) {
+        debugPrint('[FeedAudit] ===== WARNING: All requests filtered out by distance/category =====');
+      }
       for (final item in built) {
         debugPrint('[DistanceAudit] request: ${item.request.id}, distance: ${item.distanceKm}km, radius: $assignedRadius, visible: true');
       }
@@ -165,8 +179,9 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
       final sorted = filterService.applySort(built, state.sortMode);
 
       state = state.copyWith(isLoading: false, items: sorted);
+      debugPrint('[FeedAudit] ===== VENDOR FEED LOAD COMPLETE: ${sorted.length} requests shown =====');
     } catch (e) {
-      debugPrint('[FeedAudit] Error loading feed: $e');
+      debugPrint('[FeedAudit] ===== ERROR: Exception during feed load: $e =====');
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }

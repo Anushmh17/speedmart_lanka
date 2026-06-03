@@ -6,6 +6,10 @@
         "/^cd \"/c/App_developments/speedmart_lanka\" ; flutter run -d windows 2>&1 ;&\nsleep 8\necho \"App started\"$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^cd \"/c/App_developments/speedmart_lanka\" ; git add -A ; git commit -m \"\\$\\(cat <<'EOF'\nfix: Fix Issue 1 race condition and enhance Issue 2 debugging\n\nIssue 1 - Approximate Area Persistence:\n- Remove auto-sync from form initState to prevent race condition\n- Parent screen \\(customer_delivery_address_screen\\) explicitly calls syncFromProvider\\(\\)\n  AFTER loading and applying address from provider\n- This ensures approximateAreaText is loaded BEFORE form attempts to access it\n- Eliminates timing dependency\n\nIssue 2 - Vendor Feed Empty:\n- Add allowedCategories to mock vendor data\n- Vendor 1 \\(Silva\\): allowedCategories=\\['groceries', 'home appliances'\\]\n- Vendor 3 \\(Chandran\\): allowedCategories=\\['pharmacy'\\]\n- Enhanced vendor feed logging with clear rejection markers:\n  - ===== VENDOR FEED LOAD START =====\n  - ===== REJECTION: <specific reason> =====\n  - ===== VENDOR FEED LOAD COMPLETE =====\n- Logs now show exact point of failure for empty feed issue\nEOF\n\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }
