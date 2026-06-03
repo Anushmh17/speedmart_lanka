@@ -182,6 +182,7 @@ class MockAuthRepository {
     debugPrint('[Auth] Initialized with ${_mockUsers.length} mock users');
 
     try {
+      // Load users from storage
       final savedJson = await StorageService.getRegisteredUsers();
       debugPrint('[Auth] Loaded ${savedJson.length} users from storage');
       for (final json in savedJson) {
@@ -195,6 +196,16 @@ class MockAuthRepository {
         }
       }
       debugPrint('[Auth] Total users after loading from storage: ${_sessionUsers.length}');
+
+      // Load passwords from storage
+      try {
+        final savedPasswords = await StorageService.getPasswords();
+        _passwordStore.addAll(savedPasswords);
+        debugPrint('[Auth] Loaded ${savedPasswords.length} passwords from storage');
+      } catch (e) {
+        debugPrint('[Auth] Failed to load passwords from storage: $e');
+        // Continue with whatever passwords are already in store
+      }
     } catch (e) {
       debugPrint('[Auth] Failed to load users from storage: $e');
       // Keep seed users if storage read fails.
@@ -207,6 +218,10 @@ class MockAuthRepository {
     // TODO: Replace with POST/PUT to backend user API.
     final payload = _sessionUsers.map((u) => u.toJson()).toList();
     await StorageService.saveRegisteredUsers(payload);
+
+    // Also persist password store
+    await StorageService.savePasswords(_passwordStore);
+    debugPrint('[Auth] Passwords persisted to storage');
   }
 
   static String _digitsOnly(String value) =>
@@ -251,8 +266,12 @@ class MockAuthRepository {
 
     // Check password (use user.email which is normalized, not the input email parameter)
     final storedPassword = _passwordStore[user.email];
-    debugPrint('[AuthAudit] Stored password hash exists: ${storedPassword != null}');
-    debugPrint('[AuthAudit] Login password entered: ${password.isNotEmpty}');
+    debugPrint('[AuthAudit] User found: ${user.email}');
+    debugPrint('[AuthAudit] Password store keys: ${_passwordStore.keys.toList()}');
+    debugPrint('[AuthAudit] Looking up password for: ${user.email}');
+    debugPrint('[AuthAudit] Stored password exists: ${storedPassword != null}');
+    debugPrint('[AuthAudit] Entered password: $password');
+    debugPrint('[AuthAudit] Stored password: $storedPassword');
 
     if (storedPassword != password) {
       debugPrint('[AuthAudit] Password match: false');

@@ -200,6 +200,34 @@ class StorageService {
     }
   }
 
+  // ── Passwords (mock auth, non-sensitive during dev) ────────────────────────
+
+  /// Persists password store for mock authentication.
+  /// TODO: Replace with backend authentication when API is ready.
+  static Future<void> savePasswords(Map<String, String> passwords) async {
+    final prefs = await SharedPreferences.getInstance();
+    final jsonMap = <String, dynamic>{};
+    passwords.forEach((key, value) {
+      jsonMap[key] = value;
+    });
+    await prefs.setString('auth_passwords', jsonEncode(jsonMap));
+  }
+
+  /// Loads password store from storage.
+  static Future<Map<String, String>> getPasswords() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString('auth_passwords');
+    if (raw == null || raw.isEmpty) return {};
+    try {
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      return Map<String, String>.from(
+        decoded.map((k, v) => MapEntry(k, v.toString())),
+      );
+    } catch (_) {
+      return {};
+    }
+  }
+
   // ── Clear session / all ───────────────────────────────────────────────────
 
   /// Clears logged-in session only. Keeps registered users and app preferences.
