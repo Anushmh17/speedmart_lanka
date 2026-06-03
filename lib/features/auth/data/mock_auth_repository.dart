@@ -19,7 +19,17 @@ class MockAuthRepository {
   bool _isInitialized = false;
 
   /// Password storage: email -> password hash (mock implementation)
-  final Map<String, String> _passwordStore = {};
+  final Map<String, String> _passwordStore = {
+    // Default passwords for seed users (for testing)
+    'customer@test.com': 'customer123',
+    'vendor@test.com': 'vendor123',
+    'vendor2@test.com': 'vendor123',
+    'vendor3@test.com': 'vendor123',
+    'vendor4@test.com': 'vendor123',
+    'vendor5@test.com': 'vendor123',
+    'vendor6@test.com': 'vendor123',
+    'admin@speedmart.lk': 'admin123',
+  };
 
   // ── Seed users for development/testing ────────────────────────────────────
   static final List<UserModel> _mockUsers = [
