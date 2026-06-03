@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_text_styles.dart';
@@ -264,6 +265,10 @@ class DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
     final street = _streetCtrl.text.trim();
     final note = _noteCtrl.text.trim();
 
+    debugPrint('[CustomerLocation] Manual approximate typed: $area');
+    debugPrint('[CustomerLocation] Manual street typed: $street');
+    debugPrint('[CustomerLocation] Manual province: ${province.name}, district: ${district.name}');
+
     final loc = (locationState.currentLocation ??
             const DeliveryLocation(
               province: '',
@@ -287,6 +292,9 @@ class DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
 
     ref.read(deliveryLocationProvider.notifier).setLocation(loc);
     ref.read(deliveryLocationProvider.notifier).setDeliveryNote(note);
+
+    debugPrint('[CustomerLocation] Saving approximateArea: ${loc.approximateAreaText}');
+    debugPrint('[CustomerLocation] Saving province/district: ${loc.province}/${loc.district}');
 
     // Keep form state aligned with what we saved.
     if (mounted) {

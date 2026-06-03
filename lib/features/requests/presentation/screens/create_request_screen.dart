@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
@@ -610,6 +611,15 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
           ? updatedLocation.suburb
           : updatedLocation.approximateAreaText;
       final itemCount = activeItems.length;
+
+      debugPrint('[RequestCreate] Submitting request with:');
+      debugPrint('[RequestCreate] approximateArea: ${updatedLocation.approximateAreaText}');
+      debugPrint('[RequestCreate] streetAddress: ${updatedLocation.streetAddress}');
+      debugPrint('[RequestCreate] province: ${updatedLocation.province}');
+      debugPrint('[RequestCreate] district: ${updatedLocation.district}');
+      debugPrint('[RequestCreate] latitude: ${updatedLocation.latitude}');
+      debugPrint('[RequestCreate] longitude: ${updatedLocation.longitude}');
+      debugPrint('[RequestCreate] accuracy: ${updatedLocation.accuracy}');
 
       await requestNotifier.createRequest(
         items: activeItems,

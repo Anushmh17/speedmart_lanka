@@ -79,6 +79,10 @@ class CustomerDeliveryAddressNotifier
       var address = await _repo.load(user.id);
       address ??= await _migrateFromUserProfile(user);
 
+      debugPrint('[CustomerLocation] Loaded approximateArea: ${address?.approximateArea}');
+      debugPrint('[CustomerLocation] Loaded streetAddress: ${address?.streetAddress}');
+      debugPrint('[CustomerLocation] Loaded province: ${address?.province}, district: ${address?.district}');
+
       state = state.copyWith(
         isLoading: false,
         savedAddress: address,
@@ -129,14 +133,20 @@ class CustomerDeliveryAddressNotifier
 
   Future<void> saveDefaultAddress(CustomerDeliveryAddress address) async {
     final saved = address.copyWith(updatedAt: DateTime.now());
+
+    debugPrint('[CustomerLocation] Saving address for user: ${address.customerId}');
+    debugPrint('[CustomerLocation] approximateArea: ${saved.approximateArea}');
+    debugPrint('[CustomerLocation] streetAddress: ${saved.streetAddress}');
+    debugPrint('[CustomerLocation] province: ${saved.province}, district: ${saved.district}');
+
     await _repo.save(saved);
+
     state = state.copyWith(
       savedAddress: saved,
       clearRequestOnly: true,
     );
-    debugPrint(
-      '[DeliveryAddress] Address save successful for user: ${address.customerId}',
-    );
+
+    debugPrint('[CustomerLocation] Saved address: ${saved.approximateArea}, ${saved.streetAddress}');
   }
 
   void setRequestOnlyLocation(DeliveryLocation location) {

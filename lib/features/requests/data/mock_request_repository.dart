@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../location/models/delivery_location.dart';
 import '../../location/services/location_service.dart';
@@ -56,12 +57,17 @@ class MockRequestRepository {
   Future<List<ShoppingRequest>> getMarketplaceActiveRequests() async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 300));
-    return _requests
+    final active = _requests
         .where((r) =>
             r.status == RequestStatus.submitted ||
             r.status == RequestStatus.waitingForVendor ||
             r.status == RequestStatus.proposalSubmitted)
         .toList();
+    debugPrint('[RequestAudit] Active requests loaded: ${active.length}');
+    for (final req in active) {
+      debugPrint('[RequestAudit] Request: ${req.id}, area: ${req.customerArea}, lat: ${req.latitude}, lng: ${req.longitude}');
+    }
+    return active;
   }
 
   Future<List<ShoppingRequest>> getAllRequests() async {
@@ -138,6 +144,17 @@ class MockRequestRepository {
   }) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 500));
+
+    debugPrint('[RequestCreate] Creating request with location:');
+    debugPrint('[RequestCreate] customerId: $customerId');
+    debugPrint('[RequestCreate] customerArea: $customerArea');
+    debugPrint('[RequestCreate] deliveryAddress: $deliveryAddress');
+    debugPrint('[RequestCreate] latitude: $latitude, longitude: $longitude');
+    debugPrint('[RequestCreate] deliveryLocation.province: ${deliveryLocation?.province}');
+    debugPrint('[RequestCreate] deliveryLocation.district: ${deliveryLocation?.district}');
+    debugPrint('[RequestCreate] deliveryLocation.approximateAreaText: ${deliveryLocation?.approximateAreaText}');
+    debugPrint('[RequestCreate] deliveryLocation.accuracy: ${deliveryLocation?.accuracy}');
+
     final resolvedLocation = deliveryLocation ??
         LocationService.reverseGeocode(
           latitude: latitude,
@@ -161,8 +178,16 @@ class MockRequestRepository {
       longitude: resolvedLocation.longitude ?? longitude,
       deliveryLocation: resolvedLocation,
     );
+
+    debugPrint('[RequestAudit] Request saved: ${newRequest.id}');
+    debugPrint('[RequestAudit] Request lat: ${newRequest.latitude}, lng: ${newRequest.longitude}');
+    debugPrint('[RequestAudit] Request deliveryLocation: ${newRequest.deliveryLocation?.province}/${newRequest.deliveryLocation?.district}');
+
     _requests.insert(0, newRequest);
     await _persistRequests();
+
+    debugPrint('[RequestAudit] Total stored requests: ${_requests.length}');
+
     return newRequest;
   }
 }
