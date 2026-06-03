@@ -205,25 +205,38 @@ class StorageService {
   /// Persists password store for mock authentication.
   /// TODO: Replace with backend authentication when API is ready.
   static Future<void> savePasswords(Map<String, String> passwords) async {
-    final prefs = await SharedPreferences.getInstance();
-    final jsonMap = <String, dynamic>{};
-    passwords.forEach((key, value) {
-      jsonMap[key] = value;
-    });
-    await prefs.setString('auth_passwords', jsonEncode(jsonMap));
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonMap = <String, dynamic>{};
+      passwords.forEach((key, value) {
+        jsonMap[key] = value;
+      });
+      final encoded = jsonEncode(jsonMap);
+      await prefs.setString('auth_passwords', encoded);
+      debugPrint('[Storage] Saved ${passwords.length} passwords: ${passwords.keys.toList()}');
+    } catch (e) {
+      debugPrint('[Storage] ERROR saving passwords: $e');
+      rethrow;
+    }
   }
 
   /// Loads password store from storage.
   static Future<Map<String, String>> getPasswords() async {
-    final prefs = await SharedPreferences.getInstance();
-    final raw = prefs.getString('auth_passwords');
-    if (raw == null || raw.isEmpty) return {};
     try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('auth_passwords');
+      if (raw == null || raw.isEmpty) {
+        debugPrint('[Storage] No passwords in storage (key is empty/null)');
+        return {};
+      }
       final decoded = jsonDecode(raw) as Map<String, dynamic>;
-      return Map<String, String>.from(
+      final result = Map<String, String>.from(
         decoded.map((k, v) => MapEntry(k, v.toString())),
       );
-    } catch (_) {
+      debugPrint('[Storage] Loaded ${result.length} passwords: ${result.keys.toList()}');
+      return result;
+    } catch (e) {
+      debugPrint('[Storage] ERROR loading passwords: $e');
       return {};
     }
   }
