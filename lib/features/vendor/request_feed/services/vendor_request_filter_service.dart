@@ -148,6 +148,10 @@ class VendorRequestFilterService {
       return [];
     }
 
+    debugPrint('[FeedAudit] Vendor allowedCategories: $vendorCategories');
+    debugPrint('[FeedAudit] Vendor location: lat=$vendorLatitude, lng=$vendorLongitude');
+    debugPrint('[FeedAudit] Assigned radius: ${assignedRadiusKm ?? 20.0}km');
+
     final active =
         allRequests.where((r) => isActiveMarketplaceRequest(r.status));
 
@@ -184,7 +188,10 @@ class VendorRequestFilterService {
 
       final assignedRadius = assignedRadiusKm ?? 20.0;
 
-      debugPrint('[DistanceAudit] request: ${request.id}, distance: ${distance.toStringAsFixed(1)}km, radius: ${assignedRadius}km, match: $radiusCheck');
+      debugPrint('[DistanceAudit] request: ${request.id}');
+      debugPrint('[DistanceAudit] Request coords: lat=${request.latitude}, lng=${request.longitude}');
+      debugPrint('[DistanceAudit] Vendor coords: lat=$vendorLatitude, lng=$vendorLongitude');
+      debugPrint('[DistanceAudit] Distance: ${distance.toStringAsFixed(1)}km, Radius: ${assignedRadius}km, Inside: $radiusCheck');
 
       if (!radiusCheck) {
         debugPrint('[FeedAudit] request: ${request.id}, visible: false, reason: outside_service_radius');
