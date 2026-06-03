@@ -218,10 +218,17 @@ class MockAuthRepository {
     // TODO: Replace with POST/PUT to backend user API.
     final payload = _sessionUsers.map((u) => u.toJson()).toList();
     await StorageService.saveRegisteredUsers(payload);
+    debugPrint('[Auth] Users persisted to storage: ${payload.length} users');
 
     // Also persist password store
-    await StorageService.savePasswords(_passwordStore);
-    debugPrint('[Auth] Passwords persisted to storage');
+    try {
+      debugPrint('[Auth] Persisting password store with ${_passwordStore.length} passwords');
+      await StorageService.savePasswords(_passwordStore);
+      debugPrint('[Auth] ✓ Passwords persisted successfully');
+    } catch (e) {
+      debugPrint('[Auth] ✗ ERROR persisting passwords: $e');
+      rethrow;
+    }
   }
 
   static String _digitsOnly(String value) =>
@@ -443,6 +450,9 @@ class MockAuthRepository {
 
     _sessionUsers.add(newUser);
     _passwordStore[resolvedEmail] = password; // Store password for later login verification
+    debugPrint('[Auth] PASSWORD STORED for: $resolvedEmail');
+    debugPrint('[Auth] Password store now has ${_passwordStore.length} entries: ${_passwordStore.keys.toList()}');
+
     await _persistUsers();
 
     debugPrint('[AuthAudit] Stored password hash exists: true');
