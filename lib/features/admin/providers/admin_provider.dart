@@ -45,10 +45,32 @@ class AdminNotifier extends StateNotifier<AdminState> {
     }
   }
 
-  Future<void> approveVendor(String vendorId) async {
+  Future<void> approveVendor({required String vendorId, String? notes}) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      await _authRepo.approveVendor(vendorId);
+      await _authRepo.approveVendor(vendorId, notes: notes);
+      final users = await _authRepo.getAllUsers();
+      state = state.copyWith(isLoading: false, users: users);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  Future<void> rejectVendor({required String vendorId, required String reason}) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      await _authRepo.rejectVendor(vendorId, reason: reason);
+      final users = await _authRepo.getAllUsers();
+      state = state.copyWith(isLoading: false, users: users);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
+  Future<void> suspendVendor({required String vendorId, required String reason}) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      await _authRepo.suspendVendor(vendorId, reason: reason);
       final users = await _authRepo.getAllUsers();
       state = state.copyWith(isLoading: false, users: users);
     } catch (e) {

@@ -59,38 +59,76 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     refreshListenable: authNotifier,
     redirect: (context, state) {
       final auth = authNotifier.value;
-
-      // While loading, stay on splash
-      if (auth.isLoading) return RouteNames.splash;
-
       final location = state.matchedLocation;
+
+      debugPrint('[Router] === Auth Check ===');
+      debugPrint('[Router] location: $location');
+      debugPrint('[Router] auth.isLoading: ${auth.isLoading}, auth.isAuthenticated: ${auth.isAuthenticated}, auth.hasError: ${auth.hasError}');
+
       final isOnAuthRoute = location == RouteNames.splash ||
           location == RouteNames.roleSelection ||
           location.startsWith('/auth');
 
-      // Not authenticated → send to role selection
-      if (!auth.isAuthenticated) {
-        if (isOnAuthRoute) return null;
+      debugPrint('[Router] isOnAuthRoute: $isOnAuthRoute');
+
+      // *** WHILE LOADING: Stay on current route (don't redirect) ***
+      // Only show splash if loading AND not on any route (app startup check)
+      if (auth.isLoading) {
+        if (isOnAuthRoute || location == RouteNames.splash) {
+          debugPrint('[Router] → Action: Loading, on auth/splash route, STAY ON CURRENT ROUTE');
+          return null; // CRITICAL: Don't redirect while loading on auth routes
+        }
+        debugPrint('[Router] → Action: Loading on protected route, redirect to splash');
+        return RouteNames.splash;
+      }
+
+      // *** CRITICAL: If on auth form and has error, NEVER redirect ***
+      if (isOnAuthRoute && auth.hasError) {
+        debugPrint('[Router] → Action: *** ERROR ON AUTH ROUTE ***: ${auth.error}');
+        debugPrint('[Router] → NO REDIRECT - Keep user on form to fix error');
+        return null;
+      }
+
+      // *** If on auth route and NOT authenticated, stay on form (don't redirect to role selection) ***
+      if (isOnAuthRoute && !auth.isAuthenticated) {
+        debugPrint('[Router] → Action: Unauthenticated but on auth route, allow form');
+        return null;
+      }
+
+      // If authenticated, redirect away from auth screens to role home
+      if (auth.isAuthenticated && auth.user != null) {
+        if (isOnAuthRoute) {
+          debugPrint('[Router] → Action: Authenticated user on auth route, redirect to ${auth.user!.role} home');
+          return _homeForRole(auth.user!.role);
+        }
+
+        // Role-based access control
+        final role = auth.user!.role;
+        if (location.startsWith('/customer') && role != UserRole.customer) {
+          debugPrint('[Router] → Action: Role mismatch (customer route but $role user), redirect');
+          return _homeForRole(role);
+        }
+        if (location.startsWith('/vendor') && role != UserRole.vendor) {
+          debugPrint('[Router] → Action: Role mismatch (vendor route but $role user), redirect');
+          return _homeForRole(role);
+        }
+        if (location.startsWith('/admin') && role != UserRole.admin) {
+          debugPrint('[Router] → Action: Role mismatch (admin route but $role user), redirect');
+          return _homeForRole(role);
+        }
+
+        // User is authenticated and on correct role route
+        debugPrint('[Router] → Action: Authenticated on correct route, no redirect');
+        return null;
+      }
+
+      // Not authenticated and NOT on auth route → send to role selection
+      if (!auth.isAuthenticated && !isOnAuthRoute) {
+        debugPrint('[Router] → Action: Unauthenticated on protected route, redirect to role selection');
         return RouteNames.roleSelection;
       }
 
-      // Authenticated → prevent going back to auth screens
-      if (isOnAuthRoute) {
-        return _homeForRole(auth.user!.role);
-      }
-
-      // Role-based access guard
-      final role = auth.user!.role;
-      if (location.startsWith('/customer') && role != UserRole.customer) {
-        return _homeForRole(role);
-      }
-      if (location.startsWith('/vendor') && role != UserRole.vendor) {
-        return _homeForRole(role);
-      }
-      if (location.startsWith('/admin') && role != UserRole.admin) {
-        return _homeForRole(role);
-      }
-
+      debugPrint('[Router] → Action: No redirect needed');
       return null;
     },
     routes: [

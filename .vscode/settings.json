@@ -2,6 +2,10 @@
     "chat.tools.terminal.autoApprove": {
         "git remote": true,
         "timeout": true,
-        "&": true
+        "&": true,
+        "/^cd \"/c/App_developments/speedmart_lanka\" ; flutter run -d windows 2>&1 ;&\nsleep 8\necho \"App started\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     }
 }

@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../auth/providers/auth_provider.dart';
 import '../../../proposals/data/mock_proposal_repository.dart';
 import '../../../requests/data/mock_request_repository.dart';
+import '../../../../shared/models/vendor_status.dart';
 import '../models/vendor_feed_enums.dart';
 import '../models/vendor_feed_request.dart';
 import '../services/vendor_request_filter_service.dart';
@@ -83,15 +85,20 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
       return;
     }
 
-    final categories = user.vendorCategories ?? [];
-    final approved = user.vendorApproved == true;
+    // *** SOURCE OF TRUTH: allowedCategories (admin-approved) ***
+    final allowedCategories = user.allowedCategories ?? user.vendorCategories ?? [];
+    debugPrint('[CategoryAudit] SOURCE OF TRUTH: allowedCategories');
+    debugPrint('[CategoryAudit] Using vendor.allowedCategories: $allowedCategories');
+    debugPrint('[CategoryAudit] Ignoring legacy vendorCategories for matching: ${user.vendorCategories}');
+
+    final approved = user.vendorStatus == VendorStatus.approved;
 
     state = state.copyWith(
       isLoading: true,
       clearError: true,
       vendorApproved: approved,
       categoryChips: filterService
-          .availableCategoryFilters(categories)
+          .availableCategoryFilters(allowedCategories)
           .toList()
         ..sort(),
       pendingApprovalMessage: approved
@@ -100,6 +107,7 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
     );
 
     if (!approved) {
+      debugPrint('[FeedAudit] Vendor not approved, no requests shown');
       state = state.copyWith(isLoading: false, items: []);
       return;
     }
@@ -107,6 +115,7 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
     // Check if shop location is assigned by admin
     final shopLocationAssigned = user.isShopLocationAssigned == true;
     if (!shopLocationAssigned) {
+      debugPrint('[FeedAudit] Shop location not assigned, no requests shown');
       state = state.copyWith(isLoading: false, items: []);
       return;
     }
@@ -115,6 +124,12 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
     final vendorLat = user.shopLatitude ?? 0.0;
     final vendorLon = user.shopLongitude ?? 0.0;
     final assignedRadius = user.assignedRadiusKm;
+
+    debugPrint('[FeedAudit] vendor.id: ${user.id}');
+    debugPrint('[FeedAudit] vendor.shopLatitude: $vendorLat');
+    debugPrint('[FeedAudit] vendor.shopLongitude: $vendorLon');
+    debugPrint('[FeedAudit] vendor.assignedRadiusKm: $assignedRadius');
+    debugPrint('[CategoryAudit] SOURCE OF TRUTH for feed: $allowedCategories');
 
     try {
       await MockRequestRepository.instance.ensureInitialized();
@@ -125,21 +140,33 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
       final proposals =
           await MockProposalRepository.instance.getAllProposals();
 
+      debugPrint('[RequestAudit] Total active requests: ${requests.length}');
+      for (final req in requests) {
+        debugPrint('[RequestAudit] request.id: ${req.id}, area: ${req.customerArea}, lat: ${req.latitude}, lng: ${req.longitude}');
+        debugPrint('[RequestAudit] request.items: ${req.items.map((i) => i.itemName).join(", ")}');
+      }
+
       final built = filterService.buildFeed(
         allRequests: requests,
         allProposals: proposals,
-        vendorCategories: categories,
+        vendorCategories: allowedCategories, // *** PASS ADMIN-APPROVED CATEGORIES ***
         vendorLatitude: vendorLat,
         vendorLongitude: vendorLon,
-        vendorApproved: approved,
+        vendorStatus: user.vendorStatus,
         categoryFilter: state.categoryFilter,
         assignedRadiusKm: assignedRadius,
       );
+
+      debugPrint('[FeedAudit] Requests visible to vendor after filtering: ${built.length}');
+      for (final item in built) {
+        debugPrint('[DistanceAudit] request: ${item.request.id}, distance: ${item.distanceKm}km, radius: $assignedRadius, visible: true');
+      }
 
       final sorted = filterService.applySort(built, state.sortMode);
 
       state = state.copyWith(isLoading: false, items: sorted);
     } catch (e) {
+      debugPrint('[FeedAudit] Error loading feed: $e');
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }

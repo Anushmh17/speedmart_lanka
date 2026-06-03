@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart';
 import '../../../customer/delivery_address/utils/vendor_delivery_privacy.dart';
 import '../../../proposals/models/proposal.dart';
 import '../../../requests/models/shopping_request.dart';
 import '../../../../shared/models/location_model.dart';
+import '../../../../shared/models/vendor_status.dart';
 import '../models/vendor_feed_enums.dart';
 import '../models/vendor_feed_request.dart';
 
@@ -53,7 +55,10 @@ class VendorRequestFilterService {
     return cats.map(radiusKmForCategory).reduce((a, b) => a > b ? a : b);
   }
 
-  bool vendorIsApproved({required bool? vendorApproved}) {
+  bool vendorIsApproved({VendorStatus? vendorStatus, bool? vendorApproved}) {
+    if (vendorStatus != null) {
+      return vendorStatus == VendorStatus.approved;
+    }
     return vendorApproved == true;
   }
 
@@ -134,33 +139,69 @@ class VendorRequestFilterService {
     required List<String> vendorCategories,
     required double vendorLatitude,
     required double vendorLongitude,
-    required bool vendorApproved,
+    VendorStatus? vendorStatus,
+    bool? vendorApproved,
     double? assignedRadiusKm,
     String? categoryFilter,
   }) {
-    if (!vendorIsApproved(vendorApproved: vendorApproved)) {
+    if (!vendorIsApproved(vendorStatus: vendorStatus, vendorApproved: vendorApproved)) {
       return [];
     }
 
     final active =
         allRequests.where((r) => isActiveMarketplaceRequest(r.status));
 
+    debugPrint('[CategoryAudit] vendorCategories: $vendorCategories');
+    debugPrint('[FeedAudit] evaluating ${active.length} active requests');
+
     final matched = active.where((request) {
-      if (!matchesVendorCategories(request, vendorCategories)) return false;
-      if (!isWithinRadius(
+      final requestCats = _requestCategories(request).toList();
+      final categoryMatch = matchesVendorCategories(request, vendorCategories);
+
+      debugPrint('[CategoryAudit] request.id: ${request.id}, categories: $requestCats, match: $categoryMatch');
+
+      if (!categoryMatch) {
+        debugPrint('[FeedAudit] request: ${request.id}, visible: false, reason: category_mismatch');
+        return false;
+      }
+
+      final radiusCheck = isWithinRadius(
         request: request,
         vendorLat: vendorLatitude,
         vendorLon: vendorLongitude,
         assignedRadiusKm: assignedRadiusKm,
         vendorCategories: vendorCategories,
-      )) {
+      );
+
+      final distance = request.latitude == 0 && request.longitude == 0
+          ? 0.0
+          : LocationModel.calculateDistance(
+              lat1: request.latitude,
+              lon1: request.longitude,
+              lat2: vendorLatitude,
+              lon2: vendorLongitude,
+            );
+
+      final assignedRadius = assignedRadiusKm ?? 20.0;
+
+      debugPrint('[DistanceAudit] request: ${request.id}, distance: ${distance.toStringAsFixed(1)}km, radius: ${assignedRadius}km, match: $radiusCheck');
+
+      if (!radiusCheck) {
+        debugPrint('[FeedAudit] request: ${request.id}, visible: false, reason: outside_service_radius');
         return false;
       }
+
       if (categoryFilter != null && categoryFilter.isNotEmpty) {
         final filter = categoryFilter.toLowerCase();
         final cats = _requestCategories(request);
-        if (!cats.any((c) => c.toLowerCase() == filter)) return false;
+        final filterMatch = cats.any((c) => c.toLowerCase() == filter);
+        if (!filterMatch) {
+          debugPrint('[FeedAudit] request: ${request.id}, visible: false, reason: active_filter_mismatch');
+          return false;
+        }
       }
+
+      debugPrint('[FeedAudit] request: ${request.id}, visible: true, distance: ${distance.toStringAsFixed(1)}km');
       return true;
     });
 

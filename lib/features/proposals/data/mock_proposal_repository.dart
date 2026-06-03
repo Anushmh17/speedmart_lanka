@@ -16,6 +16,7 @@ class MockProposalRepository {
   bool _isInitialized = false;
 
   final List<Proposal> _proposals = [];
+  final List<String> _savedProposalIds = [];
 
   Future<void> ensureInitialized() => _initFuture;
 
@@ -27,6 +28,13 @@ class MockProposalRepository {
       _proposals
         ..clear()
         ..addAll(saved.map(Proposal.fromJson));
+    }
+
+    final savedIds = await StorageService.getSavedProposals();
+    if (savedIds != null) {
+      _savedProposalIds
+        ..clear()
+        ..addAll(savedIds);
     }
 
     _isInitialized = true;
@@ -206,5 +214,30 @@ class MockProposalRepository {
       );
       await _persistProposals();
     }
+  }
+
+  Future<void> saveProposalToWishlist(String proposalId) async {
+    await ensureInitialized();
+    if (!_savedProposalIds.contains(proposalId)) {
+      _savedProposalIds.add(proposalId);
+      await StorageService.saveSavedProposals(_savedProposalIds);
+    }
+  }
+
+  Future<void> removeSavedProposal(String proposalId) async {
+    await ensureInitialized();
+    if (_savedProposalIds.contains(proposalId)) {
+      _savedProposalIds.remove(proposalId);
+      await StorageService.saveSavedProposals(_savedProposalIds);
+    }
+  }
+
+  Future<List<String>> getSavedProposalIds() async {
+    await ensureInitialized();
+    return List<String>.unmodifiable(_savedProposalIds);
+  }
+
+  bool isSavedProposal(String proposalId) {
+    return _savedProposalIds.contains(proposalId);
   }
 }

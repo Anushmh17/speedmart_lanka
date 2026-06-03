@@ -468,9 +468,11 @@ class _VendorApprovalsTab extends ConsumerWidget {
                                             backgroundColor: AppColors.adminColor,
                                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                            minimumSize: const Size(0, 44),
+                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                           ),
                                           onPressed: () async {
-                                            await ref.read(adminProvider.notifier).approveVendor(vendor.id);
+                                            await ref.read(adminProvider.notifier).approveVendor(vendorId: vendor.id);
                                             if (context.mounted) {
                                               ScaffoldMessenger.of(context).showSnackBar(
                                                 SnackBar(
@@ -602,6 +604,8 @@ class _UsersManagementTab extends ConsumerWidget {
                                     side: BorderSide(color: isSuspended ? AppColors.success : AppColors.error),
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                     padding: const EdgeInsets.symmetric(horizontal: 10),
+                                    minimumSize: const Size(0, 44),
+                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                   ),
                                   onPressed: () async {
                                     await ref.read(adminProvider.notifier).toggleUserActive(user.id);

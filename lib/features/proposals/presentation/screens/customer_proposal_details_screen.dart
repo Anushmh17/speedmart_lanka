@@ -211,6 +211,10 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                       ),
                     ],
                   ),
+                  const SizedBox(height: 12),
+
+                  // Item Availability Summary
+                  _buildItemAvailabilitySummary(widget.proposal, cardColor, borderColor, primaryText, secondaryText),
                   const SizedBox(height: 20),
 
                   // Pricing Summary Card
@@ -512,6 +516,79 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
             )
         ],
       ),
+    );
+  }
+
+  Widget _buildItemAvailabilitySummary(
+    Proposal proposal,
+    Color cardColor,
+    Color borderColor,
+    Color primaryText,
+    Color secondaryText,
+  ) {
+    int available = 0;
+    int alternative = 0;
+    int unavailable = 0;
+
+    for (final item in proposal.items) {
+      if (item.status == ProposalItemStatus.available) available++;
+      else if (item.status == ProposalItemStatus.alternative) alternative++;
+      else if (item.status == ProposalItemStatus.unavailable) unavailable++;
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderColor),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildSummaryItem(
+            icon: Icons.check_circle_outline_rounded,
+            color: AppColors.success,
+            count: available,
+            label: 'Available',
+          ),
+          _buildSummaryItem(
+            icon: Icons.swap_horiz_rounded,
+            color: AppColors.warning,
+            count: alternative,
+            label: 'Alternatives',
+          ),
+          _buildSummaryItem(
+            icon: Icons.cancel_outlined,
+            color: AppColors.error,
+            count: unavailable,
+            label: 'Unavailable',
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryItem({
+    required IconData icon,
+    required Color color,
+    required int count,
+    required String label,
+  }) {
+    return Column(
+      children: [
+        Icon(icon, size: 20, color: color),
+        const SizedBox(height: 4),
+        Text(
+          count.toString(),
+          style: AppTextStyles.subtitle(color),
+        ),
+        Text(
+          label,
+          style: AppTextStyles.caption(color),
+        ),
+      ],
     );
   }
 }

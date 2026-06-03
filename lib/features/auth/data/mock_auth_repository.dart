@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart';
+
 import '../../../core/storage/storage_service.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/models/user_role.dart';
+import '../../../shared/models/vendor_status.dart';
 
 /// Mock authentication repository.
 /// Users and sessions are persisted locally until the backend API is ready.
@@ -27,6 +30,7 @@ class MockAuthRepository {
       isVerified: true,
       createdAt: DateTime(2025, 1, 15),
     ),
+    // Active vendor with shop assigned
     UserModel(
       id: 'vend-001',
       fullName: 'Kamal Silva',
@@ -37,6 +41,7 @@ class MockAuthRepository {
       isVerified: true,
       businessName: 'Silva Super Store',
       vendorApproved: true,
+      vendorStatus: VendorStatus.approved,
       vendorCategories: ['groceries', 'home appliances'],
       shopName: 'Speedmart Silva Main',
       shopAddress: 'Main Street, Colombo 03',
@@ -46,6 +51,7 @@ class MockAuthRepository {
       isShopLocationAssigned: true,
       createdAt: DateTime(2025, 2, 10),
     ),
+    // Approved vendor without shop assigned
     UserModel(
       id: 'vend-002',
       fullName: 'Nimal Fernando',
@@ -56,10 +62,12 @@ class MockAuthRepository {
       isVerified: false,
       businessName: 'Fernando Electronics',
       vendorApproved: true,
+      vendorStatus: VendorStatus.approved,
       vendorCategories: ['electronics', 'stationery'],
       isShopLocationAssigned: false,
       createdAt: DateTime(2025, 3, 5),
     ),
+    // Active vendor with shop assigned
     UserModel(
       id: 'vend-003',
       fullName: 'Ravi Chandran',
@@ -70,6 +78,7 @@ class MockAuthRepository {
       isVerified: true,
       businessName: 'Chandran Pharma Store',
       vendorApproved: true,
+      vendorStatus: VendorStatus.approved,
       vendorCategories: ['pharmacy'],
       shopName: 'Chandran Pharmacy Jaffna',
       shopAddress: 'Nallur Street, Jaffna',
@@ -78,6 +87,57 @@ class MockAuthRepository {
       assignedRadiusKm: 15.0,
       isShopLocationAssigned: true,
       createdAt: DateTime(2025, 1, 20),
+    ),
+    // Pending vendor (awaiting approval)
+    UserModel(
+      id: 'vend-004',
+      fullName: 'Lakshmi Desai',
+      email: 'vendor4@test.com',
+      phone: '0712345678',
+      role: UserRole.vendor,
+      isActive: true,
+      isVerified: false,
+      businessName: 'Desai Fashion Hub',
+      vendorApproved: false,
+      vendorStatus: VendorStatus.pendingApproval,
+      vendorCategories: ['clothing', 'fashion'],
+      createdAt: DateTime(2025, 3, 20),
+    ),
+    // Rejected vendor
+    UserModel(
+      id: 'vend-005',
+      fullName: 'Anil Patel',
+      email: 'vendor5@test.com',
+      phone: '0723456789',
+      role: UserRole.vendor,
+      isActive: true,
+      isVerified: false,
+      businessName: 'Patel Industries',
+      vendorApproved: false,
+      vendorStatus: VendorStatus.rejected,
+      vendorCategories: ['manufacturing'],
+      createdAt: DateTime(2025, 2, 28),
+    ),
+    // Suspended vendor
+    UserModel(
+      id: 'vend-006',
+      fullName: 'Priya Sharma',
+      email: 'vendor6@test.com',
+      phone: '0734567890',
+      role: UserRole.vendor,
+      isActive: false,
+      isVerified: true,
+      businessName: 'Sharma Digital Services',
+      vendorApproved: true,
+      vendorStatus: VendorStatus.suspended,
+      vendorCategories: ['digital services'],
+      shopName: 'Sharma Services Colombo',
+      shopAddress: 'Galle Road, Colombo 04',
+      shopLatitude: 6.9271,
+      shopLongitude: 80.7500,
+      assignedRadiusKm: 10.0,
+      isShopLocationAssigned: true,
+      createdAt: DateTime(2025, 1, 10),
     ),
     UserModel(
       id: 'admin-001',
@@ -104,10 +164,14 @@ class MockAuthRepository {
       ..clear()
       ..addAll(_mockUsers);
 
+    debugPrint('[Auth] Initialized with ${_mockUsers.length} mock users');
+
     try {
       final savedJson = await StorageService.getRegisteredUsers();
+      debugPrint('[Auth] Loaded ${savedJson.length} users from storage');
       for (final json in savedJson) {
         final user = UserModel.fromJson(json);
+        debugPrint('[Auth] Loading user: ${user.email}, vendorStatus=${user.vendorStatus}');
         final index = _sessionUsers.indexWhere((u) => u.id == user.id);
         if (index >= 0) {
           _sessionUsers[index] = user;
@@ -115,7 +179,9 @@ class MockAuthRepository {
           _sessionUsers.add(user);
         }
       }
-    } catch (_) {
+      debugPrint('[Auth] Total users after loading from storage: ${_sessionUsers.length}');
+    } catch (e) {
+      debugPrint('[Auth] Failed to load users from storage: $e');
       // Keep seed users if storage read fails.
     }
 
@@ -151,6 +217,9 @@ class MockAuthRepository {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 1200));
 
+    debugPrint('[Auth] Login attempt: email=$email, role=$role');
+    debugPrint('[Auth] Total users available: ${_sessionUsers.length}');
+
     final match = _sessionUsers.where(
       (u) =>
           u.email.toLowerCase() == email.toLowerCase() &&
@@ -158,16 +227,21 @@ class MockAuthRepository {
     );
 
     if (match.isEmpty) {
+      debugPrint('[Auth] No user found with email=$email and role=$role');
+      debugPrint('[Auth] Available users: ${_sessionUsers.map((u) => '${u.email}(${u.role.name})').join(', ')}');
       throw Exception('No account found with this email for the selected role.');
     }
 
     final user = match.first;
+    debugPrint('[Auth] User found: ${user.email}, vendorStatus=${user.vendorStatus}, isActive=${user.isActive}');
+
     if (!user.isActive) {
       throw Exception('Your account has been suspended. Contact support.');
     }
 
     _currentToken =
         'mock_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
+    debugPrint('[Auth] Login success: ${user.email}');
     return (user: user, token: _currentToken!);
   }
 
@@ -236,6 +310,17 @@ class MockAuthRepository {
     String? deliveryApproxArea,
     String? deliveryPreciseAddress,
     String? deliveryNote,
+    // Vendor shop details
+    String? shopName,
+    String? shopAddress,
+    String? shopProvince,
+    String? shopDistrict,
+    String? shopArea,
+    double? shopLatitude,
+    double? shopLongitude,
+    double? shopLocationAccuracyMeters,
+    DateTime? shopLocationDetectedAt,
+    String? businessRegistrationNumber,
   }) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 1500));
@@ -279,6 +364,7 @@ class MockAuthRepository {
       isVerified: role != UserRole.vendor,
       createdAt: DateTime.now(),
       businessName: businessName,
+      vendorStatus: role == UserRole.vendor ? VendorStatus.pendingApproval : null,
       vendorApproved: role == UserRole.vendor ? false : null,
       vendorCategories: categories,
       detectedCountry: detectedCountry,
@@ -295,10 +381,25 @@ class MockAuthRepository {
       deliveryApproxArea: deliveryApproxArea,
       deliveryPreciseAddress: deliveryPreciseAddress,
       deliveryNote: deliveryNote,
+      shopName: shopName,
+      shopAddress: shopAddress,
+      shopProvince: shopProvince,
+      shopDistrict: shopDistrict,
+      shopArea: shopArea,
+      shopLatitude: shopLatitude,
+      shopLongitude: shopLongitude,
+      shopLocationAccuracyMeters: shopLocationAccuracyMeters,
+      shopLocationDetectedAt: shopLocationDetectedAt,
+      isShopLocationAssigned: false,
+      businessRegistrationNumber: businessRegistrationNumber,
     );
 
     _sessionUsers.add(newUser);
     await _persistUsers();
+
+    debugPrint('[Auth] Vendor registration saved: email=$resolvedEmail, id=${newUser.id}, status=${newUser.vendorStatus}');
+    debugPrint('[Auth] Shop details submitted: address=${shopAddress}, lat=$shopLatitude, lng=$shopLongitude');
+    debugPrint('[Auth] Total users in memory: ${_sessionUsers.length}');
 
     _currentToken =
         'mock_token_${newUser.id}_${DateTime.now().millisecondsSinceEpoch}';
@@ -344,14 +445,41 @@ class MockAuthRepository {
     }
   }
 
-  Future<void> approveVendor(String vendorId) async {
+  Future<void> approveVendor(String vendorId, {String? notes}) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 400));
     final index = _sessionUsers.indexWhere((u) => u.id == vendorId);
     if (index != -1) {
       _sessionUsers[index] = _sessionUsers[index].copyWith(
+        vendorStatus: VendorStatus.approved,
         vendorApproved: true,
         isVerified: true,
+      );
+      await _persistUsers();
+    }
+  }
+
+  Future<void> rejectVendor(String vendorId, {required String reason}) async {
+    await ensureInitialized();
+    await Future.delayed(const Duration(milliseconds: 400));
+    final index = _sessionUsers.indexWhere((u) => u.id == vendorId);
+    if (index != -1) {
+      _sessionUsers[index] = _sessionUsers[index].copyWith(
+        vendorStatus: VendorStatus.rejected,
+        vendorApproved: false,
+      );
+      await _persistUsers();
+    }
+  }
+
+  Future<void> suspendVendor(String vendorId, {required String reason}) async {
+    await ensureInitialized();
+    await Future.delayed(const Duration(milliseconds: 400));
+    final index = _sessionUsers.indexWhere((u) => u.id == vendorId);
+    if (index != -1) {
+      _sessionUsers[index] = _sessionUsers[index].copyWith(
+        vendorStatus: VendorStatus.suspended,
+        isActive: false,
       );
       await _persistUsers();
     }

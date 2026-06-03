@@ -1,4 +1,5 @@
 import '../../../proposals/models/proposal.dart';
+import 'proposal_badge.dart';
 
 /// Customer-facing enriched proposal for comparison cards.
 class CustomerProposalView {
@@ -9,6 +10,7 @@ class CustomerProposalView {
     required this.ratingPlaceholder,
     required this.deliverySortHours,
     required this.isBestForMode,
+    this.badges = const [],
   });
 
   final Proposal proposal;
@@ -17,6 +19,7 @@ class CustomerProposalView {
   final double ratingPlaceholder;
   final int deliverySortHours;
   final bool isBestForMode;
+  final List<ProposalBadge> badges;
 
   String get proposalId => proposal.id;
 

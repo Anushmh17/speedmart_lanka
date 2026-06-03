@@ -165,6 +165,16 @@ class StorageService {
     return _loadJsonList(AppConstants.paymentsKey);
   }
 
+  static Future<void> saveSavedProposals(List<String> proposalIds) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList('saved_proposals', proposalIds);
+  }
+
+  static Future<List<String>?> getSavedProposals() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getStringList('saved_proposals');
+  }
+
   /// TODO: Replace with backend notification API / Firebase Cloud Messaging.
   static Future<void> saveNotifications(
     List<Map<String, dynamic>> notifications,

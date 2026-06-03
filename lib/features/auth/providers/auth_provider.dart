@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../../shared/models/user_model.dart';
@@ -114,7 +115,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
     String? deliveryApproxArea,
     String? deliveryPreciseAddress,
     String? deliveryNote,
+    // Vendor shop details
+    String? shopName,
+    String? shopAddress,
+    String? shopProvince,
+    String? shopDistrict,
+    String? shopArea,
+    double? shopLatitude,
+    double? shopLongitude,
+    double? shopLocationAccuracyMeters,
+    DateTime? shopLocationDetectedAt,
+    String? businessRegistrationNumber,
   }) async {
+    debugPrint('[Auth] Register submit started: email=$email, role=$role');
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final result = await _repo.register(
@@ -139,13 +152,31 @@ class AuthNotifier extends StateNotifier<AuthState> {
         deliveryApproxArea: deliveryApproxArea,
         deliveryPreciseAddress: deliveryPreciseAddress,
         deliveryNote: deliveryNote,
+        shopName: shopName,
+        shopAddress: shopAddress,
+        shopProvince: shopProvince,
+        shopDistrict: shopDistrict,
+        shopArea: shopArea,
+        shopLatitude: shopLatitude,
+        shopLongitude: shopLongitude,
+        shopLocationAccuracyMeters: shopLocationAccuracyMeters,
+        shopLocationDetectedAt: shopLocationDetectedAt,
+        businessRegistrationNumber: businessRegistrationNumber,
       );
+      debugPrint('[Auth] Register result role: ${result.user.role.name}, email: ${result.user.email}');
       await StorageService.saveToken(result.token);
+      debugPrint('[Auth] Storage: token saved');
       await StorageService.saveUser(result.user.toJson());
+      debugPrint('[Auth] Storage: user saved');
       await StorageService.saveRole(result.user.role.name);
+      debugPrint('[Auth] Storage: role saved');
       state = AuthState.authenticated(result.user);
+      debugPrint('[Auth] Register success: authenticated user ${result.user.email}');
     } catch (e) {
-      state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
+      final errorMsg = e.toString().replaceAll('Exception: ', '');
+      debugPrint('[Auth] Register error caught: $errorMsg');
+      state = AuthState.withError(errorMsg);
+      debugPrint('[Auth] Error state set, hasError=${state.hasError}, error=${state.error}');
     }
   }
 
@@ -221,8 +252,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required double shopLongitude,
     required double assignedRadiusKm,
     required bool vendorApproved,
-    required List<String> vendorCategories,
+    required List<String> allowedCategories,
   }) async {
+    debugPrint('[Auth] Updating vendor shop assignment: vendorId=$vendorId');
+    debugPrint('[Auth] Admin-approved categories: $allowedCategories');
+
     // Get the vendor from repository
     final vendor = await _repo.getUserById(vendorId);
     if (vendor == null) throw Exception('Vendor not found');
@@ -234,19 +268,26 @@ class AuthNotifier extends StateNotifier<AuthState> {
       shopLongitude: shopLongitude,
       assignedRadiusKm: assignedRadiusKm,
       vendorApproved: vendorApproved,
-      vendorCategories: vendorCategories,
+      allowedCategories: allowedCategories,
       isShopLocationAssigned: true,
     );
+
+    debugPrint('[Auth] Updated vendor allowedCategories in memory: ${updatedVendor.allowedCategories}');
 
     // Update in repository
     await _repo.updateUser(updatedVendor);
 
+    debugPrint('[Auth] Updated vendor in repository');
+
     // Persist to local storage
     await StorageService.saveUser(updatedVendor.toJson());
+
+    debugPrint('[Auth] Persisted vendor to storage with allowedCategories: ${updatedVendor.allowedCategories}');
 
     // If updating current user, update state
     if (state.user?.id == vendorId) {
       state = AuthState.authenticated(updatedVendor);
+      debugPrint('[Auth] Updated current user state with new allowedCategories');
     }
   }
 

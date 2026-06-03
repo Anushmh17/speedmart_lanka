@@ -3,6 +3,7 @@ import '../../../proposals/models/proposal.dart';
 import '../../../requests/models/shopping_request.dart';
 import '../models/customer_proposal_view.dart';
 import '../models/proposal_comparison_mode.dart';
+import '../models/proposal_badge.dart';
 
 /// Sorts and ranks vendor proposals for customer comparison.
 /// TODO: Replace with backend ranking API (price, SLA, vendor score).
@@ -52,6 +53,39 @@ class ProposalComparisonService {
     );
   }
 
+  List<ProposalBadge> _identifyBadges(Proposal proposal, List<Proposal> allProposals) {
+    final badges = <ProposalBadge>[];
+
+    if (allProposals.isEmpty) return badges;
+
+    final minPrice = allProposals
+        .map((p) => p.totalPrice)
+        .reduce((a, b) => a < b ? a : b);
+    if (proposal.totalPrice == minPrice) {
+      badges.add(ProposalBadge.bestPrice);
+    }
+
+    final minDeliveryHours = allProposals
+        .map((p) => deliverySortHours(p.estimatedDeliveryTime))
+        .reduce((a, b) => a < b ? a : b);
+    if (deliverySortHours(proposal.estimatedDeliveryTime) == minDeliveryHours) {
+      badges.add(ProposalBadge.fastestDelivery);
+    }
+
+    final maxRating = allProposals
+        .map((p) => ratingPlaceholderFor(p.vendorId))
+        .reduce((a, b) => a > b ? a : b);
+    if (ratingPlaceholderFor(proposal.vendorId) == maxRating) {
+      badges.add(ProposalBadge.highestRated);
+    }
+
+    if (ratingPlaceholderFor(proposal.vendorId) > 4.6) {
+      badges.add(ProposalBadge.popularVendor);
+    }
+
+    return badges;
+  }
+
   List<CustomerProposalView> buildViews({
     required List<Proposal> proposals,
     required ShoppingRequest request,
@@ -71,6 +105,7 @@ class ProposalComparisonService {
         ratingPlaceholder: ratingPlaceholderFor(p.vendorId),
         deliverySortHours: deliverySortHours(p.estimatedDeliveryTime),
         isBestForMode: false,
+        badges: _identifyBadges(p, comparable),
       );
     }).toList();
 
@@ -87,6 +122,7 @@ class ProposalComparisonService {
             ratingPlaceholder: v.ratingPlaceholder,
             deliverySortHours: v.deliverySortHours,
             isBestForMode: v.proposal.id == bestId && v.canAcceptOrReject,
+            badges: v.badges,
           ),
         )
         .toList();
@@ -114,8 +150,62 @@ class ProposalComparisonService {
           return a.distanceKm.compareTo(b.distanceKm);
         });
         break;
+      case ProposalComparisonMode.lowestDeliveryFee:
+        list.sort((a, b) => a.deliveryFee.compareTo(b.deliveryFee));
+        break;
+      case ProposalComparisonMode.mostComplete:
+        list.sort((a, b) {
+          final aAvailable = a.proposal.items
+              .where((item) => item.status != ProposalItemStatus.unavailable)
+              .length;
+          final bAvailable = b.proposal.items
+              .where((item) => item.status != ProposalItemStatus.unavailable)
+              .length;
+          if (aAvailable != bAvailable) {
+            return bAvailable.compareTo(aAvailable);
+          }
+          return a.totalPrice.compareTo(b.totalPrice);
+        });
+        break;
+      case ProposalComparisonMode.recommended:
+        list.sort((a, b) {
+          final aScore = _recommendationScore(a, list);
+          final bScore = _recommendationScore(b, list);
+          return bScore.compareTo(aScore);
+        });
+        break;
     }
     return list;
+  }
+
+  double _recommendationScore(
+    CustomerProposalView view,
+    List<CustomerProposalView> allViews,
+  ) {
+    if (allViews.length <= 1) return 0;
+
+    final prices = allViews.map((v) => v.totalPrice).toList();
+    final minPrice = prices.reduce((a, b) => a < b ? a : b);
+    final maxPrice = prices.reduce((a, b) => a > b ? a : b);
+
+    final times = allViews
+        .map((v) => v.deliverySortHours.toDouble())
+        .toList();
+    final minTime = times.reduce((a, b) => a < b ? a : b);
+    final maxTime = times.reduce((a, b) => a > b ? a : b);
+
+    final priceRange = maxPrice - minPrice;
+    final timeRange = maxTime - minTime;
+
+    final priceNorm = priceRange > 0
+        ? 1 - ((view.totalPrice - minPrice) / priceRange)
+        : 0.5;
+    final timeNorm = timeRange > 0
+        ? 1 - ((view.deliverySortHours - minTime) / timeRange)
+        : 0.5;
+    final ratingNorm = view.ratingPlaceholder / 5.0;
+
+    return (priceNorm * 0.4) + (timeNorm * 0.3) + (ratingNorm * 0.3);
   }
 
   String? _bestId(List<CustomerProposalView> sorted, ProposalComparisonMode mode) {

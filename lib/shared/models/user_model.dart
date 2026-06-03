@@ -1,4 +1,5 @@
 import 'user_role.dart';
+import 'vendor_status.dart';
 
 /// Core user model shared across all roles.
 /// Role-specific data (vendor profile, etc.) is stored in separate models.
@@ -15,16 +16,28 @@ class UserModel {
 
   /// Vendor-specific fields (nullable for customer/admin)
   final String? businessName;
+  final VendorStatus? vendorStatus;
   final bool? vendorApproved;
   final List<String>? vendorCategories;
+  final List<String>? allowedCategories; // Admin-approved categories (SOURCE OF TRUTH)
 
   /// Admin-assigned vendor shop location (not user-editable)
   final String? shopName;
   final String? shopAddress;
+  final String? shopProvince;
+  final String? shopDistrict;
+  final String? shopArea;
   final double? shopLatitude;
   final double? shopLongitude;
   final double? assignedRadiusKm;
   final bool? isShopLocationAssigned;
+
+  /// Shop location accuracy metadata
+  final double? shopLocationAccuracyMeters;
+  final DateTime? shopLocationDetectedAt;
+
+  /// Additional vendor info
+  final String? businessRegistrationNumber;
 
   /// Country override and risk fields for anti-abuse audit
   final String? detectedCountry;
@@ -57,8 +70,10 @@ class UserModel {
     required this.createdAt,
     this.profileImageUrl,
     this.businessName,
+    this.vendorStatus,
     this.vendorApproved,
     this.vendorCategories,
+    this.allowedCategories,
     this.detectedCountry,
     this.selectedCountry,
     this.countryOverride,
@@ -75,10 +90,16 @@ class UserModel {
     this.deliveryNote,
     this.shopName,
     this.shopAddress,
+    this.shopProvince,
+    this.shopDistrict,
+    this.shopArea,
     this.shopLatitude,
     this.shopLongitude,
+    this.shopLocationAccuracyMeters,
+    this.shopLocationDetectedAt,
     this.assignedRadiusKm,
     this.isShopLocationAssigned,
+    this.businessRegistrationNumber,
   });
 
   /// Create from JSON (API response)
@@ -94,8 +115,15 @@ class UserModel {
       createdAt: DateTime.parse(json['created_at'] as String),
       profileImageUrl: json['profile_image_url'] as String?,
       businessName: json['business_name'] as String?,
+      vendorStatus: json['vendor_status'] != null
+        ? VendorStatus.values.asNameMap()[json['vendor_status'] as String] ??
+            VendorStatus.pendingApproval
+        : null,
       vendorApproved: json['vendor_approved'] as bool?,
       vendorCategories: (json['vendor_categories'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
+      allowedCategories: (json['allowed_categories'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
       detectedCountry: json['detected_country'] as String?,
@@ -114,10 +142,18 @@ class UserModel {
       deliveryNote: json['delivery_note'] as String?,
       shopName: json['shop_name'] as String?,
       shopAddress: json['shop_address'] as String?,
+      shopProvince: json['shop_province'] as String?,
+      shopDistrict: json['shop_district'] as String?,
+      shopArea: json['shop_area'] as String?,
       shopLatitude: (json['shop_latitude'] as num?)?.toDouble(),
       shopLongitude: (json['shop_longitude'] as num?)?.toDouble(),
+      shopLocationAccuracyMeters: (json['shop_location_accuracy_meters'] as num?)?.toDouble(),
+      shopLocationDetectedAt: json['shop_location_detected_at'] != null
+          ? DateTime.parse(json['shop_location_detected_at'] as String)
+          : null,
       assignedRadiusKm: (json['assigned_radius_km'] as num?)?.toDouble(),
       isShopLocationAssigned: json['is_shop_location_assigned'] as bool?,
+      businessRegistrationNumber: json['business_registration_number'] as String?,
     );
   }
 
@@ -134,8 +170,10 @@ class UserModel {
       'created_at': createdAt.toIso8601String(),
       'profile_image_url': profileImageUrl,
       'business_name': businessName,
+      'vendor_status': vendorStatus?.name,
       'vendor_approved': vendorApproved,
       'vendor_categories': vendorCategories,
+      'allowed_categories': allowedCategories,
       'detected_country': detectedCountry,
       'selected_country': selectedCountry,
       'country_override': countryOverride,
@@ -152,10 +190,16 @@ class UserModel {
       'delivery_note': deliveryNote,
       'shop_name': shopName,
       'shop_address': shopAddress,
+      'shop_province': shopProvince,
+      'shop_district': shopDistrict,
+      'shop_area': shopArea,
       'shop_latitude': shopLatitude,
       'shop_longitude': shopLongitude,
+      'shop_location_accuracy_meters': shopLocationAccuracyMeters,
+      'shop_location_detected_at': shopLocationDetectedAt?.toIso8601String(),
       'assigned_radius_km': assignedRadiusKm,
       'is_shop_location_assigned': isShopLocationAssigned,
+      'business_registration_number': businessRegistrationNumber,
     };
   }
 
@@ -171,8 +215,10 @@ class UserModel {
     DateTime? createdAt,
     String? profileImageUrl,
     String? businessName,
+    VendorStatus? vendorStatus,
     bool? vendorApproved,
     List<String>? vendorCategories,
+    List<String>? allowedCategories,
     String? detectedCountry,
     String? selectedCountry,
     bool? countryOverride,
@@ -189,10 +235,16 @@ class UserModel {
     String? deliveryNote,
     String? shopName,
     String? shopAddress,
+    String? shopProvince,
+    String? shopDistrict,
+    String? shopArea,
     double? shopLatitude,
     double? shopLongitude,
+    double? shopLocationAccuracyMeters,
+    DateTime? shopLocationDetectedAt,
     double? assignedRadiusKm,
     bool? isShopLocationAssigned,
+    String? businessRegistrationNumber,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -205,8 +257,10 @@ class UserModel {
       createdAt: createdAt ?? this.createdAt,
       profileImageUrl: profileImageUrl ?? this.profileImageUrl,
       businessName: businessName ?? this.businessName,
+      vendorStatus: vendorStatus ?? this.vendorStatus,
       vendorApproved: vendorApproved ?? this.vendorApproved,
       vendorCategories: vendorCategories ?? this.vendorCategories,
+      allowedCategories: allowedCategories ?? this.allowedCategories,
       detectedCountry: detectedCountry ?? this.detectedCountry,
       selectedCountry: selectedCountry ?? this.selectedCountry,
       countryOverride: countryOverride ?? this.countryOverride,
@@ -224,10 +278,16 @@ class UserModel {
       deliveryNote: deliveryNote ?? this.deliveryNote,
       shopName: shopName ?? this.shopName,
       shopAddress: shopAddress ?? this.shopAddress,
+      shopProvince: shopProvince ?? this.shopProvince,
+      shopDistrict: shopDistrict ?? this.shopDistrict,
+      shopArea: shopArea ?? this.shopArea,
       shopLatitude: shopLatitude ?? this.shopLatitude,
       shopLongitude: shopLongitude ?? this.shopLongitude,
+      shopLocationAccuracyMeters: shopLocationAccuracyMeters ?? this.shopLocationAccuracyMeters,
+      shopLocationDetectedAt: shopLocationDetectedAt ?? this.shopLocationDetectedAt,
       assignedRadiusKm: assignedRadiusKm ?? this.assignedRadiusKm,
       isShopLocationAssigned: isShopLocationAssigned ?? this.isShopLocationAssigned,
+      businessRegistrationNumber: businessRegistrationNumber ?? this.businessRegistrationNumber,
     );
   }
 
@@ -242,6 +302,14 @@ class UserModel {
     }
     return fullName.substring(0, fullName.length >= 2 ? 2 : 1).toUpperCase();
   }
+
+  /// Computed: vendor is active in marketplace
+  bool get isVendorActive =>
+      vendorStatus == VendorStatus.approved &&
+      isShopLocationAssigned == true &&
+      shopLatitude != null &&
+      shopLongitude != null &&
+      (allowedCategories?.isNotEmpty ?? (vendorCategories?.isNotEmpty ?? false));
 
   @override
   String toString() => 'UserModel(id: $id, name: $fullName, role: ${role.name}, riskFlag: $riskFlag)';

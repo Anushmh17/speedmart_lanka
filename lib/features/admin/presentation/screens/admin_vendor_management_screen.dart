@@ -5,7 +5,11 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/routes/route_names.dart';
+import '../../../../shared/models/vendor_status.dart';
 import '../../providers/admin_provider.dart';
+import '../dialogs/vendor_approval_dialog.dart';
+import '../dialogs/vendor_rejection_dialog.dart';
+import '../dialogs/vendor_suspension_dialog.dart';
 
 class AdminVendorManagementScreen extends ConsumerStatefulWidget {
   const AdminVendorManagementScreen({super.key});
@@ -42,11 +46,15 @@ class _AdminVendorManagementScreenState
     final filteredVendors = vendors.where((v) {
       switch (_statusFilter) {
         case 'pending':
-          return v.vendorApproved != true;
+          return v.vendorStatus == VendorStatus.pendingApproval;
         case 'approved_no_shop':
-          return v.vendorApproved == true && v.isShopLocationAssigned != true;
+          return v.vendorStatus == VendorStatus.approved && v.isShopLocationAssigned != true;
         case 'active':
-          return v.vendorApproved == true && v.isShopLocationAssigned == true;
+          return v.vendorStatus == VendorStatus.approved && v.isShopLocationAssigned == true;
+        case 'rejected':
+          return v.vendorStatus == VendorStatus.rejected;
+        case 'suspended':
+          return v.vendorStatus == VendorStatus.suspended;
         default:
           return true;
       }
@@ -78,6 +86,10 @@ class _AdminVendorManagementScreenState
                   ),
                   const SizedBox(width: 8),
                   _buildFilterChip('Active', 'active', _statusFilter, isDark),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('Rejected', 'rejected', _statusFilter, isDark),
+                  const SizedBox(width: 8),
+                  _buildFilterChip('Suspended', 'suspended', _statusFilter, isDark),
                 ],
               ),
             ),
@@ -257,8 +269,84 @@ class _AdminVendorManagementScreenState
             ),
           ],
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
+          // Action buttons based on vendor status
+          _buildActionButtons(context, vendor),
+        ],
+      ),
+    );
+  }
+
+  Color _getStatusColor(dynamic vendor) {
+    if (vendor.vendorStatus == VendorStatus.pendingApproval) {
+      return AppColors.warning;
+    } else if (vendor.vendorStatus == VendorStatus.rejected) {
+      return AppColors.error;
+    } else if (vendor.vendorStatus == VendorStatus.suspended) {
+      return AppColors.error;
+    } else if (vendor.vendorStatus == VendorStatus.approved && vendor.isShopLocationAssigned != true) {
+      return Colors.orange;
+    } else {
+      return AppColors.success;
+    }
+  }
+
+  String _getStatusLabel(dynamic vendor) {
+    if (vendor.vendorStatus == VendorStatus.pendingApproval) {
+      return 'Pending';
+    } else if (vendor.vendorStatus == VendorStatus.rejected) {
+      return 'Rejected';
+    } else if (vendor.vendorStatus == VendorStatus.suspended) {
+      return 'Suspended';
+    } else if (vendor.vendorStatus == VendorStatus.approved && vendor.isShopLocationAssigned != true) {
+      return 'No Shop';
+    } else {
+      return 'Active';
+    }
+  }
+
+  Widget _buildActionButtons(BuildContext context, dynamic vendor) {
+    if (vendor.vendorStatus == VendorStatus.pendingApproval) {
+      return Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.close_rounded),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => VendorRejectionDialog(vendor: vendor),
+                );
+              },
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.error),
+                foregroundColor: AppColors.error,
+              ),
+              label: const Text('Reject'),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.check_rounded),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => VendorApprovalDialog(vendor: vendor),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.success,
+                foregroundColor: Colors.white,
+              ),
+              label: const Text('Approve'),
+            ),
+          ),
+        ],
+      );
+    } else if (vendor.vendorStatus == VendorStatus.approved) {
+      return Row(
+        children: [
+          Expanded(
             child: ElevatedButton(
               onPressed: () {
                 context.push(
@@ -273,28 +361,42 @@ class _AdminVendorManagementScreenState
               child: const Text('Manage'),
             ),
           ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.block_rounded),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => VendorSuspensionDialog(vendor: vendor),
+                );
+              },
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: AppColors.error),
+                foregroundColor: AppColors.error,
+              ),
+              label: const Text('Suspend'),
+            ),
+          ),
         ],
-      ),
-    );
-  }
-
-  Color _getStatusColor(dynamic vendor) {
-    if (vendor.vendorApproved != true) {
-      return AppColors.warning;
-    } else if (vendor.isShopLocationAssigned != true) {
-      return Colors.orange;
+      );
     } else {
-      return AppColors.success;
-    }
-  }
-
-  String _getStatusLabel(dynamic vendor) {
-    if (vendor.vendorApproved != true) {
-      return 'Pending';
-    } else if (vendor.isShopLocationAssigned != true) {
-      return 'No Shop';
-    } else {
-      return 'Active';
+      return SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: () {
+            context.push(
+              '${RouteNames.adminVendorAssignment.replaceFirst(':id', vendor.id)}',
+              extra: vendor,
+            );
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.adminColor,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('View Details'),
+        ),
+      );
     }
   }
 }

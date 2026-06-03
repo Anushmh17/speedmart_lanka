@@ -3,6 +3,9 @@ enum ProposalComparisonMode {
   lowestPrice,
   fastestDelivery,
   nearestVendor,
+  lowestDeliveryFee,
+  mostComplete,
+  recommended,
 }
 
 extension ProposalComparisonModeExtension on ProposalComparisonMode {
@@ -14,6 +17,12 @@ extension ProposalComparisonModeExtension on ProposalComparisonMode {
         return 'Fastest delivery';
       case ProposalComparisonMode.nearestVendor:
         return 'Nearest vendor';
+      case ProposalComparisonMode.lowestDeliveryFee:
+        return 'Lowest delivery fee';
+      case ProposalComparisonMode.mostComplete:
+        return 'Most complete';
+      case ProposalComparisonMode.recommended:
+        return 'Recommended';
     }
   }
 
@@ -25,6 +34,12 @@ extension ProposalComparisonModeExtension on ProposalComparisonMode {
         return 'Delivery';
       case ProposalComparisonMode.nearestVendor:
         return 'Nearest';
+      case ProposalComparisonMode.lowestDeliveryFee:
+        return 'Delivery Fee';
+      case ProposalComparisonMode.mostComplete:
+        return 'Complete';
+      case ProposalComparisonMode.recommended:
+        return 'Recommended';
     }
   }
 }

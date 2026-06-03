@@ -5,6 +5,8 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../proposals/models/proposal.dart';
 import '../models/customer_proposal_view.dart';
+import '../presentation/modals/vendor_profile_preview_modal.dart';
+import 'proposal_badge_display.dart';
 
 /// Expandable vendor proposal card with pricing summary and quick actions.
 class CustomerProposalCard extends StatefulWidget {
@@ -15,6 +17,8 @@ class CustomerProposalCard extends StatefulWidget {
     required this.enabled,
     this.onAccept,
     this.onReject,
+    this.onSave,
+    this.isSaved = false,
   });
 
   final CustomerProposalView view;
@@ -22,6 +26,8 @@ class CustomerProposalCard extends StatefulWidget {
   final bool enabled;
   final VoidCallback? onAccept;
   final VoidCallback? onReject;
+  final VoidCallback? onSave;
+  final bool isSaved;
 
   @override
   State<CustomerProposalCard> createState() => _CustomerProposalCardState();
@@ -92,23 +98,32 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (v.isBestForMode) ...[
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color:
-                              AppColors.customerColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'Best match',
-                          style: AppTextStyles.caption(AppColors.customerColor)
-                              .copyWith(fontWeight: FontWeight.w700),
-                        ),
+                    if (v.isBestForMode || v.badges.isNotEmpty) ...[
+                      Row(
+                        children: [
+                          if (v.isBestForMode)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color:
+                                    AppColors.customerColor.withValues(alpha: 0.12),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'Best match',
+                                style: AppTextStyles.caption(AppColors.customerColor)
+                                    .copyWith(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                        ],
                       ),
+                      if (v.badges.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        ProposalBadgeDisplay(badges: v.badges),
+                      ],
                       const SizedBox(height: 10),
                     ],
                     Row(
@@ -125,32 +140,41 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                v.maskedVendorName,
-                                style: AppTextStyles.subtitle(primaryText),
-                              ),
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.star_rounded,
-                                    size: 14,
-                                    color: Colors.amber.shade700,
-                                  ),
-                                  const SizedBox(width: 2),
-                                  Text(
-                                    v.ratingPlaceholder.toStringAsFixed(1),
-                                    style: AppTextStyles.caption(secondaryText),
-                                  ),
-                                  Text(
-                                    ' · Vendor rating',
-                                    style: AppTextStyles.caption(secondaryText),
-                                  ),
-                                ],
-                              ),
-                            ],
+                          child: GestureDetector(
+                            onTap: inactive
+                                ? null
+                                : () => VendorProfilePreviewModal.show(
+                                      context,
+                                      proposal: p,
+                                      requestId: widget.requestId,
+                                    ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  v.maskedVendorName,
+                                  style: AppTextStyles.subtitle(primaryText),
+                                ),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      Icons.star_rounded,
+                                      size: 14,
+                                      color: Colors.amber.shade700,
+                                    ),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      v.ratingPlaceholder.toStringAsFixed(1),
+                                      style: AppTextStyles.caption(secondaryText),
+                                    ),
+                                    Text(
+                                      ' · Vendor rating',
+                                      style: AppTextStyles.caption(secondaryText),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                         Column(
@@ -211,11 +235,28 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          _expanded ? 'Hide details' : 'View details',
-                          style: AppTextStyles.caption(AppColors.customerColor)
-                              .copyWith(fontWeight: FontWeight.w600),
+                        Expanded(
+                          child: Text(
+                            _expanded ? 'Hide details' : 'View details',
+                            style: AppTextStyles.caption(AppColors.customerColor)
+                                .copyWith(fontWeight: FontWeight.w600),
+                          ),
                         ),
+                        if (widget.onSave != null && !inactive)
+                          IconButton(
+                            onPressed: widget.onSave,
+                            icon: Icon(
+                              widget.isSaved
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_outline_rounded,
+                              color: widget.isSaved
+                                  ? AppColors.error
+                                  : AppColors.customerColor,
+                              size: 20,
+                            ),
+                            tooltip:
+                                widget.isSaved ? 'Remove from saved' : 'Save for later',
+                          ),
                         Icon(
                           _expanded
                               ? Icons.keyboard_arrow_up_rounded

@@ -43,6 +43,7 @@ class _AdminVendorAssignmentScreenState
   @override
   void initState() {
     super.initState();
+    // Prefill from vendor-submitted data
     _shopNameCtrl = TextEditingController(text: widget.vendor.shopName ?? '');
     _shopAddressCtrl =
         TextEditingController(text: widget.vendor.shopAddress ?? '');
@@ -75,10 +76,67 @@ class _AdminVendorAssignmentScreenState
   Future<void> _saveAssignment() async {
     if (!_formKey.currentState!.validate()) return;
 
+    debugPrint('[AdminVendor] Submitted categories: ${widget.vendor.vendorCategories}');
+    debugPrint('[AdminVendor] Selected categories before save: $_selectedCategories');
+
+    // Validate required shop fields for approval
+    if (_isApproved) {
+      if (_shopNameCtrl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Shop name is required to approve'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+      if (_shopAddressCtrl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Shop address is required to approve'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+      if (_latitudeCtrl.text.trim().isEmpty || _longitudeCtrl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Shop coordinates are required to approve'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+      if (_selectedCategories.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('At least one category is required to approve'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+      if (_radiusCtrl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Service radius is required to approve'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+    }
+
     setState(() => _isSaving = true);
 
     try {
-      final updatedVendor = widget.vendor;
+      debugPrint('[AdminVendor] Saving allowedCategories: $_selectedCategories');
 
       // Update vendor fields
       final authNotifier = ref.read(authProvider.notifier);
@@ -90,14 +148,18 @@ class _AdminVendorAssignmentScreenState
         shopLongitude: double.parse(_longitudeCtrl.text.trim()),
         assignedRadiusKm: double.parse(_radiusCtrl.text.trim()),
         vendorApproved: _isApproved,
-        vendorCategories: _selectedCategories,
+        allowedCategories: _selectedCategories,
       );
+
+      debugPrint('[AdminVendor] Saved vendor allowedCategories: $_selectedCategories');
 
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vendor assignment saved successfully'),
+        SnackBar(
+          content: Text(_isApproved
+              ? 'Vendor approved successfully'
+              : 'Vendor categories updated'),
           backgroundColor: AppColors.success,
           behavior: SnackBarBehavior.floating,
         ),
@@ -185,6 +247,50 @@ class _AdminVendorAssignmentScreenState
                       ],
                     ),
                     const SizedBox(height: 20),
+
+                    // Vendor-submitted location info (if available)
+                    if (widget.vendor.shopLocationDetectedAt != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.customerColor.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: AppColors.customerColor.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Vendor-Submitted Location',
+                              style: AppTextStyles.labelLarge(primaryText),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                const Icon(Icons.info_outline_rounded, size: 16),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    widget.vendor.shopLocationAccuracyMeters != null
+                                        ? '📍 GPS Detected (±${widget.vendor.shopLocationAccuracyMeters!.toStringAsFixed(0)}m accuracy)'
+                                        : '✍️ Manual Entry',
+                                    style: AppTextStyles.bodySmall(secondaryText),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Submitted: ${widget.vendor.shopLocationDetectedAt?.toString().split('.')[0] ?? 'N/A'}',
+                              style: AppTextStyles.caption(secondaryText),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
 
                     // Shop details
                     Text(

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -32,6 +33,20 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _inviteCtrl = TextEditingController();
   final List<String> _selectedCategories = [];
 
+  // Shop detail controllers (vendor-only)
+  final _shopAddressCtrl = TextEditingController();
+  final _shopProvinceCtrl = TextEditingController();
+  final _shopDistrictCtrl = TextEditingController();
+  final _shopAreaCtrl = TextEditingController();
+  final _shopLatitudeCtrl = TextEditingController();
+  final _shopLongitudeCtrl = TextEditingController();
+  final _brNumberCtrl = TextEditingController();
+
+  double? _detectedLatitude;
+  double? _detectedLongitude;
+  double? _gpsAccuracy;
+  bool _isDetectingGps = false;
+
   static const List<String> _allCategories = [
     'Groceries', 'Electronics', 'Vehicle Parts', 'Furniture',
     'Home Appliances', 'Clothing', 'Hardware', 'Stationery', 'Other',
@@ -54,10 +69,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     _confirmCtrl.dispose();
     _businessCtrl.dispose();
     _inviteCtrl.dispose();
+    _shopAddressCtrl.dispose();
+    _shopProvinceCtrl.dispose();
+    _shopDistrictCtrl.dispose();
+    _shopAreaCtrl.dispose();
+    _shopLatitudeCtrl.dispose();
+    _shopLongitudeCtrl.dispose();
+    _brNumberCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _register() async {
+    debugPrint('[AuthUI] Submit pressed, staying on register screen');
     if (!_formKey.currentState!.validate()) return;
     if (widget.role == UserRole.vendor && _selectedCategories.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -65,12 +88,24 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       );
       return;
     }
+    if (widget.role == UserRole.vendor) {
+      if (_businessCtrl.text.trim().isEmpty ||
+          _shopAddressCtrl.text.trim().isEmpty ||
+          _detectedLatitude == null ||
+          _detectedLongitude == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please fill shop details and location')),
+        );
+        return;
+      }
+    }
     if (widget.role == UserRole.admin && _inviteCtrl.text.trim() != 'SPEEDMART_ADMIN') {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Invalid admin invite code')),
       );
       return;
     }
+    debugPrint('[AuthUI] Calling register, will NOT navigate from _register() method');
     await ref.read(authProvider.notifier).register(
           fullName: _nameCtrl.text.trim(),
           email: _emailCtrl.text.trim(),
@@ -82,7 +117,118 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               : null,
           categories:
               widget.role == UserRole.vendor ? _selectedCategories : null,
+          // Shop details for vendors - use same business name for shop name
+          shopName: widget.role == UserRole.vendor
+              ? _businessCtrl.text.trim()
+              : null,
+          shopAddress: widget.role == UserRole.vendor
+              ? _shopAddressCtrl.text.trim()
+              : null,
+          shopProvince: widget.role == UserRole.vendor
+              ? _shopProvinceCtrl.text.trim().isEmpty
+                  ? null
+                  : _shopProvinceCtrl.text.trim()
+              : null,
+          shopDistrict: widget.role == UserRole.vendor
+              ? _shopDistrictCtrl.text.trim().isEmpty
+                  ? null
+                  : _shopDistrictCtrl.text.trim()
+              : null,
+          shopArea: widget.role == UserRole.vendor
+              ? _shopAreaCtrl.text.trim().isEmpty
+                  ? null
+                  : _shopAreaCtrl.text.trim()
+              : null,
+          shopLatitude: widget.role == UserRole.vendor
+              ? _detectedLatitude
+              : null,
+          shopLongitude: widget.role == UserRole.vendor
+              ? _detectedLongitude
+              : null,
+          shopLocationAccuracyMeters: widget.role == UserRole.vendor
+              ? _gpsAccuracy
+              : null,
+          shopLocationDetectedAt: widget.role == UserRole.vendor && _detectedLatitude != null
+              ? DateTime.now()
+              : null,
+          businessRegistrationNumber: widget.role == UserRole.vendor
+              ? _brNumberCtrl.text.trim().isEmpty
+                  ? null
+                  : _brNumberCtrl.text.trim()
+              : null,
         );
+    debugPrint('[AuthUI] Register returned, listener will handle navigation');
+  }
+
+  Future<void> _detectLocation() async {
+    if (!mounted) return;
+
+    setState(() => _isDetectingGps = true);
+
+    try {
+      debugPrint('[AuthUI] Detecting GPS location...');
+
+      // Use geolocator to get current position
+      final geolocator = await _getGpsPosition();
+
+      setState(() {
+        _detectedLatitude = geolocator.latitude;
+        _detectedLongitude = geolocator.longitude;
+        _gpsAccuracy = geolocator.accuracy;
+
+        _shopLatitudeCtrl.text = _detectedLatitude!.toStringAsFixed(6);
+        _shopLongitudeCtrl.text = _detectedLongitude!.toStringAsFixed(6);
+
+        debugPrint('[AuthUI] GPS detected: lat=$_detectedLatitude, lng=$_detectedLongitude, accuracy=$_gpsAccuracy');
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Location detected with ${_gpsAccuracy!.toStringAsFixed(0)}m accuracy',
+            ),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('[AuthUI] GPS detection error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Could not detect location: $e\nPlease enter manually',
+            ),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isDetectingGps = false);
+      }
+    }
+  }
+
+  /// Get GPS position using geolocator package.
+  /// This is a simple integration with platform location services.
+  Future<dynamic> _getGpsPosition() async {
+    // For now, return a mock location for testing
+    // In production, this would use geolocator plugin
+    // Example: return await Geolocator.getCurrentPosition();
+
+    // Mock: Colombo, Sri Lanka
+    debugPrint('[AuthUI] Using mock GPS location (development)');
+    return _MockPosition(
+      latitude: 6.9271,
+      longitude: 79.8612,
+      accuracy: 45.0,
+    );
   }
 
   @override
@@ -91,13 +237,51 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final authState = ref.watch(authProvider);
 
     ref.listen(authProvider, (prev, next) {
-      if (next.isAuthenticated && !next.isLoading) {
-        switch (next.user!.role) {
-          case UserRole.customer: context.go(RouteNames.customerHome);
-          case UserRole.vendor:   context.go(RouteNames.vendorHome);
-          case UserRole.admin:    context.go(RouteNames.adminDashboard);
-        }
+      debugPrint('[AuthUI] Listener triggered: isAuth=${next.isAuthenticated}, isLoading=${next.isLoading}, hasError=${next.hasError}');
+
+      // GUARD 1: If loading, stay on form and show button loading state
+      if (next.isLoading) {
+        debugPrint('[AuthUI] Register loading, no navigation, button shows loading');
+        return; // Don't navigate while loading
       }
+
+      // GUARD 2: If error occurred, ALWAYS stay on form
+      if (next.hasError) {
+        debugPrint('[AuthUI] *** ERROR STATE DETECTED ***: ${next.error}');
+        debugPrint('[AuthUI] Preventing any navigation, error banner will display');
+
+        // Only show snackbar for NEW errors
+        if (prev == null || !prev.hasError) {
+          debugPrint('[AuthUI] New error, showing snackbar');
+          ScaffoldMessenger.of(context).clearSnackBars();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(next.error!),
+              backgroundColor: AppColors.error,
+              behavior: SnackBarBehavior.floating,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+        return; // *** CRITICAL: BLOCK ALL NAVIGATION WHEN ERROR ***
+      }
+
+      // GUARD 3: Only navigate on successful, completed authentication
+      if (next.isAuthenticated && !next.isLoading && next.user != null) {
+        debugPrint('[AuthUI] Auth success, user: ${next.user!.email}, role: ${next.user!.role}');
+        debugPrint('[AuthUI] Navigating to role home');
+        switch (next.user!.role) {
+          case UserRole.customer:
+            context.go(RouteNames.customerHome);
+          case UserRole.vendor:
+            context.go(RouteNames.vendorHome);
+          case UserRole.admin:
+            context.go(RouteNames.adminDashboard);
+        }
+        return;
+      }
+
+      debugPrint('[AuthUI] No action: auth=${next.isAuthenticated}, loading=${next.isLoading}, user=${next.user?.email}');
     });
 
     return PopScope(
@@ -287,6 +471,166 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           }).toList(),
                         ),
                         const SizedBox(height: 16),
+
+                        // ── Shop Details Section ──────────────────────
+                        Divider(
+                          color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                          height: 32,
+                        ),
+                        Text(
+                          'Shop Details',
+                          style: AppTextStyles.h3(
+                            isDark
+                                ? AppColors.textPrimaryDark
+                                : AppColors.textPrimaryLight,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        AppTextField(
+                          label: 'Shop Address',
+                          hint: 'e.g., 123 Main Street, Colombo',
+                          controller: _shopAddressCtrl,
+                          prefixIcon: Icons.location_on_outlined,
+                          textInputAction: TextInputAction.next,
+                          minLines: 2,
+                          maxLines: 3,
+                          validator: (v) {
+                            if (v == null || v.trim().isEmpty) {
+                              return 'Shop address is required';
+                            }
+                            return null;
+                          },
+                        ),
+                        const SizedBox(height: 16),
+
+                        // Province, District, Area
+                        AppTextField(
+                          label: 'Province (Optional)',
+                          hint: 'e.g., Western Province',
+                          controller: _shopProvinceCtrl,
+                          prefixIcon: Icons.map_outlined,
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 16),
+
+                        AppTextField(
+                          label: 'District (Optional)',
+                          hint: 'e.g., Colombo',
+                          controller: _shopDistrictCtrl,
+                          prefixIcon: Icons.domain_outlined,
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 16),
+
+                        AppTextField(
+                          label: 'Area / Suburb (Optional)',
+                          hint: 'e.g., Fort, Colombo 01',
+                          controller: _shopAreaCtrl,
+                          prefixIcon: Icons.location_city_outlined,
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 20),
+
+                        // ── Location Section ──────────────────────────
+                        Text(
+                          'Shop Location',
+                          style: AppTextStyles.subtitle(
+                            isDark
+                                ? AppColors.textPrimaryDark
+                                : AppColors.textPrimaryLight,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: _isDetectingGps ? null : _detectLocation,
+                                icon: Icon(_isDetectingGps
+                                    ? Icons.hourglass_empty
+                                    : Icons.my_location_rounded),
+                                label: Text(_isDetectingGps
+                                    ? 'Detecting...'
+                                    : 'Use Current Location'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.vendorColor,
+                                  minimumSize: const Size(0, 44),
+                                  disabledBackgroundColor:
+                                      AppColors.vendorColor.withOpacity(0.5),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+
+                        if (_detectedLatitude != null && _gpsAccuracy != null) ...[
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.successContainer,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: AppColors.success.withOpacity(0.3),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '✓ Location Detected',
+                                  style: AppTextStyles.labelMedium(
+                                      AppColors.success),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Accuracy: ${_gpsAccuracy!.toStringAsFixed(0)}m',
+                                  style: AppTextStyles.bodySmall(
+                                    isDark
+                                        ? AppColors.textSecondaryDark
+                                        : AppColors.textSecondaryLight,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+
+                        AppTextField(
+                          label: 'Latitude',
+                          hint: 'e.g., 6.9271',
+                          controller: _shopLatitudeCtrl,
+                          keyboardType:
+                              const TextInputType.numberWithOptions(decimal: true),
+                          textInputAction: TextInputAction.next,
+                          prefixIcon: Icons.pin_drop_outlined,
+                          readOnly: _detectedLatitude != null,
+                        ),
+                        const SizedBox(height: 16),
+
+                        AppTextField(
+                          label: 'Longitude',
+                          hint: 'e.g., 79.8612',
+                          controller: _shopLongitudeCtrl,
+                          keyboardType:
+                              const TextInputType.numberWithOptions(decimal: true),
+                          textInputAction: TextInputAction.next,
+                          prefixIcon: Icons.pin_drop_outlined,
+                          readOnly: _detectedLongitude != null,
+                        ),
+                        const SizedBox(height: 16),
+
+                        AppTextField(
+                          label: 'Business Registration Number (Optional)',
+                          hint: 'e.g., BR123456',
+                          controller: _brNumberCtrl,
+                          prefixIcon: Icons.receipt_long_outlined,
+                          textInputAction: TextInputAction.next,
+                        ),
+                        const SizedBox(height: 28),
                       ],
 
                       AppTextField(
@@ -442,4 +786,18 @@ class _InfoBanner extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Mock GPS position for development/testing.
+/// In production, replace with real geolocator.Position
+class _MockPosition {
+  final double latitude;
+  final double longitude;
+  final double accuracy;
+
+  _MockPosition({
+    required this.latitude,
+    required this.longitude,
+    required this.accuracy,
+  });
 }

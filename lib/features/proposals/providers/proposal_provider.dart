@@ -269,6 +269,33 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
       state = state.copyWith(error: e.toString());
     }
   }
+
+  Future<void> saveProposalToWishlist(String proposalId) async {
+    await _repo.ensureInitialized();
+    try {
+      await _repo.saveProposalToWishlist(proposalId);
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  Future<void> removeSavedProposal(String proposalId) async {
+    await _repo.ensureInitialized();
+    try {
+      await _repo.removeSavedProposal(proposalId);
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+    }
+  }
+
+  Future<List<String>> getSavedProposalIds() async {
+    await _repo.ensureInitialized();
+    return _repo.getSavedProposalIds();
+  }
+
+  bool isSavedProposal(String proposalId) {
+    return _repo.isSavedProposal(proposalId);
+  }
 }
 
 final proposalProvider =
