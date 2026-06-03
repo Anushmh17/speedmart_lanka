@@ -295,6 +295,7 @@ class DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
 
     debugPrint('[CustomerLocation] Saving approximateArea: ${loc.approximateAreaText}');
     debugPrint('[CustomerLocation] Saving province/district: ${loc.province}/${loc.district}');
+    debugPrint('[CustomerLocation] Saving with GPS: ${locationState.isGpsDetected}');
 
     // Keep form state aligned with what we saved.
     if (mounted) {

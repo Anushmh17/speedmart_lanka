@@ -84,9 +84,12 @@ class VendorRequestFilterService {
     double? assignedRadiusKm,
     List<String> vendorCategories = const [],
   }) {
-    if (request.latitude == 0 && request.longitude == 0) {
-      return true;
+    // Invalid coordinates - can't determine distance
+    if ((request.latitude == 0 && request.longitude == 0) && request.deliveryLocation?.latitude == null) {
+      debugPrint('[DistanceAudit] Invalid coordinates (0,0) and no deliveryLocation, rejecting');
+      return false;
     }
+
     final distance = LocationModel.calculateDistance(
       lat1: request.latitude,
       lon1: request.longitude,

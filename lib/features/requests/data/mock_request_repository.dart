@@ -155,12 +155,35 @@ class MockRequestRepository {
     debugPrint('[RequestCreate] deliveryLocation.approximateAreaText: ${deliveryLocation?.approximateAreaText}');
     debugPrint('[RequestCreate] deliveryLocation.accuracy: ${deliveryLocation?.accuracy}');
 
+    // Handle coordinate resolution
+    double resolvedLat = latitude;
+    double resolvedLng = longitude;
+
+    // If coordinates are null or (0,0) but we have deliveryLocation with province/district,
+    // find a representative suburb for proper geocoding
+    if ((latitude == 0.0 && longitude == 0.0 || latitude == 0.0) && deliveryLocation != null &&
+        deliveryLocation.province.isNotEmpty &&
+        deliveryLocation.district.isNotEmpty) {
+      debugPrint('[RequestCreate] Manual address detected, finding representative coordinates');
+      // Find first suburb in this district
+      final matchingSuburbs = LocationService.sriLankanLocations
+          .where((s) => s.district.toLowerCase() == deliveryLocation.district.toLowerCase())
+          .toList();
+      if (matchingSuburbs.isNotEmpty) {
+        resolvedLat = matchingSuburbs.first.latitude;
+        resolvedLng = matchingSuburbs.first.longitude;
+        debugPrint('[RequestCreate] Found representative suburb: ${matchingSuburbs.first.name}');
+        debugPrint('[RequestCreate] Using coordinates: lat=$resolvedLat, lng=$resolvedLng');
+      }
+    }
+
     final resolvedLocation = deliveryLocation ??
         LocationService.reverseGeocode(
-          latitude: latitude,
-          longitude: longitude,
+          latitude: resolvedLat,
+          longitude: resolvedLng,
           streetAddress: deliveryAddress,
         );
+
     final newRequest = ShoppingRequest(
       id: 'REQ-${Random().nextInt(90000) + 10000}',
       customerId: customerId,
@@ -174,8 +197,8 @@ class MockRequestRepository {
       customerPhone: customerPhone ?? '',
       customerName: customerName ?? '',
       approximateDistance: 0.0,
-      latitude: resolvedLocation.latitude ?? latitude,
-      longitude: resolvedLocation.longitude ?? longitude,
+      latitude: resolvedLocation.latitude ?? resolvedLat,
+      longitude: resolvedLocation.longitude ?? resolvedLng,
       deliveryLocation: resolvedLocation,
     );
 
