@@ -239,8 +239,8 @@ class MockAuthRepository {
 
     final user = match.first;
 
-    // Check password
-    final storedPassword = _passwordStore[email];
+    // Check password (use user.email which is normalized, not the input email parameter)
+    final storedPassword = _passwordStore[user.email];
     debugPrint('[AuthAudit] Stored password hash exists: ${storedPassword != null}');
     debugPrint('[AuthAudit] Login password entered: ${password.isNotEmpty}');
 
