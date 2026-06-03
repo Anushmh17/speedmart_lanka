@@ -417,6 +417,7 @@ class MockAuthRepository {
     await _persistUsers();
 
     debugPrint('[AuthAudit] Stored password hash exists: true');
+    debugPrint('[VendorLocationAudit] Stored vendor coordinates: lat=$shopLatitude, lng=$shopLongitude');
     debugPrint('[Auth] Vendor registration saved: email=$resolvedEmail, id=${newUser.id}, status=${newUser.vendorStatus}');
     debugPrint('[Auth] Shop details submitted: address=${shopAddress}, lat=$shopLatitude, lng=$shopLongitude');
     debugPrint('[Auth] Total users in memory: ${_sessionUsers.length}');

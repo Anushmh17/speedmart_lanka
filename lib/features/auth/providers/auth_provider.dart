@@ -128,6 +128,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     String? businessRegistrationNumber,
   }) async {
     debugPrint('[Auth] Register submit started: email=$email, role=$role');
+    debugPrint('[VendorLocationAudit] Registration coordinates: lat=$shopLatitude, lng=$shopLongitude');
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final result = await _repo.register(

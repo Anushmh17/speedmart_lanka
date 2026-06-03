@@ -135,6 +135,7 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
     final assignedRadius = user.assignedRadiusKm;
 
     debugPrint('[FeedAudit] vendor.id: ${user.id}');
+    debugPrint('[VendorLocationAudit] Loaded vendor coordinates: lat=$vendorLat, lng=$vendorLon');
     debugPrint('[FeedAudit] vendor.shopLatitude: $vendorLat');
     debugPrint('[FeedAudit] vendor.shopLongitude: $vendorLon');
     debugPrint('[FeedAudit] vendor.assignedRadiusKm: $assignedRadius');

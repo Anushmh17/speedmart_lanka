@@ -10,6 +10,8 @@ import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../../shared/models/user_role.dart';
+import '../../../location/services/sri_lanka_location_service.dart';
+import '../../../location/services/gps_location_service.dart';
 import '../../providers/auth_provider.dart';
 
 /// Registration screen for all roles.
@@ -168,13 +170,13 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     try {
       debugPrint('[AuthUI] Detecting GPS location...');
 
-      // Use geolocator to get current position
-      final geolocator = await _getGpsPosition();
+      // Use real location service (same as customer delivery)
+      final position = await _getGpsPosition();
 
       setState(() {
-        _detectedLatitude = geolocator.latitude;
-        _detectedLongitude = geolocator.longitude;
-        _gpsAccuracy = geolocator.accuracy;
+        _detectedLatitude = position.latitude;
+        _detectedLongitude = position.longitude;
+        _gpsAccuracy = position.accuracy;
 
         _shopLatitudeCtrl.text = _detectedLatitude!.toStringAsFixed(6);
         _shopLongitudeCtrl.text = _detectedLongitude!.toStringAsFixed(6);
@@ -191,6 +193,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } on LocationException catch (e) {
+      debugPrint('[AuthUI] GPS location permission/service error: ${e.message}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 3),
           ),
         );
       }
@@ -215,20 +229,26 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
   }
 
-  /// Get GPS position using geolocator package.
-  /// This is a simple integration with platform location services.
+  /// Get GPS position using real device location service.
+  /// Uses the same location service as customer delivery addresses.
   Future<dynamic> _getGpsPosition() async {
-    // For now, return a mock location for testing
-    // In production, this would use geolocator plugin
-    // Example: return await Geolocator.getCurrentPosition();
+    debugPrint('[VendorLocationAudit] Detecting actual GPS location...');
 
-    // Mock: Colombo, Sri Lanka
-    debugPrint('[AuthUI] Using mock GPS location (development)');
-    return _MockPosition(
-      latitude: 6.9271,
-      longitude: 79.8612,
-      accuracy: 45.0,
-    );
+    try {
+      final locationService = SriLankaLocationService();
+      final result = await locationService.detectCurrentLocation();
+
+      debugPrint('[VendorLocationAudit] GPS detected: lat=${result.gpsResult.latitude}, lng=${result.gpsResult.longitude}, accuracy=${result.gpsResult.accuracy}m');
+
+      return _VendorPosition(
+        latitude: result.gpsResult.latitude,
+        longitude: result.gpsResult.longitude,
+        accuracy: result.gpsResult.accuracy ?? 50.0,
+      );
+    } catch (e) {
+      debugPrint('[VendorLocationAudit] GPS detection failed: $e');
+      rethrow;
+    }
   }
 
   @override
@@ -788,14 +808,13 @@ class _InfoBanner extends StatelessWidget {
   }
 }
 
-/// Mock GPS position for development/testing.
-/// In production, replace with real geolocator.Position
-class _MockPosition {
+/// Position data structure for vendor shop location detection.
+class _VendorPosition {
   final double latitude;
   final double longitude;
   final double accuracy;
 
-  _MockPosition({
+  _VendorPosition({
     required this.latitude,
     required this.longitude,
     required this.accuracy,
