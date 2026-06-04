@@ -129,12 +129,20 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
     final subtotal = widget.proposal.subtotal;
     final deliveryFee = widget.proposal.deliveryCharge;
-    final serviceFee = subtotal * 0.22;
-    final totalAmount = subtotal + deliveryFee + serviceFee;
+    final platformCommission = subtotal * 0.22; // 22% vendor commission for platform
+    final customerAmount = subtotal + deliveryFee; // Customer pays ONLY subtotal + delivery
+    final vendorNetAmount = customerAmount - platformCommission; // Vendor receives: total - commission
     final receiptNumber = 'RCPT-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
     final transactionReference = _selectedMethod == PaymentMethod.mockOnline
         ? 'MOCK-${DateTime.now().millisecondsSinceEpoch}'
         : 'COD-${DateTime.now().millisecondsSinceEpoch}';
+
+    debugPrint('[PaymentAudit] ===== PAYMENT CREATION =====');
+    debugPrint('[PaymentAudit] Subtotal (items): $subtotal');
+    debugPrint('[PaymentAudit] Delivery fee: $deliveryFee');
+    debugPrint('[PaymentAudit] Platform commission (22%): $platformCommission');
+    debugPrint('[PaymentAudit] Customer pays: $customerAmount');
+    debugPrint('[PaymentAudit] Vendor receives: $vendorNetAmount');
 
     final pendingPayment = PaymentModel(
       id: '',
@@ -143,10 +151,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       vendorId: widget.proposal.vendorId,
       vendorBusinessName: widget.proposal.vendorBusinessName,
       proposalId: widget.proposal.id,
-      amount: totalAmount,
+      amount: customerAmount,
       subtotal: subtotal,
       deliveryFee: deliveryFee,
-      serviceFee: serviceFee,
+      serviceFee: platformCommission, // Kept for compatibility
+      platformCommission: platformCommission,
+      vendorNetAmount: vendorNetAmount,
       paymentMethod: _selectedMethod,
       paymentStatus: PaymentStatus.pending,
       createdAt: DateTime.now(),
@@ -177,7 +187,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         deliveryAddress: deliveryAddress,
         items: widget.proposal.items,
         deliveryCharge: deliveryFee,
-        totalPrice: totalAmount,
+        totalPrice: customerAmount, // What customer pays
         paymentId: finalPayment.id,
         paymentMethod: _selectedMethod,
         paymentStatus: finalPayment.paymentStatus,

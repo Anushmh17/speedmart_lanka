@@ -54,10 +54,12 @@ class PaymentModel {
   final String vendorId;
   final String vendorBusinessName;
   final String proposalId;
-  final double amount;
-  final double subtotal;
-  final double deliveryFee;
-  final double serviceFee;
+  final double amount; // Customer pays: subtotal + delivery
+  final double subtotal; // Items total
+  final double deliveryFee; // Delivery cost
+  final double serviceFee; // DEPRECATED: kept for compatibility, use platformCommission
+  final double platformCommission; // Commission earned by platform (typically 20%)
+  final double vendorNetAmount; // Amount vendor receives: subtotal + delivery - commission
   final PaymentMethod paymentMethod;
   final PaymentStatus paymentStatus;
   final DateTime? paidAt;
@@ -76,6 +78,8 @@ class PaymentModel {
     required this.subtotal,
     required this.deliveryFee,
     required this.serviceFee,
+    this.platformCommission = 0.0,
+    this.vendorNetAmount = 0.0,
     required this.paymentMethod,
     this.paymentStatus = PaymentStatus.pending,
     this.paidAt,
@@ -95,6 +99,8 @@ class PaymentModel {
     double? subtotal,
     double? deliveryFee,
     double? serviceFee,
+    double? platformCommission,
+    double? vendorNetAmount,
     PaymentMethod? paymentMethod,
     PaymentStatus? paymentStatus,
     DateTime? paidAt,
@@ -113,6 +119,8 @@ class PaymentModel {
       subtotal: subtotal ?? this.subtotal,
       deliveryFee: deliveryFee ?? this.deliveryFee,
       serviceFee: serviceFee ?? this.serviceFee,
+      platformCommission: platformCommission ?? this.platformCommission,
+      vendorNetAmount: vendorNetAmount ?? this.vendorNetAmount,
       paymentMethod: paymentMethod ?? this.paymentMethod,
       paymentStatus: paymentStatus ?? this.paymentStatus,
       paidAt: paidAt ?? this.paidAt,
@@ -134,6 +142,8 @@ class PaymentModel {
       'subtotal': subtotal,
       'deliveryFee': deliveryFee,
       'serviceFee': serviceFee,
+      'platformCommission': platformCommission,
+      'vendorNetAmount': vendorNetAmount,
       'paymentMethod': paymentMethod.name,
       'paymentStatus': paymentStatus.name,
       'paidAt': paidAt?.toIso8601String(),
@@ -154,6 +164,8 @@ class PaymentModel {
       subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0.0,
       deliveryFee: (json['deliveryFee'] as num?)?.toDouble() ?? 0.0,
       serviceFee: (json['serviceFee'] as num?)?.toDouble() ?? 0.0,
+      platformCommission: (json['platformCommission'] as num?)?.toDouble() ?? 0.0,
+      vendorNetAmount: (json['vendorNetAmount'] as num?)?.toDouble() ?? 0.0,
       paymentMethod: PaymentMethod.values.firstWhere(
         (m) => m.name == json['paymentMethod'],
         orElse: () => PaymentMethod.cashOnDelivery,
