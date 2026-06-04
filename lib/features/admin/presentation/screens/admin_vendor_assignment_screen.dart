@@ -387,25 +387,6 @@ class _AdminVendorAssignmentScreenState
                     ),
                     const SizedBox(height: 12),
 
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          _latitudeCtrl.text = '6.9271';
-                          _longitudeCtrl.text = '80.7789';
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Test coordinates (Colombo) set'),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.my_location_rounded),
-                        label: const Text('Use Test Coordinates'),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
                     // Service radius
                     AppTextField(
                       label: 'Service Radius (KM)',
