@@ -76,9 +76,11 @@ class _AdminVendorAssignmentScreenState
   Future<void> _saveAssignment() async {
     if (!_formKey.currentState!.validate()) return;
 
-    debugPrint('[AdminVendor] Categories selected in UI: $_selectedCategories');
-    debugPrint('[AdminVendor] Submitted categories: ${widget.vendor.vendorCategories}');
-    debugPrint('[AdminVendor] Categories before save: $_selectedCategories');
+    debugPrint('[CategoryAudit] ===== ADMIN SAVE START =====');
+    debugPrint('[CategoryAudit] Categories selected in UI: $_selectedCategories');
+    debugPrint('[CategoryAudit] Submitted categories: ${widget.vendor.vendorCategories}');
+    debugPrint('[CategoryAudit] Categories before save: $_selectedCategories');
+    debugPrint('[CategoryAudit] Vendor current allowedCategories: ${widget.vendor.allowedCategories}');
 
     // Validate required shop fields for approval
     if (_isApproved) {
@@ -137,7 +139,7 @@ class _AdminVendorAssignmentScreenState
     setState(() => _isSaving = true);
 
     try {
-      debugPrint('[AdminVendor] Saving allowedCategories: $_selectedCategories');
+      debugPrint('[CategoryAudit] Saving allowedCategories: $_selectedCategories');
 
       // Update vendor fields
       final authNotifier = ref.read(authProvider.notifier);
@@ -152,7 +154,8 @@ class _AdminVendorAssignmentScreenState
         allowedCategories: _selectedCategories,
       );
 
-      debugPrint('[AdminVendor] Saved vendor allowedCategories: $_selectedCategories');
+      debugPrint('[CategoryAudit] ===== ADMIN SAVE COMPLETE =====');
+      debugPrint('[CategoryAudit] Saved vendor allowedCategories: $_selectedCategories');
 
       if (!mounted) return;
 

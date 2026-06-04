@@ -255,12 +255,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required bool vendorApproved,
     required List<String> allowedCategories,
   }) async {
-    debugPrint('[Auth] Updating vendor shop assignment: vendorId=$vendorId');
-    debugPrint('[Auth] Admin-approved categories: $allowedCategories');
+    debugPrint('[CategoryAudit] ===== AUTH PROVIDER UPDATE START =====');
+    debugPrint('[CategoryAudit] vendorId=$vendorId');
+    debugPrint('[CategoryAudit] allowedCategories input: $allowedCategories');
 
     // Get the vendor from repository
     final vendor = await _repo.getUserById(vendorId);
     if (vendor == null) throw Exception('Vendor not found');
+
+    debugPrint('[CategoryAudit] Before copyWith: vendor.allowedCategories=${vendor.allowedCategories}');
 
     final updatedVendor = vendor.copyWith(
       shopName: shopName,
@@ -273,22 +276,25 @@ class AuthNotifier extends StateNotifier<AuthState> {
       isShopLocationAssigned: true,
     );
 
-    debugPrint('[Auth] Updated vendor allowedCategories in memory: ${updatedVendor.allowedCategories}');
+    debugPrint('[CategoryAudit] After copyWith: updatedVendor.allowedCategories=${updatedVendor.allowedCategories}');
 
     // Update in repository
     await _repo.updateUser(updatedVendor);
 
-    debugPrint('[Auth] Updated vendor in repository');
+    debugPrint('[CategoryAudit] Updated vendor in repository');
 
     // Persist to local storage
-    await StorageService.saveUser(updatedVendor.toJson());
+    final userJson = updatedVendor.toJson();
+    debugPrint('[CategoryAudit] User JSON toJson: allowed_categories=${userJson['allowed_categories']}');
+    await StorageService.saveUser(userJson);
 
-    debugPrint('[Auth] Persisted vendor to storage with allowedCategories: ${updatedVendor.allowedCategories}');
+    debugPrint('[CategoryAudit] ===== PERSISTED TO STORAGE =====');
+    debugPrint('[CategoryAudit] Persisted allowedCategories: ${updatedVendor.allowedCategories}');
 
     // If updating current user, update state
     if (state.user?.id == vendorId) {
       state = AuthState.authenticated(updatedVendor);
-      debugPrint('[Auth] Updated current user state with new allowedCategories');
+      debugPrint('[CategoryAudit] Updated current user state: ${updatedVendor.allowedCategories}');
     }
   }
 

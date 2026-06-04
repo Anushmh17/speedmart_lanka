@@ -93,10 +93,10 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
 
     // *** SOURCE OF TRUTH: allowedCategories (admin-approved) ***
     final allowedCategories = user.allowedCategories ?? user.vendorCategories ?? [];
-    debugPrint('[CategoryAudit] SOURCE OF TRUTH: allowedCategories');
-    debugPrint('[CategoryAudit] Using vendor.allowedCategories: $allowedCategories');
-    debugPrint('[CategoryAudit] Ignoring legacy vendorCategories for matching: ${user.vendorCategories}');
-    debugPrint('[AdminVendor] Categories after reload: $allowedCategories');  // Verify admin changes persisted
+    debugPrint('[CategoryAudit] ===== CATEGORY AUDIT =====');
+    debugPrint('[CategoryAudit] vendor.allowedCategories (admin-approved): ${user.allowedCategories}');
+    debugPrint('[CategoryAudit] vendor.vendorCategories (vendor-submitted): ${user.vendorCategories}');
+    debugPrint('[CategoryAudit] FINAL CATEGORIES USED IN FEED: $allowedCategories');
 
     final approved = user.vendorStatus == VendorStatus.approved;
     debugPrint('[FeedAudit] Vendor approval check: vendorStatus=${user.vendorStatus}, approved=$approved');
