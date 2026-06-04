@@ -145,7 +145,7 @@ class MockRequestRepository {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 500));
 
-    debugPrint('[RequestCreate] Creating request with location:');
+    debugPrint('[RequestCreate] ===== REQUEST CREATION START =====');
     debugPrint('[RequestCreate] customerId: $customerId');
     debugPrint('[RequestCreate] customerArea: $customerArea');
     debugPrint('[RequestCreate] deliveryAddress: $deliveryAddress');
@@ -153,7 +153,21 @@ class MockRequestRepository {
     debugPrint('[RequestCreate] deliveryLocation.province: ${deliveryLocation?.province}');
     debugPrint('[RequestCreate] deliveryLocation.district: ${deliveryLocation?.district}');
     debugPrint('[RequestCreate] deliveryLocation.approximateAreaText: ${deliveryLocation?.approximateAreaText}');
-    debugPrint('[RequestCreate] deliveryLocation.accuracy: ${deliveryLocation?.accuracy}');
+
+    // VALIDATION: Reject requests with completely invalid coordinates
+    if (latitude == 0.0 && longitude == 0.0) {
+      final hasValidArea = deliveryLocation != null &&
+          deliveryLocation.province.isNotEmpty &&
+          deliveryLocation.district.isNotEmpty;
+
+      if (!hasValidArea) {
+        debugPrint('[RequestCreate] ===== REJECTION: Invalid (0.0, 0.0) coordinates with no area data =====');
+        throw Exception(
+          'Invalid delivery location. Please set your delivery address using GPS or manual entry before submitting a request.',
+        );
+      }
+      debugPrint('[RequestCreate] Coordinates are (0.0, 0.0) but area data is valid, will resolve from district');
+    }
 
     // Handle coordinate resolution
     double resolvedLat = latitude;
