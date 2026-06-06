@@ -7,6 +7,7 @@ import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/models/user_role.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/routes/route_names.dart';
+import '../../../../shared/utils/category_constants.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -23,12 +24,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late TextEditingController _phoneCtrl;
   late TextEditingController _businessNameCtrl;
   
-  List<String> _selectedCategories = [];
-  
-  final List<String> _availableCategories = [
-    'Groceries', 'Electronics', 'Clothing', 'Home Appliances', 
-    'Pharmacy', 'Stationery', 'Hardware', 'Automotive'
-  ];
+  List<String> _requestedCategories = [];
+  bool _hasInitializedRequestedCategories = false;
 
   @override
   void initState() {
@@ -50,7 +47,30 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _nameCtrl.text = user.fullName;
       _phoneCtrl.text = user.phone;
       _businessNameCtrl.text = user.businessName ?? '';
-      _selectedCategories = List.from(user.vendorCategories ?? []);
+      
+      // Initialize requested categories ONLY ONCE from requestedCategories if available
+      if (!_hasInitializedRequestedCategories) {
+        debugPrint('[CategoryLogic] Profile approvedCategories: ${user.allowedCategories}');
+        
+        final approved = VendorCategories.normalizeList(user.allowedCategories ?? []);
+        final all = VendorCategories.normalizedList;
+        final requestableCategories = all.where((cat) => !approved.contains(cat)).toList();
+        
+        debugPrint('[CategoryLogic] Approved categories: $approved');
+        debugPrint('[CategoryLogic] Requestable categories: $requestableCategories');
+        
+        if (user.hasPendingCategoryRequest == true && user.requestedCategories != null && user.requestedCategories!.isNotEmpty) {
+          // Filter out any requested categories that are already approved
+          _requestedCategories = VendorCategories.normalizeList(user.requestedCategories)
+              .where((cat) => requestableCategories.contains(cat))
+              .toList();
+          debugPrint('[CategoryLogic] Filtered requested categories: $_requestedCategories');
+        } else {
+          _requestedCategories = [];
+          debugPrint('[CategoryLogic] Profile requestedCategories init: empty (no pending request)');
+        }
+        _hasInitializedRequestedCategories = true;
+      }
     }
   }
 
@@ -68,18 +88,35 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
 
+    // Validate vendor category request
+    if (user.role == UserRole.vendor && _requestedCategories.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select at least one category to request.'),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    debugPrint('[CategoryLogic] Profile requestedCategories save: $_requestedCategories');
+    
     await ref.read(authProvider.notifier).updateProfile(
       fullName: _nameCtrl.text.trim(),
       phone: _phoneCtrl.text.trim(),
       businessName: user.role == UserRole.vendor ? _businessNameCtrl.text.trim() : null,
-      vendorCategories: user.role == UserRole.vendor ? _selectedCategories : null,
+      requestedCategories: user.role == UserRole.vendor ? _requestedCategories : null,
     );
     
     if (mounted && !ref.read(authLoadingProvider)) {
       setState(() => _isEditing = false);
+      debugPrint('[CategoryLogic] Vendor profile: save complete with requestedCategories: $_requestedCategories');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Profile updated successfully!'),
+          content: user.role == UserRole.vendor
+              ? const Text('Category request sent to admin for approval.')
+              : const Text('Profile updated successfully!'),
           backgroundColor: user.role == UserRole.vendor ? AppColors.vendorColor : AppColors.customerColor,
           behavior: SnackBarBehavior.floating,
         ),
@@ -286,7 +323,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
                 const SizedBox(height: 16),
                 
-                // Categories Picker
+                // Log view mode data
+                Builder(
+                  builder: (context) {
+                    if (!_isEditing) {
+                      debugPrint('[CategoryLogic] Vendor profile view approved: ${user.allowedCategories}');
+                      debugPrint('[CategoryLogic] Vendor profile view requested: ${user.requestedCategories}');
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+                
+                // Approved Categories (Always shown)
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -299,47 +347,168 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.category_outlined, color: secondaryText, size: 20),
+                          Icon(Icons.verified_rounded, color: AppColors.success, size: 20),
                           const SizedBox(width: 12),
-                          Text('Business Categories', style: AppTextStyles.labelLarge(secondaryText)),
+                          Text('Approved Categories', style: AppTextStyles.labelLarge(secondaryText)),
                         ],
                       ),
-                      const SizedBox(height: 16),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _availableCategories.map((category) {
-                          final isSelected = _selectedCategories.contains(category);
-                          return FilterChip(
-                            label: Text(category),
-                            selected: isSelected,
-                            onSelected: _isEditing ? (selected) {
-                              setState(() {
-                                if (selected) {
-                                  _selectedCategories.add(category);
-                                } else {
-                                  _selectedCategories.remove(category);
-                                }
-                              });
-                            } : null,
-                            selectedColor: primaryColor.withOpacity(0.2),
-                            checkmarkColor: primaryColor,
-                            labelStyle: AppTextStyles.bodySmall(
-                              isSelected ? primaryColor : secondaryText,
-                            ).copyWith(fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal),
-                            backgroundColor: isDark ? Colors.black12 : Colors.grey.shade100,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                              side: BorderSide(
-                                color: isSelected ? primaryColor : Colors.transparent,
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
+                      const SizedBox(height: 12),
+                      if (user.allowedCategories != null && user.allowedCategories!.isNotEmpty) ...[
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: VendorCategories.displayList(VendorCategories.normalizeList(user.allowedCategories))
+                              .map((displayCategory) => Chip(
+                                label: Text(displayCategory),
+                                backgroundColor: AppColors.success.withValues(alpha: 0.12),
+                                labelStyle: AppTextStyles.bodySmall(AppColors.success)
+                                    .copyWith(fontWeight: FontWeight.w600),
+                              ))
+                              .toList(),
+                        ),
+                      ] else ...[
+                        Text(
+                          'No categories approved yet.',
+                          style: AppTextStyles.bodySmall(secondaryText),
+                        ),
+                      ],
                     ],
                   ),
                 ),
+                const SizedBox(height: 16),
+                
+                // Pending Request / Request Categories
+                if (_isEditing) ...[
+                  // EDIT MODE: Request Categories
+                  Builder(
+                    builder: (context) {
+                      // Calculate requestable categories (not already approved)
+                      final approved = VendorCategories.normalizeList(user.allowedCategories ?? []);
+                      final all = VendorCategories.normalizedList;
+                      final requestableCategories = all.where((cat) => !approved.contains(cat)).toList();
+                      final requestableDisplay = VendorCategories.displayList(requestableCategories);
+                      
+                      return Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: cardColor,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: borderColor),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.category_outlined, color: primaryColor, size: 20),
+                                const SizedBox(width: 12),
+                                Text('Request Categories', style: AppTextStyles.labelLarge(secondaryText)),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            if (requestableCategories.isEmpty) ...[
+                              Text(
+                                'All categories are already approved.',
+                                style: AppTextStyles.bodySmall(secondaryText),
+                              ),
+                            ] else ...[
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: requestableDisplay.map((displayCategory) {
+                                  final normalized = VendorCategories.normalize(displayCategory);
+                                  final isSelected = _requestedCategories.contains(normalized);
+                                  return FilterChip(
+                                    label: Text(displayCategory),
+                                    selected: isSelected,
+                                    onSelected: (selected) {
+                                      setState(() {
+                                        if (selected) {
+                                          _requestedCategories.add(normalized);
+                                          debugPrint('[CategoryLogic] CHIP SELECTED: $displayCategory, requested now: $_requestedCategories');
+                                        } else {
+                                          _requestedCategories.remove(normalized);
+                                          debugPrint('[CategoryLogic] CHIP DESELECTED: $displayCategory, requested now: $_requestedCategories');
+                                        }
+                                      });
+                                    },
+                                    selectedColor: primaryColor.withOpacity(0.2),
+                                    checkmarkColor: primaryColor,
+                                    labelStyle: AppTextStyles.bodySmall(
+                                      isSelected ? primaryColor : secondaryText,
+                                    ).copyWith(fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal),
+                                    backgroundColor: isDark ? Colors.black12 : Colors.grey.shade100,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(20),
+                                      side: BorderSide(
+                                        color: isSelected ? primaryColor : Colors.transparent,
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ],
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ] else ...[
+                  // VIEW MODE: Pending Request
+                  if (user.hasPendingCategoryRequest == true && user.requestedCategories != null && user.requestedCategories!.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.pending_actions, color: Colors.orange, size: 20),
+                              const SizedBox(width: 12),
+                              Text('Pending Request', style: AppTextStyles.labelLarge(Colors.orange)),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: VendorCategories.displayList(VendorCategories.normalizeList(user.requestedCategories))
+                                .map((displayCategory) => Chip(
+                                  label: Text(displayCategory),
+                                  backgroundColor: Colors.orange.withOpacity(0.15),
+                                  labelStyle: AppTextStyles.bodySmall(Colors.orange)
+                                      .copyWith(fontWeight: FontWeight.w600),
+                                ))
+                                .toList(),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Waiting for admin approval',
+                            style: AppTextStyles.caption(Colors.orange),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ] else ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: borderColor),
+                      ),
+                      child: Text(
+                        'No pending category request',
+                        style: AppTextStyles.bodySmall(secondaryText),
+                      ),
+                    ),
+                  ],
+                ],
               ],
 
               const SizedBox(height: 32),

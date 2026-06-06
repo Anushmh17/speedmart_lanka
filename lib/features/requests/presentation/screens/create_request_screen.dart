@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:uuid/uuid.dart';
@@ -14,12 +13,9 @@ import '../../providers/request_provider.dart';
 import '../../providers/draft_provider.dart';
 import '../../../../core/providers/notification_provider.dart';
 
-import 'package:geolocator/geolocator.dart';
-import 'package:permission_handler/permission_handler.dart' as ph;
 import 'package:speedmart_lanka/features/location/providers/location_provider.dart';
 import 'package:speedmart_lanka/features/location/models/delivery_location.dart';
 import 'package:speedmart_lanka/features/location/services/location_service.dart';
-import 'package:speedmart_lanka/features/location/widgets/searchable_location_field.dart';
 
 // Import Reusable Presentation Widgets
 import '../widgets/request_type_toggle.dart';
@@ -389,7 +385,11 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     return loc.province.trim().isNotEmpty &&
         loc.district.trim().isNotEmpty &&
         area.trim().isNotEmpty &&
-        loc.streetAddress.trim().isNotEmpty;
+        loc.streetAddress.trim().isNotEmpty &&
+        loc.latitude != null &&
+        loc.longitude != null &&
+        loc.latitude != 0.0 &&
+        loc.longitude != 0.0;
   }
 
   List<RequestItem> _getActiveItems() {
@@ -600,6 +600,12 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
       final location = locationState.currentLocation;
       if (location == null) {
         throw Exception('Delivery location is missing.');
+      }
+      if (location.latitude == null ||
+          location.longitude == null ||
+          location.latitude == 0.0 ||
+          location.longitude == 0.0) {
+        throw Exception('Please select a valid delivery location.');
       }
 
       final updatedLocation = location.copyWith(

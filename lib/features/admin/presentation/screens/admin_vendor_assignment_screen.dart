@@ -5,11 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_text_field.dart';
-import '../../../../shared/models/location_model.dart';
 import '../../../auth/providers/auth_provider.dart';
-import '../../../location/data/sri_lanka_data.dart';
-import '../../../location/models/sri_lanka_district.dart';
-import '../../../location/models/sri_lanka_province.dart';
+import '../../../../shared/utils/category_constants.dart';
 
 class AdminVendorAssignmentScreen extends ConsumerStatefulWidget {
   const AdminVendorAssignmentScreen({
@@ -32,18 +29,24 @@ class _AdminVendorAssignmentScreenState
   late final TextEditingController _longitudeCtrl;
   late final TextEditingController _radiusCtrl;
 
-  late SriLankaProvince? _selectedProvince;
-  late SriLankaDistrict? _selectedDistrict;
-  late List<String> _selectedCategories;
-  late bool _isApproved;
+  List<String> _selectedCategories = [];
+  bool _hasInitializedCategories = false;
+  bool _isApproved = false;
   bool _isSaving = false;
+  bool _isLoading = true;
+  dynamic _latestVendor;
 
   final _formKey = GlobalKey<FormState>();
 
   @override
   void initState() {
     super.initState();
-    // Prefill from vendor-submitted data
+    _initializeControllers();
+    _loadLatestVendorData();
+  }
+
+  void _initializeControllers() {
+    // Prefill from vendor-submitted data (initial values)
     _shopNameCtrl = TextEditingController(text: widget.vendor.shopName ?? '');
     _shopAddressCtrl =
         TextEditingController(text: widget.vendor.shopAddress ?? '');
@@ -56,11 +59,68 @@ class _AdminVendorAssignmentScreenState
     _radiusCtrl = TextEditingController(
       text: widget.vendor.assignedRadiusKm?.toString() ?? '20',
     );
+  }
 
-    _selectedProvince = null;
-    _selectedDistrict = null;
-    _selectedCategories = List<String>.from(widget.vendor.vendorCategories ?? []);
-    _isApproved = widget.vendor.vendorApproved ?? false;
+  Future<void> _loadLatestVendorData() async {
+    debugPrint('[CategoryLogic] ===== SCREEN OPENED =====');
+    debugPrint('[CategoryLogic] Screen opened vendorId: ${widget.vendor.id}');
+    
+    try {
+      // Fetch fresh vendor data from repository
+      final authNotifier = ref.read(authProvider.notifier);
+      final latestVendor = await authNotifier.getUserById(widget.vendor.id);
+      
+      if (latestVendor == null) {
+        debugPrint('[CategoryLogic] ERROR: Vendor not found in repository');
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+        return;
+      }
+
+      _latestVendor = latestVendor;
+      debugPrint('[CategoryLogic] Assign screen approved: ${latestVendor.allowedCategories}');
+      debugPrint('[CategoryLogic] Assign screen requested: ${latestVendor.requestedCategories}');
+
+      // Initialize categories ONLY ONCE when screen opens
+      if (!_hasInitializedCategories) {
+        final allowed = VendorCategories.normalizeList(latestVendor.allowedCategories ?? []);
+        final submitted = VendorCategories.normalizeList(latestVendor.vendorCategories ?? []);
+        
+        debugPrint('[VendorApprovalFix] Fresh allowedCategories: $allowed');
+        debugPrint('[VendorApprovalFix] Vendor submitted categories: $submitted');
+        
+        if (allowed.isNotEmpty) {
+          _selectedCategories = allowed;
+          debugPrint('[VendorApprovalFix] Initial selector categories: $_selectedCategories (from allowed)');
+        } else if (latestVendor.vendorStatus?.name == 'pendingApproval' || latestVendor.vendorApproved != true) {
+          _selectedCategories = submitted;
+          debugPrint('[VendorApprovalFix] Initial selector categories: $_selectedCategories (from submitted - pending approval)');
+        } else {
+          _selectedCategories = [];
+          debugPrint('[VendorApprovalFix] Initial selector categories: empty');
+        }
+        
+        _hasInitializedCategories = true;
+      }
+      
+      _isApproved = latestVendor.vendorApproved ?? false;
+      
+      // Update controllers with fresh data
+      _shopNameCtrl.text = latestVendor.shopName ?? '';
+      _shopAddressCtrl.text = latestVendor.shopAddress ?? '';
+      _latitudeCtrl.text = latestVendor.shopLatitude?.toString() ?? '';
+      _longitudeCtrl.text = latestVendor.shopLongitude?.toString() ?? '';
+      _radiusCtrl.text = latestVendor.assignedRadiusKm?.toString() ?? '20';
+
+      debugPrint('[CategoryLogic] ===== SCREEN LOAD COMPLETE =====');
+    } catch (e) {
+      debugPrint('[CategoryLogic] ERROR loading vendor data: $e');
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override
@@ -76,11 +136,8 @@ class _AdminVendorAssignmentScreenState
   Future<void> _saveAssignment() async {
     if (!_formKey.currentState!.validate()) return;
 
-    debugPrint('[CategoryAudit] ===== ADMIN SAVE START =====');
-    debugPrint('[CategoryAudit] Categories selected in UI: $_selectedCategories');
-    debugPrint('[CategoryAudit] Submitted categories: ${widget.vendor.vendorCategories}');
-    debugPrint('[CategoryAudit] Categories before save: $_selectedCategories');
-    debugPrint('[CategoryAudit] Vendor current allowedCategories: ${widget.vendor.allowedCategories}');
+    debugPrint('[CategoryLogic] ===== ADMIN SAVE START =====');
+    debugPrint('[CategoryLogic] Save allowedCategories: $_selectedCategories');
 
     // Validate required shop fields for approval
     if (_isApproved) {
@@ -139,10 +196,9 @@ class _AdminVendorAssignmentScreenState
     setState(() => _isSaving = true);
 
     try {
-      debugPrint('[CategoryAudit] Saving allowedCategories: $_selectedCategories');
-
-      // Update vendor fields
       final authNotifier = ref.read(authProvider.notifier);
+      
+      debugPrint('[CategoryLogic] Clear pending request: true');
       await authNotifier.updateVendorShopAssignment(
         vendorId: widget.vendor.id,
         shopName: _shopNameCtrl.text.trim(),
@@ -151,11 +207,13 @@ class _AdminVendorAssignmentScreenState
         shopLongitude: double.parse(_longitudeCtrl.text.trim()),
         assignedRadiusKm: double.parse(_radiusCtrl.text.trim()),
         vendorApproved: _isApproved,
-        allowedCategories: _selectedCategories,
+        allowedCategories: List<String>.from(_selectedCategories),
+        requestedCategories: [],
+        hasPendingCategoryRequest: false,
       );
 
-      debugPrint('[CategoryAudit] ===== ADMIN SAVE COMPLETE =====');
-      debugPrint('[CategoryAudit] Saved vendor allowedCategories: $_selectedCategories');
+      debugPrint('[CategoryLogic] Persisted allowedCategories: $_selectedCategories');
+      debugPrint('[CategoryLogic] ===== ADMIN SAVE COMPLETE =====');
 
       if (!mounted) return;
 
@@ -199,7 +257,7 @@ class _AdminVendorAssignmentScreenState
         title: const Text('Assign Store'),
         elevation: 0,
       ),
-      body: _isSaving
+      body: _isLoading || _isSaving
           ? const Center(
               child: CircularProgressIndicator(color: AppColors.adminColor),
             )
@@ -414,48 +472,254 @@ class _AdminVendorAssignmentScreenState
                     ),
                     const SizedBox(height: 20),
 
-                    // Categories
+                    // Vendor Submitted Categories (during registration)
+                    if (_latestVendor?.vendorCategories != null && _latestVendor.vendorCategories!.isNotEmpty) ...[
+                      Text(
+                        'Vendor Submitted Categories',
+                        style: AppTextStyles.h3(primaryText),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.app_registration, color: Colors.blue, size: 16),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Selected during registration',
+                                  style: AppTextStyles.caption(Colors.blue),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: VendorCategories.displayList(
+                                VendorCategories.normalizeList(_latestVendor.vendorCategories),
+                              ).map((displayCat) => Chip(
+                                label: Text(displayCat),
+                                backgroundColor: Colors.blue.withOpacity(0.15),
+                                labelStyle: TextStyle(
+                                  color: Colors.blue,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              )).toList(),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
+                    // A. Current Approved Categories (Read-only)
                     Text(
-                      'Allowed Categories',
+                      'Current Approved Categories',
                       style: AppTextStyles.h3(primaryText),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.success.withOpacity(0.3)),
+                      ),
+                      child: _latestVendor?.allowedCategories != null && _latestVendor.allowedCategories!.isNotEmpty
+                          ? Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: VendorCategories.displayList(
+                                VendorCategories.normalizeList(_latestVendor.allowedCategories),
+                              ).map((displayCat) => Chip(
+                                label: Text(displayCat),
+                                backgroundColor: AppColors.success.withOpacity(0.15),
+                                labelStyle: TextStyle(
+                                  color: AppColors.success,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              )).toList(),
+                            )
+                          : Text(
+                              'No approved categories',
+                              style: AppTextStyles.bodySmall(secondaryText),
+                            ),
+                    ),
+                    const SizedBox(height: 20),
+
+                    // B. Vendor Requested Categories
+                    Text(
+                      'Vendor Requested Categories',
+                      style: AppTextStyles.h3(primaryText),
+                    ),
+                    const SizedBox(height: 12),
+                    if (_latestVendor?.hasPendingCategoryRequest == true &&
+                        _latestVendor?.requestedCategories != null &&
+                        _latestVendor.requestedCategories!.isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    'Pending Category Request',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: VendorCategories.displayList(
+                                VendorCategories.normalizeList(_latestVendor.requestedCategories),
+                              ).map((displayCat) => Chip(
+                                label: Text(displayCat),
+                                backgroundColor: Colors.orange.withOpacity(0.15),
+                                labelStyle: TextStyle(
+                                  color: Colors.orange,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 12,
+                                ),
+                              )).toList(),
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  setState(() {
+                                    debugPrint('[CategoryLogic] Before add requested: $_selectedCategories');
+                                    debugPrint('[CategoryLogic] Requested categories: ${_latestVendor.requestedCategories}');
+                                    
+                                    // Merge current selected + requested categories
+                                    final merged = VendorCategories.normalizeList([
+                                      ..._selectedCategories,
+                                      ..._latestVendor.requestedCategories!,
+                                    ]);
+                                    
+                                    _selectedCategories = merged;
+                                    debugPrint('[CategoryLogic] After add requested merged: $_selectedCategories');
+                                  });
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Requested categories added to selector'),
+                                      backgroundColor: Colors.orange,
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.add_circle_outline),
+                                label: const Text('Add Requested Categories'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.orange,
+                                  side: const BorderSide(color: Colors.orange),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ] else ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          'No pending category request',
+                          style: AppTextStyles.bodySmall(secondaryText),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+
+                    // C. Allowed Categories (Admin Selector)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Allowed Categories',
+                            style: AppTextStyles.h3(primaryText),
+                          ),
+                        ),
+                        TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _selectedCategories.clear();
+                            });
+                          },
+                          icon: const Icon(Icons.clear_all, size: 18),
+                          label: const Text('Clear All'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.red,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
 
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
-                      children: [
-                        'Groceries',
-                        'Electronics',
-                        'Hardware',
-                        'Furniture',
-                        'Pharmacy',
-                        'Clothing',
-                        'Vehicle Parts',
-                        'Home Appliances',
-                      ]
+                      children: VendorCategories.displayNames
                           .map(
-                            (cat) => FilterChip(
-                              label: Text(cat.toLowerCase()),
-                              selected:
-                                  _selectedCategories.contains(cat.toLowerCase()),
-                              onSelected: (selected) {
-                                setState(() {
-                                  if (selected) {
-                                    _selectedCategories.add(cat.toLowerCase());
-                                  } else {
-                                    _selectedCategories.remove(cat.toLowerCase());
-                                  }
-                                });
-                              },
-                              selectedColor: AppColors.adminColor,
-                              labelStyle: TextStyle(
-                                color: _selectedCategories
-                                        .contains(cat.toLowerCase())
-                                    ? Colors.white
-                                    : primaryText,
-                              ),
-                            ),
+                            (displayCat) {
+                              final normalized = VendorCategories.normalize(displayCat);
+                              
+                              return FilterChip(
+                                label: Text(displayCat),
+                                selected: _selectedCategories.contains(normalized),
+                                onSelected: (selected) {
+                                  setState(() {
+                                    if (selected) {
+                                      if (!_selectedCategories.contains(normalized)) {
+                                        _selectedCategories.add(normalized);
+                                        debugPrint('[CategoryLogic] CHIP SELECTED: $displayCat ($normalized), list now: $_selectedCategories');
+                                      }
+                                    } else {
+                                      _selectedCategories.remove(normalized);
+                                      debugPrint('[CategoryLogic] CHIP DESELECTED: $displayCat ($normalized), list now: $_selectedCategories');
+                                    }
+                                  });
+                                },
+                                selectedColor: AppColors.adminColor,
+                                labelStyle: TextStyle(
+                                  color: _selectedCategories.contains(normalized)
+                                      ? Colors.white
+                                      : primaryText,
+                                ),
+                              );
+                            },
                           )
                           .toList(),
                     ),

@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../../../location/models/delivery_location.dart';
 
 /// Saved default delivery address for a customer account.
@@ -43,13 +45,27 @@ class CustomerDeliveryAddress {
       province.trim().isNotEmpty &&
       district.trim().isNotEmpty &&
       _areaLabel.trim().isNotEmpty &&
-      streetAddress.trim().isNotEmpty;
+      streetAddress.trim().isNotEmpty &&
+      hasValidCoordinates;
+
+  bool get hasValidCoordinates =>
+      latitude != null &&
+      longitude != null &&
+      latitude != 0.0 &&
+      longitude != 0.0;
 
   String get _areaLabel =>
       approximateArea.isNotEmpty ? approximateArea : suburb;
 
   DeliveryLocation toDeliveryLocation() {
-    return DeliveryLocation(
+    debugPrint('[ApproxAreaAudit] ===== toDeliveryLocation START =====');
+    debugPrint('[ApproxAreaAudit] this.approximateArea: "$approximateArea"');
+    debugPrint('[ApproxAreaAudit] this.suburb: "$suburb"');
+    
+    final areaText = approximateArea.isNotEmpty ? approximateArea : suburb;
+    debugPrint('[ApproxAreaAudit] Result approximateAreaText: "$areaText"');
+    
+    final result = DeliveryLocation(
       province: province,
       district: district,
       city: city,
@@ -64,11 +80,14 @@ class CustomerDeliveryAddress {
       longitude: longitude,
       isGpsDetected: isGpsDetected,
       isManualOverride: isManualOverride,
-      approximateAreaText: approximateArea.isNotEmpty ? approximateArea : suburb,
+      approximateAreaText: areaText,
       source: isGpsDetected ? 'gps' : (isManualOverride ? 'manual' : ''),
       accuracy: accuracy,
       detectedAt: detectedAt,
     );
+    
+    debugPrint('[ApproxAreaAudit] ===== toDeliveryLocation COMPLETE =====');
+    return result;
   }
 
   String _buildFormattedAddress() {
@@ -85,15 +104,24 @@ class CustomerDeliveryAddress {
     required DeliveryLocation location,
     String? deliveryNote,
   }) {
+    debugPrint('[ApproxAreaAudit] ===== fromDeliveryLocation START =====');
+    debugPrint('[ApproxAreaAudit] Input location.approximateAreaText: "${location.approximateAreaText}"');
+    debugPrint('[ApproxAreaAudit] Input location.suburb: "${location.suburb}"');
+    
+    final approximateArea = location.approximateAreaText.isNotEmpty
+        ? location.approximateAreaText
+        : location.suburb;
+    
+    debugPrint('[ApproxAreaAudit] Result approximateArea: "$approximateArea"');
+    debugPrint('[ApproxAreaAudit] ===== fromDeliveryLocation COMPLETE =====');
+    
     return CustomerDeliveryAddress(
       customerId: customerId,
       province: location.province,
       district: location.district,
       city: location.city,
       suburb: location.suburb,
-      approximateArea: location.approximateAreaText.isNotEmpty
-          ? location.approximateAreaText
-          : location.suburb,
+      approximateArea: approximateArea,
       streetAddress: location.streetAddress.isNotEmpty
           ? location.streetAddress
           : location.preciseAddress,

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_text_styles.dart';
@@ -36,6 +35,7 @@ class DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
   final _noteCtrl = TextEditingController();
   bool _isDetectingGps = false;
   String? _gpsError;
+  bool _userEditedApproxArea = false;
 
   @override
   void initState() {
@@ -60,14 +60,21 @@ class DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
       debugPrint('[CustomerLocation] loc.displayArea: ${loc.displayArea}');
     }
 
+    if (_userEditedApproxArea) {
+      debugPrint('[ApproxAreaAudit] Skipping controller overwrite because user edited approximate area');
+      debugPrint('[ApproxAreaAudit] Preserving manual value: "${_areaCtrl.text}"');
+    }
+
     if (loc != null) {
-      final areaText = locationState.approximateAreaText.isNotEmpty
-          ? locationState.approximateAreaText
-          : (loc.approximateAreaText.isNotEmpty
-              ? loc.approximateAreaText
-              : loc.displayArea);
-      _areaCtrl.text = areaText;
-      debugPrint('[CustomerLocation] Restored controller value: $areaText');
+      if (!_userEditedApproxArea) {
+        final areaText = locationState.approximateAreaText.isNotEmpty
+            ? locationState.approximateAreaText
+            : (loc.approximateAreaText.isNotEmpty
+                ? loc.approximateAreaText
+                : loc.displayArea);
+        _areaCtrl.text = areaText;
+        debugPrint('[CustomerLocation] Restored controller value: $areaText');
+      }
 
       _streetCtrl.text = locationState.preciseAddress.isNotEmpty
           ? locationState.preciseAddress
@@ -128,7 +135,9 @@ class DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
     setState(() {
       _isDetectingGps = true;
       _gpsError = null;
+      _userEditedApproxArea = false;
     });
+    debugPrint('[ApproxAreaAudit] GPS detection triggered - manual edit flag reset');
 
     try {
       await ref.read(deliveryLocationProvider.notifier).fetchCurrentLocation();
@@ -275,6 +284,8 @@ class DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
     final street = _streetCtrl.text.trim();
     final note = _noteCtrl.text.trim();
 
+    debugPrint('[ApproxAreaAudit] ===== FORM validateAndSync =====');
+    debugPrint('[ApproxAreaAudit] _areaCtrl.text: "$area"');
     debugPrint('[CustomerLocation] Manual approximate typed: $area');
     debugPrint('[CustomerLocation] Manual street typed: $street');
     debugPrint('[CustomerLocation] Manual province: ${province.name}, district: ${district.name}');
@@ -303,6 +314,9 @@ class DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
     ref.read(deliveryLocationProvider.notifier).setLocation(loc);
     ref.read(deliveryLocationProvider.notifier).setDeliveryNote(note);
 
+    debugPrint('[ApproxAreaAudit] Created loc.approximateAreaText: "${loc.approximateAreaText}"');
+    debugPrint('[ApproxAreaAudit] Created loc.suburb: "${loc.suburb}"');
+    debugPrint('[ApproxAreaAudit] Final approximate area before save: "$area"');
     debugPrint('[CustomerLocation] Saving approximateArea: ${loc.approximateAreaText}');
     debugPrint('[CustomerLocation] Saving province/district: ${loc.province}/${loc.district}');
     debugPrint('[CustomerLocation] Saving with GPS: ${locationState.isGpsDetected}');
@@ -312,7 +326,9 @@ class DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
       setState(() {
         _province = province;
         _district = district;
+        _userEditedApproxArea = false;
       });
+      debugPrint('[ApproxAreaAudit] Save success, manual edit flag reset');
     }
 
     return true;
@@ -328,6 +344,20 @@ class DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
       if (previous?.isGpsLoading == true &&
           !next.isGpsLoading &&
           next.currentLocation != null) {
+        _applyFromLocationState(next);
+        return;
+      }
+
+      final previousLocation = previous?.currentLocation;
+      final nextLocation = next.currentLocation;
+      final pinMoved = nextLocation?.source == 'map_pin' &&
+          nextLocation != null &&
+          (previousLocation?.latitude != nextLocation.latitude ||
+              previousLocation?.longitude != nextLocation.longitude);
+
+      if (pinMoved) {
+        setState(() => _userEditedApproxArea = false);
+        debugPrint('[ApproxAreaAudit] Map pin moved - manual edit flag reset');
         _applyFromLocationState(next);
       }
     });
@@ -349,7 +379,7 @@ class DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
                     )
                   : const Icon(Icons.my_location_rounded),
               label: Text(
-                _isDetectingGps ? 'Detecting...' : 'Use Current GPS Location',
+                _isDetectingGps ? 'Detecting...' : 'Use Current Location',
               ),
             ),
           ),
@@ -379,23 +409,38 @@ class DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
             },
           ),
           const SizedBox(height: 16),
-          SearchableLocationField(
-            key: const ValueKey('area-field'),
-            initialValue: _areaCtrl.text,
-            showGpsButton: false,
-            labelText: 'City / Suburb / Approximate Area',
-            hintText: 'e.g. Nugegoda, Kandy Town',
-            onChanged: (text) {
-              ref.read(deliveryLocationProvider.notifier).setManualArea(text);
-            },
-            onManualTextSubmitted: (text) {
-              _areaCtrl.text = text;
-              ref.read(deliveryLocationProvider.notifier).setManualArea(text);
-            },
-            onSuggestionSelected: (s) {
-              _areaCtrl.text = s.display;
-              ref.read(deliveryLocationProvider.notifier).applySuggestion(s);
-              if (mounted) syncFromProvider();
+          Builder(
+            builder: (context) {
+              debugPrint('[ApproxAreaUI] ===== BUILD SearchableLocationField =====');
+              debugPrint('[ApproxAreaUI] _areaCtrl.text = "${_areaCtrl.text}"');
+              debugPrint('[ApproxAreaUI] locationState.approximateAreaText = "${ref.watch(deliveryLocationProvider).approximateAreaText}"');
+              debugPrint('[ApproxAreaUI] _userEditedApproxArea = $_userEditedApproxArea');
+              return SearchableLocationField(
+                key: const ValueKey('area-field'),
+                initialValue: _areaCtrl.text,
+                showGpsButton: false,
+                labelText: 'City / Suburb / Approximate Area',
+                hintText: 'e.g. Nugegoda, Kandy Town',
+                onChanged: (text) {
+                  setState(() => _userEditedApproxArea = true);
+                  _areaCtrl.text = text;
+                  debugPrint('[ApproxAreaAudit] User typed manual area: "$text"');
+                  ref.read(deliveryLocationProvider.notifier).setApproximateAreaText(text);
+                },
+                onManualTextSubmitted: (text) {
+                  setState(() => _userEditedApproxArea = true);
+                  _areaCtrl.text = text;
+                  debugPrint('[ApproxAreaAudit] User submitted manual area: "$text"');
+                  ref.read(deliveryLocationProvider.notifier).setApproximateAreaText(text);
+                },
+                onSuggestionSelected: (s) {
+                  setState(() => _userEditedApproxArea = false);
+                  _areaCtrl.text = s.display;
+                  debugPrint('[ApproxAreaAudit] Suggestion selected - manual edit flag reset');
+                  ref.read(deliveryLocationProvider.notifier).applySuggestion(s);
+                  if (mounted) syncFromProvider();
+                },
+              );
             },
           ),
           const SizedBox(height: 12),

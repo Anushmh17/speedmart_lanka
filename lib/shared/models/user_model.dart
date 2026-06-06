@@ -1,5 +1,6 @@
 import 'user_role.dart';
 import 'vendor_status.dart';
+import '../utils/category_constants.dart';
 
 /// Core user model shared across all roles.
 /// Role-specific data (vendor profile, etc.) is stored in separate models.
@@ -20,6 +21,8 @@ class UserModel {
   final bool? vendorApproved;
   final List<String>? vendorCategories;
   final List<String>? allowedCategories; // Admin-approved categories (SOURCE OF TRUTH)
+  final List<String>? requestedCategories; // Vendor-requested categories pending admin approval
+  final bool? hasPendingCategoryRequest; // Flag if vendor has pending category change request
 
   /// Admin-assigned vendor shop location (not user-editable)
   final String? shopName;
@@ -74,6 +77,8 @@ class UserModel {
     this.vendorApproved,
     this.vendorCategories,
     this.allowedCategories,
+    this.requestedCategories,
+    this.hasPendingCategoryRequest,
     this.detectedCountry,
     this.selectedCountry,
     this.countryOverride,
@@ -120,12 +125,10 @@ class UserModel {
             VendorStatus.pendingApproval
         : null,
       vendorApproved: json['vendor_approved'] as bool?,
-      vendorCategories: (json['vendor_categories'] as List<dynamic>?)
-          ?.map((e) => e as String)
-          .toList(),
-      allowedCategories: (json['allowed_categories'] as List<dynamic>?)
-          ?.map((e) => e as String)
-          .toList(),
+      vendorCategories: VendorCategories.normalizeList(json['vendor_categories']),
+      allowedCategories: VendorCategories.normalizeList(json['allowed_categories']),
+      requestedCategories: VendorCategories.normalizeList(json['requested_categories']),
+      hasPendingCategoryRequest: json['has_pending_category_request'] as bool? ?? false,
       detectedCountry: json['detected_country'] as String?,
       selectedCountry: json['selected_country'] as String?,
       countryOverride: json['country_override'] as bool?,
@@ -174,6 +177,8 @@ class UserModel {
       'vendor_approved': vendorApproved,
       'vendor_categories': vendorCategories,
       'allowed_categories': allowedCategories,
+      'requested_categories': requestedCategories,
+      'has_pending_category_request': hasPendingCategoryRequest,
       'detected_country': detectedCountry,
       'selected_country': selectedCountry,
       'country_override': countryOverride,
@@ -219,6 +224,8 @@ class UserModel {
     bool? vendorApproved,
     List<String>? vendorCategories,
     List<String>? allowedCategories,
+    List<String>? requestedCategories,
+    bool? hasPendingCategoryRequest,
     String? detectedCountry,
     String? selectedCountry,
     bool? countryOverride,
@@ -261,6 +268,8 @@ class UserModel {
       vendorApproved: vendorApproved ?? this.vendorApproved,
       vendorCategories: vendorCategories ?? this.vendorCategories,
       allowedCategories: allowedCategories ?? this.allowedCategories,
+      requestedCategories: requestedCategories ?? this.requestedCategories,
+      hasPendingCategoryRequest: hasPendingCategoryRequest ?? this.hasPendingCategoryRequest,
       detectedCountry: detectedCountry ?? this.detectedCountry,
       selectedCountry: selectedCountry ?? this.selectedCountry,
       countryOverride: countryOverride ?? this.countryOverride,

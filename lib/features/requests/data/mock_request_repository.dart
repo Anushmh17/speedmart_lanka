@@ -154,47 +154,20 @@ class MockRequestRepository {
     debugPrint('[RequestCreate] deliveryLocation.district: ${deliveryLocation?.district}');
     debugPrint('[RequestCreate] deliveryLocation.approximateAreaText: ${deliveryLocation?.approximateAreaText}');
 
-    // VALIDATION: Reject requests with completely invalid coordinates
-    if (latitude == 0.0 && longitude == 0.0) {
-      final hasValidArea = deliveryLocation != null &&
-          deliveryLocation.province.isNotEmpty &&
-          deliveryLocation.district.isNotEmpty;
-
-      if (!hasValidArea) {
-        debugPrint('[RequestCreate] ===== REJECTION: Invalid (0.0, 0.0) coordinates with no area data =====');
-        throw Exception(
-          'Invalid delivery location. Please set your delivery address using GPS or manual entry before submitting a request.',
-        );
-      }
-      debugPrint('[RequestCreate] Coordinates are (0.0, 0.0) but area data is valid, will resolve from district');
-    }
-
-    // Handle coordinate resolution
-    double resolvedLat = latitude;
-    double resolvedLng = longitude;
-
-    // If coordinates are null or (0,0) but we have deliveryLocation with province/district,
-    // find a representative suburb for proper geocoding
-    if ((latitude == 0.0 && longitude == 0.0 || latitude == 0.0) && deliveryLocation != null &&
-        deliveryLocation.province.isNotEmpty &&
-        deliveryLocation.district.isNotEmpty) {
-      debugPrint('[RequestCreate] Manual address detected, finding representative coordinates');
-      // Find first suburb in this district
-      final matchingSuburbs = LocationService.sriLankanLocations
-          .where((s) => s.district.toLowerCase() == deliveryLocation.district.toLowerCase())
-          .toList();
-      if (matchingSuburbs.isNotEmpty) {
-        resolvedLat = matchingSuburbs.first.latitude;
-        resolvedLng = matchingSuburbs.first.longitude;
-        debugPrint('[RequestCreate] Found representative suburb: ${matchingSuburbs.first.name}');
-        debugPrint('[RequestCreate] Using coordinates: lat=$resolvedLat, lng=$resolvedLng');
-      }
+    if (latitude == 0.0 ||
+        longitude == 0.0 ||
+        deliveryLocation?.latitude == null ||
+        deliveryLocation?.longitude == null ||
+        deliveryLocation?.latitude == 0.0 ||
+        deliveryLocation?.longitude == 0.0) {
+      debugPrint('[RequestCreate] ===== REJECTION: Missing saved pin coordinates =====');
+      throw Exception('Please select a valid delivery location.');
     }
 
     final resolvedLocation = deliveryLocation ??
         LocationService.reverseGeocode(
-          latitude: resolvedLat,
-          longitude: resolvedLng,
+          latitude: latitude,
+          longitude: longitude,
           streetAddress: deliveryAddress,
         );
 
@@ -211,8 +184,8 @@ class MockRequestRepository {
       customerPhone: customerPhone ?? '',
       customerName: customerName ?? '',
       approximateDistance: 0.0,
-      latitude: resolvedLocation.latitude ?? resolvedLat,
-      longitude: resolvedLocation.longitude ?? resolvedLng,
+      latitude: resolvedLocation.latitude!,
+      longitude: resolvedLocation.longitude!,
       deliveryLocation: resolvedLocation,
     );
 

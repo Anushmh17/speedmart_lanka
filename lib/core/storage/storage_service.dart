@@ -31,16 +31,29 @@ class StorageService {
   // ── User JSON (secure) ────────────────────────────────────────────────────
 
   static Future<void> saveUser(Map<String, dynamic> userJson) async {
+    debugPrint('[CategoryAudit] ===== STORAGE SERVICE SAVE START =====');
+    debugPrint('[CategoryAudit] saveUser called with allowed_categories: ${userJson['allowed_categories']}');
+    debugPrint('[CategoryAudit] Full userJson keys: ${userJson.keys.toList()}');
+    debugPrint('[CategoryAudit] Serializing to secure storage...');
+    
     await _secure.write(
       key: AppConstants.userKey,
       value: jsonEncode(userJson),
     );
+    
+    debugPrint('[CategoryAudit] ===== STORAGE SERVICE SAVE COMPLETE =====');
   }
 
   static Future<Map<String, dynamic>?> getUser() async {
     final raw = await _secure.read(key: AppConstants.userKey);
     if (raw == null) return null;
-    return jsonDecode(raw) as Map<String, dynamic>;
+    final decoded = jsonDecode(raw) as Map<String, dynamic>;
+    
+    debugPrint('[CategoryAudit] ===== STORAGE SERVICE LOAD =====');
+    debugPrint('[CategoryAudit] getUser loaded allowed_categories: ${decoded['allowed_categories']}');
+    debugPrint('[CategoryAudit] getUser loaded vendor_categories: ${decoded['vendor_categories']}');
+    
+    return decoded;
   }
 
   static Future<void> deleteUser() async {

@@ -318,6 +318,10 @@ class LocationNotifier extends StateNotifier<LocationState> {
 
   /// Replace the entire delivery location (e.g. from address book).
   void setLocation(DeliveryLocation location) {
+    debugPrint('[ApproxAreaAudit] ===== LOCATION PROVIDER setLocation =====');
+    debugPrint('[ApproxAreaAudit] Input location.approximateAreaText: "${location.approximateAreaText}"');
+    debugPrint('[ApproxAreaAudit] Input location.suburb: "${location.suburb}"');
+    
     // Sync province/district dropdowns
     SriLankaProvince? province;
     SriLankaDistrict? district;
@@ -336,6 +340,50 @@ class LocationNotifier extends StateNotifier<LocationState> {
       approximateAreaText: location.approximateAreaText,
       preciseAddress: location.preciseAddress,
     );
+    
+    debugPrint('[ApproxAreaAudit] State updated: state.approximateAreaText: "${state.approximateAreaText}"');
+    debugPrint('[ApproxAreaAudit] State updated: state.currentLocation.approximateAreaText: "${state.currentLocation?.approximateAreaText}"');
+  }
+
+  Future<void> updateDeliveryPin({
+    required double latitude,
+    required double longitude,
+  }) async {
+    if (latitude == 0.0 || longitude == 0.0) {
+      state = state.copyWith(
+        errorMessage: 'Please select a valid delivery location.',
+      );
+      return;
+    }
+
+    final existing = state.currentLocation;
+    final precise = state.preciseAddress.isNotEmpty
+        ? state.preciseAddress
+        : (existing?.preciseAddress ?? existing?.streetAddress ?? '');
+    final note = existing?.deliveryNote ?? '';
+
+    final resolved = await _locationService.resolvePinLocation(
+      latitude: latitude,
+      longitude: longitude,
+      existingPreciseAddress: precise,
+      existingDeliveryNote: note,
+    );
+
+    final areaText = resolved.approximateAreaText.isNotEmpty
+        ? resolved.approximateAreaText
+        : (existing?.approximateAreaText ?? '');
+    final location = resolved.copyWith(
+      province: resolved.province.isNotEmpty ? resolved.province : existing?.province,
+      district: resolved.district.isNotEmpty ? resolved.district : existing?.district,
+      suburb: areaText.isNotEmpty ? areaText : null,
+      approximateAreaText: areaText,
+      formattedAddress: resolved.formattedAddress.isNotEmpty
+          ? resolved.formattedAddress
+          : existing?.formattedAddress,
+    );
+
+    setLocation(location);
+    state = state.copyWith(clearError: true);
   }
 
   // ── Suggestions ───────────────────────────────────────────────────────────

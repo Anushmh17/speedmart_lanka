@@ -537,11 +537,18 @@ class MockAuthRepository {
     await Future.delayed(const Duration(milliseconds: 400));
     final index = _sessionUsers.indexWhere((u) => u.id == vendorId);
     if (index != -1) {
-      _sessionUsers[index] = _sessionUsers[index].copyWith(
+      final vendor = _sessionUsers[index];
+      debugPrint('[VendorStatusFix] Suspend vendor before: status=${vendor.vendorStatus}, isActive=${vendor.isActive}, approved=${vendor.vendorApproved}');
+      
+      _sessionUsers[index] = vendor.copyWith(
         vendorStatus: VendorStatus.suspended,
         isActive: false,
+        vendorApproved: true, // Keep approval status
       );
+      
+      debugPrint('[VendorStatusFix] Suspend vendor after: status=${_sessionUsers[index].vendorStatus}, isActive=${_sessionUsers[index].isActive}, approved=${_sessionUsers[index].vendorApproved}');
       await _persistUsers();
+      debugPrint('[VendorStatusFix] Persisted vendorStatus: ${_sessionUsers[index].vendorStatus}');
     }
   }
 
@@ -550,23 +557,60 @@ class MockAuthRepository {
     await Future.delayed(const Duration(milliseconds: 300));
     final index = _sessionUsers.indexWhere((u) => u.id == userId);
     if (index != -1) {
-      _sessionUsers[index] = _sessionUsers[index].copyWith(
-        isActive: !_sessionUsers[index].isActive,
-      );
+      final user = _sessionUsers[index];
+      final newIsActive = !user.isActive;
+      
+      debugPrint('[VendorStatusFix] Toggle before: status=${user.vendorStatus}, isActive=${user.isActive}, approved=${user.vendorApproved}');
+      
+      // If activating a suspended vendor, restore approved status
+      if (newIsActive && user.vendorStatus == VendorStatus.suspended) {
+        _sessionUsers[index] = user.copyWith(
+          vendorStatus: VendorStatus.approved,
+          isActive: true,
+          vendorApproved: true,
+        );
+        debugPrint('[VendorStatusFix] Activate vendor after: status=${_sessionUsers[index].vendorStatus}, isActive=${_sessionUsers[index].isActive}, approved=${_sessionUsers[index].vendorApproved}');
+      } else if (!newIsActive && user.role == UserRole.vendor) {
+        // If deactivating, set to suspended
+        _sessionUsers[index] = user.copyWith(
+          vendorStatus: VendorStatus.suspended,
+          isActive: false,
+          vendorApproved: true,
+        );
+        debugPrint('[VendorStatusFix] Suspend vendor after: status=${_sessionUsers[index].vendorStatus}, isActive=${_sessionUsers[index].isActive}, approved=${_sessionUsers[index].vendorApproved}');
+      } else {
+        // For non-vendors, just toggle isActive
+        _sessionUsers[index] = user.copyWith(
+          isActive: newIsActive,
+        );
+        debugPrint('[VendorStatusFix] Toggle after: isActive=${_sessionUsers[index].isActive}');
+      }
+      
       await _persistUsers();
+      debugPrint('[VendorStatusFix] Persisted vendorStatus: ${_sessionUsers[index].vendorStatus}');
     }
   }
 
   Future<UserModel> updateUser(UserModel user) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 500));
+    
+    debugPrint('[CategoryAudit] ===== REPOSITORY UPDATE START =====');
+    debugPrint('[CategoryAudit] updateUser called for userId: ${user.id}');
+    debugPrint('[CategoryAudit] user.allowedCategories being saved: ${user.allowedCategories}');
+    debugPrint('[CategoryAudit] user.vendorCategories: ${user.vendorCategories}');
+    
     final index = _sessionUsers.indexWhere((u) => u.id == user.id);
     if (index != -1) {
+      debugPrint('[CategoryAudit] BEFORE update in _sessionUsers[${index}].allowedCategories: ${_sessionUsers[index].allowedCategories}');
       _sessionUsers[index] = user;
+      debugPrint('[CategoryAudit] AFTER update in _sessionUsers[${index}].allowedCategories: ${_sessionUsers[index].allowedCategories}');
     } else {
       _sessionUsers.add(user);
+      debugPrint('[CategoryAudit] User added to _sessionUsers (new user)');
     }
     await _persistUsers();
+    debugPrint('[CategoryAudit] ===== REPOSITORY UPDATE COMPLETE =====');
     return user;
   }
 }

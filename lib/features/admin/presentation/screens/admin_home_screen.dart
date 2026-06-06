@@ -693,6 +693,16 @@ class _OrdersMonitoringTab extends ConsumerWidget {
                             const SizedBox(height: 6),
                             Text('Customer: ${order.customerName} | Partner: ${order.vendorBusinessName}', style: AppTextStyles.bodyMedium(secondaryText)),
                             Text('Transaction Date: ${order.createdAt.day}/${order.createdAt.month}/${order.createdAt.year}', style: AppTextStyles.bodySmall(secondaryText)),
+                            const SizedBox(height: 6),
+                            Text('Delivery Address: ${order.deliveryAddress}', style: AppTextStyles.bodySmall(secondaryText)),
+                            Text(
+                              'Delivery Coordinates: ${order.customerLatitude.toStringAsFixed(6)}, ${order.customerLongitude.toStringAsFixed(6)}',
+                              style: AppTextStyles.bodySmall(secondaryText),
+                            ),
+                            Text(
+                              'Location Updated: ${(order.detectedAt ?? order.addressReleasedAt ?? order.createdAt).toLocal().toString().split('.').first}',
+                              style: AppTextStyles.caption(secondaryText),
+                            ),
                             const Divider(height: 20),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,

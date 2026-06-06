@@ -55,6 +55,46 @@ class SriLankaLocationService {
     );
   }
 
+  /// Reverse geocodes a customer-adjusted delivery pin.
+  ///
+  /// The coordinates remain the source of truth. Address fields are refreshed
+  /// from the local Sri Lankan dataset when possible, while customer-entered
+  /// precise address and delivery notes are preserved by the caller.
+  Future<DeliveryLocation> resolvePinLocation({
+    required double latitude,
+    required double longitude,
+    String existingPreciseAddress = '',
+    String existingDeliveryNote = '',
+  }) async {
+    final gpsResult = await _geocoding.reverseGeocode(
+      latitude: latitude,
+      longitude: longitude,
+    );
+
+    return _buildFromGpsResult(
+      GpsLocationResult(
+        latitude: latitude,
+        longitude: longitude,
+        timestamp: DateTime.now(),
+        address: gpsResult.address,
+        province: gpsResult.province,
+        district: gpsResult.district,
+        city: gpsResult.city,
+        geocodingSucceeded: gpsResult.geocodingSucceeded,
+        detectedAt: DateTime.now(),
+      ),
+      existingPreciseAddress: existingPreciseAddress,
+    ).copyWith(
+      deliveryNote: existingDeliveryNote,
+      source: 'map_pin',
+      isGpsDetected: false,
+      isManualOverride: true,
+      latitude: latitude,
+      longitude: longitude,
+      detectedAt: DateTime.now(),
+    );
+  }
+
   /// Builds a [DeliveryLocation] from an already-resolved [GpsLocationResult].
   /// Used when you have coordinates from a previous detection.
   ///

@@ -9,15 +9,18 @@ import '../../../../location/providers/location_provider.dart';
 import '../../models/customer_delivery_address.dart';
 import '../../providers/customer_delivery_address_provider.dart';
 import '../widgets/delivery_address_form.dart';
+import '../widgets/delivery_location_map_picker.dart';
 import '../widgets/save_default_address_dialog.dart';
 
 class CustomerDeliveryAddressScreen extends ConsumerStatefulWidget {
   const CustomerDeliveryAddressScreen({
     super.key,
     this.fromCreateRequest = false,
+    this.startWithGpsDetection = false,
   });
 
   final bool fromCreateRequest;
+  final bool startWithGpsDetection;
 
   @override
   ConsumerState<CustomerDeliveryAddressScreen> createState() =>
@@ -52,6 +55,10 @@ class _CustomerDeliveryAddressScreenState
     if (!mounted) return;
 
     _formWidgetKey.currentState?.syncFromProvider();
+    if (widget.startWithGpsDetection) {
+      await _formWidgetKey.currentState?.detectGps();
+      if (mounted) _formWidgetKey.currentState?.syncFromProvider();
+    }
   }
 
   Future<void> _save() async {
@@ -63,6 +70,22 @@ class _CustomerDeliveryAddressScreenState
 
     final loc = ref.read(deliveryLocationProvider).currentLocation;
     if (loc == null) return;
+    
+    debugPrint('[ApproxAreaAudit] ===== SAVE BUTTON CLICKED =====');
+    debugPrint('[ApproxAreaAudit] deliveryLocationProvider.currentLocation.approximateAreaText: "${loc.approximateAreaText}"');
+    debugPrint('[ApproxAreaAudit] deliveryLocationProvider.approximateAreaText: "${ref.read(deliveryLocationProvider).approximateAreaText}"');
+    
+    if (loc.latitude == null ||
+        loc.longitude == null ||
+        loc.latitude == 0.0 ||
+        loc.longitude == 0.0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select a valid delivery location.'),
+        ),
+      );
+      return;
+    }
 
     SaveDefaultAddressChoice choice = SaveDefaultAddressChoice.saveAsDefault;
     if (widget.fromCreateRequest) {
@@ -128,8 +151,10 @@ class _CustomerDeliveryAddressScreenState
                     formKey: _formKey,
                   ),
                   const SizedBox(height: 24),
+                  const DeliveryLocationMapPicker(),
+                  const SizedBox(height: 24),
                   AppButton(
-                    label: 'Save Address',
+                    label: 'Confirm Delivery Location',
                     isLoading: _isSaving,
                     onPressed: _isSaving ? null : _save,
                   ),

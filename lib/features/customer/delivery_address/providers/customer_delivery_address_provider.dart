@@ -134,6 +134,9 @@ class CustomerDeliveryAddressNotifier
   Future<void> saveDefaultAddress(CustomerDeliveryAddress address) async {
     final saved = address.copyWith(updatedAt: DateTime.now());
 
+    debugPrint('[ApproxAreaAudit] ===== SAVE DEFAULT ADDRESS START =====');
+    debugPrint('[ApproxAreaAudit] Input address.approximateArea: "${address.approximateArea}"');
+    debugPrint('[ApproxAreaAudit] Saved address.approximateArea: "${saved.approximateArea}"');
     debugPrint('[CustomerLocation] Saving address for user: ${address.customerId}');
     debugPrint('[CustomerLocation] approximateArea: ${saved.approximateArea}');
     debugPrint('[CustomerLocation] streetAddress: ${saved.streetAddress}');
@@ -147,6 +150,7 @@ class CustomerDeliveryAddressNotifier
     );
 
     debugPrint('[CustomerLocation] Saved address: ${saved.approximateArea}, ${saved.streetAddress}');
+    debugPrint('[ApproxAreaAudit] ===== SAVE DEFAULT ADDRESS COMPLETE =====');
   }
 
   void setRequestOnlyLocation(DeliveryLocation location) {
@@ -167,6 +171,12 @@ class CustomerDeliveryAddressNotifier
 
   Future<void> applyActiveLocationToProvider() async {
     final loc = state.activeLocation;
+    debugPrint('[ApproxAreaAudit] ===== applyActiveLocationToProvider =====');
+    debugPrint('[ApproxAreaAudit] activeLocation: ${loc != null ? "exists" : "null"}');
+    if (loc != null) {
+      debugPrint('[ApproxAreaAudit] activeLocation.approximateAreaText: "${loc.approximateAreaText}"');
+    }
+    
     if (loc == null) return;
     ref.read(deliveryLocationProvider.notifier).setLocation(loc);
     if (loc.deliveryNote.isNotEmpty) {

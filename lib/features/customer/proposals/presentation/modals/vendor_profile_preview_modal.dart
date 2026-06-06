@@ -174,7 +174,7 @@ class VendorProfilePreviewModal extends StatelessWidget {
             // Categories
             _InfoRow(
               icon: Icons.category_outlined,
-              label: 'Categories',
+              label: 'Approved Categories',
               value: categories.join(', '),
               primaryText: primaryText,
               secondaryText: secondaryText,

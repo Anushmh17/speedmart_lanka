@@ -10,6 +10,7 @@ import '../../providers/admin_provider.dart';
 import '../dialogs/vendor_approval_dialog.dart';
 import '../dialogs/vendor_rejection_dialog.dart';
 import '../dialogs/vendor_suspension_dialog.dart';
+import '../../../../shared/utils/category_constants.dart';
 
 class AdminVendorManagementScreen extends ConsumerStatefulWidget {
   const AdminVendorManagementScreen({super.key});
@@ -22,6 +23,45 @@ class AdminVendorManagementScreen extends ConsumerStatefulWidget {
 class _AdminVendorManagementScreenState
     extends ConsumerState<AdminVendorManagementScreen> {
   String _statusFilter = 'all';
+
+  /// Build category chips preview with overflow indicator
+  Widget _buildCategoryChipsPreview(
+    List<String> categories, {
+    int maxVisible = 3,
+  }) {
+    final normalizedCategories =
+        VendorCategories.normalizeList(categories);
+    final displayCategories =
+        VendorCategories.displayList(normalizedCategories);
+    final visible = displayCategories.take(maxVisible).toList();
+    final remaining = displayCategories.length - maxVisible;
+
+    final chips = visible
+        .map(
+          (displayCat) => Chip(
+            label: Text(displayCat),
+            labelStyle: const TextStyle(fontSize: 10),
+            padding: EdgeInsets.zero,
+          ),
+        )
+        .toList();
+
+    if (remaining > 0) {
+      chips.add(
+        Chip(
+          label: Text('+$remaining more'),
+          labelStyle: const TextStyle(fontSize: 10),
+          backgroundColor: Colors.grey.withOpacity(0.3),
+          padding: EdgeInsets.zero,
+        ),
+      );
+    }
+
+    return Wrap(
+      spacing: 4,
+      children: chips,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -114,6 +154,7 @@ class _AdminVendorManagementScreenState
                         itemCount: filteredVendors.length,
                         itemBuilder: (context, index) {
                           final vendor = filteredVendors[index];
+                          debugPrint('[CategoryUI] Admin card displayed allowedCategories: ${vendor.allowedCategories}');
                           return _buildVendorCard(
                             context,
                             vendor,
@@ -251,21 +292,39 @@ class _AdminVendorManagementScreenState
               style: AppTextStyles.caption(secondaryText),
             ),
           ],
-          if (vendor.vendorCategories != null &&
-              vendor.vendorCategories!.isNotEmpty) ...[
+          if (vendor.allowedCategories != null &&
+              vendor.allowedCategories!.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 4,
-              children: (vendor.vendorCategories as List<String>)
-                  .take(3)
-                  .map(
-                    (cat) => Chip(
-                      label: Text(cat),
-                      labelStyle: const TextStyle(fontSize: 10),
-                      padding: EdgeInsets.zero,
+            _buildCategoryChipsPreview(vendor.allowedCategories!),
+          ] else ...[
+            const SizedBox(height: 8),
+            Text(
+              'No approved categories',
+              style: AppTextStyles.caption(secondaryText),
+            ),
+          ],
+          if (vendor.hasPendingCategoryRequest == true &&
+              vendor.requestedCategories != null &&
+              vendor.requestedCategories!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.pending_actions, size: 14, color: Colors.orange),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _buildCategoryChipsPreview(
+                      vendor.requestedCategories!,
                     ),
-                  )
-                  .toList(),
+                  ),
+                ],
+              ),
             ),
           ],
           const SizedBox(height: 12),
@@ -291,6 +350,8 @@ class _AdminVendorManagementScreenState
   }
 
   String _getStatusLabel(dynamic vendor) {
+    debugPrint('[VendorStatusFix] UI status source: vendorStatus=${vendor.vendorStatus}, isActive=${vendor.isActive}');
+    
     if (vendor.vendorStatus == VendorStatus.pendingApproval) {
       return 'Pending';
     } else if (vendor.vendorStatus == VendorStatus.rejected) {
@@ -343,16 +404,55 @@ class _AdminVendorManagementScreenState
           ),
         ],
       );
+    } else if (vendor.vendorStatus == VendorStatus.suspended) {
+      return Row(
+        children: [
+          Expanded(
+            child: ElevatedButton(
+              onPressed: () async {
+                await context.push(
+                  '${RouteNames.adminVendorAssignment.replaceFirst(':id', vendor.id)}',
+                  extra: vendor,
+                );
+                debugPrint('[CategoryFix] Reloading vendor list after detail return');
+                ref.invalidate(adminProvider);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.adminColor,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('View Details'),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: ElevatedButton.icon(
+              icon: const Icon(Icons.check_circle),
+              onPressed: () async {
+                await ref.read(adminProvider.notifier).toggleUserActive(vendor.id);
+                ref.invalidate(adminProvider);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.success,
+                foregroundColor: Colors.white,
+              ),
+              label: const Text('Activate'),
+            ),
+          ),
+        ],
+      );
     } else if (vendor.vendorStatus == VendorStatus.approved) {
       return Row(
         children: [
           Expanded(
             child: ElevatedButton(
-              onPressed: () {
-                context.push(
+              onPressed: () async {
+                await context.push(
                   '${RouteNames.adminVendorAssignment.replaceFirst(':id', vendor.id)}',
                   extra: vendor,
                 );
+                debugPrint('[CategoryFix] Reloading vendor list after Manage return');
+                ref.invalidate(adminProvider);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.adminColor,
@@ -384,11 +484,13 @@ class _AdminVendorManagementScreenState
       return SizedBox(
         width: double.infinity,
         child: ElevatedButton(
-          onPressed: () {
-            context.push(
+          onPressed: () async {
+            await context.push(
               '${RouteNames.adminVendorAssignment.replaceFirst(':id', vendor.id)}',
               extra: vendor,
             );
+            debugPrint('[CategoryFix] Reloading vendor list after detail return');
+            ref.invalidate(adminProvider);
           },
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.adminColor,

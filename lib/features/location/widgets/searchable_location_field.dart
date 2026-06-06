@@ -71,6 +71,24 @@ class _SearchableLocationFieldState
   }
 
   @override
+  void didUpdateWidget(covariant SearchableLocationField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    debugPrint('[ApproxAreaUI] Searchable didUpdateWidget oldInitial: "${oldWidget.initialValue}"');
+    debugPrint('[ApproxAreaUI] Searchable didUpdateWidget newInitial: "${widget.initialValue}"');
+    debugPrint('[ApproxAreaUI] Searchable focused: ${_focusNode.hasFocus}');
+    debugPrint('[ApproxAreaUI] Searchable controller.text before: "${_controller.text}"');
+
+    // Only sync external initialValue when field is not focused (user not typing)
+    if (widget.initialValue != oldWidget.initialValue &&
+        widget.initialValue != _controller.text &&
+        !_focusNode.hasFocus) {
+      _controller.text = widget.initialValue ?? '';
+      debugPrint('[ApproxAreaUI] Searchable controller synced to: "${_controller.text}"');
+    }
+  }
+
+  @override
   void dispose() {
     _removeOverlay();
     _controller.dispose();

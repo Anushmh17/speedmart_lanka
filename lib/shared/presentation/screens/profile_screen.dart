@@ -7,10 +7,12 @@ import '../../../features/auth/providers/auth_provider.dart';
 import '../../../shared/models/user_role.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/routes/route_names.dart';
+import '../../../features/customer/delivery_address/models/customer_delivery_address.dart';
 import '../../../features/customer/delivery_address/providers/customer_delivery_address_provider.dart';
 import '../../../features/auth/customer_registration/providers/customer_registration_provider.dart';
 import '../../../features/location/providers/location_provider.dart';
 import '../../../core/navigation/bottom_nav_visibility.dart';
+import '../../../shared/models/user_model.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -76,7 +78,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _nameCtrl.text = user.fullName;
       _phoneCtrl.text = user.phone;
       _businessNameCtrl.text = user.businessName ?? '';
-      _selectedCategories = List.from(user.vendorCategories ?? []);
+      _selectedCategories = List.from(user.requestedCategories?.isNotEmpty == true
+          ? user.requestedCategories!
+          : user.allowedCategories ?? []);
+      debugPrint('[CategoryUI] Vendor profile edit initialized requested categories: $_selectedCategories');
     }
   }
 
@@ -85,7 +90,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _businessNameCtrl.dispose();
-    // Clean up override when leaving screen
     Future.microtask(() {
       try {
         ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
@@ -104,7 +108,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       fullName: _nameCtrl.text.trim(),
       phone: _phoneCtrl.text.trim(),
       businessName: user.role == UserRole.vendor ? _businessNameCtrl.text.trim() : null,
-      vendorCategories: user.role == UserRole.vendor ? _selectedCategories : null,
+      requestedCategories: user.role == UserRole.vendor ? _selectedCategories : null,
     );
     
     if (mounted && !ref.read(authLoadingProvider)) {
@@ -112,9 +116,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _isEditing = false;
         ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
       });
+      debugPrint('[CategoryUI] Vendor profile saved requestedCategories: $_selectedCategories');
+      debugPrint('[CategoryUI] Vendor profile allowedCategories unchanged: ${user.allowedCategories}');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Profile updated successfully!'),
+          content: user.role == UserRole.vendor
+              ? const Text('Category change request sent to admin.')
+              : const Text('Profile updated successfully!'),
           backgroundColor: user.role == UserRole.vendor ? AppColors.vendorColor : AppColors.customerColor,
           behavior: SnackBarBehavior.floating,
         ),
@@ -125,7 +133,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Future<void> _handleLogout() async {
     debugPrint('[Auth] Logout started');
 
-    // Capture all provider notifiers BEFORE any await
     final bottomNavNotifier = ref.read(bottomNavVisibilityProvider.notifier);
     final authNotifier = ref.read(authProvider.notifier);
     final customerRegistrationNotifier = ref.read(customerRegistrationProvider.notifier);
@@ -137,7 +144,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     await authNotifier.logout();
     debugPrint('[Auth] Session cleared');
 
-    // Reset customer-specific providers to prevent state contamination
     customerRegistrationNotifier.reset();
     deliveryLocationNotifier.clearLocation();
     customerDeliveryAddressNotifier.reset();
@@ -168,6 +174,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final showBottomNav = ref.watch(bottomNavVisibilityProvider);
     final bottomPadding = showBottomNav ? 100.0 : 16.0;
 
+    debugPrint('[CategoryUI] Vendor profile approved categories: ${user.allowedCategories}');
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SingleChildScrollView(
@@ -178,7 +186,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header Section
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -212,7 +219,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Glassmorphic Profile Card
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
@@ -292,7 +298,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               Text('Personal Information', style: AppTextStyles.subtitle(primaryText)),
               const SizedBox(height: 16),
 
-              // Animated Form Fields
               _buildFieldCard(
                 cardColor: cardColor,
                 borderColor: borderColor,
@@ -321,123 +326,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 validator: (v) => v == null || v.isEmpty ? 'Required' : null,
               ),
 
-              if (user.role == UserRole.customer) ...[
-                const SizedBox(height: 32),
-                Text('Delivery Address', style: AppTextStyles.subtitle(primaryText)),
-                const SizedBox(height: 12),
-                _buildCustomerDeliveryAddressCard(
-                  context: context,
-                  cardColor: cardColor,
-                  borderColor: borderColor,
-                  primaryText: primaryText,
-                  secondaryText: secondaryText,
-                  primaryColor: primaryColor,
-                ),
-                const SizedBox(height: 24),
-                Text('Payment History', style: AppTextStyles.subtitle(primaryText)),
-                const SizedBox(height: 12),
-                GestureDetector(
-                  onTap: () => context.go(RouteNames.customerPaymentHistory),
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: cardColor,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: borderColor),
-                    ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      leading: Icon(Icons.history_rounded, color: primaryColor),
-                      title: Text('View Payment History', style: AppTextStyles.bodyMedium(primaryText)),
-                      subtitle: Text('See your past COD and online payments.', style: AppTextStyles.caption(secondaryText)),
-                      trailing: Icon(Icons.arrow_forward_ios_rounded, size: 18, color: secondaryText),
-                    ),
-                  ),
-                ),
-              ],
+              if (user.role == UserRole.customer) ...createCustomerSection(context, primaryText, cardColor, borderColor, primaryColor, secondaryText),
 
-              if (user.role == UserRole.vendor) ...[
-                const SizedBox(height: 32),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Business Information', style: AppTextStyles.subtitle(primaryText)),
-                    if (user.isVerified)
-                      StatusBadge(label: 'Verified', color: AppColors.success)
-                    else
-                      StatusBadge(label: 'Pending Approval', color: AppColors.warning),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _buildFieldCard(
-                  cardColor: cardColor,
-                  borderColor: borderColor,
-                  label: 'Business Name',
-                  icon: Icons.storefront_rounded,
-                  isEditing: _isEditing,
-                  controller: _businessNameCtrl,
-                  primaryText: primaryText,
-                  secondaryText: secondaryText,
-                  primaryColor: primaryColor,
-                  validator: (v) => v == null || v.isEmpty ? 'Required' : null,
-                ),
-                const SizedBox(height: 16),
-                
-                // Categories Picker
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: cardColor,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: borderColor),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.category_outlined, color: secondaryText, size: 20),
-                          const SizedBox(width: 12),
-                          Text('Business Categories', style: AppTextStyles.labelLarge(secondaryText)),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: _availableCategories.map((category) {
-                          final isSelected = _selectedCategories.contains(category);
-                          return FilterChip(
-                            label: Text(category),
-                            selected: isSelected,
-                            onSelected: _isEditing ? (selected) {
-                              setState(() {
-                                if (selected) {
-                                  _selectedCategories.add(category);
-                                } else {
-                                  _selectedCategories.remove(category);
-                                }
-                              });
-                            } : null,
-                            selectedColor: primaryColor.withOpacity(0.2),
-                            checkmarkColor: primaryColor,
-                            labelStyle: AppTextStyles.bodySmall(
-                              isSelected ? primaryColor : secondaryText,
-                            ).copyWith(fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal),
-                            backgroundColor: isDark ? Colors.black12 : Colors.grey.shade100,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(20),
-                              side: BorderSide(
-                                color: isSelected ? primaryColor : Colors.transparent,
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              if (user.role == UserRole.vendor) ...createVendorSection(user, primaryText, secondaryText, cardColor, borderColor, primaryColor, isDark),
 
               const SizedBox(height: 32),
               
@@ -478,6 +369,186 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ),
       ),
     );
+  }
+
+  List<Widget> createCustomerSection(BuildContext context, Color primaryText, Color cardColor, Color borderColor, Color primaryColor, Color secondaryText) {
+    return [
+      const SizedBox(height: 32),
+      Text('Delivery Address', style: AppTextStyles.subtitle(primaryText)),
+      const SizedBox(height: 12),
+      _buildCustomerDeliveryAddressCard(
+        context: context,
+        cardColor: cardColor,
+        borderColor: borderColor,
+        primaryText: primaryText,
+        secondaryText: secondaryText,
+        primaryColor: primaryColor,
+      ),
+      const SizedBox(height: 24),
+      Text('Payment History', style: AppTextStyles.subtitle(primaryText)),
+      const SizedBox(height: 12),
+      GestureDetector(
+        onTap: () => context.go(RouteNames.customerPaymentHistory),
+        child: Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: cardColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: borderColor),
+          ),
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            leading: Icon(Icons.history_rounded, color: primaryColor),
+            title: Text('View Payment History', style: AppTextStyles.bodyMedium(primaryText)),
+            subtitle: Text('See your past COD and online payments.', style: AppTextStyles.caption(secondaryText)),
+            trailing: Icon(Icons.arrow_forward_ios_rounded, size: 18, color: secondaryText),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  List<Widget> createVendorSection(UserModel user, Color primaryText, Color secondaryText, Color cardColor, Color borderColor, Color primaryColor, bool isDark) {
+    return [
+      const SizedBox(height: 32),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text('Business Information', style: AppTextStyles.subtitle(primaryText)),
+          if (user.isVerified)
+            StatusBadge(label: 'Verified', color: AppColors.success)
+          else
+            StatusBadge(label: 'Pending Approval', color: AppColors.warning),
+        ],
+      ),
+      const SizedBox(height: 16),
+      _buildFieldCard(
+        cardColor: cardColor,
+        borderColor: borderColor,
+        label: 'Business Name',
+        icon: Icons.storefront_rounded,
+        isEditing: _isEditing,
+        controller: _businessNameCtrl,
+        primaryText: primaryText,
+        secondaryText: secondaryText,
+        primaryColor: primaryColor,
+        validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+      ),
+      const SizedBox(height: 16),
+      
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.verified_rounded, color: AppColors.success, size: 20),
+                const SizedBox(width: 12),
+                Text('Approved Categories', style: AppTextStyles.labelLarge(secondaryText)),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (user.allowedCategories != null && user.allowedCategories!.isNotEmpty)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: (user.allowedCategories!)
+                    .map((category) => Chip(
+                      label: Text(category),
+                      backgroundColor: AppColors.success.withValues(alpha: 0.12),
+                      labelStyle: AppTextStyles.bodySmall(AppColors.success)
+                          .copyWith(fontWeight: FontWeight.w600),
+                    ))
+                    .toList(),
+              )
+            else
+              Text(
+                'No categories approved yet.',
+                style: AppTextStyles.bodySmall(secondaryText),
+              ),
+            const SizedBox(height: 16),
+            
+            if (!_isEditing && user.hasPendingCategoryRequest == true && user.requestedCategories != null && user.requestedCategories!.isNotEmpty) ...[
+              Row(
+                children: [
+                  Icon(Icons.pending_outlined, color: AppColors.warning, size: 20),
+                  const SizedBox(width: 12),
+                  Text('Pending Request', style: AppTextStyles.labelLarge(AppColors.warning)),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Waiting for admin approval',
+                style: AppTextStyles.caption(secondaryText),
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: (user.requestedCategories!)
+                    .map((category) => Chip(
+                      label: Text(category),
+                      backgroundColor: AppColors.warning.withValues(alpha: 0.12),
+                      labelStyle: AppTextStyles.bodySmall(AppColors.warning)
+                          .copyWith(fontWeight: FontWeight.w600),
+                    ))
+                    .toList(),
+              ),
+              const SizedBox(height: 16),
+            ],
+            
+            if (_isEditing) ...[
+              Row(
+                children: [
+                  Icon(Icons.category_outlined, color: secondaryText, size: 20),
+                  const SizedBox(width: 12),
+                  Text('Request Categories', style: AppTextStyles.labelLarge(secondaryText)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: _availableCategories.map((category) {
+                  final isSelected = _selectedCategories.contains(category);
+                  return FilterChip(
+                    label: Text(category),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      setState(() {
+                        if (selected) {
+                          _selectedCategories.add(category);
+                        } else {
+                          _selectedCategories.remove(category);
+                        }
+                      });
+                    },
+                    selectedColor: primaryColor.withValues(alpha: 0.2),
+                    checkmarkColor: primaryColor,
+                    labelStyle: AppTextStyles.bodySmall(
+                      isSelected ? primaryColor : secondaryText,
+                    ).copyWith(fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal),
+                    backgroundColor: isDark ? Colors.black12 : Colors.grey.shade100,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                      side: BorderSide(
+                        color: isSelected ? primaryColor : Colors.transparent,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ],
+        ),
+      ),
+    ];
   }
 
   Widget _buildCustomerDeliveryAddressCard({
@@ -533,12 +604,60 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               Text('Note: ${saved.deliveryNote}', style: AppTextStyles.caption(secondaryText)),
             ],
             const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: () => context.push(RouteNames.customerDeliveryAddress),
-              icon: const Icon(Icons.edit_location_alt_outlined),
-              label: const Text('Edit Address'),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () => _showSavedDeliveryLocationDialog(saved),
+                  icon: const Icon(Icons.map_outlined),
+                  label: const Text('View Saved Location'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => context.push(RouteNames.customerDeliveryAddress),
+                  icon: const Icon(Icons.edit_location_alt_outlined),
+                  label: const Text('Edit Location'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => context.push(
+                    RouteNames.customerDeliveryAddress,
+                    extra: {'startWithGpsDetection': true},
+                  ),
+                  icon: const Icon(Icons.my_location_rounded),
+                  label: const Text('Detect Again'),
+                ),
+              ],
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  void _showSavedDeliveryLocationDialog(CustomerDeliveryAddress saved) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Saved Delivery Location'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(saved.formattedAddress.isNotEmpty
+                ? saved.formattedAddress
+                : '${saved.approximateArea}, ${saved.district}, ${saved.province}'),
+            const SizedBox(height: 12),
+            Text('Latitude: ${saved.latitude?.toStringAsFixed(6) ?? 'Not set'}'),
+            Text('Longitude: ${saved.longitude?.toStringAsFixed(6) ?? 'Not set'}'),
+            const SizedBox(height: 8),
+            Text('Last updated: ${saved.updatedAt.toLocal().toString().split('.').first}'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Close'),
+          ),
         ],
       ),
     );

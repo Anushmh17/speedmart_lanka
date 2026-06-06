@@ -21,20 +21,36 @@ class CustomerDeliveryAddressRepository {
     final raw = prefs.getString(storageKey(customerId));
     if (raw == null || raw.isEmpty) return null;
     try {
-      return CustomerDeliveryAddress.fromJson(
-        jsonDecode(raw) as Map<String, dynamic>,
-      );
+      final json = jsonDecode(raw) as Map<String, dynamic>;
+      final address = CustomerDeliveryAddress.fromJson(json);
+      
+      print('[ApproxAreaAudit] ===== REPOSITORY LOAD =====');
+      print('[ApproxAreaAudit] Loaded from storage key: ${storageKey(customerId)}');
+      print('[ApproxAreaAudit] Raw JSON approximateArea: "${json['approximateArea']}"');
+      print('[ApproxAreaAudit] Deserialized address.approximateArea: "${address.approximateArea}"');
+      print('[ApproxAreaAudit] ===== LOAD COMPLETE =====');
+      
+      return address;
     } catch (_) {
       return null;
     }
   }
 
   Future<void> save(CustomerDeliveryAddress address) async {
+    print('[ApproxAreaAudit] ===== REPOSITORY SAVE START =====');
+    print('[ApproxAreaAudit] Input address.approximateArea: "${address.approximateArea}"');
+    print('[ApproxAreaAudit] Storage key: ${storageKey(address.customerId)}');
+    
+    final json = address.toJson();
+    print('[ApproxAreaAudit] Serialized JSON approximateArea: "${json['approximateArea']}"');
+    
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
       storageKey(address.customerId),
-      jsonEncode(address.toJson()),
+      jsonEncode(json),
     );
+    
+    print('[ApproxAreaAudit] ===== REPOSITORY SAVE COMPLETE =====');
   }
 
   Future<void> delete(String customerId) async {

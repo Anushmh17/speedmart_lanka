@@ -35,7 +35,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     final userJson = await StorageService.getUser();
     if (userJson != null) {
+      debugPrint('[CategoryAudit] ===== VENDOR LOGIN RESTORE =====');
+      debugPrint('[CategoryAudit] Restoring session from storage');
+      debugPrint('[CategoryAudit] userJson allowed_categories: ${userJson['allowed_categories']}');
+      debugPrint('[CategoryAudit] userJson vendor_categories: ${userJson['vendor_categories']}');
+      
       final user = UserModel.fromJson(userJson);
+      
+      debugPrint('[CategoryAudit] UserModel.fromJson result:');
+      debugPrint('[CategoryAudit] user.allowedCategories: ${user.allowedCategories}');
+      debugPrint('[CategoryAudit] user.vendorCategories: ${user.vendorCategories}');
+      debugPrint('[CategoryAudit] ===== SESSION RESTORED =====');
+      
       state = AuthState.authenticated(user);
       return;
     }
@@ -195,6 +206,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String phone,
     String? businessName,
     List<String>? vendorCategories,
+    List<String>? requestedCategories,
   }) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
@@ -206,16 +218,26 @@ class AuthNotifier extends StateNotifier<AuthState> {
         phone: phone,
         businessName: businessName,
         vendorCategories: vendorCategories,
+        requestedCategories: requestedCategories,
+        hasPendingCategoryRequest: requestedCategories?.isNotEmpty == true,
       );
+
+      debugPrint('[AuthSessionFix] Current logged in user: ${currentUser.id}');
+      debugPrint('[AuthSessionFix] Edited user: ${updatedUser.id}');
+      debugPrint('[AuthSessionFix] Same user: ${currentUser.id == updatedUser.id}');
 
       // Update in repository
       final savedUser = await _repo.updateUser(updatedUser);
 
-      // Update in local storage
-      await StorageService.saveUser(savedUser.toJson());
-
-      // Update state
-      state = AuthState.authenticated(savedUser);
+      // Only update session if updating current logged-in user
+      if (currentUser.id == updatedUser.id) {
+        debugPrint('[AuthSessionFix] Updating current user session because edited user is current user');
+        await StorageService.saveUser(savedUser.toJson());
+        state = AuthState.authenticated(savedUser);
+      } else {
+        debugPrint('[AuthSessionFix] Preserving current session after profile update');
+        await StorageService.saveUser(currentUser.toJson());
+      }
     } catch (e) {
       state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
     }
@@ -254,16 +276,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required double assignedRadiusKm,
     required bool vendorApproved,
     required List<String> allowedCategories,
+    List<String>? requestedCategories,
+    bool? hasPendingCategoryRequest,
   }) async {
-    debugPrint('[CategoryAudit] ===== AUTH PROVIDER UPDATE START =====');
-    debugPrint('[CategoryAudit] vendorId=$vendorId');
-    debugPrint('[CategoryAudit] allowedCategories input: $allowedCategories');
+    debugPrint('[CategoryFix] ===== AUTH PROVIDER UPDATE START =====');
+    debugPrint('[CategoryFix] vendorId=$vendorId');
+    debugPrint('[CategoryFix] allowedCategories input: $allowedCategories');
+    debugPrint('[CategoryFix] requestedCategories input: $requestedCategories');
+    debugPrint('[CategoryFix] hasPendingCategoryRequest input: $hasPendingCategoryRequest');
 
     // Get the vendor from repository
     final vendor = await _repo.getUserById(vendorId);
     if (vendor == null) throw Exception('Vendor not found');
 
-    debugPrint('[CategoryAudit] Before copyWith: vendor.allowedCategories=${vendor.allowedCategories}');
+    debugPrint('[CategoryFix] Before update: vendor.allowedCategories=${vendor.allowedCategories}');
+    debugPrint('[CategoryFix] Before update: vendor.requestedCategories=${vendor.requestedCategories}');
 
     final updatedVendor = vendor.copyWith(
       shopName: shopName,
@@ -273,34 +300,55 @@ class AuthNotifier extends StateNotifier<AuthState> {
       assignedRadiusKm: assignedRadiusKm,
       vendorApproved: vendorApproved,
       allowedCategories: allowedCategories,
+      requestedCategories: requestedCategories ?? [],
+      hasPendingCategoryRequest: hasPendingCategoryRequest ?? false,
       isShopLocationAssigned: true,
     );
 
-    debugPrint('[CategoryAudit] After copyWith: updatedVendor.allowedCategories=${updatedVendor.allowedCategories}');
+    debugPrint('[CategoryFix] After update: updatedVendor.allowedCategories=${updatedVendor.allowedCategories}');
+    debugPrint('[CategoryFix] After update: updatedVendor.requestedCategories=${updatedVendor.requestedCategories}');
+    debugPrint('[CategoryFix] After update: updatedVendor.hasPendingCategoryRequest=${updatedVendor.hasPendingCategoryRequest}');
 
     // Update in repository
     await _repo.updateUser(updatedVendor);
 
-    debugPrint('[CategoryAudit] Updated vendor in repository');
+    debugPrint('[CategoryFix] Updated vendor in repository');
 
-    // Persist to local storage
-    final userJson = updatedVendor.toJson();
-    debugPrint('[CategoryAudit] User JSON toJson: allowed_categories=${userJson['allowed_categories']}');
-    await StorageService.saveUser(userJson);
+    // Get current logged-in user
+    final currentUser = state.user;
+    debugPrint('[AuthSessionFix] Current logged in user: ${currentUser?.id}');
+    debugPrint('[AuthSessionFix] Edited vendor user: ${updatedVendor.id}');
+    debugPrint('[AuthSessionFix] Same user: ${currentUser?.id == updatedVendor.id}');
 
-    debugPrint('[CategoryAudit] ===== PERSISTED TO STORAGE =====');
-    debugPrint('[CategoryAudit] Persisted allowedCategories: ${updatedVendor.allowedCategories}');
-
-    // If updating current user, update state
-    if (state.user?.id == vendorId) {
+    // Only update storage and state if editing current logged-in user
+    if (currentUser != null && currentUser.id == updatedVendor.id) {
+      debugPrint('[AuthSessionFix] Updating current user session because edited user is current user');
+      final userJson = updatedVendor.toJson();
+      debugPrint('[CategoryFix] User JSON allowed_categories=${userJson['allowed_categories']}');
+      debugPrint('[CategoryFix] User JSON requested_categories=${userJson['requested_categories']}');
+      await StorageService.saveUser(userJson);
       state = AuthState.authenticated(updatedVendor);
-      debugPrint('[CategoryAudit] Updated current user state: ${updatedVendor.allowedCategories}');
+    } else {
+      debugPrint('[AuthSessionFix] Preserving admin session after vendor update');
+      // Admin editing another vendor - keep current session
+      if (currentUser != null) {
+        await StorageService.saveUser(currentUser.toJson());
+      }
     }
+
+    debugPrint('[CategoryFix] ===== PERSISTED TO STORAGE =====');
+    debugPrint('[CategoryFix] Persisted allowedCategories: ${updatedVendor.allowedCategories}');
+    debugPrint('[CategoryFix] Persisted requestedCategories: ${updatedVendor.requestedCategories}');
   }
 
   // ── Clear error ────────────────────────────────────────────────────────────
   void clearError() {
     state = state.copyWith(clearError: true);
+  }
+
+  // ── Get user by ID (for admin operations) ──────────────────────────────────
+  Future<UserModel?> getUserById(String userId) async {
+    return await _repo.getUserById(userId);
   }
 }
 

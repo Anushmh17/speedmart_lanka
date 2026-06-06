@@ -257,8 +257,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final fromCreateRequest = (state.extra as Map<String, dynamic>?)
                   ?['fromCreateRequest'] as bool? ??
               false;
+          final startWithGpsDetection = (state.extra as Map<String, dynamic>?)
+                  ?['startWithGpsDetection'] as bool? ??
+              false;
           return CustomerDeliveryAddressScreen(
             fromCreateRequest: fromCreateRequest,
+            startWithGpsDetection: startWithGpsDetection,
           );
         },
       ),
