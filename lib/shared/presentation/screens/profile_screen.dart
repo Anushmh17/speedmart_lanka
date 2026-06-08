@@ -13,6 +13,8 @@ import '../../../features/auth/customer_registration/providers/customer_registra
 import '../../../features/location/providers/location_provider.dart';
 import '../../../core/navigation/bottom_nav_visibility.dart';
 import '../../../shared/models/user_model.dart';
+import '../../../features/admin/providers/category_provider.dart';
+import '../../../shared/utils/category_sync_helper.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -32,15 +34,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   List<String> _selectedCategories = [];
 
   bool _deliveryAddressLoadScheduled = false;
-  
-  final List<String> _availableCategories = [
-    'Groceries', 'Electronics', 'Clothing', 'Home Appliances', 
-    'Pharmacy', 'Stationery', 'Hardware', 'Automotive'
-  ];
 
   @override
   void initState() {
-    super.initState();
+    super.initState();;
     _nameCtrl = TextEditingController();
     _phoneCtrl = TextEditingController();
     _businessNameCtrl = TextEditingController();
@@ -81,7 +78,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _selectedCategories = List.from(user.requestedCategories?.isNotEmpty == true
           ? user.requestedCategories!
           : user.allowedCategories ?? []);
-      debugPrint('[CategoryUI] Vendor profile edit initialized requested categories: $_selectedCategories');
     }
   }
 
@@ -116,8 +112,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _isEditing = false;
         ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
       });
-      debugPrint('[CategoryUI] Vendor profile saved requestedCategories: $_selectedCategories');
-      debugPrint('[CategoryUI] Vendor profile allowedCategories unchanged: ${user.allowedCategories}');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: user.role == UserRole.vendor
@@ -131,8 +125,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _handleLogout() async {
-    debugPrint('[Auth] Logout started');
-
     final bottomNavNotifier = ref.read(bottomNavVisibilityProvider.notifier);
     final authNotifier = ref.read(authProvider.notifier);
     final customerRegistrationNotifier = ref.read(customerRegistrationProvider.notifier);
@@ -142,12 +134,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     bottomNavNotifier.setManualHidden(false);
 
     await authNotifier.logout();
-    debugPrint('[Auth] Session cleared');
 
     customerRegistrationNotifier.reset();
     deliveryLocationNotifier.clearLocation();
     customerDeliveryAddressNotifier.reset();
-    debugPrint('[Auth] Role-specific providers reset');
 
     if (!mounted) return;
     context.go(RouteNames.roleSelection);
@@ -173,8 +163,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     final showBottomNav = ref.watch(bottomNavVisibilityProvider);
     final bottomPadding = showBottomNav ? 100.0 : 16.0;
-
-    debugPrint('[CategoryUI] Vendor profile approved categories: ${user.allowedCategories}');
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -455,17 +443,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             const SizedBox(height: 12),
             if (user.allowedCategories != null && user.allowedCategories!.isNotEmpty)
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: (user.allowedCategories!)
-                    .map((category) => Chip(
-                      label: Text(category),
-                      backgroundColor: AppColors.success.withValues(alpha: 0.12),
-                      labelStyle: AppTextStyles.bodySmall(AppColors.success)
-                          .copyWith(fontWeight: FontWeight.w600),
-                    ))
-                    .toList(),
+              Consumer(
+                builder: (context, ref, _) {
+                  final allCategories = ref.watch(activeCategoriesProvider);
+                  final displayNames = CategorySyncHelper.getDisplayNames(
+                    user.allowedCategories ?? [],
+                    allCategories,
+                  );
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: displayNames
+                        .map((displayName) => Chip(
+                          label: Text(displayName),
+                          backgroundColor: AppColors.success.withValues(alpha: 0.12),
+                          labelStyle: AppTextStyles.bodySmall(AppColors.success)
+                              .copyWith(fontWeight: FontWeight.w600),
+                        ))
+                        .toList(),
+                  );
+                },
               )
             else
               Text(
@@ -474,77 +471,116 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
             const SizedBox(height: 16),
             
-            if (!_isEditing && user.hasPendingCategoryRequest == true && user.requestedCategories != null && user.requestedCategories!.isNotEmpty) ...[
-              Row(
-                children: [
-                  Icon(Icons.pending_outlined, color: AppColors.warning, size: 20),
-                  const SizedBox(width: 12),
-                  Text('Pending Request', style: AppTextStyles.labelLarge(AppColors.warning)),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Waiting for admin approval',
-                style: AppTextStyles.caption(secondaryText),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: (user.requestedCategories!)
-                    .map((category) => Chip(
-                      label: Text(category),
-                      backgroundColor: AppColors.warning.withValues(alpha: 0.12),
-                      labelStyle: AppTextStyles.bodySmall(AppColors.warning)
-                          .copyWith(fontWeight: FontWeight.w600),
-                    ))
-                    .toList(),
-              ),
-              const SizedBox(height: 16),
-            ],
+            if (!_isEditing && user.hasPendingCategoryRequest == true && user.requestedCategories != null && user.requestedCategories!.isNotEmpty) ...
+              [
+                Row(
+                  children: [
+                    Icon(Icons.pending_outlined, color: AppColors.warning, size: 20),
+                    const SizedBox(width: 12),
+                    Text('Pending Request', style: AppTextStyles.labelLarge(AppColors.warning)),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Waiting for admin approval',
+                  style: AppTextStyles.caption(secondaryText),
+                ),
+                const SizedBox(height: 12),
+                Consumer(
+                  builder: (context, ref, _) {
+                    final allCategories = ref.watch(activeCategoriesProvider);
+                    final displayNames = CategorySyncHelper.getDisplayNames(
+                      user.requestedCategories ?? [],
+                      allCategories,
+                    );
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: displayNames
+                          .map((displayName) => Chip(
+                            label: Text(displayName),
+                            backgroundColor: AppColors.warning.withValues(alpha: 0.12),
+                            labelStyle: AppTextStyles.bodySmall(AppColors.warning)
+                                .copyWith(fontWeight: FontWeight.w600),
+                          ))
+                          .toList(),
+                    );
+                  },
+                ),
+                const SizedBox(height: 16),
+              ],
             
-            if (_isEditing) ...[
-              Row(
-                children: [
-                  Icon(Icons.category_outlined, color: secondaryText, size: 20),
-                  const SizedBox(width: 12),
-                  Text('Request Categories', style: AppTextStyles.labelLarge(secondaryText)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: _availableCategories.map((category) {
-                  final isSelected = _selectedCategories.contains(category);
-                  return FilterChip(
-                    label: Text(category),
-                    selected: isSelected,
-                    onSelected: (selected) {
-                      setState(() {
-                        if (selected) {
-                          _selectedCategories.add(category);
-                        } else {
-                          _selectedCategories.remove(category);
-                        }
-                      });
-                    },
-                    selectedColor: primaryColor.withValues(alpha: 0.2),
-                    checkmarkColor: primaryColor,
-                    labelStyle: AppTextStyles.bodySmall(
-                      isSelected ? primaryColor : secondaryText,
-                    ).copyWith(fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal),
-                    backgroundColor: isDark ? Colors.black12 : Colors.grey.shade100,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      side: BorderSide(
-                        color: isSelected ? primaryColor : Colors.transparent,
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ],
+            if (_isEditing)
+              ...
+              [
+                Row(
+                  children: [
+                    Icon(Icons.category_outlined, color: secondaryText, size: 20),
+                    const SizedBox(width: 12),
+                    Text('Request Categories', style: AppTextStyles.labelLarge(secondaryText)),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Consumer(
+                  builder: (context, ref, _) {
+                    final allCategories = ref.watch(activeCategoriesProvider);
+                    final approvedSet = (user.allowedCategories ?? []).toSet();
+                    final requestable = allCategories
+                        .where((cat) => cat.isActive && !approvedSet.contains(cat.normalizedKey))
+                        .toList();
+                    
+                    if (requestable.isEmpty) {
+                      return Text(
+                        'All active categories are already approved for your account.',
+                        style: AppTextStyles.bodySmall(secondaryText),
+                      );
+                    }
+                    
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: requestable.map((cat) {
+                        final isSelected = _selectedCategories.contains(cat.normalizedKey);
+                        return FilterChip(
+                          label: Text(cat.displayName),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                if (!_selectedCategories.contains(cat.normalizedKey)) {
+                                  _selectedCategories.add(cat.normalizedKey);
+                                }
+                              } else {
+                                _selectedCategories.remove(cat.normalizedKey);
+                              }
+                            });
+                          },
+                          selectedColor: primaryColor.withValues(alpha: 0.15),
+                          checkmarkColor: primaryColor,
+                          labelStyle: AppTextStyles.bodySmall(
+                            isSelected ? primaryColor : secondaryText,
+                          ).copyWith(
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                          backgroundColor: isDark
+                              ? Colors.grey.withValues(alpha: 0.1)
+                              : Colors.grey.shade50,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? primaryColor
+                                  : (isDark
+                                      ? Colors.grey.withValues(alpha: 0.2)
+                                      : Colors.grey.shade200),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
+              ],
           ],
         ),
       ),
@@ -578,57 +614,61 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               padding: EdgeInsets.all(12),
               child: CircularProgressIndicator(strokeWidth: 2),
             ))
-          else if (saved == null || !saved.isComplete) ...[
-            Text(
-              'No delivery address saved yet.',
-              style: AppTextStyles.bodyMedium(secondaryText),
-            ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: () => context.push(RouteNames.customerDeliveryAddress),
-              icon: const Icon(Icons.add_location_alt_outlined),
-              label: const Text('Add Delivery Address'),
-              style: FilledButton.styleFrom(backgroundColor: primaryColor),
-            ),
-          ] else ...[
-            Text(saved.approximateArea, style: AppTextStyles.bodyLarge(primaryText)),
-            const SizedBox(height: 4),
-            Text(
-              '${saved.district}, ${saved.province}',
-              style: AppTextStyles.bodySmall(secondaryText),
-            ),
-            const SizedBox(height: 4),
-            Text(saved.streetAddress, style: AppTextStyles.bodySmall(secondaryText)),
-            if (saved.deliveryNote.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text('Note: ${saved.deliveryNote}', style: AppTextStyles.caption(secondaryText)),
-            ],
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                OutlinedButton.icon(
-                  onPressed: () => _showSavedDeliveryLocationDialog(saved),
-                  icon: const Icon(Icons.map_outlined),
-                  label: const Text('View Saved Location'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () => context.push(RouteNames.customerDeliveryAddress),
-                  icon: const Icon(Icons.edit_location_alt_outlined),
-                  label: const Text('Edit Location'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () => context.push(
-                    RouteNames.customerDeliveryAddress,
-                    extra: {'startWithGpsDetection': true},
+          else if (saved == null || !saved.isComplete) ...
+            [
+              Text(
+                'No delivery address saved yet.',
+                style: AppTextStyles.bodyMedium(secondaryText),
+              ),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: () => context.push(RouteNames.customerDeliveryAddress),
+                icon: const Icon(Icons.add_location_alt_outlined),
+                label: const Text('Add Delivery Address'),
+                style: FilledButton.styleFrom(backgroundColor: primaryColor),
+              ),
+            ]
+          else ...
+            [
+              Text(saved.approximateArea, style: AppTextStyles.bodyLarge(primaryText)),
+              const SizedBox(height: 4),
+              Text(
+                '${saved.district}, ${saved.province}',
+                style: AppTextStyles.bodySmall(secondaryText),
+              ),
+              const SizedBox(height: 4),
+              Text(saved.streetAddress, style: AppTextStyles.bodySmall(secondaryText)),
+              if (saved.deliveryNote.isNotEmpty) ...
+                [
+                  const SizedBox(height: 6),
+                  Text('Note: ${saved.deliveryNote}', style: AppTextStyles.caption(secondaryText)),
+                ],
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => _showSavedDeliveryLocationDialog(saved),
+                    icon: const Icon(Icons.map_outlined),
+                    label: const Text('View Saved Location'),
                   ),
-                  icon: const Icon(Icons.my_location_rounded),
-                  label: const Text('Detect Again'),
-                ),
-              ],
-            ),
-          ],
+                  OutlinedButton.icon(
+                    onPressed: () => context.push(RouteNames.customerDeliveryAddress),
+                    icon: const Icon(Icons.edit_location_alt_outlined),
+                    label: const Text('Edit Location'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => context.push(
+                      RouteNames.customerDeliveryAddress,
+                      extra: {'startWithGpsDetection': true},
+                    ),
+                    icon: const Icon(Icons.my_location_rounded),
+                    label: const Text('Detect Again'),
+                  ),
+                ],
+              ),
+            ],
         ],
       ),
     );

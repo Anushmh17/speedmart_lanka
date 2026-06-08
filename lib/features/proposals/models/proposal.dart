@@ -176,6 +176,7 @@ class Proposal {
   final ProposalStatus status;
   final DateTime createdAt;
   final DateTime? updatedAt;
+  final DateTime? rejectedAt;
   final String? notes;
   final List<String> productImageUrls;
   final String? rejectionReason;
@@ -183,6 +184,9 @@ class Proposal {
   final String? vendorResponse;
   final double vendorLatitude;
   final double vendorLongitude;
+  
+  // Category-specific proposal tracking (for multi-category requests)
+  final String? categoryNormalized; // The specific category this proposal addresses
 
   Proposal({
     required this.id,
@@ -197,6 +201,7 @@ class Proposal {
     this.status = ProposalStatus.submitted,
     required this.createdAt,
     this.updatedAt,
+    this.rejectedAt,
     this.notes,
     this.productImageUrls = const [],
     this.rejectionReason,
@@ -204,6 +209,7 @@ class Proposal {
     this.vendorResponse,
     this.vendorLatitude = 6.9145,
     this.vendorLongitude = 79.8510,
+    this.categoryNormalized,
   });
 
   double get subtotal => items.fold<double>(0, (sum, i) => sum + i.subtotal);
@@ -227,6 +233,7 @@ class Proposal {
     ProposalStatus? status,
     DateTime? createdAt,
     DateTime? updatedAt,
+    DateTime? rejectedAt,
     String? notes,
     List<String>? productImageUrls,
     String? rejectionReason,
@@ -234,6 +241,7 @@ class Proposal {
     String? vendorResponse,
     double? vendorLatitude,
     double? vendorLongitude,
+    String? categoryNormalized,
   }) {
     return Proposal(
       id: id ?? this.id,
@@ -249,6 +257,7 @@ class Proposal {
       status: status ?? this.status,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      rejectedAt: rejectedAt ?? this.rejectedAt,
       notes: notes ?? this.notes,
       productImageUrls: productImageUrls ?? this.productImageUrls,
       rejectionReason: rejectionReason ?? this.rejectionReason,
@@ -256,6 +265,7 @@ class Proposal {
       vendorResponse: vendorResponse ?? this.vendorResponse,
       vendorLatitude: vendorLatitude ?? this.vendorLatitude,
       vendorLongitude: vendorLongitude ?? this.vendorLongitude,
+      categoryNormalized: categoryNormalized ?? this.categoryNormalized,
     );
   }
 
@@ -274,6 +284,7 @@ class Proposal {
       'status': status.name,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
+      'rejectedAt': rejectedAt?.toIso8601String(),
       'notes': notes,
       'productImageUrls': productImageUrls,
       'rejectionReason': rejectionReason,
@@ -281,6 +292,7 @@ class Proposal {
       'vendorResponse': vendorResponse,
       'vendorLatitude': vendorLatitude,
       'vendorLongitude': vendorLongitude,
+      'categoryNormalized': categoryNormalized,
     };
   }
 
@@ -319,6 +331,9 @@ class Proposal {
       updatedAt: json['updatedAt'] != null
           ? DateTime.tryParse(json['updatedAt'] as String)
           : null,
+      rejectedAt: json['rejectedAt'] != null
+          ? DateTime.tryParse(json['rejectedAt'] as String)
+          : null,
       notes: json['notes'] as String?,
       productImageUrls: (json['productImageUrls'] as List<dynamic>? ?? [])
           .map((e) => e.toString())
@@ -328,6 +343,7 @@ class Proposal {
       vendorResponse: json['vendorResponse'] as String?,
       vendorLatitude: (json['vendorLatitude'] as num?)?.toDouble() ?? 6.9145,
       vendorLongitude: (json['vendorLongitude'] as num?)?.toDouble() ?? 79.8510,
+      categoryNormalized: json['categoryNormalized'] as String?,
     );
   }
 }

@@ -1,6 +1,5 @@
 import 'user_role.dart';
 import 'vendor_status.dart';
-import '../utils/category_constants.dart';
 
 /// Core user model shared across all roles.
 /// Role-specific data (vendor profile, etc.) is stored in separate models.
@@ -38,6 +37,7 @@ class UserModel {
   /// Shop location accuracy metadata
   final double? shopLocationAccuracyMeters;
   final DateTime? shopLocationDetectedAt;
+  final String? shopLocationSource;
 
   /// Additional vendor info
   final String? businessRegistrationNumber;
@@ -102,6 +102,7 @@ class UserModel {
     this.shopLongitude,
     this.shopLocationAccuracyMeters,
     this.shopLocationDetectedAt,
+    this.shopLocationSource,
     this.assignedRadiusKm,
     this.isShopLocationAssigned,
     this.businessRegistrationNumber,
@@ -125,9 +126,21 @@ class UserModel {
             VendorStatus.pendingApproval
         : null,
       vendorApproved: json['vendor_approved'] as bool?,
-      vendorCategories: VendorCategories.normalizeList(json['vendor_categories']),
-      allowedCategories: VendorCategories.normalizeList(json['allowed_categories']),
-      requestedCategories: VendorCategories.normalizeList(json['requested_categories']),
+      vendorCategories: (json['vendor_categories'] as List<dynamic>?)
+          ?.cast<String>()
+          .map((c) => c.toLowerCase().trim())
+          .where((c) => c.isNotEmpty)
+          .toList(),
+      allowedCategories: (json['allowed_categories'] as List<dynamic>?)
+          ?.cast<String>()
+          .map((c) => c.toLowerCase().trim())
+          .where((c) => c.isNotEmpty)
+          .toList(),
+      requestedCategories: (json['requested_categories'] as List<dynamic>?)
+          ?.cast<String>()
+          .map((c) => c.toLowerCase().trim())
+          .where((c) => c.isNotEmpty)
+          .toList(),
       hasPendingCategoryRequest: json['has_pending_category_request'] as bool? ?? false,
       detectedCountry: json['detected_country'] as String?,
       selectedCountry: json['selected_country'] as String?,
@@ -154,6 +167,7 @@ class UserModel {
       shopLocationDetectedAt: json['shop_location_detected_at'] != null
           ? DateTime.parse(json['shop_location_detected_at'] as String)
           : null,
+      shopLocationSource: json['shop_location_source'] as String?,
       assignedRadiusKm: (json['assigned_radius_km'] as num?)?.toDouble(),
       isShopLocationAssigned: json['is_shop_location_assigned'] as bool?,
       businessRegistrationNumber: json['business_registration_number'] as String?,
@@ -202,6 +216,7 @@ class UserModel {
       'shop_longitude': shopLongitude,
       'shop_location_accuracy_meters': shopLocationAccuracyMeters,
       'shop_location_detected_at': shopLocationDetectedAt?.toIso8601String(),
+      'shop_location_source': shopLocationSource,
       'assigned_radius_km': assignedRadiusKm,
       'is_shop_location_assigned': isShopLocationAssigned,
       'business_registration_number': businessRegistrationNumber,
@@ -249,6 +264,7 @@ class UserModel {
     double? shopLongitude,
     double? shopLocationAccuracyMeters,
     DateTime? shopLocationDetectedAt,
+    String? shopLocationSource,
     double? assignedRadiusKm,
     bool? isShopLocationAssigned,
     String? businessRegistrationNumber,
@@ -294,6 +310,7 @@ class UserModel {
       shopLongitude: shopLongitude ?? this.shopLongitude,
       shopLocationAccuracyMeters: shopLocationAccuracyMeters ?? this.shopLocationAccuracyMeters,
       shopLocationDetectedAt: shopLocationDetectedAt ?? this.shopLocationDetectedAt,
+      shopLocationSource: shopLocationSource ?? this.shopLocationSource,
       assignedRadiusKm: assignedRadiusKm ?? this.assignedRadiusKm,
       isShopLocationAssigned: isShopLocationAssigned ?? this.isShopLocationAssigned,
       businessRegistrationNumber: businessRegistrationNumber ?? this.businessRegistrationNumber,

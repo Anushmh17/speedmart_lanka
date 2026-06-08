@@ -66,6 +66,13 @@ class MockRequestRepository {
     debugPrint('[RequestAudit] Active requests loaded: ${active.length}');
     for (final req in active) {
       debugPrint('[RequestAudit] Request: ${req.id}, area: ${req.customerArea}, lat: ${req.latitude}, lng: ${req.longitude}');
+      // [ImageAudit] Repository load
+      for (final item in req.items) {
+        debugPrint('[ImageAudit] Loaded request: ${req.id}');
+        debugPrint('[ImageAudit] Item: ${item.itemName}');
+        debugPrint('[ImageAudit] Images: ${item.imageUrls}');
+        debugPrint('[ImageAudit] Image count: ${item.imageUrls.length}');
+      }
     }
     return active;
   }
@@ -131,6 +138,16 @@ class MockRequestRepository {
     }
   }
 
+  Future<void> updateRequest(ShoppingRequest request) async {
+    await ensureInitialized();
+    await Future.delayed(const Duration(milliseconds: 200));
+    final index = _requests.indexWhere((r) => r.id == request.id);
+    if (index != -1) {
+      _requests[index] = request;
+      await _persistRequests();
+    }
+  }
+
   Future<ShoppingRequest> createRequest({
     required String customerId,
     required List<RequestItem> items,
@@ -192,6 +209,14 @@ class MockRequestRepository {
     debugPrint('[RequestAudit] Request saved: ${newRequest.id}');
     debugPrint('[RequestAudit] Request lat: ${newRequest.latitude}, lng: ${newRequest.longitude}');
     debugPrint('[RequestAudit] Request deliveryLocation: ${newRequest.deliveryLocation?.province}/${newRequest.deliveryLocation?.district}');
+    
+    // [ImageAudit] Customer uploaded images - Repository save
+    for (final item in newRequest.items) {
+      debugPrint('[ImageAudit] Saving request: ${newRequest.id}');
+      debugPrint('[ImageAudit] Item: ${item.itemName}');
+      debugPrint('[ImageAudit] Images: ${item.imageUrls}');
+      debugPrint('[ImageAudit] Image count: ${item.imageUrls.length}');
+    }
 
     _requests.insert(0, newRequest);
     await _persistRequests();

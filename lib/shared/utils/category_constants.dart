@@ -14,6 +14,8 @@ class VendorCategories {
     'Clothing',
     'Vehicle Parts',
     'Home Appliances',
+    'Stationery',
+    'Other',
   ];
 
   /// Normalized list (lowercase) - used for storage and comparison
@@ -26,6 +28,8 @@ class VendorCategories {
     'clothing',
     'vehicle parts',
     'home appliances',
+    'stationery',
+    'other',
   ];
 
   /// Mapping from normalized to display format for easy lookup
@@ -38,17 +42,72 @@ class VendorCategories {
     'clothing': 'Clothing',
     'vehicle parts': 'Vehicle Parts',
     'home appliances': 'Home Appliances',
+    'stationery': 'Stationery',
+    'other': 'Other',
+  };
+
+  /// Alias mapping for legacy/alternate category names
+  /// Maps old names to normalized keys
+  static const Map<String, String> aliasMap = {
+    // Hardware aliases
+    'hardware items': 'hardware',
+    'hardware item': 'hardware',
+    
+    // Vehicle parts aliases
+    'vehicle part': 'vehicle parts',
+    'automotive': 'vehicle parts',
+    'auto parts': 'vehicle parts',
+    
+    // Home appliances aliases
+    'home appliance': 'home appliances',
+    'appliances': 'home appliances',
+    'appliance': 'home appliances',
+    
+    // Stationery aliases (common misspelling)
+    'stationary': 'stationery',
   };
 
   /// Convert display format to normalized format
   /// Example: 'Home Appliances' -> 'home appliances'
+  /// Also handles aliases: 'Hardware items' -> 'hardware'
   static String normalize(String displayValue) {
-    final normalized = displayValue.trim().toLowerCase();
-    if (!normalizedList.contains(normalized)) {
-      debugPrint(
-          '[CategoryNormalize] WARNING: "$displayValue" is not a valid category');
+    final trimmed = displayValue.trim();
+    if (trimmed.isEmpty) {
+      debugPrint('[CategoryNormalize] WARNING: Empty category value');
+      return '';
     }
-    return normalized;
+
+    final lowercase = trimmed.toLowerCase();
+    
+    // Check if it's already a valid normalized category
+    if (normalizedList.contains(lowercase)) {
+      return lowercase;
+    }
+    
+    // Check alias map for legacy names
+    if (aliasMap.containsKey(lowercase)) {
+      final normalized = aliasMap[lowercase]!;
+      debugPrint('[CategoryNormalize] Alias matched: "$displayValue" -> "$normalized"');
+      return normalized;
+    }
+    
+    // Check if it matches a display name (title case)
+    if (normalizationMap.containsValue(trimmed)) {
+      // Find the key for this display value
+      final normalized = normalizationMap.entries
+          .firstWhere(
+            (entry) => entry.value == trimmed,
+            orElse: () => MapEntry(lowercase, ''),
+          )
+          .key;
+      if (normalized.isNotEmpty) {
+        return normalized;
+      }
+    }
+    
+    // Not found in master list or aliases
+    debugPrint('[CategoryNormalize] WARNING: "$displayValue" is not a valid category and has no alias mapping');
+    return lowercase; // Return lowercase as fallback
   }
 
   /// Convert normalized format to display format

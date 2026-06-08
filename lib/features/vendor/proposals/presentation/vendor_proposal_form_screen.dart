@@ -9,6 +9,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../core/providers/notification_provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../shared/utils/category_constants.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../../shared/models/user_model.dart';
 import '../../../vendor/request_feed/providers/vendor_request_feed_provider.dart';
@@ -17,6 +18,7 @@ import '../../../proposals/providers/proposal_provider.dart';
 import '../../../requests/models/shopping_request.dart';
 import '../../../requests/providers/request_provider.dart';
 import '../../../customer/delivery_address/utils/vendor_delivery_privacy.dart';
+import '../widgets/image_gallery_viewer.dart';
 /// Create or edit a vendor proposal (quotation) for a customer request.
 class VendorProposalFormScreen extends ConsumerStatefulWidget {
   const VendorProposalFormScreen({
@@ -215,6 +217,29 @@ class _VendorProposalFormScreenState
         .toList();
     final subtotal = items.fold<double>(0, (s, i) => s + i.subtotal);
 
+    // Determine category for this proposal from request items
+    String? proposalCategory;
+    final categoriesInProposal = <String>{};
+    for (final item in widget.request.items) {
+      if (item.category != null && item.category!.isNotEmpty) {
+        final normalized = VendorCategories.normalize(item.category!);
+        categoriesInProposal.add(normalized);
+      }
+    }
+    
+    // For now, use first category if single category, otherwise leave null
+    // Multi-category proposals need separate handling
+    if (categoriesInProposal.length == 1) {
+      proposalCategory = categoriesInProposal.first;
+      print('[MultiCategoryFlow] Created proposal category: $proposalCategory');
+    } else if (categoriesInProposal.isNotEmpty) {
+      // For multi-category: use first category for now
+      // TODO: Support category selection or separate proposals per category
+      proposalCategory = categoriesInProposal.first;
+      print('[MultiCategoryFlow] Warning: Proposal covers multiple categories: $categoriesInProposal');
+      print('[MultiCategoryFlow] Created proposal category: $proposalCategory (first)');
+    }
+
     return Proposal(
       id: widget.existingProposal?.id ?? '',
       requestId: widget.request.id,
@@ -233,6 +258,7 @@ class _VendorProposalFormScreenState
       productImageUrls: _productImages,
       vendorLatitude: vendorLatitude,
       vendorLongitude: vendorLongitude,
+      categoryNormalized: proposalCategory,
     );
   }
 
@@ -415,12 +441,27 @@ class _VendorProposalFormScreenState
                     Text('Line items', style: AppTextStyles.h2(primaryText)),
                     const SizedBox(height: 10),
                     ...widget.request.items.map((item) {
+                      // [ImageScreen] Screen-level audit
+                      debugPrint('[ImageScreen] ========== BUILDING PROPOSAL ITEM ==========');
+                      debugPrint('[ImageScreen] Building image section for item: ${item.name}');
+                      debugPrint('[ImageScreen] Item ID: ${item.id}');
+                      debugPrint('[ImageScreen] imageCount: ${item.imageUrls.length}');
+                      debugPrint('[ImageScreen] imageUrls: ${item.imageUrls}');
+                      debugPrint('[ImageScreen] isEmpty check: ${item.imageUrls.isEmpty}');
+                      debugPrint('[ImageScreen] isNotEmpty check: ${item.imageUrls.isNotEmpty}');
+                      
+                      // [ImageAudit] Proposal screen
+                      debugPrint('[ImageAudit] Proposal item: ${item.itemName}');
+                      debugPrint('[ImageAudit] Images: ${item.imageUrls}');
+                      debugPrint('[ImageAudit] Image count: ${item.imageUrls.length}');
+                      
                       final status = _itemStatuses[item.id]!;
                       return _ItemEditorCard(
                         itemName: item.name,
                         quantity: item.quantity,
                         status: status,
                         isDark: isDark,
+                        imageUrls: item.imageUrls,
                         onStatusChanged: (s) {
                           setState(() {
                             _itemStatuses[item.id] = s;
@@ -654,6 +695,7 @@ class _ItemEditorCard extends StatelessWidget {
     required this.altBrandController,
     required this.altReasonController,
     required this.onPriceChanged,
+    this.imageUrls = const [],
   });
 
   final String itemName;
@@ -669,9 +711,15 @@ class _ItemEditorCard extends StatelessWidget {
   final TextEditingController altBrandController;
   final TextEditingController altReasonController;
   final VoidCallback onPriceChanged;
+  final List<String> imageUrls;
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[ImageScreen] ========== _ItemEditorCard BUILD ==========');
+    debugPrint('[ImageScreen] Item: $itemName');
+    debugPrint('[ImageScreen] imageUrls length: ${imageUrls.length}');
+    debugPrint('[ImageScreen] imageUrls: $imageUrls');
+    
     final primaryText =
         isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
@@ -690,6 +738,116 @@ class _ItemEditorCard extends StatelessWidget {
         children: [
           Text(itemName, style: AppTextStyles.subtitle(primaryText)),
           Text('Qty $quantity', style: AppTextStyles.caption(primaryText)),
+          Builder(builder: (context) {
+            if (imageUrls.isNotEmpty) {
+              debugPrint('[ImageScreen] *** CONDITION MET in _ItemEditorCard: imageUrls.isNotEmpty = true ***');
+              debugPrint('[ImageScreen] About to render ${imageUrls.length} customer images');
+            } else {
+              debugPrint('[ImageScreen] *** CONDITION NOT MET: imageUrls.isEmpty = true ***');
+            }
+            return const SizedBox.shrink();
+          }),
+          if (imageUrls.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Text('Customer photos (${imageUrls.length}):', style: AppTextStyles.caption(primaryText)),
+            const SizedBox(height: 6),
+            SizedBox(
+              height: 100,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: imageUrls.length,
+                itemBuilder: (context, index) {
+                  final url = imageUrls[index];
+                  final isNetwork = url.startsWith('http://') || url.startsWith('https://');
+                  
+                  debugPrint('[ImageRender] ========== IMAGE WIDGET BUILD ==========');
+                  debugPrint('[ImageRender] path: $url');
+                  debugPrint('[ImageRender] isNetwork: $isNetwork');
+                  
+                  if (!isNetwork) {
+                    final file = File(url);
+                    debugPrint('[ImageRender] exists: ${file.existsSync()}');
+                    if (file.existsSync()) {
+                      try {
+                        debugPrint('[ImageRender] fileSize: ${file.lengthSync()} bytes');
+                      } catch (e) {
+                        debugPrint('[ImageRender] lengthSync error: $e');
+                      }
+                    }
+                    debugPrint('[ImageRender] extension: ${url.split('.').last}');
+                  }
+                  
+                  return Padding(
+                    padding: EdgeInsets.only(right: index < imageUrls.length - 1 ? 8 : 0),
+                    child: GestureDetector(
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => ImageGalleryViewer(
+                              imagePaths: imageUrls,
+                              initialIndex: index,
+                            ),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        width: 100,
+                        height: 100,
+                        decoration: BoxDecoration(
+                          color: borderColor,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: borderColor.withOpacity(0.5)),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: isNetwork
+                              ? Image.network(
+                                  url,
+                                  fit: BoxFit.cover,
+                                  loadingBuilder: (context, child, loadingProgress) {
+                                    if (loadingProgress == null) {
+                                      debugPrint('[ImageRenderSuccess] path: $url');
+                                      return child;
+                                    }
+                                    return const Center(
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: AppColors.vendorColor,
+                                      ),
+                                    );
+                                  },
+                                  errorBuilder: (_, __, ___) {
+                                    debugPrint('[ImageRenderError] path: $url');
+                                    return const Center(
+                                      child: Icon(Icons.broken_image_outlined, size: 30, color: Colors.white54),
+                                    );
+                                  },
+                                )
+                              : Image.file(
+                                  File(url),
+                                  fit: BoxFit.cover,
+                                  frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                                    if (frame != null) {
+                                      debugPrint('[ImageRenderSuccess] path: $url');
+                                    }
+                                    return child;
+                                  },
+                                  errorBuilder: (_, error, ___) {
+                                    debugPrint('[ImageRenderError] path: $url');
+                                    debugPrint('[ImageRenderError] error: $error');
+                                    return const Center(
+                                      child: Icon(Icons.broken_image_outlined, size: 30, color: Colors.white54),
+                                    );
+                                  },
+                                ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           Row(
             children: [

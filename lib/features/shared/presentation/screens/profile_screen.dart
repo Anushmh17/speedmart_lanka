@@ -7,7 +7,7 @@ import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/models/user_role.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/routes/route_names.dart';
-import '../../../../shared/utils/category_constants.dart';
+import '../../../../features/admin/providers/category_provider.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -25,7 +25,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late TextEditingController _businessNameCtrl;
   
   List<String> _requestedCategories = [];
-  bool _hasInitializedRequestedCategories = false;
 
   @override
   void initState() {
@@ -47,30 +46,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _nameCtrl.text = user.fullName;
       _phoneCtrl.text = user.phone;
       _businessNameCtrl.text = user.businessName ?? '';
-      
-      // Initialize requested categories ONLY ONCE from requestedCategories if available
-      if (!_hasInitializedRequestedCategories) {
-        debugPrint('[CategoryLogic] Profile approvedCategories: ${user.allowedCategories}');
-        
-        final approved = VendorCategories.normalizeList(user.allowedCategories ?? []);
-        final all = VendorCategories.normalizedList;
-        final requestableCategories = all.where((cat) => !approved.contains(cat)).toList();
-        
-        debugPrint('[CategoryLogic] Approved categories: $approved');
-        debugPrint('[CategoryLogic] Requestable categories: $requestableCategories');
-        
-        if (user.hasPendingCategoryRequest == true && user.requestedCategories != null && user.requestedCategories!.isNotEmpty) {
-          // Filter out any requested categories that are already approved
-          _requestedCategories = VendorCategories.normalizeList(user.requestedCategories)
-              .where((cat) => requestableCategories.contains(cat))
-              .toList();
-          debugPrint('[CategoryLogic] Filtered requested categories: $_requestedCategories');
-        } else {
-          _requestedCategories = [];
-          debugPrint('[CategoryLogic] Profile requestedCategories init: empty (no pending request)');
-        }
-        _hasInitializedRequestedCategories = true;
-      }
+      _requestedCategories = List.from(user.requestedCategories ?? []);
     }
   }
 
@@ -88,19 +64,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
 
-    // Validate vendor category request
-    if (user.role == UserRole.vendor && _requestedCategories.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please select at least one category to request.'),
-          backgroundColor: Colors.orange,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      return;
-    }
-
-    debugPrint('[CategoryLogic] Profile requestedCategories save: $_requestedCategories');
+    debugPrint('[ProfileCategoryFix] Profile save requestedCategories: $_requestedCategories');
     
     await ref.read(authProvider.notifier).updateProfile(
       fullName: _nameCtrl.text.trim(),
@@ -111,7 +75,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     
     if (mounted && !ref.read(authLoadingProvider)) {
       setState(() => _isEditing = false);
-      debugPrint('[CategoryLogic] Vendor profile: save complete with requestedCategories: $_requestedCategories');
+      debugPrint('[ProfileCategoryFix] Profile save complete');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: user.role == UserRole.vendor
@@ -159,7 +123,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header Section
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -187,7 +150,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               ),
               const SizedBox(height: 20),
 
-              // Glassmorphic Profile Card
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
@@ -267,7 +229,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               Text('Personal Information', style: AppTextStyles.subtitle(primaryText)),
               const SizedBox(height: 16),
 
-              // Animated Form Fields
               _buildFieldCard(
                 cardColor: cardColor,
                 borderColor: borderColor,
@@ -323,18 +284,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
                 const SizedBox(height: 16),
                 
-                // Log view mode data
-                Builder(
-                  builder: (context) {
-                    if (!_isEditing) {
-                      debugPrint('[CategoryLogic] Vendor profile view approved: ${user.allowedCategories}');
-                      debugPrint('[CategoryLogic] Vendor profile view requested: ${user.requestedCategories}');
-                    }
-                    return const SizedBox.shrink();
-                  },
-                ),
-                
-                // Approved Categories (Always shown)
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
@@ -353,40 +302,48 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         ],
                       ),
                       const SizedBox(height: 12),
-                      if (user.allowedCategories != null && user.allowedCategories!.isNotEmpty) ...[
+                      if (user.allowedCategories != null && user.allowedCategories!.isNotEmpty)
                         Wrap(
                           spacing: 8,
                           runSpacing: 8,
-                          children: VendorCategories.displayList(VendorCategories.normalizeList(user.allowedCategories))
-                              .map((displayCategory) => Chip(
-                                label: Text(displayCategory),
+                          children: (user.allowedCategories!)
+                              .map((category) => Chip(
+                                label: Text(category),
                                 backgroundColor: AppColors.success.withValues(alpha: 0.12),
                                 labelStyle: AppTextStyles.bodySmall(AppColors.success)
                                     .copyWith(fontWeight: FontWeight.w600),
                               ))
                               .toList(),
-                        ),
-                      ] else ...[
+                        )
+                      else
                         Text(
                           'No categories approved yet.',
                           style: AppTextStyles.bodySmall(secondaryText),
                         ),
-                      ],
                     ],
                   ),
                 ),
                 const SizedBox(height: 16),
                 
-                // Pending Request / Request Categories
-                if (_isEditing) ...[
-                  // EDIT MODE: Request Categories
-                  Builder(
-                    builder: (context) {
-                      // Calculate requestable categories (not already approved)
-                      final approved = VendorCategories.normalizeList(user.allowedCategories ?? []);
-                      final all = VendorCategories.normalizedList;
-                      final requestableCategories = all.where((cat) => !approved.contains(cat)).toList();
-                      final requestableDisplay = VendorCategories.displayList(requestableCategories);
+                if (_isEditing)
+                  Consumer(
+                    builder: (context, ref, _) {
+                      final activeCategories = ref.watch(activeCategoriesProvider);
+                      debugPrint('[ProfileCategoryFix] ACTUAL SCREEN FILE: lib/features/shared/presentation/screens/profile_screen.dart');
+                      debugPrint('[ProfileCategoryFix] active category count: ${activeCategories.length}');
+                      debugPrint('[ProfileCategoryFix] active category names: ${activeCategories.map((c) => c.displayName).toList()}');
+                      
+                      final approvedKeys = (user.allowedCategories ?? [])
+                          .map((c) => c.trim().toLowerCase().replaceAll(' ', '_'))
+                          .toSet();
+                      debugPrint('[ProfileCategoryFix] approved keys: $approvedKeys');
+                      
+                      final requestableCategories = activeCategories
+                          .where((cat) => cat.isActive)
+                          .where((cat) => !approvedKeys.contains(cat.normalizedKey))
+                          .toList();
+                      debugPrint('[ProfileCategoryFix] requestable names: ${requestableCategories.map((c) => c.displayName).toList()}');
+                      debugPrint('[ProfileCategoryFix] chip rendered: ${requestableCategories.length}');
                       
                       return Container(
                         padding: const EdgeInsets.all(16),
@@ -406,29 +363,29 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               ],
                             ),
                             const SizedBox(height: 12),
-                            if (requestableCategories.isEmpty) ...[
+
+                            if (requestableCategories.isEmpty)
                               Text(
                                 'All categories are already approved.',
                                 style: AppTextStyles.bodySmall(secondaryText),
-                              ),
-                            ] else ...[
+                              )
+                            else
                               Wrap(
                                 spacing: 8,
                                 runSpacing: 8,
-                                children: requestableDisplay.map((displayCategory) {
-                                  final normalized = VendorCategories.normalize(displayCategory);
-                                  final isSelected = _requestedCategories.contains(normalized);
+                                children: requestableCategories.map((cat) {
+                                  final isSelected = _requestedCategories.contains(cat.normalizedKey);
                                   return FilterChip(
-                                    label: Text(displayCategory),
+                                    label: Text(cat.displayName),
                                     selected: isSelected,
                                     onSelected: (selected) {
                                       setState(() {
                                         if (selected) {
-                                          _requestedCategories.add(normalized);
-                                          debugPrint('[CategoryLogic] CHIP SELECTED: $displayCategory, requested now: $_requestedCategories');
+                                          _requestedCategories.add(cat.normalizedKey);
+                                          debugPrint('[ProfileCategoryFix] CHIP SELECTED: ${cat.displayName}(${cat.normalizedKey}), requested now: $_requestedCategories');
                                         } else {
-                                          _requestedCategories.remove(normalized);
-                                          debugPrint('[CategoryLogic] CHIP DESELECTED: $displayCategory, requested now: $_requestedCategories');
+                                          _requestedCategories.remove(cat.normalizedKey);
+                                          debugPrint('[ProfileCategoryFix] CHIP DESELECTED: ${cat.displayName}(${cat.normalizedKey}), requested now: $_requestedCategories');
                                         }
                                       });
                                     },
@@ -447,15 +404,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                   );
                                 }).toList(),
                               ),
-                            ],
                           ],
                         ),
                       );
                     },
-                  ),
-                ] else ...[
-                  // VIEW MODE: Pending Request
-                  if (user.hasPendingCategoryRequest == true && user.requestedCategories != null && user.requestedCategories!.isNotEmpty) ...[
+                  )
+                else
+                  if (user.hasPendingCategoryRequest == true && user.requestedCategories != null && user.requestedCategories!.isNotEmpty)
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -477,9 +432,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           Wrap(
                             spacing: 8,
                             runSpacing: 8,
-                            children: VendorCategories.displayList(VendorCategories.normalizeList(user.requestedCategories))
-                                .map((displayCategory) => Chip(
-                                  label: Text(displayCategory),
+                            children: (user.requestedCategories ?? [])
+                                .map((normalizedKey) => Chip(
+                                  label: Text(normalizedKey),
                                   backgroundColor: Colors.orange.withOpacity(0.15),
                                   labelStyle: AppTextStyles.bodySmall(Colors.orange)
                                       .copyWith(fontWeight: FontWeight.w600),
@@ -493,8 +448,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           ),
                         ],
                       ),
-                    ),
-                  ] else ...[
+                    )
+                  else
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -507,8 +462,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         style: AppTextStyles.bodySmall(secondaryText),
                       ),
                     ),
-                  ],
-                ],
               ],
 
               const SizedBox(height: 32),

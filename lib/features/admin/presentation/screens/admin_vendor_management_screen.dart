@@ -10,7 +10,9 @@ import '../../providers/admin_provider.dart';
 import '../dialogs/vendor_approval_dialog.dart';
 import '../dialogs/vendor_rejection_dialog.dart';
 import '../dialogs/vendor_suspension_dialog.dart';
-import '../../../../shared/utils/category_constants.dart';
+import '../../../../shared/utils/category_sync_helper.dart';
+import '../../models/category_model.dart';
+import '../../providers/category_provider.dart';
 
 class AdminVendorManagementScreen extends ConsumerStatefulWidget {
   const AdminVendorManagementScreen({super.key});
@@ -24,17 +26,17 @@ class _AdminVendorManagementScreenState
     extends ConsumerState<AdminVendorManagementScreen> {
   String _statusFilter = 'all';
 
-  /// Build category chips preview with overflow indicator
   Widget _buildCategoryChipsPreview(
-    List<String> categories, {
+    List<String> categories,
+    List<CategoryModel> allCategories, {
     int maxVisible = 3,
   }) {
-    final normalizedCategories =
-        VendorCategories.normalizeList(categories);
-    final displayCategories =
-        VendorCategories.displayList(normalizedCategories);
-    final visible = displayCategories.take(maxVisible).toList();
-    final remaining = displayCategories.length - maxVisible;
+    final displayNames = CategorySyncHelper.getDisplayNames(
+      CategorySyncHelper.sanitizeCategoryKeys(categories),
+      allCategories,
+    );
+    final visible = displayNames.take(maxVisible).toList();
+    final remaining = displayNames.length - maxVisible;
 
     final chips = visible
         .map(
@@ -76,13 +78,12 @@ class _AdminVendorManagementScreenState
 
     final adminState = ref.watch(adminProvider);
     final allUsers = adminState.users;
+    final allCategories = ref.watch(activeCategoriesProvider);
 
-    // Filter to vendors only
     final vendors = allUsers
         .where((u) => u.role.name == 'vendor')
         .toList();
 
-    // Apply status filter
     final filteredVendors = vendors.where((v) {
       switch (_statusFilter) {
         case 'pending':
@@ -107,7 +108,6 @@ class _AdminVendorManagementScreenState
       ),
       body: Column(
         children: [
-          // Filter chips
           Padding(
             padding: const EdgeInsets.all(16),
             child: SingleChildScrollView(
@@ -134,7 +134,6 @@ class _AdminVendorManagementScreenState
               ),
             ),
           ),
-          // Vendor list
           Expanded(
             child: adminState.isLoading
                 ? const Center(
@@ -154,7 +153,6 @@ class _AdminVendorManagementScreenState
                         itemCount: filteredVendors.length,
                         itemBuilder: (context, index) {
                           final vendor = filteredVendors[index];
-                          debugPrint('[CategoryUI] Admin card displayed allowedCategories: ${vendor.allowedCategories}');
                           return _buildVendorCard(
                             context,
                             vendor,
@@ -163,6 +161,7 @@ class _AdminVendorManagementScreenState
                             secondaryText,
                             cardColor,
                             borderColor,
+                            allCategories,
                           );
                         },
                       ),
@@ -206,6 +205,7 @@ class _AdminVendorManagementScreenState
     Color secondaryText,
     Color cardColor,
     Color borderColor,
+    List<CategoryModel> allCategories,
   ) {
     final statusColor = _getStatusColor(vendor);
     final statusLabel = _getStatusLabel(vendor);
@@ -285,50 +285,55 @@ class _AdminVendorManagementScreenState
               ),
             ],
           ),
-          if (vendor.assignedRadiusKm != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Radius: ${vendor.assignedRadiusKm?.toStringAsFixed(0) ?? '—'}km',
-              style: AppTextStyles.caption(secondaryText),
-            ),
-          ],
+          if (vendor.assignedRadiusKm != null) ...
+            [
+              const SizedBox(height: 8),
+              Text(
+                'Radius: ${vendor.assignedRadiusKm?.toStringAsFixed(0) ?? '—'}km',
+                style: AppTextStyles.caption(secondaryText),
+              ),
+            ],
           if (vendor.allowedCategories != null &&
-              vendor.allowedCategories!.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            _buildCategoryChipsPreview(vendor.allowedCategories!),
-          ] else ...[
-            const SizedBox(height: 8),
-            Text(
-              'No approved categories',
-              style: AppTextStyles.caption(secondaryText),
-            ),
-          ],
+              vendor.allowedCategories!.isNotEmpty) ...
+            [
+              const SizedBox(height: 8),
+              _buildCategoryChipsPreview(vendor.allowedCategories!, allCategories),
+            ]
+          else ...
+            [
+              const SizedBox(height: 8),
+              Text(
+                'No approved categories',
+                style: AppTextStyles.caption(secondaryText),
+              ),
+            ],
           if (vendor.hasPendingCategoryRequest == true &&
               vendor.requestedCategories != null &&
-              vendor.requestedCategories!.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.orange.withOpacity(0.3)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.pending_actions, size: 14, color: Colors.orange),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: _buildCategoryChipsPreview(
-                      vendor.requestedCategories!,
+              vendor.requestedCategories!.isNotEmpty) ...
+            [
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.pending_actions, size: 14, color: Colors.orange),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: _buildCategoryChipsPreview(
+                        vendor.requestedCategories!,
+                        allCategories,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
           const SizedBox(height: 12),
-          // Action buttons based on vendor status
           _buildActionButtons(context, vendor),
         ],
       ),
@@ -350,8 +355,6 @@ class _AdminVendorManagementScreenState
   }
 
   String _getStatusLabel(dynamic vendor) {
-    debugPrint('[VendorStatusFix] UI status source: vendorStatus=${vendor.vendorStatus}, isActive=${vendor.isActive}');
-    
     if (vendor.vendorStatus == VendorStatus.pendingApproval) {
       return 'Pending';
     } else if (vendor.vendorStatus == VendorStatus.rejected) {
@@ -414,7 +417,6 @@ class _AdminVendorManagementScreenState
                   '${RouteNames.adminVendorAssignment.replaceFirst(':id', vendor.id)}',
                   extra: vendor,
                 );
-                debugPrint('[CategoryFix] Reloading vendor list after detail return');
                 ref.invalidate(adminProvider);
               },
               style: ElevatedButton.styleFrom(
@@ -451,7 +453,6 @@ class _AdminVendorManagementScreenState
                   '${RouteNames.adminVendorAssignment.replaceFirst(':id', vendor.id)}',
                   extra: vendor,
                 );
-                debugPrint('[CategoryFix] Reloading vendor list after Manage return');
                 ref.invalidate(adminProvider);
               },
               style: ElevatedButton.styleFrom(
@@ -489,7 +490,6 @@ class _AdminVendorManagementScreenState
               '${RouteNames.adminVendorAssignment.replaceFirst(':id', vendor.id)}',
               extra: vendor,
             );
-            debugPrint('[CategoryFix] Reloading vendor list after detail return');
             ref.invalidate(adminProvider);
           },
           style: ElevatedButton.styleFrom(

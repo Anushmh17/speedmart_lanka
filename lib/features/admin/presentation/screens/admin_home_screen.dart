@@ -295,6 +295,9 @@ class _AdminDashboardTab extends ConsumerWidget {
               context.push(RouteNames.adminVendorManagement);
             }),
             _quickActionCard(Icons.people_rounded, 'User Directories', 'Suspend/Activate users', AppColors.info, () => switchTab(2)),
+            _quickActionCard(Icons.category_rounded, 'Category Management', 'Add, edit, enable/disable categories', AppColors.accent, () {
+              context.push('/admin/categories');
+            }),
             _quickActionCard(Icons.receipt_long_rounded, 'Monitor Orders', 'Commission & Dispatch status', AppColors.success, () => switchTab(3)),
             _quickActionCard(Icons.settings_rounded, 'Platform Config', 'Commission percentages & values', AppColors.accent, () => switchTab(4)),
           ],

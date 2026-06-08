@@ -28,6 +28,7 @@ import '../../features/chat/presentation/screens/chat_screen.dart';
 import '../../features/admin/presentation/screens/admin_home_screen.dart';
 import '../../features/admin/presentation/screens/admin_vendor_management_screen.dart';
 import '../../features/admin/presentation/screens/admin_vendor_assignment_screen.dart';
+import '../../features/admin/presentation/screens/admin_category_management_screen.dart';
 import '../../features/requests/presentation/screens/request_list_screen.dart';
 import '../../shared/presentation/screens/profile_screen.dart';
 import '../../features/customer/delivery_address/presentation/screens/customer_delivery_address_screen.dart';
@@ -397,6 +398,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final vendor = state.extra;
           return AdminVendorAssignmentScreen(vendor: vendor);
         },
+      ),
+      GoRoute(
+        path: '/admin/categories',
+        builder: (_, __) => const AdminCategoryManagementScreen(),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

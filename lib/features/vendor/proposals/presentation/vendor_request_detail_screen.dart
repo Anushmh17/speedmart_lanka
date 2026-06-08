@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +13,7 @@ import '../../../proposals/providers/proposal_provider.dart';
 import '../../../requests/models/shopping_request.dart';
 import '../../request_feed/models/vendor_feed_enums.dart';
 import '../widgets/vendor_proposal_status_chip.dart';
+import '../widgets/image_gallery_viewer.dart';
 
 /// Vendor opens a customer request before submitting or editing a proposal.
 class VendorRequestDetailScreen extends ConsumerStatefulWidget {
@@ -144,6 +147,20 @@ class _VendorRequestDetailScreenState
                   Text('Requested items', style: AppTextStyles.h2(primaryText)),
                   const SizedBox(height: 10),
                   ...request.items.map((item) {
+                    // [ImageScreen] Screen-level audit
+                    debugPrint('[ImageScreen] ========== BUILDING ITEM CARD ==========');
+                    debugPrint('[ImageScreen] Building image section for item: ${item.name}');
+                    debugPrint('[ImageScreen] Item ID: ${item.id}');
+                    debugPrint('[ImageScreen] imageCount: ${item.imageUrls.length}');
+                    debugPrint('[ImageScreen] imageUrls: ${item.imageUrls}');
+                    debugPrint('[ImageScreen] isEmpty check: ${item.imageUrls.isEmpty}');
+                    debugPrint('[ImageScreen] isNotEmpty check: ${item.imageUrls.isNotEmpty}');
+                    
+                    // [ImageAudit] Vendor details
+                    debugPrint('[ImageAudit] Vendor details item: ${item.itemName}');
+                    debugPrint('[ImageAudit] Images: ${item.imageUrls}');
+                    debugPrint('[ImageAudit] Image count: ${item.imageUrls.length}');
+                    
                     return Container(
                       width: double.infinity,
                       margin: const EdgeInsets.only(bottom: 10),
@@ -169,6 +186,114 @@ class _VendorRequestDetailScreenState
                               'Preferred: ${item.preferredBrand}',
                               style: AppTextStyles.caption(secondaryText),
                             ),
+                          if (item.imageUrls.isNotEmpty) ...[
+                            Builder(builder: (context) {
+                              debugPrint('[ImageScreen] *** CONDITION MET: imageUrls.isNotEmpty = true ***');
+                              debugPrint('[ImageScreen] About to render ${item.imageUrls.length} images');
+                              return const SizedBox(height: 12);
+                            }),
+                            Text(
+                              'Customer photos (${item.imageUrls.length})',
+                              style: AppTextStyles.caption(secondaryText),
+                            ),
+                            const SizedBox(height: 6),
+                            SizedBox(
+                              height: 120,
+                              child: ListView.builder(
+                                scrollDirection: Axis.horizontal,
+                                itemCount: item.imageUrls.length,
+                                itemBuilder: (context, index) {
+                                  final url = item.imageUrls[index];
+                                  final isNetwork = url.startsWith('http://') || url.startsWith('https://');
+                                  
+                                  debugPrint('[ImageRender] ========== IMAGE WIDGET BUILD ==========');
+                                  debugPrint('[ImageRender] path: $url');
+                                  debugPrint('[ImageRender] isNetwork: $isNetwork');
+                                  
+                                  if (!isNetwork) {
+                                    final file = File(url);
+                                    debugPrint('[ImageRender] exists: ${file.existsSync()}');
+                                    if (file.existsSync()) {
+                                      try {
+                                        debugPrint('[ImageRender] fileSize: ${file.lengthSync()} bytes');
+                                      } catch (e) {
+                                        debugPrint('[ImageRender] lengthSync error: $e');
+                                      }
+                                    }
+                                    debugPrint('[ImageRender] extension: ${url.split('.').last}');
+                                  }
+                                  
+                                  return Padding(
+                                    padding: EdgeInsets.only(right: index < item.imageUrls.length - 1 ? 8 : 0),
+                                    child: GestureDetector(
+                                      onTap: () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) => ImageGalleryViewer(
+                                              imagePaths: item.imageUrls,
+                                              initialIndex: index,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      child: Container(
+                                        width: 120,
+                                        height: 120,
+                                        decoration: BoxDecoration(
+                                          color: borderColor,
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(color: borderColor.withOpacity(0.5)),
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(12),
+                                          child: isNetwork
+                                              ? Image.network(
+                                                  url,
+                                                  fit: BoxFit.cover,
+                                                  loadingBuilder: (context, child, loadingProgress) {
+                                                    if (loadingProgress == null) {
+                                                      debugPrint('[ImageRenderSuccess] path: $url');
+                                                      return child;
+                                                    }
+                                                    return const Center(
+                                                      child: CircularProgressIndicator(
+                                                        strokeWidth: 2,
+                                                        color: AppColors.vendorColor,
+                                                      ),
+                                                    );
+                                                  },
+                                                  errorBuilder: (_, __, ___) {
+                                                    debugPrint('[ImageRenderError] path: $url');
+                                                    return const Center(
+                                                      child: Icon(Icons.broken_image_outlined, color: Colors.white54),
+                                                    );
+                                                  },
+                                                )
+                                              : Image.file(
+                                                  File(url),
+                                                  fit: BoxFit.cover,
+                                                  frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+                                                    if (frame != null) {
+                                                      debugPrint('[ImageRenderSuccess] path: $url');
+                                                    }
+                                                    return child;
+                                                  },
+                                                  errorBuilder: (_, error, ___) {
+                                                    debugPrint('[ImageRenderError] path: $url');
+                                                    debugPrint('[ImageRenderError] error: $error');
+                                                    return const Center(
+                                                      child: Icon(Icons.broken_image_outlined, color: Colors.white54),
+                                                    );
+                                                  },
+                                                ),
+                                        ),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     );

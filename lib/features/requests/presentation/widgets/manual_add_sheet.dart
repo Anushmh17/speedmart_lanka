@@ -1,27 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_text_field.dart';
+import '../../../admin/providers/category_provider.dart';
 import '../../models/request_item.dart';
 import 'quantity_unit_selector.dart';
 import 'image_upload_grid.dart';
 
-class ManualAddSheet extends StatefulWidget {
+class ManualAddSheet extends ConsumerStatefulWidget {
   final Function(RequestItem) onAdd;
 
   const ManualAddSheet({super.key, required this.onAdd});
 
   @override
-  State<ManualAddSheet> createState() => _ManualAddSheetState();
+  ConsumerState<ManualAddSheet> createState() => _ManualAddSheetState();
 }
 
-class _ManualAddSheetState extends State<ManualAddSheet> {
+class _ManualAddSheetState extends ConsumerState<ManualAddSheet> {
   final _formKey = GlobalKey<FormState>();
   
   // Strict Field Variables in order
-  String _selectedCategory = 'Groceries';
+  String? _selectedCategory;
   final _nameController = TextEditingController();
   int _quantity = 1;
   String? _selectedUnit = 'kg';
@@ -29,18 +31,6 @@ class _ManualAddSheetState extends State<ManualAddSheet> {
   final _brandController = TextEditingController();
   final _descController = TextEditingController();
   List<String> _imageUrls = [];
-
-  final List<String> _categories = [
-    'Groceries',
-    'Vehicle parts',
-    'Electronics',
-    'Furniture',
-    'Home appliances',
-    'Clothing',
-    'Hardware items',
-    'Stationery',
-    'Other'
-  ];
 
   @override
   void dispose() {
@@ -52,6 +42,12 @@ class _ManualAddSheetState extends State<ManualAddSheet> {
 
   void _submit() {
     if (_formKey.currentState!.validate()) {
+      if (_selectedCategory == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please select a category')),
+        );
+        return;
+      }
       // Append size-based note or custom unit details directly into unit/remarks if selected
       String finalUnit = _selectedUnit ?? 'pieces';
       if (_selectedUnit == 'size-based note' || _selectedUnit == 'custom unit') {
@@ -65,7 +61,7 @@ class _ManualAddSheetState extends State<ManualAddSheet> {
         itemName: _nameController.text.trim(),
         quantity: _quantity,
         unit: finalUnit,
-        category: _selectedCategory,
+        category: _selectedCategory!,
         preferredBrand: _brandController.text.trim(),
         description: _descController.text.trim(),
         imageUrls: _imageUrls,
@@ -137,49 +133,55 @@ class _ManualAddSheetState extends State<ManualAddSheet> {
               // FIELD 1: Category Selector First
               Text('1. Select Category', style: AppTextStyles.labelMedium(secondaryText)),
               const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                initialValue: _selectedCategory,
-                dropdownColor: cardColor,
-                decoration: InputDecoration(
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  filled: true,
-                  fillColor: isDark ? Colors.black12 : Colors.grey.shade50,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: borderColor),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: borderColor),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: AppColors.customerColor, width: 1.5),
-                  ),
-                ),
-                style: AppTextStyles.bodyMedium(primaryColor),
-                items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                onChanged: (val) {
-                  if (val != null) {
-                    setState(() {
-                      _selectedCategory = val;
-                      // Fallback sensible default units on category change
-                      if (val == 'Groceries') {
-                        _selectedUnit = 'kg';
-                      } else if (val == 'Electronics') {
-                        _selectedUnit = 'pieces';
-                      } else if (val == 'Furniture') {
-                        _selectedUnit = 'pieces';
-                      } else if (val == 'Vehicle parts') {
-                        _selectedUnit = 'pieces';
-                      } else if (val == 'Clothing') {
-                        _selectedUnit = 'pieces';
-                      } else {
-                        _selectedUnit = 'pieces';
-                      }
-                      _customUnitNote = null;
+              Consumer(
+                builder: (context, ref, _) {
+                  final activeCategories = ref.watch(activeCategoriesProvider);
+                  if (_selectedCategory == null && activeCategories.isNotEmpty) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      setState(() => _selectedCategory = activeCategories.first.displayName);
                     });
                   }
+                  return DropdownButtonFormField<String>(
+                    value: _selectedCategory,
+                    dropdownColor: cardColor,
+                    decoration: InputDecoration(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      filled: true,
+                      fillColor: isDark ? Colors.black12 : Colors.grey.shade50,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(color: borderColor),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(color: borderColor),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: const BorderSide(color: AppColors.customerColor, width: 1.5),
+                      ),
+                    ),
+                    style: AppTextStyles.bodyMedium(primaryColor),
+                    items: activeCategories.map((cat) => DropdownMenuItem(
+                      value: cat.displayName,
+                      child: Text(cat.displayName),
+                    )).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setState(() {
+                          _selectedCategory = val;
+                          // Set sensible default units per category
+                          final normalized = val.toLowerCase().replaceAll(' ', '_');
+                          if (normalized == 'groceries') {
+                            _selectedUnit = 'kg';
+                          } else {
+                            _selectedUnit = 'pieces';
+                          }
+                          _customUnitNote = null;
+                        });
+                      }
+                    },
+                  );
                 },
               ),
               const SizedBox(height: 16),
@@ -197,7 +199,7 @@ class _ManualAddSheetState extends State<ManualAddSheet> {
 
               // FIELDS 3 & 4: Quantity & Unit Selector Widget
               QuantityUnitSelector(
-                category: _selectedCategory,
+                category: _selectedCategory ?? 'Other',
                 quantity: _quantity,
                 unit: _selectedUnit,
                 customUnitNote: _customUnitNote,
@@ -230,7 +232,7 @@ class _ManualAddSheetState extends State<ManualAddSheet> {
 
               // FIELD 7: Image Upload Section
               ImageUploadGrid(
-                category: _selectedCategory,
+                category: _selectedCategory ?? 'Other',
                 imageUrls: _imageUrls,
                 onImagesChanged: (list) => setState(() => _imageUrls = list),
               ),

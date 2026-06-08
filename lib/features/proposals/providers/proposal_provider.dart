@@ -1,8 +1,11 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../../core/providers/notification_provider.dart';
 import '../../vendor/proposals/services/proposal_validation_service.dart';
 import '../../requests/data/mock_request_repository.dart';
 import '../../requests/models/shopping_request.dart';
+import '../../requests/models/request_category_fulfillment.dart';
 import '../data/mock_proposal_repository.dart';
 import '../models/proposal.dart';
 
@@ -186,23 +189,86 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
     await _requestRepo.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
+      // Get accepted proposal and its category
+      final acceptedProposal = await _repo.getProposalById(proposalId);
+      if (acceptedProposal == null) throw Exception('Proposal not found');
+      
+      final acceptedCategory = acceptedProposal.categoryNormalized;
+      print('[MultiCategoryFlow] Accept proposal: ${acceptedProposal.id}');
+      print('[MultiCategoryFlow] Accepted category: $acceptedCategory');
+
+      // Accept selected proposal
       await _repo.updateProposalStatus(proposalId, ProposalStatus.accepted);
 
+      // Reject only competing proposals from SAME category
       final allProps = await _repo.getAllProposalsForRequest(requestId);
       for (final p in allProps) {
         if (p.id != proposalId && p.status.isEditableByVendor) {
-          await _repo.updateProposalStatus(
-            p.id,
-            ProposalStatus.rejected,
-            rejectionReason: 'Other proposal accepted',
-          );
+          // Only reject if same category
+          if (p.categoryNormalized == acceptedCategory) {
+            final rejectionReason = acceptedCategory != null
+                ? 'Customer selected another vendor for $acceptedCategory category'
+                : 'Customer selected another vendor for this category';
+            
+            await _repo.updateProposalStatus(
+              p.id,
+              ProposalStatus.rejected,
+              rejectionReason: rejectionReason,
+            );
+            print('[MultiCategoryFlow] Rejected same-category competitor: ${p.id}');
+            
+            // Notify vendor about rejection
+            ref.read(notificationProvider.notifier).triggerNotification(
+              title: 'Proposal not selected',
+              body: rejectionReason,
+              icon: Icons.cancel_outlined,
+              color: const Color(0xFFEF5350),
+            );
+          } else {
+            print('[MultiCategoryFlow] Preserved other-category proposal: ${p.id} (${p.categoryNormalized})');
+          }
         }
       }
 
-      await _requestRepo.updateRequestStatus(
-        requestId,
-        RequestStatus.customerAccepted,
-      );
+      // Update category fulfillment
+      final request = await _requestRepo.getRequestById(requestId);
+      if (request != null && acceptedCategory != null) {
+        final updatedFulfillments = Map<String, RequestCategoryFulfillment>.from(
+          request.categoryFulfillments,
+        );
+        final current = updatedFulfillments[acceptedCategory];
+        if (current != null) {
+          updatedFulfillments[acceptedCategory] = current.copyWith(
+            status: RequestCategoryStatus.accepted,
+            acceptedProposalId: proposalId,
+            acceptedVendorId: acceptedProposal.vendorId,
+            acceptedAt: DateTime.now(),
+          );
+          print('[MultiCategoryFlow] Updated category fulfillment: $acceptedCategory');
+        }
+
+        // Update request with new fulfillments
+        final updatedRequest = request.copyWith(
+          categoryFulfillments: updatedFulfillments,
+          updatedAt: DateTime.now(),
+        );
+        await _requestRepo.updateRequest(updatedRequest);
+
+        // Log summary
+        final accepted = updatedRequest.acceptedCategoriesCount;
+        final pending = updatedRequest.pendingCategoriesCount;
+        final completed = updatedRequest.completedCategoriesCount;
+        print('[MultiCategoryFlow] Request summary: $accepted accepted, $pending pending, $completed completed');
+
+        // Only mark entire request as accepted if all categories are accepted/completed
+        // For now, keep as customerAccepted when first category accepted
+        if (request.status != RequestStatus.customerAccepted) {
+          await _requestRepo.updateRequestStatus(
+            requestId,
+            RequestStatus.customerAccepted,
+          );
+        }
+      }
 
       await loadProposalsForRequest(requestId);
       state = state.copyWith(isLoading: false);
@@ -225,6 +291,14 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
         proposalId,
         ProposalStatus.rejected,
         rejectionReason: reason,
+      );
+      
+      // Notify vendor about rejection
+      ref.read(notificationProvider.notifier).triggerNotification(
+        title: 'Proposal rejected',
+        body: reason,
+        icon: Icons.cancel_outlined,
+        color: const Color(0xFFEF5350),
       );
 
       // Keep request open while other vendor bids may still be active.

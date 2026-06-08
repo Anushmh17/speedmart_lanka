@@ -1,17 +1,23 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/routes/route_names.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/validators.dart';
+import '../../../../core/utils/sri_lanka_phone_formatter.dart';
+import '../../../../core/utils/sri_lanka_phone_helper.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../../shared/models/user_role.dart';
 import '../../../location/services/sri_lanka_location_service.dart';
 import '../../../location/services/gps_location_service.dart';
+import '../../../auth/customer_registration/services/country_detection_service.dart';
+import '../../../vendor/registration/widgets/vendor_location_map_picker.dart';
+import '../../../admin/providers/category_provider.dart';
 import '../../providers/auth_provider.dart';
 
 /// Registration screen for all roles.
@@ -35,6 +41,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _inviteCtrl = TextEditingController();
   final List<String> _selectedCategories = [];
 
+  // Vendor country detection
+  bool _isDetectingCountry = false;
+  String? _detectedCountry;
+  String? _selectedCountry;
+  String? _detectionSource;
+  bool _isSriLanka = false;
+  bool _usePhoneVerification = false;
+
   // Shop detail controllers (vendor-only)
   final _shopAddressCtrl = TextEditingController();
   final _shopProvinceCtrl = TextEditingController();
@@ -47,18 +61,25 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   double? _detectedLatitude;
   double? _detectedLongitude;
   double? _gpsAccuracy;
+  String? _shopLocationSource;
   bool _isDetectingGps = false;
-
-  static const List<String> _allCategories = [
-    'Groceries', 'Electronics', 'Vehicle Parts', 'Furniture',
-    'Home Appliances', 'Clothing', 'Hardware', 'Stationery', 'Other',
-  ];
+  bool _locationConfirmed = false;
 
   Color get _roleColor {
     switch (widget.role) {
       case UserRole.customer: return AppColors.customerColor;
       case UserRole.vendor:   return AppColors.vendorColor;
       case UserRole.admin:    return AppColors.adminColor;
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.role == UserRole.vendor) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _detectVendorCountry();
+      });
     }
   }
 
@@ -81,6 +102,80 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     super.dispose();
   }
 
+  Future<void> _detectVendorCountry() async {
+    if (widget.role != UserRole.vendor) return;
+    
+    setState(() => _isDetectingCountry = true);
+    
+    debugPrint('[VendorCountry] Starting country detection');
+    
+    try {
+      final service = CountryDetectionService();
+      final result = await service.detect();
+      
+      setState(() {
+        _detectedCountry = result.countryCode ?? (result.isLkUser ? 'LK' : 'OTHER');
+        _selectedCountry = _detectedCountry;
+        _detectionSource = result.method.name;
+        _isSriLanka = result.isLkUser;
+        _usePhoneVerification = result.isLkUser;
+        _isDetectingCountry = false;
+      });
+      
+      debugPrint('[VendorCountry] detected country: $_detectedCountry');
+      debugPrint('[VendorCountry] detection source: $_detectionSource');
+      debugPrint('[VendorCountry] isSriLanka: $_isSriLanka');
+      debugPrint('[VendorCountry] verification method: ${_usePhoneVerification ? "phone" : "email"}');
+    } catch (e) {
+      debugPrint('[VendorCountry] Detection failed: $e');
+      setState(() => _isDetectingCountry = false);
+      if (mounted) {
+        _showCountrySelectionDialog();
+      }
+    }
+  }
+
+  void _showCountrySelectionDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Select your country'),
+        content: const Text('We could not detect your country. Please select it manually.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _selectedCountry = 'LK';
+                _detectedCountry = 'LK';
+                _detectionSource = 'manual';
+                _isSriLanka = true;
+                _usePhoneVerification = true;
+              });
+              debugPrint('[VendorCountry] selected country: LK (manual)');
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Sri Lanka'),
+          ),
+          TextButton(
+            onPressed: () {
+              setState(() {
+                _selectedCountry = 'OTHER';
+                _detectedCountry = 'OTHER';
+                _detectionSource = 'manual';
+                _isSriLanka = false;
+                _usePhoneVerification = false;
+              });
+              debugPrint('[VendorCountry] selected country: OTHER (manual)');
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Other Country'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _register() async {
     debugPrint('[AuthUI] Submit pressed, staying on register screen');
     if (!_formKey.currentState!.validate()) return;
@@ -91,14 +186,46 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       return;
     }
     if (widget.role == UserRole.vendor) {
-      if (_businessCtrl.text.trim().isEmpty ||
-          _shopAddressCtrl.text.trim().isEmpty ||
-          _detectedLatitude == null ||
-          _detectedLongitude == null) {
+      if (_businessCtrl.text.trim().isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please fill shop details and location')),
+          const SnackBar(content: Text('Please enter business name')),
         );
         return;
+      }
+      if (_shopAddressCtrl.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please enter shop address')),
+        );
+        return;
+      }
+      if (_detectedLatitude == null || _detectedLongitude == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please confirm shop location on map')),
+        );
+        return;
+      }
+      if (!_locationConfirmed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please confirm your shop location')),
+        );
+        return;
+      }
+      if (_isSriLanka) {
+        final phoneValidation = SriLankaPhoneHelper.validateSriLankaMobile(_phoneCtrl.text);
+        if (phoneValidation != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(phoneValidation)),
+          );
+          return;
+        }
+      } else {
+        final emailValidation = Validators.email(_emailCtrl.text.trim());
+        if (emailValidation != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(emailValidation)),
+          );
+          return;
+        }
       }
     }
     if (widget.role == UserRole.admin && _inviteCtrl.text.trim() != 'SPEEDMART_ADMIN') {
@@ -108,10 +235,28 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       return;
     }
     debugPrint('[AuthUI] Calling register, will NOT navigate from _register() method');
+    
+    // Normalize phone for storage
+    String phoneForStorage = _phoneCtrl.text.trim();
+    if (widget.role == UserRole.vendor && _isSriLanka) {
+      phoneForStorage = SriLankaPhoneHelper.normalizeSriLankaPhoneForStorage(_phoneCtrl.text);
+      debugPrint('[VendorCountry] normalized phone for storage: $phoneForStorage');
+    } else if (widget.role == UserRole.customer) {
+      // Customer registration also uses Sri Lankan phone format
+      phoneForStorage = SriLankaPhoneHelper.normalizeSriLankaPhoneForStorage(_phoneCtrl.text);
+      debugPrint('[CustomerReg] normalized phone for storage: $phoneForStorage');
+    }
+    
+    // Vendor-specific country/phone audit logs
+    if (widget.role == UserRole.vendor) {
+      debugPrint('[VendorCountry] phone validation result: ${_isSriLanka ? "Sri Lanka phone validated" : "skipped"}');
+      debugPrint('[VendorCountry] email validation result: ${!_isSriLanka ? "email validated" : "skipped"}');
+    }
+    
     await ref.read(authProvider.notifier).register(
           fullName: _nameCtrl.text.trim(),
           email: _emailCtrl.text.trim(),
-          phone: _phoneCtrl.text.trim(),
+          phone: phoneForStorage,
           password: _passwordCtrl.text,
           role: widget.role,
           businessName: widget.role == UserRole.vendor
@@ -153,6 +298,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           shopLocationDetectedAt: widget.role == UserRole.vendor && _detectedLatitude != null
               ? DateTime.now()
               : null,
+          shopLocationSource: widget.role == UserRole.vendor
+              ? _shopLocationSource
+              : null,
+          detectedCountry: widget.role == UserRole.vendor
+              ? _detectedCountry
+              : null,
+          selectedCountry: widget.role == UserRole.vendor
+              ? _selectedCountry
+              : null,
+          detectionSource: widget.role == UserRole.vendor
+              ? _detectionSource
+              : null,
           businessRegistrationNumber: widget.role == UserRole.vendor
               ? _brNumberCtrl.text.trim().isEmpty
                   ? null
@@ -168,36 +325,36 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     setState(() => _isDetectingGps = true);
 
     try {
-      debugPrint('[AuthUI] Detecting GPS location...');
-
-      // Use real location service (same as customer delivery)
       final position = await _getGpsPosition();
+
+      debugPrint('[VendorLocation] gps lat/lng: ${position.latitude}, ${position.longitude}');
 
       setState(() {
         _detectedLatitude = position.latitude;
         _detectedLongitude = position.longitude;
         _gpsAccuracy = position.accuracy;
-
+        _shopLocationSource = 'gps';
         _shopLatitudeCtrl.text = _detectedLatitude!.toStringAsFixed(6);
         _shopLongitudeCtrl.text = _detectedLongitude!.toStringAsFixed(6);
-
-        debugPrint('[AuthUI] GPS detected: lat=$_detectedLatitude, lng=$_detectedLongitude, accuracy=$_gpsAccuracy');
       });
+
+      debugPrint('[VendorLocation] address: ${_shopAddressCtrl.text}');
+      debugPrint('[VendorLocation] is valid: true');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Location detected with ${_gpsAccuracy!.toStringAsFixed(0)}m accuracy',
+              'GPS detected (${_gpsAccuracy!.toStringAsFixed(0)}m accuracy). Drag pin to adjust if needed.',
             ),
             backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
+            duration: const Duration(seconds: 3),
           ),
         );
       }
     } on LocationException catch (e) {
-      debugPrint('[AuthUI] GPS location permission/service error: ${e.message}');
+      debugPrint('[VendorLocation] GPS detection failed: ${e.message}');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -209,13 +366,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         );
       }
     } catch (e) {
-      debugPrint('[AuthUI] GPS detection error: $e');
+      debugPrint('[VendorLocation] GPS detection error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'Could not detect location: $e\nPlease enter manually',
-            ),
+            content: Text('Could not detect location: $e'),
             backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 3),
@@ -232,13 +387,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   /// Get GPS position using real device location service.
   /// Uses the same location service as customer delivery addresses.
   Future<dynamic> _getGpsPosition() async {
-    debugPrint('[VendorLocationAudit] Detecting actual GPS location...');
-
     try {
       final locationService = SriLankaLocationService();
       final result = await locationService.detectCurrentLocation();
-
-      debugPrint('[VendorLocationAudit] GPS detected: lat=${result.gpsResult.latitude}, lng=${result.gpsResult.longitude}, accuracy=${result.gpsResult.accuracy}m');
 
       return _VendorPosition(
         latitude: result.gpsResult.latitude,
@@ -246,7 +397,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         accuracy: result.gpsResult.accuracy ?? 50.0,
       );
     } catch (e) {
-      debugPrint('[VendorLocationAudit] GPS detection failed: $e');
       rethrow;
     }
   }
@@ -422,16 +572,90 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      AppTextField(
-                        label: 'Phone Number',
-                        hint: '07X XXXXXXX',
-                        controller: _phoneCtrl,
-                        keyboardType: TextInputType.phone,
-                        textInputAction: TextInputAction.next,
-                        prefixIcon: Icons.phone_outlined,
-                        validator: Validators.phone,
-                      ),
-                      const SizedBox(height: 16),
+                      if (widget.role == UserRole.vendor && _isDetectingCountry)
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.infoContainer,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            children: [
+                              const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.info,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                'Detecting your country...',
+                                style: AppTextStyles.bodySmall(AppColors.info),
+                              ),
+                            ],
+                          ),
+                        ),
+                      if (widget.role == UserRole.vendor && _isDetectingCountry)
+                        const SizedBox(height: 16),
+
+                      if (widget.role == UserRole.vendor && !_isDetectingCountry) ...[
+                        if (_isSriLanka)
+                          AppTextField(
+                            label: 'Phone Number',
+                            hint: '72 499 9660',
+                            controller: _phoneCtrl,
+                            keyboardType: TextInputType.phone,
+                            textInputAction: TextInputAction.next,
+                            prefixIcon: Icons.phone_outlined,
+                            prefixText: '+94 ',
+                            validator: SriLankaPhoneHelper.validateSriLankaMobile,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                              SriLankaPhoneInputFormatter(),
+                            ],
+                          )
+                        else ...[
+                          AppTextField(
+                            label: 'Email Address',
+                            hint: 'your.email@example.com',
+                            controller: _emailCtrl,
+                            keyboardType: TextInputType.emailAddress,
+                            textInputAction: TextInputAction.next,
+                            prefixIcon: Icons.email_outlined,
+                            validator: Validators.email,
+                          ),
+                          const SizedBox(height: 16),
+                          AppTextField(
+                            label: 'Phone Number (Optional)',
+                            hint: '+1 234 567 8901',
+                            controller: _phoneCtrl,
+                            keyboardType: TextInputType.phone,
+                            textInputAction: TextInputAction.next,
+                            prefixIcon: Icons.phone_outlined,
+                          ),
+                        ],
+                        const SizedBox(height: 16),
+                      ],
+
+                      if (widget.role != UserRole.vendor) ...[
+                        AppTextField(
+                          label: 'Phone Number',
+                          hint: '72 499 9660',
+                          controller: _phoneCtrl,
+                          keyboardType: TextInputType.phone,
+                          textInputAction: TextInputAction.next,
+                          prefixIcon: Icons.phone_outlined,
+                          prefixText: '+94 ',
+                          validator: SriLankaPhoneHelper.validateSriLankaMobile,
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                            SriLankaPhoneInputFormatter(),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                      ],
 
                       // Vendor-only fields
                       if (widget.role == UserRole.vendor) ...[
@@ -454,41 +678,46 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           ),
                         ),
                         const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          children: _allCategories.map((cat) {
-                            final selected = _selectedCategories.contains(cat);
-                            return FilterChip(
-                              label: Text(cat),
-                              selected: selected,
-                              onSelected: (val) {
-                                setState(() {
-                                  if (val) {
-                                    _selectedCategories.add(cat);
-                                  } else {
-                                    _selectedCategories.remove(cat);
-                                  }
-                                });
-                              },
-                              selectedColor: _roleColor.withOpacity(0.15),
-                              checkmarkColor: _roleColor,
-                              labelStyle: AppTextStyles.labelMedium(
-                                selected
-                                    ? _roleColor
-                                    : (isDark
-                                        ? AppColors.textSecondaryDark
-                                        : AppColors.textSecondaryLight),
-                              ),
-                              side: BorderSide(
-                                color: selected
-                                    ? _roleColor
-                                    : (isDark
-                                        ? AppColors.borderDark
-                                        : AppColors.borderLight),
-                              ),
+                        Consumer(
+                          builder: (context, ref, _) {
+                            final activeCategories = ref.watch(activeCategoriesProvider);
+                            return Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: activeCategories.map((cat) {
+                                final selected = _selectedCategories.contains(cat.displayName);
+                                return FilterChip(
+                                  label: Text(cat.displayName),
+                                  selected: selected,
+                                  onSelected: (val) {
+                                    setState(() {
+                                      if (val) {
+                                        _selectedCategories.add(cat.displayName);
+                                      } else {
+                                        _selectedCategories.remove(cat.displayName);
+                                      }
+                                    });
+                                  },
+                                  selectedColor: _roleColor.withOpacity(0.15),
+                                  checkmarkColor: _roleColor,
+                                  labelStyle: AppTextStyles.labelMedium(
+                                    selected
+                                        ? _roleColor
+                                        : (isDark
+                                            ? AppColors.textSecondaryDark
+                                            : AppColors.textSecondaryLight),
+                                  ),
+                                  side: BorderSide(
+                                    color: selected
+                                        ? _roleColor
+                                        : (isDark
+                                            ? AppColors.borderDark
+                                            : AppColors.borderLight),
+                                  ),
+                                );
+                              }).toList(),
                             );
-                          }).toList(),
+                          },
                         ),
                         const SizedBox(height: 16),
 
@@ -573,7 +802,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                     : Icons.my_location_rounded),
                                 label: Text(_isDetectingGps
                                     ? 'Detecting...'
-                                    : 'Use Current Location'),
+                                    : 'Detect GPS Location'),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.vendorColor,
                                   minimumSize: const Size(0, 44),
@@ -584,64 +813,46 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 16),
 
-                        if (_detectedLatitude != null && _gpsAccuracy != null) ...[
-                          Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: AppColors.successContainer,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: AppColors.success.withOpacity(0.3),
+                        if (_detectedLatitude != null && _detectedLongitude != null) ...[
+                          VendorLocationMapPicker(
+                            initialLatitude: _detectedLatitude,
+                            initialLongitude: _detectedLongitude,
+                            onLocationSelected: (lat, lng, source) {
+                              debugPrint('[VendorLocation] map pin selected: $lat, $lng');
+                              setState(() {
+                                _detectedLatitude = lat;
+                                _detectedLongitude = lng;
+                                _shopLocationSource = source;
+                                _shopLatitudeCtrl.text = lat.toStringAsFixed(6);
+                                _shopLongitudeCtrl.text = lng.toStringAsFixed(6);
+                              });
+                              debugPrint('[VendorLocation] saved lat/lng: $lat, $lng');
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          CheckboxListTile(
+                            value: _locationConfirmed,
+                            onChanged: (val) {
+                              setState(() => _locationConfirmed = val ?? false);
+                              if (_locationConfirmed) {
+                                debugPrint('[VendorLocation] validation result: confirmed');
+                              }
+                            },
+                            title: Text(
+                              'I confirm this is my shop location',
+                              style: AppTextStyles.bodyMedium(
+                                isDark
+                                    ? AppColors.textPrimaryDark
+                                    : AppColors.textPrimaryLight,
                               ),
                             ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  '✓ Location Detected',
-                                  style: AppTextStyles.labelMedium(
-                                      AppColors.success),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Accuracy: ${_gpsAccuracy!.toStringAsFixed(0)}m',
-                                  style: AppTextStyles.bodySmall(
-                                    isDark
-                                        ? AppColors.textSecondaryDark
-                                        : AppColors.textSecondaryLight,
-                                  ),
-                                ),
-                              ],
-                            ),
+                            controlAffinity: ListTileControlAffinity.leading,
+                            contentPadding: EdgeInsets.zero,
                           ),
                           const SizedBox(height: 16),
                         ],
-
-                        AppTextField(
-                          label: 'Latitude',
-                          hint: 'e.g., 6.9271',
-                          controller: _shopLatitudeCtrl,
-                          keyboardType:
-                              const TextInputType.numberWithOptions(decimal: true),
-                          textInputAction: TextInputAction.next,
-                          prefixIcon: Icons.pin_drop_outlined,
-                          readOnly: _detectedLatitude != null,
-                        ),
-                        const SizedBox(height: 16),
-
-                        AppTextField(
-                          label: 'Longitude',
-                          hint: 'e.g., 79.8612',
-                          controller: _shopLongitudeCtrl,
-                          keyboardType:
-                              const TextInputType.numberWithOptions(decimal: true),
-                          textInputAction: TextInputAction.next,
-                          prefixIcon: Icons.pin_drop_outlined,
-                          readOnly: _detectedLongitude != null,
-                        ),
-                        const SizedBox(height: 16),
 
                         AppTextField(
                           label: 'Business Registration Number (Optional)',

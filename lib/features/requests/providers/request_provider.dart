@@ -213,6 +213,24 @@ class RequestNotifier extends StateNotifier<RequestState> {
       rethrow;
     }
   }
+
+  /// Updates a request (e.g., for category fulfillment changes)
+  Future<void> updateRequest(ShoppingRequest request) async {
+    await _repo.ensureInitialized();
+    try {
+      await _repo.updateRequest(request);
+      
+      // Update in state
+      final updatedList = state.requests.map((r) {
+        return r.id == request.id ? request : r;
+      }).toList();
+      
+      state = state.copyWith(requests: updatedList);
+    } catch (e) {
+      state = state.copyWith(error: e.toString());
+      rethrow;
+    }
+  }
 }
 
 final requestProvider = StateNotifierProvider<RequestNotifier, RequestState>((ref) {

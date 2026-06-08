@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../admin/providers/category_provider.dart';
 
-class CategorySelector extends StatelessWidget {
+class CategorySelector extends ConsumerWidget {
   final String? selectedCategory;
   final ValueChanged<String> onSelected;
   final bool compact;
@@ -14,25 +16,36 @@ class CategorySelector extends StatelessWidget {
     this.compact = false,
   });
 
-  static const List<Map<String, dynamic>> categoriesList = [
-    {'name': 'Groceries', 'icon': Icons.local_grocery_store_outlined},
-    {'name': 'Vehicle parts', 'icon': Icons.settings_outlined},
-    {'name': 'Electronics', 'icon': Icons.devices_other_outlined},
-    {'name': 'Furniture', 'icon': Icons.weekend_outlined},
-    {'name': 'Home appliances', 'icon': Icons.kitchen_outlined},
-    {'name': 'Clothing', 'icon': Icons.checkroom_outlined},
-    {'name': 'Hardware items', 'icon': Icons.handyman_outlined},
-    {'name': 'Stationery', 'icon': Icons.edit_note_rounded},
-    {'name': 'Other', 'icon': Icons.more_horiz_rounded},
-  ];
+  static IconData _getCategoryIcon(String displayName) {
+    final normalized = displayName.toLowerCase().replaceAll(' ', '_');
+    switch (normalized) {
+      case 'groceries': return Icons.local_grocery_store_outlined;
+      case 'electronics': return Icons.devices_other_outlined;
+      case 'hardware': return Icons.handyman_outlined;
+      case 'furniture': return Icons.weekend_outlined;
+      case 'pharmacy': return Icons.local_pharmacy_outlined;
+      case 'clothing': return Icons.checkroom_outlined;
+      case 'vehicle_parts': return Icons.settings_outlined;
+      case 'home_appliances': return Icons.kitchen_outlined;
+      case 'stationery': return Icons.edit_note_rounded;
+      case 'other': return Icons.more_horiz_rounded;
+      default: return Icons.category_outlined;
+    }
+  }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+
+    final activeCategories = ref.watch(activeCategoriesProvider);
+    final categoriesList = activeCategories.map((cat) => {
+      'name': cat.displayName,
+      'icon': _getCategoryIcon(cat.displayName),
+    }).toList();
 
     if (compact) {
       // Horizontal scrolling chips for compact mode (e.g. quick filtering or top selection)

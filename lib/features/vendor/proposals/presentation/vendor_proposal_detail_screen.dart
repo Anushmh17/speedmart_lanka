@@ -323,6 +323,47 @@ class _VendorProposalDetailScreenState
                 ),
               ),
             ],
+            if (_proposal.status == ProposalStatus.rejected) ...[
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withOpacity(0.1),
+                  border: Border.all(color: AppColors.error.withOpacity(0.3)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.info_outline, color: AppColors.error, size: 20),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Proposal Not Selected',
+                          style: AppTextStyles.subtitle(AppColors.error),
+                        ),
+                      ],
+                    ),
+                    if (_proposal.rejectionReason != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _proposal.rejectionReason!,
+                        style: AppTextStyles.bodyMedium(primaryText),
+                      ),
+                    ],
+                    if (_proposal.rejectedAt != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Rejected on ${_proposal.rejectedAt!.day}/${_proposal.rejectedAt!.month}/${_proposal.rejectedAt!.year} at ${_proposal.rejectedAt!.hour}:${_proposal.rejectedAt!.minute.toString().padLeft(2, '0')}',
+                        style: AppTextStyles.caption(secondaryText),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
             if (_proposal.customerResponse != null) ...[
               const SizedBox(height: 16),
               Text('Customer reply', style: AppTextStyles.subtitle(primaryText)),

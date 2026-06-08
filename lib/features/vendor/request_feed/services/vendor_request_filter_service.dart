@@ -2,8 +2,10 @@ import 'package:flutter/foundation.dart';
 import '../../../customer/delivery_address/utils/vendor_delivery_privacy.dart';
 import '../../../proposals/models/proposal.dart';
 import '../../../requests/models/shopping_request.dart';
+import '../../../requests/models/request_item.dart';
 import '../../../../shared/models/location_model.dart';
 import '../../../../shared/models/vendor_status.dart';
+import '../../../../shared/utils/category_constants.dart';
 import '../models/vendor_feed_enums.dart';
 import '../models/vendor_feed_request.dart';
 
@@ -15,14 +17,14 @@ class VendorRequestFilterService {
   static const Map<String, double> categoryRadiusKm = {
     'groceries': 5,
     'electronics': 15,
-    'vehicle parts': 25,
-    'automotive': 25,
-    'furniture': 20,
     'hardware': 15,
-    'home appliances': 15,
-    'clothing': 12,
+    'furniture': 20,
     'pharmacy': 8,
+    'clothing': 12,
+    'vehicle parts': 25,
+    'home appliances': 15,
     'stationery': 12,
+    'other': 15,
   };
 
   static const double defaultRadiusKm = 15;
@@ -71,10 +73,56 @@ class VendorRequestFilterService {
     final requestCats = _requestCategories(request);
     if (requestCats.isEmpty) return true;
 
-    final vendorLower =
-        vendorCategories.map((c) => c.trim().toLowerCase()).toSet();
+    // Normalize vendor categories using VendorCategories.normalize()
+    final vendorNormalized = vendorCategories
+        .map((c) => VendorCategories.normalize(c))
+        .where((c) => c.isNotEmpty)
+        .toSet();
 
-    return requestCats.any((c) => vendorLower.contains(c.toLowerCase()));
+    // Normalize request categories and check for matches
+    return requestCats.any(
+      (c) => vendorNormalized.contains(VendorCategories.normalize(c)),
+    );
+  }
+
+  /// Filter items in a request to only those matching vendor categories.
+  /// Returns items that match vendor's approved categories.
+  /// Uses VendorCategories.normalize() to handle aliases like "Hardware items" -> "hardware"
+  List<RequestItem> filterMatchingItems(
+    ShoppingRequest request,
+    List<String> vendorCategories,
+  ) {
+    if (vendorCategories.isEmpty) return request.items;
+
+    // Normalize vendor categories using VendorCategories.normalize()
+    final vendorNormalized = vendorCategories
+        .map((c) => VendorCategories.normalize(c))
+        .where((c) => c.isNotEmpty)
+        .toSet();
+
+    debugPrint('[FeedCategoryFix] Vendor normalized categories: $vendorNormalized');
+
+    final matchingItems = request.items.where((item) {
+      if (item.category == null || item.category!.isEmpty) {
+        debugPrint('[FeedCategoryFix] Item "${item.itemName}" has no category, skipping');
+        return false;
+      }
+      
+      // Use VendorCategories.normalize() to handle aliases
+      final originalCategory = item.category!;
+      final itemCategoryNormalized = VendorCategories.normalize(originalCategory);
+      
+      final matches = vendorNormalized.contains(itemCategoryNormalized);
+      
+      debugPrint('[FeedCategoryFix] Item "${item.itemName}":');
+      debugPrint('[FeedCategoryFix]   original item category: $originalCategory');
+      debugPrint('[FeedCategoryFix]   normalized item category: $itemCategoryNormalized');
+      debugPrint('[FeedCategoryFix]   match: $matches');
+      
+      return matches;
+    }).toList();
+
+    return matchingItems;
   }
 
   bool isWithinRadius({
@@ -151,27 +199,41 @@ class VendorRequestFilterService {
       return [];
     }
 
-    debugPrint('[FeedAudit] Vendor allowedCategories: $vendorCategories');
-    debugPrint('[FeedAudit] Vendor location: lat=$vendorLatitude, lng=$vendorLongitude');
-    debugPrint('[FeedAudit] Assigned radius: ${assignedRadiusKm ?? 20.0}km');
+    // Normalize vendor categories using VendorCategories.normalize()
+    final vendorNormalized = vendorCategories
+        .map((c) => VendorCategories.normalize(c))
+        .where((c) => c.isNotEmpty)
+        .toSet();
+
+    debugPrint('[FeedCategoryFix] ===== VENDOR FEED BUILD START =====');
+    debugPrint('[FeedCategoryFix] vendor allowedCategories (raw): $vendorCategories');
+    debugPrint('[FeedCategoryFix] vendor normalized categories: $vendorNormalized');
+    debugPrint('[FeedCategoryFix] Vendor location: lat=$vendorLatitude, lng=$vendorLongitude');
+    debugPrint('[FeedCategoryFix] Assigned radius: ${assignedRadiusKm ?? 20.0}km');
 
     final active =
         allRequests.where((r) => isActiveMarketplaceRequest(r.status));
 
-    debugPrint('[CategoryAudit] vendorCategories: $vendorCategories');
-    debugPrint('[FeedAudit] evaluating ${active.length} active requests');
+    debugPrint('[FeedCategoryFix] evaluating ${active.length} active requests');
 
     final matched = active.where((request) {
-      final requestCats = _requestCategories(request).toList();
-      final categoryMatch = matchesVendorCategories(request, vendorCategories);
+      debugPrint('[FeedCategoryFix] ===== REQUEST ${request.id} =====');
+      debugPrint('[FeedCategoryFix] request id: ${request.id}');
+      debugPrint('[FeedCategoryFix] original items: ${request.items.map((i) => "${i.itemName} (${i.category})").join(", ")}');
 
-      debugPrint('[CategoryAudit] request.id: ${request.id}, categories: $requestCats, match: $categoryMatch');
+      // Filter items to only those matching vendor categories
+      final matchingItems = filterMatchingItems(request, vendorCategories);
+      
+      debugPrint('[FeedCategoryFix] matching items: ${matchingItems.map((i) => "${i.itemName} (${i.category})").join(", ")}');
 
-      if (!categoryMatch) {
-        debugPrint('[FeedAudit] request: ${request.id}, visible: false, reason: category_mismatch');
+      // If no items match vendor categories, hide the entire request
+      if (matchingItems.isEmpty) {
+        debugPrint('[FeedCategoryFix] hidden reason: no_matching_items');
+        debugPrint('[FeedCategoryFix] request: ${request.id}, visible: false');
         return false;
       }
 
+      // Check radius
       final radiusCheck = isWithinRadius(
         request: request,
         vendorLat: vendorLatitude,
@@ -197,21 +259,25 @@ class VendorRequestFilterService {
       debugPrint('[DistanceAudit] Distance: ${distance.toStringAsFixed(1)}km, Radius: ${assignedRadius}km, Inside: $radiusCheck');
 
       if (!radiusCheck) {
-        debugPrint('[FeedAudit] request: ${request.id}, visible: false, reason: outside_service_radius');
+        debugPrint('[FeedCategoryFix] hidden reason: outside_service_radius');
+        debugPrint('[FeedCategoryFix] request: ${request.id}, visible: false');
         return false;
       }
 
+      // Apply category filter if active
       if (categoryFilter != null && categoryFilter.isNotEmpty) {
-        final filter = categoryFilter.toLowerCase();
-        final cats = _requestCategories(request);
-        final filterMatch = cats.any((c) => c.toLowerCase() == filter);
-        if (!filterMatch) {
-          debugPrint('[FeedAudit] request: ${request.id}, visible: false, reason: active_filter_mismatch');
+        final filterNormalized = VendorCategories.normalize(categoryFilter);
+        final hasFilterMatch = matchingItems.any(
+          (item) => VendorCategories.normalize(item.category ?? '') == filterNormalized,
+        );
+        if (!hasFilterMatch) {
+          debugPrint('[FeedCategoryFix] hidden reason: active_filter_mismatch');
+          debugPrint('[FeedCategoryFix] request: ${request.id}, visible: false');
           return false;
         }
       }
 
-      debugPrint('[FeedAudit] request: ${request.id}, visible: true, distance: ${distance.toStringAsFixed(1)}km');
+      debugPrint('[FeedCategoryFix] request: ${request.id}, visible: true, distance: ${distance.toStringAsFixed(1)}km');
       return true;
     });
 
@@ -227,12 +293,24 @@ class VendorRequestFilterService {
               lon2: vendorLongitude,
             );
 
+      // Filter items to only show matching categories
+      final matchingItems = filterMatchingItems(request, vendorCategories);
+      final filteredRequest = request.copyWith(items: matchingItems);
+      
+      // [ImageAudit] Vendor feed
+      for (final item in filteredRequest.items) {
+        debugPrint('[ImageAudit] Vendor feed item: ${filteredRequest.id}');
+        debugPrint('[ImageAudit] Item: ${item.itemName}');
+        debugPrint('[ImageAudit] Image count: ${item.imageUrls.length}');
+        debugPrint('[ImageAudit] Images: ${item.imageUrls}');
+      }
+
       return VendorFeedRequest(
-        request: request,
+        request: filteredRequest, // Use filtered request with only matching items
         distanceKm: double.parse(distance.toStringAsFixed(1)),
         proposalCount: proposalCountFor(request.id, allProposals),
         urgency: urgencyFor(request),
-        primaryCategory: primaryCategoryFor(request),
+        primaryCategory: primaryCategoryFor(filteredRequest),
         approximateArea: approximateAreaFor(request),
         district: districtFor(request),
         maxRadiusKm: assignedRadius,

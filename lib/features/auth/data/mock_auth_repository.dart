@@ -374,6 +374,7 @@ class MockAuthRepository {
     double? shopLongitude,
     double? shopLocationAccuracyMeters,
     DateTime? shopLocationDetectedAt,
+    String? shopLocationSource,
     String? businessRegistrationNumber,
   }) async {
     await ensureInitialized();
@@ -444,6 +445,7 @@ class MockAuthRepository {
       shopLongitude: shopLongitude,
       shopLocationAccuracyMeters: shopLocationAccuracyMeters,
       shopLocationDetectedAt: shopLocationDetectedAt,
+      shopLocationSource: shopLocationSource,
       isShopLocationAssigned: false,
       businessRegistrationNumber: businessRegistrationNumber,
     );

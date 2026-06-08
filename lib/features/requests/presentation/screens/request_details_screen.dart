@@ -1,11 +1,15 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_state_widgets.dart';
+import '../../../../shared/utils/category_constants.dart';
 import '../../models/request_item.dart';
 import '../../models/shopping_request.dart';
+import '../../models/request_category_fulfillment.dart';
 import '../../providers/request_provider.dart';
 import '../../../proposals/providers/proposal_provider.dart';
 import '../../../proposals/models/proposal.dart';
@@ -42,6 +46,14 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
       if (!mounted) return;
       _syncComparison(ref.read(proposalProvider).proposals);
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant RequestDetailsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.request.id != widget.request.id) {
+      _request = widget.request;
+    }
   }
 
   bool get _isCancelled => _request.status.isCancelled;
@@ -257,6 +269,211 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
     );
   }
 
+  List<Widget> _buildCategoryGroupedProposals(
+    List<Proposal> proposals,
+    bool hasAcceptedProposal,
+    bool proposalsEnabled,
+    Color primaryText,
+    Color secondaryText,
+    Color cardColor,
+    Color borderColor,
+  ) {
+    // Get all categories from request items (source of truth)
+    final requestCategories = _request.items
+        .map((item) {
+          final cat = item.category?.trim();
+          if (cat == null || cat.isEmpty) return null;
+          return VendorCategories.normalize(cat);
+        })
+        .where((cat) => cat != null && cat.isNotEmpty)
+        .cast<String>()
+        .toSet()
+        .toList();
+
+    print('[MultiCategoryUI] Request item categories: $requestCategories');
+
+    // Group proposals by category
+    final groupedProposals = <String, List<Proposal>>{};
+    for (final proposal in proposals) {
+      final category = proposal.categoryNormalized ?? 'unknown';
+      groupedProposals.putIfAbsent(category, () => []).add(proposal);
+      print('[MultiCategoryFlow] Loaded proposal category: $category (${proposal.id})');
+    }
+
+    print('[MultiCategoryUI] Proposal grouped categories: ${groupedProposals.keys.toList()}');
+
+    final widgets = <Widget>[];
+    
+    // Iterate through ALL request categories (not just those with proposals)
+    for (final category in requestCategories) {
+      print('[MultiCategoryUI] Rendering category: $category');
+      
+      final categoryProposals = groupedProposals[category] ?? [];
+      final categoryStatus = _request.getCategoryStatus(category);
+      final categoryAccepted =
+          categoryStatus == RequestCategoryStatus.accepted ||
+              categoryStatus == RequestCategoryStatus.codConfirmed ||
+              categoryStatus == RequestCategoryStatus.outForDelivery ||
+              categoryStatus == RequestCategoryStatus.paid;
+
+      // Category header
+      widgets.add(
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          margin: const EdgeInsets.only(bottom: 8, top: 16),
+          decoration: BoxDecoration(
+            color: categoryAccepted
+                ? AppColors.success.withValues(alpha: 0.1)
+                : AppColors.customerColor.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: categoryAccepted
+                  ? AppColors.success.withValues(alpha: 0.3)
+                  : borderColor,
+            ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${VendorCategories.display(category)} Offers',
+                  style: AppTextStyles.subtitle(primaryText),
+                ),
+              ),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: categoryAccepted
+                      ? AppColors.success
+                      : AppColors.customerColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  categoryStatus.displayName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      // Category proposals or empty state
+      if (categoryProposals.isEmpty) {
+        print('[MultiCategoryUI] Empty category section: $category');
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: cardColor,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: borderColor),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.hourglass_empty_rounded,
+                    color: secondaryText,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      categoryAccepted
+                          ? 'Vendor assigned for this category'
+                          : 'No offers yet — Waiting for ${VendorCategories.display(category).toLowerCase()} vendors',
+                      style: AppTextStyles.bodyMedium(secondaryText),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      } else {
+        // Show proposals
+        for (final proposal in categoryProposals) {
+          final isAccepted = proposal.status == ProposalStatus.accepted;
+          final canAct = proposalsEnabled &&
+              !categoryAccepted &&
+              proposal.status.isVisibleToCustomer &&
+              (proposal.status == ProposalStatus.submitted ||
+                  proposal.status == ProposalStatus.updated);
+
+          widgets.add(
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _SimplifiedProposalCard(
+                proposal: proposal,
+                isAccepted: isAccepted,
+                categoryStatus: categoryStatus,
+                onAccept: isAccepted
+                    ? () => _handleAcceptedProposalAction(proposal, categoryStatus)
+                    : canAct
+                        ? () => _acceptProposal(proposal)
+                        : null,
+                onReject: canAct ? () => _rejectProposal(proposal) : null,
+                isDark: Theme.of(context).brightness == Brightness.dark,
+              ),
+            ),
+          );
+        }
+      }
+    }
+
+    return widgets;
+  }
+
+  void _handleAcceptedProposalAction(
+    Proposal proposal,
+    RequestCategoryStatus categoryStatus,
+  ) async {
+    final category = proposal.categoryNormalized ?? '';
+    final isPaid = categoryStatus == RequestCategoryStatus.paid;
+    final isCodConfirmed = categoryStatus == RequestCategoryStatus.codConfirmed;
+    
+    debugPrint('[CODFlow] Accepted category: $category');
+    debugPrint('[CODFlow] categoryStatus: ${categoryStatus.name}');
+    debugPrint('[CODFlow] isPaid: $isPaid');
+    debugPrint('[CODFlow] isCodConfirmed: $isCodConfirmed');
+    
+    if (isPaid || isCodConfirmed) {
+      // Already paid or COD confirmed, do nothing
+      final message = isCodConfirmed 
+          ? 'COD order confirmed — Waiting for delivery and cash collection'
+          : 'Payment already confirmed for this category';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    
+    // Navigate to payment
+    await context.push('/customer/payment', extra: {
+      'proposal': proposal,
+      'requestId': _request.id,
+    });
+    
+    // Reload request after payment
+    if (!mounted) return;
+    final refreshed = await MockRequestRepository.instance.getRequestById(_request.id);
+    if (refreshed != null && mounted) {
+      setState(() => _request = refreshed);
+      debugPrint('[CODFlow] request reloaded after payment');
+      debugPrint('[CODFlow] customer UI status after confirmation: ${refreshed.getCategoryStatus(category).name}');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -312,6 +529,92 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
                         : const SizedBox.shrink(key: ValueKey('active')),
                   ),
                   if (_isCancelled) const SizedBox(height: 12),
+
+                  // Multi-category progress summary
+                  if (_request.isMultiCategory && !_isCancelled) ...[
+                    Container(
+                      padding: const EdgeInsets.all(18),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            AppColors.customerColor.withValues(alpha: 0.1),
+                            cardColor,
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(18),
+                        border: Border.all(
+                          color: AppColors.customerColor.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Category Progress',
+                            style: AppTextStyles.h3(primaryText),
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _CategoryStatCard(
+                                  label: 'Requested',
+                                  count: _request.totalCategories,
+                                  color: AppColors.customerColor,
+                                  isDark: isDark,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _CategoryStatCard(
+                                  label: 'Accepted',
+                                  count: _request.acceptedCategoriesCount,
+                                  color: AppColors.success,
+                                  isDark: isDark,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _CategoryStatCard(
+                                  label: 'Pending',
+                                  count: _request.pendingCategoriesCount,
+                                  color: AppColors.warning,
+                                  isDark: isDark,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _CategoryStatCard(
+                                  label: 'Completed',
+                                  count: _request.completedCategoriesCount,
+                                  color: AppColors.success,
+                                  isDark: isDark,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: LinearProgressIndicator(
+                              value: _request.totalCategories > 0
+                                  ? _request.acceptedCategoriesCount /
+                                      _request.totalCategories
+                                  : 0,
+                              minHeight: 8,
+                              backgroundColor: borderColor,
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                AppColors.success,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
 
                   // Status card
                   Container(
@@ -421,14 +724,19 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
                   const SizedBox(height: 12),
 
                   ..._request.items.map(
-                    (item) => Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: RequestItemListTile(
-                        item: item,
-                        enabled: true,
-                        onTap: () => _openItemDetails(item),
-                      ),
-                    ),
+                    (item) {
+                      final itemCategory = item.category?.trim().toLowerCase() ?? '';
+                      final categoryStatus = _request.getCategoryStatus(itemCategory);
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: _RequestItemWithCategory(
+                          item: item,
+                          categoryStatus: categoryStatus,
+                          onTap: () => _openItemDetails(item),
+                          isDark: isDark,
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 24),
 
@@ -468,66 +776,80 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
                       secondaryText: secondaryText,
                     )
                   else ...[
-                    ProposalComparisonBar(
-                      selectedMode: comparisonState.mode,
-                      proposalCount: comparisonState.views.length,
-                      onModeChanged: (mode) {
-                        ref
-                            .read(
-                              customerProposalComparisonProvider(_request.id)
-                                  .notifier,
-                            )
-                            .setMode(
-                              mode,
-                              proposals: proposalState.proposals,
-                              request: _request,
-                            );
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    if (hasAcceptedProposal)
-                      Container(
-                        width: double.infinity,
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.success.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: AppColors.success.withValues(alpha: 0.35),
-                          ),
-                        ),
-                        child: const Text(
-                          'A vendor bid has been accepted. Complete payment to confirm your order.',
-                          style: TextStyle(
-                            color: AppColors.success,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                    if (!_request.isMultiCategory) ...[
+                      // Single category: Show standard view
+                      ProposalComparisonBar(
+                        selectedMode: comparisonState.mode,
+                        proposalCount: comparisonState.views.length,
+                        onModeChanged: (mode) {
+                          ref
+                              .read(
+                                customerProposalComparisonProvider(_request.id)
+                                    .notifier,
+                              )
+                              .setMode(
+                                mode,
+                                proposals: proposalState.proposals,
+                                request: _request,
+                              );
+                        },
                       ),
-                    ...comparisonState.views.map(
-                      (view) {
-                        final canAct = proposalsEnabled &&
-                            (view.canAcceptOrReject && !hasAcceptedProposal);
-                        return CustomerProposalCard(
-                          view: view,
-                          requestId: _request.id,
-                          enabled: proposalsEnabled,
-                          onAccept: view.isAccepted
-                              ? () {
-                                  context.push('/customer/payment', extra: {
-                                    'proposal': view.proposal,
-                                    'requestId': _request.id,
-                                  });
-                                }
-                              : canAct
-                                  ? () => _acceptProposal(view.proposal)
-                                  : null,
-                          onReject:
-                              canAct ? () => _rejectProposal(view.proposal) : null,
-                        );
-                      },
-                    ),
+                      const SizedBox(height: 12),
+                      if (hasAcceptedProposal)
+                        Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.success.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppColors.success.withValues(alpha: 0.35),
+                            ),
+                          ),
+                          child: const Text(
+                            'A vendor bid has been accepted. Complete payment to confirm your order.',
+                            style: TextStyle(
+                              color: AppColors.success,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ...comparisonState.views.map(
+                        (view) {
+                          final canAct = proposalsEnabled &&
+                              (view.canAcceptOrReject && !hasAcceptedProposal);
+                          return CustomerProposalCard(
+                            view: view,
+                            requestId: _request.id,
+                            enabled: proposalsEnabled,
+                            onAccept: view.isAccepted
+                                ? () {
+                                    context.push('/customer/payment', extra: {
+                                      'proposal': view.proposal,
+                                      'requestId': _request.id,
+                                    });
+                                  }
+                                : canAct
+                                    ? () => _acceptProposal(view.proposal)
+                                    : null,
+                            onReject:
+                                canAct ? () => _rejectProposal(view.proposal) : null,
+                          );
+                        },
+                      ),
+                    ] else ...[
+                      // Multi-category: Group by category
+                      ..._buildCategoryGroupedProposals(
+                        proposalState.proposals,
+                        hasAcceptedProposal,
+                        proposalsEnabled,
+                        primaryText,
+                        secondaryText,
+                        cardColor,
+                        borderColor,
+                      ),
+                    ],
                   ],
                 ],
               ),
@@ -702,6 +1024,371 @@ class _DisabledBidsNotice extends StatelessWidget {
         'Merchant bids are closed for cancelled requests.',
         style: AppTextStyles.bodyMedium(secondaryText),
         textAlign: TextAlign.center,
+      ),
+    );
+  }
+}
+
+class _CategoryStatCard extends StatelessWidget {
+  const _CategoryStatCard({
+    required this.label,
+    required this.count,
+    required this.color,
+    required this.isDark,
+  });
+
+  final String label;
+  final int count;
+  final Color color;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            count.toString(),
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              color: isDark
+                  ? AppColors.textSecondaryDark
+                  : AppColors.textSecondaryLight,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RequestItemWithCategory extends StatelessWidget {
+  const _RequestItemWithCategory({
+    required this.item,
+    required this.categoryStatus,
+    required this.onTap,
+    required this.isDark,
+  });
+
+  final RequestItem item;
+  final RequestCategoryStatus categoryStatus;
+  final VoidCallback onTap;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+    final primaryText =
+        isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final secondaryText =
+        isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+
+    Color statusColor;
+    switch (categoryStatus) {
+      case RequestCategoryStatus.pending:
+      case RequestCategoryStatus.proposalReceived:
+        statusColor = AppColors.warning;
+        break;
+      case RequestCategoryStatus.accepted:
+        statusColor = AppColors.customerColor;
+        break;
+      case RequestCategoryStatus.codConfirmed:
+      case RequestCategoryStatus.outForDelivery:
+        statusColor = AppColors.warning;
+        break;
+      case RequestCategoryStatus.paid:
+      case RequestCategoryStatus.completed:
+        statusColor = AppColors.success;
+        break;
+      case RequestCategoryStatus.cancelled:
+        statusColor = AppColors.error;
+        break;
+    }
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: borderColor),
+        ),
+        child: Row(
+          children: [
+            if (item.imageUrls.isNotEmpty)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.file(
+                  File(item.imageUrls.first),
+                  width: 50,
+                  height: 50,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 50,
+                    height: 50,
+                    color: borderColor,
+                    child: Icon(Icons.image_outlined, color: secondaryText),
+                  ),
+                ),
+              )
+            else
+              Container(
+                width: 50,
+                height: 50,
+                decoration: BoxDecoration(
+                  color: borderColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.shopping_bag_outlined, color: secondaryText),
+              ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.name,
+                    style: AppTextStyles.subtitle(primaryText),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Text(
+                        item.category ?? 'General',
+                        style: AppTextStyles.caption(secondaryText),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: statusColor.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          categoryStatus.displayName,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: statusColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Qty ${item.quantity}',
+              style: AppTextStyles.caption(secondaryText),
+            ),
+            const SizedBox(width: 4),
+            Icon(Icons.chevron_right_rounded, color: secondaryText, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SimplifiedProposalCard extends StatelessWidget {
+  const _SimplifiedProposalCard({
+    required this.proposal,
+    required this.isAccepted,
+    required this.categoryStatus,
+    required this.onAccept,
+    required this.onReject,
+    required this.isDark,
+  });
+
+  final Proposal proposal;
+  final bool isAccepted;
+  final RequestCategoryStatus categoryStatus;
+  final VoidCallback? onAccept;
+  final VoidCallback? onReject;
+  final bool isDark;
+
+  String _getActionButtonLabel() {
+    if (!isAccepted) return 'Accept';
+    
+    // Check payment and COD status for accepted proposals
+    final isPaid = categoryStatus == RequestCategoryStatus.paid;
+    final isCodConfirmed = categoryStatus == RequestCategoryStatus.codConfirmed;
+    
+    print('[CODFlow] Button label check:');
+    print('[CODFlow] - isAccepted: $isAccepted');
+    print('[CODFlow] - categoryStatus: ${categoryStatus.name}');
+    print('[CODFlow] - isPaid: $isPaid');
+    print('[CODFlow] - isCodConfirmed: $isCodConfirmed');
+    
+    if (isPaid) {
+      return 'Payment Complete';
+    }
+    
+    if (isCodConfirmed) {
+      return 'COD Confirmed';
+    }
+    
+    return 'Choose Payment';
+  }
+
+  bool _isButtonEnabled() {
+    if (!isAccepted) return onAccept != null;
+    
+    // Disable if already paid or COD confirmed
+    final isPaid = categoryStatus == RequestCategoryStatus.paid;
+    final isCodConfirmed = categoryStatus == RequestCategoryStatus.codConfirmed;
+    return !isPaid && !isCodConfirmed && onAccept != null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+    final primaryText =
+        isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final secondaryText =
+        isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+
+    final buttonLabel = _getActionButtonLabel();
+    final buttonEnabled = _isButtonEnabled();
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: isAccepted
+            ? AppColors.success.withValues(alpha: 0.08)
+            : cardColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isAccepted
+              ? AppColors.success.withValues(alpha: 0.3)
+              : borderColor,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      proposal.vendorBusinessName,
+                      style: AppTextStyles.subtitle(primaryText),
+                    ),
+                    Text(
+                      proposal.estimatedDeliveryTime,
+                      style: AppTextStyles.caption(secondaryText),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    'Rs. ${proposal.totalPrice.toStringAsFixed(0)}',
+                    style: AppTextStyles.h3(AppColors.customerColor),
+                  ),
+                  if (isAccepted)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.success,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: const Text(
+                        'ACCEPTED',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+          if (onAccept != null || onReject != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                if (onReject != null)
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: onReject,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.error,
+                        side: const BorderSide(color: AppColors.error),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      ),
+                      child: const Text('Reject'),
+                    ),
+                  ),
+                if (onReject != null && onAccept != null)
+                  const SizedBox(width: 8),
+                if (onAccept != null)
+                  Expanded(
+                    flex: onReject != null ? 1 : 2,
+                    child: ElevatedButton(
+                      onPressed: buttonEnabled ? onAccept : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isAccepted
+                            ? (categoryStatus == RequestCategoryStatus.paid
+                                ? AppColors.success
+                                : categoryStatus == RequestCategoryStatus.codConfirmed
+                                    ? AppColors.warning
+                                    : AppColors.success)
+                            : AppColors.customerColor,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        disabledBackgroundColor: categoryStatus == RequestCategoryStatus.codConfirmed
+                            ? AppColors.warning.withValues(alpha: 0.5)
+                            : Colors.grey.withValues(alpha: 0.5),
+                      ),
+                      child: Text(
+                        buttonLabel,
+                        style: TextStyle(
+                          color: buttonEnabled ? Colors.white : Colors.white70,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }

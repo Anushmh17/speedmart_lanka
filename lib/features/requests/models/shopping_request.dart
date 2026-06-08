@@ -1,5 +1,7 @@
 import '../../location/models/delivery_location.dart';
 import 'request_item.dart';
+import 'request_category_fulfillment.dart';
+import '../../../shared/utils/category_constants.dart';
 
 enum RequestStatus {
   draft,
@@ -97,6 +99,9 @@ class ShoppingRequest {
   final double longitude;
   final DeliveryLocation? deliveryLocation;
 
+  // Multi-category fulfillment tracking
+  final Map<String, RequestCategoryFulfillment> categoryFulfillments;
+
   // TODO: Persist cancellation metadata via backend API when integrated.
   final DateTime? cancelledAt;
   final String? cancelledReason;
@@ -117,10 +122,86 @@ class ShoppingRequest {
     this.latitude = 0.0,
     this.longitude = 0.0,
     this.deliveryLocation,
+    Map<String, RequestCategoryFulfillment>? categoryFulfillments,
     this.cancelledAt,
     this.cancelledReason,
     this.cancelledBy,
-  });
+  }) : categoryFulfillments = categoryFulfillments ?? _initializeCategoryFulfillments(items);
+
+  /// Initialize category fulfillments from request items
+  static Map<String, RequestCategoryFulfillment> _initializeCategoryFulfillments(
+    List<RequestItem> items,
+  ) {
+    final categories = <String>{};
+    for (final item in items) {
+      if (item.category != null && item.category!.isNotEmpty) {
+        final normalized = VendorCategories.normalize(item.category!);
+        categories.add(normalized);
+      }
+    }
+
+    return Map.fromEntries(
+      categories.map(
+        (cat) => MapEntry(
+          cat,
+          RequestCategoryFulfillment(categoryNormalized: cat),
+        ),
+      ),
+    );
+  }
+
+  /// Get all categories in this request (normalized)
+  List<String> get categories => categoryFulfillments.keys.toList();
+
+  /// Check if request has multiple categories
+  bool get isMultiCategory => categoryFulfillments.length > 1;
+
+  /// Get fulfillment for a specific category
+  RequestCategoryFulfillment? getFulfillment(String categoryNormalized) {
+    return categoryFulfillments[categoryNormalized];
+  }
+
+  /// Get status for a specific category
+  RequestCategoryStatus getCategoryStatus(String categoryNormalized) {
+    return categoryFulfillments[categoryNormalized]?.status ??
+        RequestCategoryStatus.pending;
+  }
+
+  /// Check if category can receive proposals
+  bool canCategoryReceiveProposals(String categoryNormalized) {
+    return getCategoryStatus(categoryNormalized).canReceiveProposals;
+  }
+
+  /// Get count of categories by status
+  int getCategoryCountByStatus(RequestCategoryStatus status) {
+    return categoryFulfillments.values
+        .where((f) => f.status == status)
+        .length;
+  }
+
+  /// Get total category count
+  int get totalCategories => categoryFulfillments.length;
+
+  /// Get pending categories count
+  int get pendingCategoriesCount =>
+      getCategoryCountByStatus(RequestCategoryStatus.pending) +
+      getCategoryCountByStatus(RequestCategoryStatus.proposalReceived);
+
+  /// Get accepted categories count
+  int get acceptedCategoriesCount =>
+      getCategoryCountByStatus(RequestCategoryStatus.accepted) +
+      getCategoryCountByStatus(RequestCategoryStatus.paid);
+
+  /// Get completed categories count
+  int get completedCategoriesCount =>
+      getCategoryCountByStatus(RequestCategoryStatus.completed);
+
+  /// Check if all categories are completed
+  bool get allCategoriesCompleted =>
+      completedCategoriesCount == totalCategories;
+
+  /// Check if any category is accepted
+  bool get hasAcceptedCategory => acceptedCategoriesCount > 0;
 
   bool canBeCancelledByCustomer({required bool hasAcceptedProposal}) {
     if (hasAcceptedProposal) return false;
@@ -142,6 +223,7 @@ class ShoppingRequest {
     double? latitude,
     double? longitude,
     DeliveryLocation? deliveryLocation,
+    Map<String, RequestCategoryFulfillment>? categoryFulfillments,
     DateTime? cancelledAt,
     String? cancelledReason,
     String? cancelledBy,
@@ -161,6 +243,7 @@ class ShoppingRequest {
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       deliveryLocation: deliveryLocation ?? this.deliveryLocation,
+      categoryFulfillments: categoryFulfillments ?? this.categoryFulfillments,
       cancelledAt: cancelledAt ?? this.cancelledAt,
       cancelledReason: cancelledReason ?? this.cancelledReason,
       cancelledBy: cancelledBy ?? this.cancelledBy,
@@ -184,6 +267,9 @@ class ShoppingRequest {
       'latitude': latitude,
       'longitude': longitude,
       'deliveryLocation': deliveryLocation?.toJson(),
+      'categoryFulfillments': categoryFulfillments.map(
+        (key, value) => MapEntry(key, value.toJson()),
+      ),
       'cancelledAt': cancelledAt?.toIso8601String(),
       'cancelledReason': cancelledReason,
       'cancelledBy': cancelledBy,
@@ -192,6 +278,21 @@ class ShoppingRequest {
   }
 
   factory ShoppingRequest.fromJson(Map<String, dynamic> json) {
+    // Parse category fulfillments
+    Map<String, RequestCategoryFulfillment> fulfillments = {};
+    if (json['categoryFulfillments'] != null) {
+      final fulfillmentsJson =
+          json['categoryFulfillments'] as Map<String, dynamic>;
+      fulfillments = fulfillmentsJson.map(
+        (key, value) => MapEntry(
+          key,
+          RequestCategoryFulfillment.fromJson(
+            Map<String, dynamic>.from(value as Map),
+          ),
+        ),
+      );
+    }
+
     return ShoppingRequest(
       id: json['id'] as String? ?? '',
       customerId: json['customerId'] as String? ?? '',
@@ -220,6 +321,7 @@ class ShoppingRequest {
               Map<String, dynamic>.from(json['deliveryLocation'] as Map),
             )
           : null,
+      categoryFulfillments: fulfillments,
       cancelledAt: json['cancelledAt'] != null
           ? DateTime.tryParse(json['cancelledAt'] as String)
           : null,

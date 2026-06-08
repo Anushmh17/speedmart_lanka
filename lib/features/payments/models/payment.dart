@@ -24,6 +24,7 @@ extension PaymentMethodExtension on PaymentMethod {
 
 enum PaymentStatus {
   pending,
+  pendingOnDelivery, // COD payment pending until delivery
   paid,
   failed,
   refunded,
@@ -35,6 +36,8 @@ extension PaymentStatusExtension on PaymentStatus {
     switch (this) {
       case PaymentStatus.pending:
         return 'Pending';
+      case PaymentStatus.pendingOnDelivery:
+        return 'Pending on Delivery';
       case PaymentStatus.paid:
         return 'Paid';
       case PaymentStatus.failed:

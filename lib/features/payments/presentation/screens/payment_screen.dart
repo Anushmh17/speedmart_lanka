@@ -10,7 +10,9 @@ import 'package:speedmart_lanka/features/orders/providers/order_provider.dart';
 import 'package:speedmart_lanka/features/proposals/models/proposal.dart';
 import 'package:speedmart_lanka/features/proposals/providers/proposal_provider.dart';
 import 'package:speedmart_lanka/features/requests/models/shopping_request.dart';
+import 'package:speedmart_lanka/features/requests/models/request_category_fulfillment.dart';
 import 'package:speedmart_lanka/features/requests/providers/request_provider.dart';
+import 'package:speedmart_lanka/features/requests/data/mock_request_repository.dart';
 import 'package:speedmart_lanka/features/notifications/models/notification_type.dart';
 import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart' as notification_feature;
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
@@ -113,6 +115,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     setState(() {
       _isProcessing = true;
     });
+
+    debugPrint('[PaymentFlow] COD confirm start:');
+    debugPrint('[PaymentFlow] proposal id: ${widget.proposal.id}');
+    debugPrint('[PaymentFlow] request id: ${widget.requestId}');
+    debugPrint('[PaymentFlow] category: ${widget.proposal.categoryNormalized}');
 
     if (widget.proposal.status != ProposalStatus.accepted) {
       await ref.read(proposalProvider.notifier).acceptProposal(
@@ -236,6 +243,60 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           userId: customer.id,
           relatedId: createdOrder.id,
         );
+      }
+
+      // Update category fulfillment based on payment method
+      if (widget.proposal.categoryNormalized != null && widget.proposal.categoryNormalized!.isNotEmpty) {
+        final category = widget.proposal.categoryNormalized!;
+        final currentStatus = _request!.getCategoryStatus(category);
+        
+        debugPrint('[CODFlow] Customer selected ${_selectedMethod.name}:');
+        debugPrint('[CODFlow] Category: $category');
+        debugPrint('[CODFlow] Current category status: ${currentStatus.name}');
+        
+        final updatedFulfillments = Map<String, RequestCategoryFulfillment>.from(_request!.categoryFulfillments);
+        final currentFulfillment = updatedFulfillments[category];
+        
+        if (currentFulfillment != null) {
+          if (_selectedMethod == PaymentMethod.cashOnDelivery) {
+            // COD: Set status to codConfirmed, payment pending on delivery
+            updatedFulfillments[category] = currentFulfillment.copyWith(
+              status: RequestCategoryStatus.codConfirmed,
+              codConfirmedAt: DateTime.now(),
+              // paidAt remains null until vendor confirms cash collected
+            );
+            
+            debugPrint('[CODFlow] COD confirmed, payment pending on delivery:');
+            debugPrint('[CODFlow] category status after COD: codConfirmed');
+            debugPrint('[CODFlow] codConfirmedAt: ${DateTime.now()}');
+            debugPrint('[CODFlow] paidAt: null (awaiting vendor cash collection)');
+          } else if (_selectedMethod == PaymentMethod.mockOnline) {
+            // Card payment: Set status to paid immediately after successful payment
+            updatedFulfillments[category] = currentFulfillment.copyWith(
+              status: RequestCategoryStatus.paid,
+              paidAt: DateTime.now(),
+            );
+            
+            debugPrint('[CODFlow] Card payment successful:');
+            debugPrint('[CODFlow] category status after payment: paid');
+            debugPrint('[CODFlow] paidAt: ${DateTime.now()}');
+          }
+          
+          final updatedRequest = _request!.copyWith(
+            categoryFulfillments: updatedFulfillments,
+            updatedAt: DateTime.now(),
+          );
+          
+          await ref.read(requestProvider.notifier).updateRequest(updatedRequest);
+          debugPrint('[CODFlow] request saved after payment confirmation: ${updatedRequest.id}');
+          
+          // Reload to verify
+          final reloadedRequest = await MockRequestRepository.instance.getRequestById(widget.requestId);
+          if (reloadedRequest != null) {
+            final reloadedStatus = reloadedRequest.getCategoryStatus(category);
+            debugPrint('[CODFlow] request reloaded category status: ${reloadedStatus.name}');
+          }
+        }
       }
 
       await ref.read(orderProvider.notifier).loadCustomerOrders();

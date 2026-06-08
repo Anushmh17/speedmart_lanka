@@ -6,17 +6,117 @@ import 'package:speedmart_lanka/core/theme/app_colors.dart';
 import 'package:speedmart_lanka/core/theme/app_text_styles.dart';
 import 'package:speedmart_lanka/core/widgets/app_state_widgets.dart';
 import 'package:speedmart_lanka/features/proposals/models/proposal.dart';
+import 'package:speedmart_lanka/features/proposals/providers/proposal_provider.dart';
 import 'package:speedmart_lanka/features/orders/data/mock_order_repository.dart';
 import 'package:speedmart_lanka/features/orders/models/order_model.dart';
 import 'package:speedmart_lanka/features/orders/providers/order_provider.dart';
 import 'package:speedmart_lanka/features/orders/services/vendor_delivery_access_service.dart';
 import 'package:speedmart_lanka/core/providers/notification_provider.dart';
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
+import 'package:speedmart_lanka/features/payments/providers/payment_provider.dart';
+import 'package:speedmart_lanka/features/payments/data/mock_payment_repository.dart';
+import 'package:speedmart_lanka/features/requests/models/request_category_fulfillment.dart';
+import 'package:speedmart_lanka/features/requests/providers/request_provider.dart';
+import 'package:speedmart_lanka/features/requests/data/mock_request_repository.dart';
 import 'package:speedmart_lanka/features/location/services/location_service.dart';
 
 class VendorOrderDetailsScreen extends ConsumerWidget {
   const VendorOrderDetailsScreen({super.key, required this.order});
   final OrderModel order;
+
+  Future<void> _handleMarkCashCollected(
+    BuildContext context,
+    WidgetRef ref,
+    OrderModel order,
+  ) async {
+    // Get payment for this order
+    final payment = await MockPaymentRepository.instance.getPaymentByOrderId(order.id);
+    if (payment == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment record not found'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
+    debugPrint('[CODFlow] vendor mark cash collected start:');
+    debugPrint('[CODFlow] request id: ${order.requestId}');
+    debugPrint('[CODFlow] proposal id: ${order.proposalId}');
+    debugPrint('[CODFlow] payment id: ${payment.id}');
+    debugPrint('[CODFlow] payment before: ${payment.paymentStatus.name}');
+
+    // Update payment status to paid
+    await MockPaymentRepository.instance.updatePaymentStatus(payment.id, PaymentStatus.paid);
+    debugPrint('[CODFlow] payment after: paid');
+
+    // Get the request to update category fulfillment
+    final request = await MockRequestRepository.instance.getRequestById(order.requestId);
+    if (request != null && order.proposalId.isNotEmpty) {
+      // Get proposal to find category
+      final proposal = await ref.read(proposalProvider.notifier).loadProposalById(order.proposalId);
+
+      if (proposal != null && proposal.categoryNormalized != null && proposal.categoryNormalized!.isNotEmpty) {
+        final category = proposal.categoryNormalized!;
+        final currentFulfillment = request.getFulfillment(category);
+
+        debugPrint('[CODFlow] category: $category');
+        debugPrint('[CODFlow] fulfillment before: ${currentFulfillment?.status.name}');
+
+        if (currentFulfillment != null) {
+          final updatedFulfillments = Map<String, RequestCategoryFulfillment>.from(
+            request.categoryFulfillments,
+          );
+
+          // Update to paid and completed
+          updatedFulfillments[category] = currentFulfillment.copyWith(
+            status: RequestCategoryStatus.paid,
+            paidAt: DateTime.now(),
+            completedAt: DateTime.now(),
+          );
+
+          final updatedRequest = request.copyWith(
+            categoryFulfillments: updatedFulfillments,
+            updatedAt: DateTime.now(),
+          );
+
+          await MockRequestRepository.instance.updateRequest(updatedRequest);
+          debugPrint('[CODFlow] fulfillment after: paid');
+          debugPrint('[CODFlow] customer UI should now show paid: true');
+        }
+      }
+    }
+
+    // Update order status to delivered
+    await ref.read(orderProvider.notifier).updateOrderStatus(
+      order.id,
+      OrderStatus.delivered,
+    );
+
+    // Notify customer
+    ref.read(notificationProvider.notifier).triggerNotification(
+      title: 'Payment Received! 💰',
+      body: 'Vendor confirmed cash collection for order ${order.id}.',
+      icon: Icons.paid_rounded,
+      color: AppColors.success,
+    );
+
+    // Reload vendor orders
+    await ref.read(orderProvider.notifier).loadVendorOrders();
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Cash collected and payment confirmed!'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      context.pop();
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -84,6 +184,68 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 24),
+
+                  // COD Order Indicator
+                  if (activeOrder.paymentMethod == PaymentMethod.cashOnDelivery)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: activeOrder.paymentStatus == PaymentStatus.paid
+                            ? AppColors.success.withValues(alpha: 0.1)
+                            : AppColors.warning.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: activeOrder.paymentStatus == PaymentStatus.paid
+                              ? AppColors.success.withValues(alpha: 0.3)
+                              : AppColors.warning.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(
+                                activeOrder.paymentStatus == PaymentStatus.paid
+                                    ? Icons.check_circle_rounded
+                                    : Icons.local_shipping_rounded,
+                                color: activeOrder.paymentStatus == PaymentStatus.paid
+                                    ? AppColors.success
+                                    : AppColors.warning,
+                                size: 24,
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  activeOrder.paymentStatus == PaymentStatus.paid
+                                      ? 'COD Payment Received'
+                                      : 'Cash on Delivery Order',
+                                  style: AppTextStyles.h3(
+                                    activeOrder.paymentStatus == PaymentStatus.paid
+                                        ? AppColors.success
+                                        : AppColors.warning,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            activeOrder.paymentStatus == PaymentStatus.paid
+                                ? 'Cash has been collected from customer'
+                                : 'Collect cash Rs. ${activeOrder.totalPrice.toStringAsFixed(2)} upon delivery',
+                            style: AppTextStyles.bodyMedium(
+                              activeOrder.paymentStatus == PaymentStatus.paid
+                                  ? AppColors.success
+                                  : secondaryText,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  if (activeOrder.paymentMethod == PaymentMethod.cashOnDelivery)
+                    const SizedBox(height: 24),
 
                   // UNLOCKED Customer Details Section (Reveal Privacy Barrier)
                   Container(
@@ -411,16 +573,68 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                 border: Border(top: BorderSide(color: borderColor)),
               ),
               child: SafeArea(
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.vendorColor,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      elevation: 0,
-                    ),
-                    onPressed: () async {
+                child: Column(
+                  children: [
+                    // COD Cash Collection Button
+                    if (activeOrder.paymentMethod == PaymentMethod.cashOnDelivery &&
+                        activeOrder.paymentStatus != PaymentStatus.paid &&
+                        activeOrder.status == OrderStatus.outForDelivery)
+                      Column(
+                        children: [
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.warning.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.local_shipping_rounded, color: AppColors.warning, size: 20),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    'COD Order — Collect cash on delivery',
+                                    style: AppTextStyles.bodyMedium(AppColors.warning).copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 52,
+                            child: ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.success,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                elevation: 0,
+                              ),
+                              icon: const Icon(Icons.paid_rounded, color: Colors.white),
+                              label: Text(
+                                'Mark Cash Collected / Delivered',
+                                style: AppTextStyles.button(Colors.white),
+                              ),
+                              onPressed: () => _handleMarkCashCollected(context, ref, activeOrder),
+                            ),
+                          ),
+                        ],
+                      )
+                    else
+                      SizedBox(
+                        width: double.infinity,
+                        height: 52,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.vendorColor,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            elevation: 0,
+                          ),
+                          onPressed: () async {
                       OrderStatus nextStatus = OrderStatus.preparing;
 
                       if (activeOrder.status == OrderStatus.accepted) {
@@ -500,8 +714,10 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
-              ),
-            )
+              ],
+            ),
+          ),
+        )
         ],
       ),
     );

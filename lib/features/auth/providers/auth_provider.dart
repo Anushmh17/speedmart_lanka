@@ -136,6 +136,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     double? shopLongitude,
     double? shopLocationAccuracyMeters,
     DateTime? shopLocationDetectedAt,
+    String? shopLocationSource,
     String? businessRegistrationNumber,
   }) async {
     debugPrint('[Auth] Register submit started: email=$email, role=$role');
@@ -173,6 +174,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         shopLongitude: shopLongitude,
         shopLocationAccuracyMeters: shopLocationAccuracyMeters,
         shopLocationDetectedAt: shopLocationDetectedAt,
+        shopLocationSource: shopLocationSource,
         businessRegistrationNumber: businessRegistrationNumber,
       );
       debugPrint('[Auth] Register result role: ${result.user.role.name}, email: ${result.user.email}');

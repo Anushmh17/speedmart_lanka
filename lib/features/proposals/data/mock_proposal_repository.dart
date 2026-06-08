@@ -192,6 +192,7 @@ class MockProposalRepository {
       _proposals[index] = _proposals[index].copyWith(
         status: status,
         rejectionReason: rejectionReason,
+        rejectedAt: status == ProposalStatus.rejected ? DateTime.now() : null,
         updatedAt: DateTime.now(),
       );
       await _persistProposals();

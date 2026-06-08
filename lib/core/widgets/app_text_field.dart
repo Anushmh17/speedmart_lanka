@@ -20,6 +20,7 @@ class AppTextField extends StatefulWidget {
     this.minLines,
     this.maxLength,
     this.prefixIcon,
+    this.prefixText,
     this.suffixIcon,
     this.onChanged,
     this.onFieldSubmitted,
@@ -43,6 +44,7 @@ class AppTextField extends StatefulWidget {
   final int? minLines;
   final int? maxLength;
   final IconData? prefixIcon;
+  final String? prefixText;
   final Widget? suffixIcon;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onFieldSubmitted;
@@ -95,6 +97,8 @@ class _AppTextFieldState extends State<AppTextField> {
         labelText: widget.label,
         hintText: widget.hint,
         counterText: '',
+        prefixText: widget.prefixText,
+        prefixStyle: AppTextStyles.bodyLarge(textColor),
         prefixIcon: widget.prefixIcon != null
             ? Icon(
                 widget.prefixIcon,
