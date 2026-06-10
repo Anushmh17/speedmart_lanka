@@ -78,9 +78,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _selectedCategories = List.from(user.requestedCategories?.isNotEmpty == true
           ? user.requestedCategories!
           : user.allowedCategories ?? []);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        ref.read(categoryProvider.notifier).syncAllUsersCategoryKeysWithRepository();
-      });
+      // Removed redundant syncAllUsersCategoryKeysWithRepository call
+      // Category sync now happens only during login and category operations
     }
   }
 

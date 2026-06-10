@@ -5,14 +5,16 @@ import '../../../shared/models/user_model.dart';
 import '../../../shared/models/user_role.dart';
 import '../data/mock_auth_repository.dart';
 import '../domain/auth_state.dart';
+import '../../admin/providers/category_provider.dart';
 
 /// Riverpod [StateNotifier] that drives all authentication logic.
 /// UI listens to [authProvider]; screens call methods on [authNotifier].
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier() : super(const AuthState.initial()) {
+  AuthNotifier(this._ref) : super(const AuthState.initial()) {
     _bootstrap();
   }
 
+  final Ref _ref;
   final _repo = MockAuthRepository.instance;
 
   Future<void> _bootstrap() async {
@@ -37,24 +39,35 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (userJson != null) {
       debugPrint('[CategoryAudit] ===== VENDOR LOGIN RESTORE =====');
       debugPrint('[CategoryAudit] Restoring session from storage');
-      debugPrint('[CategoryAudit] userJson allowed_categories: ${userJson['allowed_categories']}');
-      debugPrint('[CategoryAudit] userJson vendor_categories: ${userJson['vendor_categories']}');
+      debugPrint('[CategoryAudit] userJson allowed_categories (BEFORE): ${userJson['allowed_categories']}');
+      debugPrint('[CategoryAudit] userJson vendor_categories (BEFORE): ${userJson['vendor_categories']}');
+      debugPrint('[CategoryAudit] userJson requested_categories (BEFORE): ${userJson['requested_categories']}');
       
       final user = UserModel.fromJson(userJson);
       
-      debugPrint('[CategoryAudit] UserModel.fromJson result:');
+      debugPrint('[CategoryAudit] UserModel.fromJson result (BEFORE cleanup):');
       debugPrint('[CategoryAudit] user.allowedCategories: ${user.allowedCategories}');
       debugPrint('[CategoryAudit] user.vendorCategories: ${user.vendorCategories}');
-      debugPrint('[CategoryAudit] ===== SESSION RESTORED =====');
+      debugPrint('[CategoryAudit] user.requestedCategories: ${user.requestedCategories}');
       
-      state = AuthState.authenticated(user);
+      // Clean stale category keys automatically on session restore
+      final cleanedUser = await _cleanUserCategoriesOnLogin(user);
+      
+      debugPrint('[CategoryAudit] After automatic cleanup (AFTER):');
+      debugPrint('[CategoryAudit] cleanedUser.allowedCategories: ${cleanedUser.allowedCategories}');
+      debugPrint('[CategoryAudit] cleanedUser.vendorCategories: ${cleanedUser.vendorCategories}');
+      debugPrint('[CategoryAudit] cleanedUser.requestedCategories: ${cleanedUser.requestedCategories}');
+      debugPrint('[CategoryAudit] ===== SESSION RESTORED WITH CLEAN CATEGORIES =====');
+      
+      state = AuthState.authenticated(cleanedUser);
       return;
     }
 
     final user = await _repo.restoreSession(token);
     if (user != null) {
-      await StorageService.saveUser(user.toJson());
-      state = AuthState.authenticated(user);
+      final cleanedUser = await _cleanUserCategoriesOnLogin(user);
+      await StorageService.saveUser(cleanedUser.toJson());
+      state = AuthState.authenticated(cleanedUser);
     } else {
       await StorageService.clearSession();
       state = const AuthState.unauthenticated();
@@ -74,10 +87,21 @@ class AuthNotifier extends StateNotifier<AuthState> {
         password: password,
         role: role,
       );
+      
+      debugPrint('[CategorySync] ===== POST-LOGIN CATEGORY CLEANUP =====');
+      debugPrint('[CategorySync] Login successful for: ${result.user.email}');
+      debugPrint('[CategorySync] BEFORE cleanup: allowedCategories=${result.user.allowedCategories}');
+      
+      // Clean stale category keys automatically on login
+      final cleanedUser = await _cleanUserCategoriesOnLogin(result.user);
+      
+      debugPrint('[CategorySync] AFTER cleanup: allowedCategories=${cleanedUser.allowedCategories}');
+      debugPrint('[CategorySync] ===== CATEGORY CLEANUP COMPLETE =====');
+      
       await StorageService.saveToken(result.token);
-      await StorageService.saveUser(result.user.toJson());
-      await StorageService.saveRole(result.user.role.name);
-      state = AuthState.authenticated(result.user);
+      await StorageService.saveUser(cleanedUser.toJson());
+      await StorageService.saveRole(cleanedUser.role.name);
+      state = AuthState.authenticated(cleanedUser);
     } catch (e) {
       state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
     }
@@ -343,6 +367,92 @@ class AuthNotifier extends StateNotifier<AuthState> {
     debugPrint('[CategoryFix] Persisted requestedCategories: ${updatedVendor.requestedCategories}');
   }
 
+  // ── Category Cleanup Helper ────────────────────────────────────────────────
+  /// Automatically cleans stale category keys from user during login/restore
+  /// Removes invalid keys from allowedCategories, vendorCategories, requestedCategories
+  Future<UserModel> _cleanUserCategoriesOnLogin(UserModel user) async {
+    // Only clean categories for vendor users
+    if (user.role != UserRole.vendor) {
+      return user;
+    }
+    
+    try {
+      // Get valid keys from category repository
+      final categoryNotifier = _ref.read(categoryProvider.notifier);
+      final allCategories = categoryNotifier.getAllCategories();
+      final validKeys = allCategories.map((c) => c.normalizedKey).toSet();
+      
+      debugPrint('[CategoryCleanup] Valid keys in repository: $validKeys');
+      
+      // Clean each category list
+      final cleanedAllowed = _cleanCategoryList(
+        user.allowedCategories,
+        validKeys,
+        'allowedCategories',
+        user.id,
+      );
+      final cleanedVendor = _cleanCategoryList(
+        user.vendorCategories,
+        validKeys,
+        'vendorCategories',
+        user.id,
+      );
+      final cleanedRequested = _cleanCategoryList(
+        user.requestedCategories,
+        validKeys,
+        'requestedCategories',
+        user.id,
+      );
+      
+      // Check if anything changed
+      if (cleanedAllowed != user.allowedCategories ||
+          cleanedVendor != user.vendorCategories ||
+          cleanedRequested != user.requestedCategories) {
+        debugPrint('[CategoryCleanup] Categories cleaned for user ${user.id} during login');
+        
+        final cleanedUser = user.copyWith(
+          allowedCategories: cleanedAllowed,
+          vendorCategories: cleanedVendor,
+          requestedCategories: cleanedRequested,
+          hasPendingCategoryRequest: (cleanedRequested?.isNotEmpty ?? false),
+        );
+        
+        // Persist cleaned user back to repository
+        await _repo.updateUser(cleanedUser);
+        return cleanedUser;
+      }
+      
+      return user;
+    } catch (e) {
+      debugPrint('[CategoryCleanup] Error during login cleanup: $e');
+      return user; // Return original user on error
+    }
+  }
+  
+  /// Helper: Clean a category list by removing invalid keys
+  List<String>? _cleanCategoryList(
+    List<String>? original,
+    Set<String> validKeys,
+    String fieldName,
+    String userId,
+  ) {
+    if (original == null || original.isEmpty) return null;
+    
+    // Normalize and filter
+    final cleaned = original
+        .map((k) => k.toLowerCase().trim())
+        .where((k) => k.isNotEmpty && validKeys.contains(k))
+        .toSet()
+        .toList();
+    
+    final removed = original.length - cleaned.length;
+    if (removed > 0) {
+      debugPrint('[CategoryCleanup] Removed $removed invalid keys from $fieldName for user $userId');
+    }
+    
+    return cleaned.isEmpty ? null : cleaned;
+  }
+
   // ── Clear error ────────────────────────────────────────────────────────────
   void clearError() {
     state = state.copyWith(clearError: true);
@@ -356,7 +466,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
 // ── Providers ─────────────────────────────────────────────────────────────
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>(
-  (ref) => AuthNotifier(),
+  (ref) => AuthNotifier(ref),
 );
 
 /// Convenient shortcut to get current user (nullable)

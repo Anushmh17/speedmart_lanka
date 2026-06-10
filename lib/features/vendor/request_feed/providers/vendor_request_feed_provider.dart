@@ -8,6 +8,7 @@ import '../../../../shared/models/vendor_status.dart';
 import '../models/vendor_feed_enums.dart';
 import '../models/vendor_feed_request.dart';
 import '../services/vendor_request_filter_service.dart';
+import '../../../admin/providers/category_provider.dart';
 
 class VendorRequestFeedState {
   const VendorRequestFeedState({
@@ -92,11 +93,27 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
     debugPrint('[FeedAudit] vendor.vendorApproved: ${user.vendorApproved}');
 
     // *** SOURCE OF TRUTH: allowedCategories (admin-approved) ***
-    final allowedCategories = user.allowedCategories ?? user.vendorCategories ?? [];
-    debugPrint('[CategoryAudit] ===== CATEGORY AUDIT =====');
-    debugPrint('[CategoryAudit] vendor.allowedCategories (admin-approved): ${user.allowedCategories}');
-    debugPrint('[CategoryAudit] vendor.vendorCategories (vendor-submitted): ${user.vendorCategories}');
-    debugPrint('[CategoryAudit] FINAL CATEGORIES USED IN FEED: $allowedCategories');
+    final rawCategories = user.allowedCategories ?? user.vendorCategories ?? [];
+    debugPrint('[CategoryAudit] ===== CATEGORY AUDIT (BEFORE SANITIZATION) =====');
+    debugPrint('[CategoryAudit] vendor.allowedCategories (raw from DB): ${user.allowedCategories}');
+    debugPrint('[CategoryAudit] vendor.vendorCategories (raw from DB): ${user.vendorCategories}');
+    debugPrint('[CategoryAudit] rawCategories BEFORE sanitization: $rawCategories');
+    
+    // Import activeCategoriesProvider to sanitize against repository
+    final activeCategories = ref.read(activeCategoriesProvider);
+    final validKeys = activeCategories.map((c) => c.normalizedKey).toSet();
+    
+    // Sanitize: normalize, deduplicate, and filter to only valid repository keys
+    final sanitizedCategories = rawCategories
+        .map((k) => k.toLowerCase().trim())
+        .where((k) => k.isNotEmpty && validKeys.contains(k))
+        .toSet()
+        .toList();
+    
+    debugPrint('[CategoryAudit] ===== CATEGORY AUDIT (AFTER SANITIZATION) =====');
+    debugPrint('[CategoryAudit] sanitizedCategories AFTER filtering: $sanitizedCategories');
+    debugPrint('[CategoryAudit] Removed invalid keys: ${rawCategories.toSet().difference(sanitizedCategories.toSet())}');
+    debugPrint('[CategoryAudit] FINAL CATEGORIES USED IN FEED: $sanitizedCategories');
 
     final approved = user.vendorStatus == VendorStatus.approved;
     debugPrint('[FeedAudit] Vendor approval check: vendorStatus=${user.vendorStatus}, approved=$approved');
@@ -106,7 +123,7 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
       clearError: true,
       vendorApproved: approved,
       categoryChips: filterService
-          .availableCategoryFilters(allowedCategories)
+          .availableCategoryFilters(sanitizedCategories)
           .toList()
         ..sort(),
       pendingApprovalMessage: approved
@@ -139,7 +156,7 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
     debugPrint('[FeedAudit] vendor.shopLatitude: $vendorLat');
     debugPrint('[FeedAudit] vendor.shopLongitude: $vendorLon');
     debugPrint('[FeedAudit] vendor.assignedRadiusKm: $assignedRadius');
-    debugPrint('[CategoryAudit] SOURCE OF TRUTH for feed: $allowedCategories');
+    debugPrint('[CategoryAudit] SOURCE OF TRUTH for feed: $sanitizedCategories');
 
     try {
       await MockRequestRepository.instance.ensureInitialized();
@@ -162,7 +179,7 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
       final built = filterService.buildFeed(
         allRequests: requests,
         allProposals: proposals,
-        vendorCategories: allowedCategories, // *** PASS ADMIN-APPROVED CATEGORIES ***
+        vendorCategories: sanitizedCategories, // *** PASS SANITIZED CATEGORIES ***
         vendorLatitude: vendorLat,
         vendorLongitude: vendorLon,
         vendorStatus: user.vendorStatus,
