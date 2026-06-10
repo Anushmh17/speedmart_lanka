@@ -31,12 +31,27 @@ class _AdminVendorManagementScreenState
     List<CategoryModel> allCategories, {
     int maxVisible = 3,
   }) {
+    final sanitized = CategorySyncHelper.sanitizeCategoryKeys(categories);
+    // Filter to only valid/existing categories in repository
+    final validKeys = sanitized.where((key) => 
+      CategorySyncHelper.getCategoryByKey(key, allCategories) != null
+    ).toList();
+    
+    // If no valid categories, show nothing
+    if (validKeys.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    
     final displayNames = CategorySyncHelper.getDisplayNames(
-      CategorySyncHelper.sanitizeCategoryKeys(categories),
+      validKeys,
       allCategories,
     );
-    final visible = displayNames.take(maxVisible).toList();
-    final remaining = displayNames.length - maxVisible;
+    
+    // Deduplicate display names
+    final uniqueDisplayNames = <String>{...displayNames}.toList();
+    
+    final visible = uniqueDisplayNames.take(maxVisible).toList();
+    final remaining = uniqueDisplayNames.length - maxVisible;
 
     final chips = visible
         .map(
@@ -285,54 +300,78 @@ class _AdminVendorManagementScreenState
               ),
             ],
           ),
-          if (vendor.assignedRadiusKm != null) ...
-            [
-              const SizedBox(height: 8),
-              Text(
-                'Radius: ${vendor.assignedRadiusKm?.toStringAsFixed(0) ?? '—'}km',
-                style: AppTextStyles.caption(secondaryText),
-              ),
-            ],
+          if (vendor.assignedRadiusKm != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Radius: ${vendor.assignedRadiusKm?.toStringAsFixed(0) ?? '—'}km',
+              style: AppTextStyles.caption(secondaryText),
+            ),
+          ],
           if (vendor.allowedCategories != null &&
-              vendor.allowedCategories!.isNotEmpty) ...
-            [
-              const SizedBox(height: 8),
-              _buildCategoryChipsPreview(vendor.allowedCategories!, allCategories),
-            ]
-          else ...
-            [
-              const SizedBox(height: 8),
-              Text(
-                'No approved categories',
-                style: AppTextStyles.caption(secondaryText),
-              ),
-            ],
+              vendor.allowedCategories!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Builder(
+              builder: (ctx) {
+                final sanitized = CategorySyncHelper.sanitizeCategoryKeys(vendor.allowedCategories);
+                final validKeys = sanitized.where((key) => 
+                  CategorySyncHelper.getCategoryByKey(key, allCategories) != null
+                ).toList();
+                
+                if (validKeys.isEmpty) {
+                  return Text(
+                    'No approved categories',
+                    style: AppTextStyles.caption(secondaryText),
+                  );
+                }
+                
+                return _buildCategoryChipsPreview(vendor.allowedCategories!, allCategories);
+              },
+            ),
+          ] else ...[
+            const SizedBox(height: 8),
+            Text(
+              'No approved categories',
+              style: AppTextStyles.caption(secondaryText),
+            ),
+          ],
           if (vendor.hasPendingCategoryRequest == true &&
               vendor.requestedCategories != null &&
-              vendor.requestedCategories!.isNotEmpty) ...
-            [
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.pending_actions, size: 14, color: Colors.orange),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: _buildCategoryChipsPreview(
-                        vendor.requestedCategories!,
-                        allCategories,
+              vendor.requestedCategories!.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Builder(
+              builder: (ctx) {
+                final sanitized = CategorySyncHelper.sanitizeCategoryKeys(vendor.requestedCategories);
+                final validKeys = sanitized.where((key) => 
+                  CategorySyncHelper.getCategoryByKey(key, allCategories) != null
+                ).toList();
+                
+                if (validKeys.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+                
+                return Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.pending_actions, size: 14, color: Colors.orange),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: _buildCategoryChipsPreview(
+                          vendor.requestedCategories!,
+                          allCategories,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
           const SizedBox(height: 12),
           _buildActionButtons(context, vendor),
         ],
