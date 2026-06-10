@@ -99,9 +99,13 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
     debugPrint('[CategoryAudit] vendor.vendorCategories (raw from DB): ${user.vendorCategories}');
     debugPrint('[CategoryAudit] rawCategories BEFORE sanitization: $rawCategories');
     
-    // Import activeCategoriesProvider to sanitize against repository
-    final activeCategories = ref.read(activeCategoriesProvider);
-    final validKeys = activeCategories.map((c) => c.normalizedKey).toSet();
+    // FORCE load categories before validation
+    final categoryNotifier = ref.read(categoryProvider.notifier);
+    await categoryNotifier.loadCategories();
+    final allCategories = categoryNotifier.getAllCategories();
+    final validKeys = allCategories.map((c) => c.normalizedKey).toSet();
+    
+    debugPrint('[CategoryAudit] Valid keys loaded from repository: $validKeys');
     
     // Sanitize: normalize, deduplicate, and filter to only valid repository keys
     final sanitizedCategories = rawCategories

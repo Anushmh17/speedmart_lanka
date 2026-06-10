@@ -377,12 +377,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
     
     try {
-      // Get valid keys from category repository
+      // FORCE load categories before cleanup validation
       final categoryNotifier = _ref.read(categoryProvider.notifier);
+      await categoryNotifier.loadCategories();
       final allCategories = categoryNotifier.getAllCategories();
       final validKeys = allCategories.map((c) => c.normalizedKey).toSet();
       
       debugPrint('[CategoryCleanup] Valid keys in repository: $validKeys');
+      
+      // If no categories loaded, DO NOT cleanup - return user unchanged
+      if (validKeys.isEmpty) {
+        debugPrint('[CategoryCleanup] WARNING: Category repository empty, skipping cleanup');
+        return user;
+      }
       
       // Clean each category list
       final cleanedAllowed = _cleanCategoryList(
@@ -409,11 +416,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
           cleanedVendor != user.vendorCategories ||
           cleanedRequested != user.requestedCategories) {
         debugPrint('[CategoryCleanup] Categories cleaned for user ${user.id} during login');
+        debugPrint('[CategoryCleanup] user.allowedCategories being saved: $cleanedAllowed');
         
         final cleanedUser = user.copyWith(
-          allowedCategories: cleanedAllowed,
-          vendorCategories: cleanedVendor,
-          requestedCategories: cleanedRequested,
+          allowedCategories: cleanedAllowed ?? [],
+          vendorCategories: cleanedVendor ?? [],
+          requestedCategories: cleanedRequested ?? [],
           hasPendingCategoryRequest: (cleanedRequested?.isNotEmpty ?? false),
         );
         
@@ -438,12 +446,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
   ) {
     if (original == null || original.isEmpty) return null;
     
+    debugPrint('[CategoryCleanup] $fieldName BEFORE cleanup: $original');
+    
     // Normalize and filter
     final cleaned = original
         .map((k) => k.toLowerCase().trim())
         .where((k) => k.isNotEmpty && validKeys.contains(k))
         .toSet()
         .toList();
+    
+    debugPrint('[CategoryCleanup] $fieldName AFTER cleanup: $cleaned');
     
     final removed = original.length - cleaned.length;
     if (removed > 0) {
