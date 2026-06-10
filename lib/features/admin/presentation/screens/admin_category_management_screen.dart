@@ -51,26 +51,26 @@ class _AdminCategoryManagementScreenState
 
               try {
                 await ref.read(categoryProvider.notifier).createCategory(name);
-                if (mounted) {
-                  Navigator.of(ctx).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Category "$name" added'),
-                      backgroundColor: AppColors.success,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
+                if (!mounted) return;
+
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Category "$name" added'),
+                    backgroundColor: AppColors.success,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
               } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(e.toString().replaceAll('Exception: ', '')),
-                      backgroundColor: AppColors.error,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
+                if (!mounted) return;
+
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(e.toString().replaceAll('Exception: ', '')),
+                    backgroundColor: AppColors.error,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
               }
             },
             style: ElevatedButton.styleFrom(
@@ -85,65 +85,85 @@ class _AdminCategoryManagementScreenState
 
   Future<void> _showEditCategoryDialog(String id, String currentName) async {
     final controller = TextEditingController(text: currentName);
+    bool isSaving = false;
     
     return showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit Category'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Category Name',
-          ),
-          textCapitalization: TextCapitalization.words,
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final name = controller.text.trim();
-              if (name.isEmpty || name == currentName) {
-                Navigator.of(ctx).pop();
-                return;
-              }
-
-              try {
-                await ref.read(categoryProvider.notifier).updateCategory(
-                  id,
-                  displayName: name,
-                );
-                if (mounted) {
-                  Navigator.of(ctx).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Category updated to "$name"'),
-                      backgroundColor: AppColors.success,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(e.toString().replaceAll('Exception: ', '')),
-                      backgroundColor: AppColors.error,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.adminColor,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Edit Category'),
+          content: TextField(
+            controller: controller,
+            enabled: !isSaving,
+            decoration: const InputDecoration(
+              labelText: 'Category Name',
             ),
-            child: const Text('Save'),
+            textCapitalization: TextCapitalization.words,
+            autofocus: true,
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: isSaving ? null : () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: isSaving
+                  ? null
+                  : () async {
+                      final name = controller.text.trim();
+                      if (name.isEmpty || name == currentName) {
+                        Navigator.of(ctx).pop();
+                        return;
+                      }
+
+                      setDialogState(() => isSaving = true);
+
+                      try {
+                        await ref.read(categoryProvider.notifier).updateCategory(
+                          id,
+                          displayName: name,
+                        );
+
+                        if (!mounted) return;
+
+                        Navigator.of(context).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Category updated to "$name"'),
+                            backgroundColor: AppColors.success,
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      } catch (e) {
+                        if (!mounted) return;
+
+                        setDialogState(() => isSaving = false);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(e.toString().replaceAll('Exception: ', '')),
+                            backgroundColor: AppColors.error,
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.adminColor,
+              ),
+              child: isSaving
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : const Text('Save'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -162,47 +182,67 @@ class _AdminCategoryManagementScreenState
 
     return showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Category'),
-        content: Text('Are you sure you want to delete "$name"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                await ref.read(categoryProvider.notifier).deleteCategory(id);
-                if (mounted) {
-                  Navigator.of(ctx).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Category "$name" deleted'),
-                      backgroundColor: AppColors.success,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  Navigator.of(ctx).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(e.toString().replaceAll('Exception: ', '')),
-                      backgroundColor: AppColors.error,
-                      behavior: SnackBarBehavior.floating,
-                    ),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          bool isDeleting = false;
+
+          return AlertDialog(
+            title: const Text('Delete Category'),
+            content: Text('Are you sure you want to delete "$name"?'),
+            actions: [
+              TextButton(
+                onPressed: isDeleting ? null : () => Navigator.of(ctx).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: isDeleting
+                    ? null
+                    : () async {
+                        setDialogState(() => isDeleting = true);
+
+                        try {
+                          await ref.read(categoryProvider.notifier).deleteCategory(id);
+                          if (!mounted) return;
+
+                          Navigator.of(context).pop();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Category "$name" deleted'),
+                              backgroundColor: AppColors.success,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        } catch (e) {
+                          if (!mounted) return;
+
+                          setDialogState(() => isDeleting = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(e.toString().replaceAll('Exception: ', '')),
+                              backgroundColor: AppColors.error,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.error,
+                ),
+                child: isDeleting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : const Text('Delete'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

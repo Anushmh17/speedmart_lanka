@@ -104,8 +104,11 @@ class CategoryNotifier extends StateNotifier<CategoryState> {
         await _syncVendorCategoriesAfterDisable(oldNormalizedKey);
       }
 
-      // Master sync after any category update
+      // Master sync after any category update - runs only once after successful save
       await syncAllUsersCategoryKeysWithRepository();
+      
+      // Clear loading state only after complete sync
+      state = state.copyWith(isLoading: false, clearError: true);
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
@@ -127,10 +130,13 @@ class CategoryNotifier extends StateNotifier<CategoryState> {
       debugPrint('[CategorySync] Category deleted: $normalizedKeyToDelete');
       await _syncVendorCategoriesAfterDelete(normalizedKeyToDelete);
 
-      // Master sync after delete
+      // Master sync after delete - runs only once after successful deletion
       await syncAllUsersCategoryKeysWithRepository();
 
       await loadCategories();
+      
+      // Clear loading state only after complete sync
+      state = state.copyWith(isLoading: false, clearError: true);
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
