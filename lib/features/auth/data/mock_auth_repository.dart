@@ -615,4 +615,39 @@ class MockAuthRepository {
     debugPrint('[CategoryAudit] ===== REPOSITORY UPDATE COMPLETE =====');
     return user;
   }
+
+  /// Batch update users with a single storage persist operation
+  /// Optimized for category sync: update only affected users and persist once
+  Future<void> batchUpdateUsers(List<UserModel> users) async {
+    await ensureInitialized();
+    
+    if (users.isEmpty) {
+      debugPrint('[CategorySync] Batch update: 0 users, skipping');
+      return;
+    }
+    
+    debugPrint('[CategorySync] ===== BATCH UPDATE START =====');
+    debugPrint('[CategorySync] Updating ${users.length} users in single batch');
+    
+    try {
+      // Update all users in memory
+      for (final user in users) {
+        final index = _sessionUsers.indexWhere((u) => u.id == user.id);
+        if (index != -1) {
+          _sessionUsers[index] = user;
+          debugPrint('[CategorySync] Updated user ${user.id} in memory');
+        } else {
+          _sessionUsers.add(user);
+          debugPrint('[CategorySync] Added new user ${user.id} in memory');
+        }
+      }
+      
+      // Persist all users only once after batch update completes
+      await _persistUsers();
+      debugPrint('[CategorySync] ===== BATCH UPDATE COMPLETE: ${users.length} users persisted =====');
+    } catch (e) {
+      debugPrint('[CategorySync] ERROR in batch update: $e');
+      rethrow;
+    }
+  }
 }

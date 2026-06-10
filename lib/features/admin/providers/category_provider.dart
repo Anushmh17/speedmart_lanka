@@ -154,7 +154,35 @@ class CategoryNotifier extends StateNotifier<CategoryState> {
       await _authRepository.ensureInitialized();
       final allUsers = await _authRepository.getAllUsers();
 
-      for (final user in allUsers) {
+      final affectedUsers = <String>{}; // Track which users are affected
+      final usersToUpdate = <int>[]; // Track indices of users to update
+
+      // First pass: identify affected users
+      for (int i = 0; i < allUsers.length; i++) {
+        final user = allUsers[i];
+        bool isAffected = false;
+
+        // Check if user has the old key in any category list
+        if ((user.allowedCategories?.contains(oldKey) ?? false) ||
+            (user.vendorCategories?.contains(oldKey) ?? false) ||
+            (user.requestedCategories?.contains(oldKey) ?? false)) {
+          isAffected = true;
+          affectedUsers.add(user.id);
+          usersToUpdate.add(i);
+        }
+      }
+
+      if (usersToUpdate.isEmpty) {
+        debugPrint('[CategorySync] No vendors affected by edit');
+        return;
+      }
+
+      debugPrint('[CategorySync] ${affectedUsers.length} affected users found');
+
+      // Second pass: update affected users in memory
+      final updatedUsers = <int, dynamic>{};
+      for (final i in usersToUpdate) {
+        final user = allUsers[i];
         bool needsUpdate = false;
 
         List<String>? updatedAllowed = user.allowedCategories?.map((key) {
@@ -188,15 +216,20 @@ class CategoryNotifier extends StateNotifier<CategoryState> {
         }).toList();
 
         if (needsUpdate) {
-          final syncedUser = user.copyWith(
+          updatedUsers[i] = user.copyWith(
             allowedCategories: updatedAllowed,
             vendorCategories: updatedVendor,
             requestedCategories: updatedRequested,
           );
-          await _authRepository.updateUser(syncedUser);
-          debugPrint(
-              '[CategorySync] Synced user ${user.id} after category edit');
         }
+      }
+
+      // Batch update all affected users at once
+      final batchUsers = updatedUsers.values.cast<dynamic>().toList();
+      if (batchUsers.isNotEmpty) {
+        await _authRepository.batchUpdateUsers(batchUsers.cast<dynamic>().toList());
+        debugPrint(
+            '[CategorySync] Batch updated ${batchUsers.length} users after category edit');
       }
     } catch (e) {
       debugPrint('[CategorySync] ERROR syncing after edit: $e');
@@ -285,7 +318,7 @@ class CategoryNotifier extends StateNotifier<CategoryState> {
 
   /// Master sync: Clean all user category keys against current repository
   /// Removes deleted/unknown keys, migrates edited keys, deduplicates
-  /// Called after any category edit/delete/disable ONLY
+  /// Uses batch updates for efficiency - only affected users persisted once
   Future<void> syncAllUsersCategoryKeysWithRepository() async {
     debugPrint('[CategorySync] ===== MASTER SYNC START =====');
     try {
@@ -301,7 +334,7 @@ class CategoryNotifier extends StateNotifier<CategoryState> {
       debugPrint('[CategorySync] Active keys in repo: ${activeKeys.length}');
 
       final allUsers = await _authRepository.getAllUsers();
-      int usersSynced = 0;
+      final usersToUpdate = <dynamic>[]; // Collect only affected users
 
       for (final user in allUsers) {
         bool needsUpdate = false;
@@ -354,13 +387,18 @@ class CategoryNotifier extends StateNotifier<CategoryState> {
             requestedCategories: cleanedRequested,
             hasPendingCategoryRequest: newHasPending,
           );
-          await _authRepository.updateUser(syncedUser);
-          usersSynced++;
-          debugPrint('[CategorySync] Synced user ${user.id}');
+          usersToUpdate.add(syncedUser);
+          debugPrint('[CategorySync] Queued user ${user.id} for update');
         }
       }
 
-      debugPrint('[CategorySync] ===== MASTER SYNC COMPLETE: $usersSynced users updated =====');
+      // Batch update only affected users - single storage persist
+      if (usersToUpdate.isNotEmpty) {
+        await _authRepository.batchUpdateUsers(usersToUpdate.cast<dynamic>().toList());
+        debugPrint('[CategorySync] ===== MASTER SYNC COMPLETE: ${usersToUpdate.length} users updated in batch =====');
+      } else {
+        debugPrint('[CategorySync] ===== MASTER SYNC COMPLETE: No users needed updating =====');
+      }
     } catch (e) {
       debugPrint('[CategorySync] ERROR in master sync: $e');
       rethrow;
@@ -410,7 +448,33 @@ class CategoryNotifier extends StateNotifier<CategoryState> {
       await _authRepository.ensureInitialized();
       final allUsers = await _authRepository.getAllUsers();
 
+      final affectedUsers = <String>{}; // Track which users are affected
+      final usersToUpdate = <dynamic>[];
+
+      // First pass: identify affected users
       for (final user in allUsers) {
+        bool isAffected = false;
+
+        // Check if user has the deleted key in any category list
+        if ((user.allowedCategories?.contains(deletedKey) ?? false) ||
+            (user.vendorCategories?.contains(deletedKey) ?? false) ||
+            (user.requestedCategories?.contains(deletedKey) ?? false)) {
+          isAffected = true;
+          affectedUsers.add(user.id);
+        }
+      }
+
+      if (affectedUsers.isEmpty) {
+        debugPrint('[CategorySync] No vendors affected by delete');
+        return;
+      }
+
+      debugPrint('[CategorySync] ${affectedUsers.length} affected users found');
+
+      // Second pass: update affected users
+      for (final user in allUsers) {
+        if (!affectedUsers.contains(user.id)) continue;
+
         bool needsUpdate = false;
 
         final updatedAllowed = user.allowedCategories
@@ -460,10 +524,15 @@ class CategoryNotifier extends StateNotifier<CategoryState> {
             hasPendingCategoryRequest:
                 (updatedRequested?.isNotEmpty ?? false) ? true : false,
           );
-          await _authRepository.updateUser(syncedUser);
-          debugPrint(
-              '[CategorySync] Synced user ${user.id} after category deletion');
+          usersToUpdate.add(syncedUser);
         }
+      }
+
+      // Batch update all affected users at once
+      if (usersToUpdate.isNotEmpty) {
+        await _authRepository.batchUpdateUsers(usersToUpdate.cast<dynamic>().toList());
+        debugPrint(
+            '[CategorySync] Batch updated ${usersToUpdate.length} users after category delete');
       }
     } catch (e) {
       debugPrint('[CategorySync] ERROR syncing after delete: $e');
