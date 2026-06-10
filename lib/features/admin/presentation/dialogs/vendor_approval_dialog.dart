@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/models/user_model.dart';
+import '../../../../shared/utils/category_sync_helper.dart';
 import '../../providers/admin_provider.dart';
+import '../../providers/category_provider.dart';
 
 class VendorApprovalDialog extends ConsumerStatefulWidget {
   const VendorApprovalDialog({
@@ -75,18 +77,39 @@ class _VendorApprovalDialogState extends ConsumerState<VendorApprovalDialog> {
                   if (widget.vendor.vendorCategories != null &&
                       widget.vendor.vendorCategories!.isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      children: widget.vendor.vendorCategories!
-                          .take(3)
-                          .map((cat) => Chip(
-                                label: Text(cat),
-                                labelStyle: const TextStyle(fontSize: 10),
-                                padding: EdgeInsets.zero,
-                                backgroundColor:
-                                    AppColors.success.withOpacity(0.15),
-                              ))
-                          .toList(),
+                    Consumer(
+                      builder: (context, ref, _) {
+                        final allCategories = ref.watch(activeCategoriesProvider);
+                        final sanitized = CategorySyncHelper.sanitizeCategoryKeys(
+                          widget.vendor.vendorCategories ?? []
+                        );
+                        final validKeys = sanitized.where((key) => 
+                          CategorySyncHelper.getCategoryByKey(key, allCategories) != null
+                        ).toList();
+                        
+                        if (validKeys.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+                        
+                        final displayNames = CategorySyncHelper.getDisplayNames(
+                          validKeys,
+                          allCategories,
+                        );
+                        
+                        return Wrap(
+                          spacing: 6,
+                          children: displayNames
+                              .take(3)
+                              .map((cat) => Chip(
+                                    label: Text(cat),
+                                    labelStyle: const TextStyle(fontSize: 10),
+                                    padding: EdgeInsets.zero,
+                                    backgroundColor:
+                                        AppColors.success.withOpacity(0.15),
+                                  ))
+                              .toList(),
+                        );
+                      },
                     ),
                   ],
                 ],
