@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/mock_category_repository.dart';
 import '../models/category_model.dart';
 import '../../auth/data/mock_auth_repository.dart';
+import '../../../shared/models/user_model.dart';
 
 class CategoryState {
   final List<CategoryModel> categories;
@@ -225,9 +226,9 @@ class CategoryNotifier extends StateNotifier<CategoryState> {
       }
 
       // Batch update all affected users at once
-      final batchUsers = updatedUsers.values.cast<dynamic>().toList();
+      final batchUsers = updatedUsers.values.toList().cast<UserModel>();
       if (batchUsers.isNotEmpty) {
-        await _authRepository.batchUpdateUsers(batchUsers.cast<dynamic>().toList());
+        await _authRepository.batchUpdateUsers(batchUsers);
         debugPrint(
             '[CategorySync] Batch updated ${batchUsers.length} users after category edit');
       }
@@ -394,7 +395,7 @@ class CategoryNotifier extends StateNotifier<CategoryState> {
 
       // Batch update only affected users - single storage persist
       if (usersToUpdate.isNotEmpty) {
-        await _authRepository.batchUpdateUsers(usersToUpdate.cast<dynamic>().toList());
+        await _authRepository.batchUpdateUsers(usersToUpdate.cast<UserModel>());
         debugPrint('[CategorySync] ===== MASTER SYNC COMPLETE: ${usersToUpdate.length} users updated in batch =====');
       } else {
         debugPrint('[CategorySync] ===== MASTER SYNC COMPLETE: No users needed updating =====');
@@ -530,7 +531,7 @@ class CategoryNotifier extends StateNotifier<CategoryState> {
 
       // Batch update all affected users at once
       if (usersToUpdate.isNotEmpty) {
-        await _authRepository.batchUpdateUsers(usersToUpdate.cast<dynamic>().toList());
+        await _authRepository.batchUpdateUsers(usersToUpdate.cast<UserModel>());
         debugPrint(
             '[CategorySync] Batch updated ${usersToUpdate.length} users after category delete');
       }
