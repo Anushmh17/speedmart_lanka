@@ -64,6 +64,8 @@ class _AdminVendorAssignmentScreenState
 
   Future<void> _loadLatestVendorData() async {
     try {
+      // Clean only this vendor's categories locally - do not run global sync
+      await ref.read(categoryProvider.notifier).cleanSingleUserCategoryKeysWithRepository(widget.vendor.id);
       final authNotifier = ref.read(authProvider.notifier);
       final latestVendor = await authNotifier.getUserById(widget.vendor.id);
       
@@ -177,6 +179,8 @@ class _AdminVendorAssignmentScreenState
 
     try {
       final authNotifier = ref.read(authProvider.notifier);
+      // Sanitize selected categories using current repository keys
+      final sanitized = CategorySyncHelper.sanitizeCategoryKeys(_selectedCategories);
       await authNotifier.updateVendorShopAssignment(
         vendorId: widget.vendor.id,
         shopName: _shopNameCtrl.text.trim(),
@@ -185,7 +189,7 @@ class _AdminVendorAssignmentScreenState
         shopLongitude: double.parse(_longitudeCtrl.text.trim()),
         assignedRadiusKm: double.parse(_radiusCtrl.text.trim()),
         vendorApproved: _isApproved,
-        allowedCategories: CategorySyncHelper.sanitizeCategoryKeys(_selectedCategories),
+        allowedCategories: sanitized,
         requestedCategories: [],
         hasPendingCategoryRequest: false,
       );
@@ -283,49 +287,48 @@ class _AdminVendorAssignmentScreenState
                     ),
                     const SizedBox(height: 20),
 
-                    if (widget.vendor.shopLocationDetectedAt != null) ...
-                      [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AppColors.customerColor.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: AppColors.customerColor.withValues(alpha: 0.2),
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Vendor-Submitted Location',
-                                style: AppTextStyles.labelLarge(primaryText),
-                              ),
-                              const SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  const Icon(Icons.info_outline_rounded, size: 16),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      widget.vendor.shopLocationAccuracyMeters != null
-                                          ? '📍 GPS Detected (±${widget.vendor.shopLocationAccuracyMeters!.toStringAsFixed(0)}m accuracy)'
-                                          : '✍️ Manual Entry',
-                                      style: AppTextStyles.bodySmall(secondaryText),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Submitted: ${widget.vendor.shopLocationDetectedAt?.toString().split('.')[0] ?? 'N/A'}',
-                                style: AppTextStyles.caption(secondaryText),
-                              ),
-                            ],
+                    if (widget.vendor.shopLocationDetectedAt != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.customerColor.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: AppColors.customerColor.withValues(alpha: 0.2),
                           ),
                         ),
-                        const SizedBox(height: 20),
-                      ],
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Vendor-Submitted Location',
+                              style: AppTextStyles.labelLarge(primaryText),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                const Icon(Icons.info_outline_rounded, size: 16),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    widget.vendor.shopLocationAccuracyMeters != null
+                                        ? '📍 GPS Detected (±${widget.vendor.shopLocationAccuracyMeters!.toStringAsFixed(0)}m accuracy)'
+                                        : '✍️ Manual Entry',
+                                    style: AppTextStyles.bodySmall(secondaryText),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'Submitted: ${widget.vendor.shopLocationDetectedAt?.toString().split('.')[0] ?? 'N/A'}',
+                              style: AppTextStyles.caption(secondaryText),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
 
                     AdminVendorLocationPreview(
                       latitude: widget.vendor.shopLatitude,
@@ -451,61 +454,69 @@ class _AdminVendorAssignmentScreenState
                     ),
                     const SizedBox(height: 20),
 
-                    if (_latestVendor?.vendorCategories != null && _latestVendor.vendorCategories!.isNotEmpty) ...
-                      [
-                        Text(
-                          'Vendor Submitted Categories',
-                          style: AppTextStyles.h3(primaryText),
+                    if (_latestVendor?.vendorCategories != null && _latestVendor.vendorCategories!.isNotEmpty) ...[
+                      Text(
+                        'Vendor Submitted Categories',
+                        style: AppTextStyles.h3(primaryText),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.blue.withOpacity(0.3)),
                         ),
-                        const SizedBox(height: 12),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.blue.withOpacity(0.3)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(Icons.app_registration, color: Colors.blue, size: 16),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    'Selected during registration',
-                                    style: AppTextStyles.caption(Colors.blue),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Consumer(
-                                builder: (context, ref, _) {
-                                  final allCategories = ref.watch(activeCategoriesProvider);
-                                  final displayNames = CategorySyncHelper.getDisplayNames(
-                                    CategorySyncHelper.sanitizeCategoryKeys(_latestVendor.vendorCategories),
-                                    allCategories,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.app_registration, color: Colors.blue, size: 16),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Selected during registration',
+                                  style: AppTextStyles.caption(Colors.blue),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Consumer(
+                              builder: (context, ref, _) {
+                                final allCategories = ref.watch(activeCategoriesProvider);
+                                final sanitized = CategorySyncHelper.sanitizeCategoryKeys(_latestVendor.vendorCategories);
+                                final validKeys = sanitized.where((key) => 
+                                  CategorySyncHelper.getCategoryByKey(key, allCategories) != null
+                                ).toList();
+                                final displayNames = CategorySyncHelper.getDisplayNames(validKeys, allCategories);
+                                
+                                if (validKeys.isEmpty) {
+                                  return Text(
+                                    'No categories found',
+                                    style: AppTextStyles.caption(secondaryText),
                                   );
-                                  return Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: displayNames.map((displayCat) => Chip(
-                                      label: Text(displayCat),
-                                      backgroundColor: Colors.blue.withOpacity(0.15),
-                                      labelStyle: TextStyle(
-                                        color: Colors.blue,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 12,
-                                      ),
-                                    )).toList(),
-                                  );
-                                },
-                              ),
-                            ],
-                          ),
+                                }
+                                
+                                return Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: displayNames.map((displayCat) => Chip(
+                                    label: Text(displayCat),
+                                    backgroundColor: Colors.blue.withOpacity(0.15),
+                                    labelStyle: TextStyle(
+                                      color: Colors.blue,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12,
+                                    ),
+                                  )).toList(),
+                                );
+                              },
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 20),
-                      ],
+                      ),
+                      const SizedBox(height: 20),
+                    ],
 
                     Text(
                       'Current Approved Categories',
@@ -523,10 +534,19 @@ class _AdminVendorAssignmentScreenState
                           ? Consumer(
                               builder: (context, ref, _) {
                                 final allCategories = ref.watch(activeCategoriesProvider);
-                                final displayNames = CategorySyncHelper.getDisplayNames(
-                                  _latestVendor.allowedCategories ?? [],
-                                  allCategories,
-                                );
+                                final sanitized = CategorySyncHelper.sanitizeCategoryKeys(_latestVendor.allowedCategories);
+                                final validKeys = sanitized.where((key) => 
+                                  CategorySyncHelper.getCategoryByKey(key, allCategories) != null
+                                ).toList();
+                                final displayNames = CategorySyncHelper.getDisplayNames(validKeys, allCategories);
+                                
+                                if (validKeys.isEmpty) {
+                                  return Text(
+                                    'No approved categories',
+                                    style: AppTextStyles.bodySmall(secondaryText),
+                                  );
+                                }
+                                
                                 return Wrap(
                                   spacing: 8,
                                   runSpacing: 8,
@@ -556,106 +576,112 @@ class _AdminVendorAssignmentScreenState
                     const SizedBox(height: 12),
                     if (_latestVendor?.hasPendingCategoryRequest == true &&
                         _latestVendor?.requestedCategories != null &&
-                        _latestVendor.requestedCategories!.isNotEmpty) ...
-                      [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: Colors.orange.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.orange.withOpacity(0.3)),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    decoration: BoxDecoration(
-                                      color: Colors.orange,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Text(
-                                      'Pending Category Request',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
+                        _latestVendor.requestedCategories!.isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange,
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              Consumer(
-                                builder: (context, ref, _) {
-                                  final allCategories = ref.watch(activeCategoriesProvider);
-                                  final displayNames = CategorySyncHelper.getDisplayNames(
-                                    CategorySyncHelper.sanitizeCategoryKeys(_latestVendor.requestedCategories),
-                                    allCategories,
-                                  );
-                                  return Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: displayNames.map((displayCat) => Chip(
-                                      label: Text(displayCat),
-                                      backgroundColor: Colors.orange.withOpacity(0.15),
-                                      labelStyle: TextStyle(
-                                        color: Colors.orange,
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 12,
-                                      ),
-                                    )).toList(),
-                                  );
-                                },
-                              ),
-                              const SizedBox(height: 12),
-                              SizedBox(
-                                width: double.infinity,
-                                child: OutlinedButton.icon(
-                                  onPressed: () {
-                                    setState(() {
-                                      final merged = CategorySyncHelper.sanitizeCategoryKeys([
-                                        ..._selectedCategories,
-                                        ..._latestVendor.requestedCategories!,
-                                      ]);
-                                      _selectedCategories = merged;
-                                    });
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Requested categories added to selector'),
-                                        backgroundColor: Colors.orange,
-                                        behavior: SnackBarBehavior.floating,
-                                      ),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.add_circle_outline),
-                                  label: const Text('Add Requested Categories'),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.orange,
-                                    side: const BorderSide(color: Colors.orange),
+                                  child: Text(
+                                    'Pending Category Request',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            Consumer(
+                              builder: (context, ref, _) {
+                                final allCategories = ref.watch(activeCategoriesProvider);
+                                final sanitized = CategorySyncHelper.sanitizeCategoryKeys(_latestVendor.requestedCategories);
+                                final validKeys = sanitized.where((key) => 
+                                  CategorySyncHelper.getCategoryByKey(key, allCategories) != null
+                                ).toList();
+                                final displayNames = CategorySyncHelper.getDisplayNames(validKeys, allCategories);
+                                
+                                if (validKeys.isEmpty) {
+                                  return Text(
+                                    'No categories found',
+                                    style: AppTextStyles.caption(secondaryText),
+                                  );
+                                }
+                                
+                                return Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: displayNames.map((displayCat) => Chip(
+                                    label: Text(displayCat),
+                                    backgroundColor: Colors.orange.withOpacity(0.15),
+                                    labelStyle: TextStyle(
+                                      color: Colors.orange,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12,
+                                    ),
+                                  )).toList(),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              child: OutlinedButton.icon(
+                                onPressed: () {
+                                  setState(() {
+                                    final merged = CategorySyncHelper.sanitizeCategoryKeys([
+                                      ..._selectedCategories,
+                                      ..._latestVendor.requestedCategories!,
+                                    ]);
+                                    _selectedCategories = merged;
+                                  });
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Requested categories added to selector'),
+                                      backgroundColor: Colors.orange,
+                                      behavior: SnackBarBehavior.floating,
+                                    ),
+                                  );
+                                },
+                                icon: const Icon(Icons.add_circle_outline),
+                                label: const Text('Add Requested Categories'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.orange,
+                                  side: const BorderSide(color: Colors.orange),
+                                ),
                               ),
-                            ],
-                          ),
+                            ),
+                          ],
                         ),
-                      ]
-                    else ...
-                      [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Text(
-                            'No pending category request',
-                            style: AppTextStyles.bodySmall(secondaryText),
-                          ),
+                      ),
+                    ] else ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      ],
+                        child: Text(
+                          'No pending category request',
+                          style: AppTextStyles.bodySmall(secondaryText),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 20),
 
                     Row(

@@ -103,6 +103,9 @@ class CategoryNotifier extends StateNotifier<CategoryState> {
         debugPrint('[CategorySync] Category disabled: $oldNormalizedKey');
         await _syncVendorCategoriesAfterDisable(oldNormalizedKey);
       }
+
+      // Master sync after any category update
+      await syncAllUsersCategoryKeysWithRepository();
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
@@ -123,6 +126,9 @@ class CategoryNotifier extends StateNotifier<CategoryState> {
 
       debugPrint('[CategorySync] Category deleted: $normalizedKeyToDelete');
       await _syncVendorCategoriesAfterDelete(normalizedKeyToDelete);
+
+      // Master sync after delete
+      await syncAllUsersCategoryKeysWithRepository();
 
       await loadCategories();
     } catch (e) {
@@ -194,10 +200,203 @@ class CategoryNotifier extends StateNotifier<CategoryState> {
   Future<void> _syncVendorCategoriesAfterDisable(String disabledKey) async {
     try {
       debugPrint(
-          '[CategorySync] Disabled category $disabledKey - no vendor list changes needed');
+          '[CategorySync] Disabled category $disabledKey - cleaning up from vendor displays');
+      // Disabled categories should not be removed from DB, just filtered on display/selector
     } catch (e) {
       debugPrint('[CategorySync] ERROR processing disable: $e');
     }
+  }
+
+  /// Targeted sync: Clean single user's category keys against current repository
+  /// Removes deleted/unknown keys, deduplicates
+  /// Used when opening Assign Store or similar single-vendor screens
+  Future<void> cleanSingleUserCategoryKeysWithRepository(String userId) async {
+    debugPrint('[CategorySync] Cleaning categories for user: $userId');
+    try {
+      await _authRepository.ensureInitialized();
+      final user = await _authRepository.getUserById(userId);
+      if (user == null) {
+        debugPrint('[CategorySync] User not found: $userId');
+        return;
+      }
+
+      final validKeys = state.categories.map((c) => c.normalizedKey).toSet();
+      bool needsUpdate = false;
+
+      // Clean allowedCategories
+      final cleanedAllowed = _cleanCategoryList(
+        user.allowedCategories,
+        validKeys,
+        'allowedCategories',
+        userId,
+      );
+      if (cleanedAllowed != user.allowedCategories) {
+        needsUpdate = true;
+      }
+
+      // Clean vendorCategories
+      final cleanedVendor = _cleanCategoryList(
+        user.vendorCategories,
+        validKeys,
+        'vendorCategories',
+        userId,
+      );
+      if (cleanedVendor != user.vendorCategories) {
+        needsUpdate = true;
+      }
+
+      // Clean requestedCategories
+      final cleanedRequested = _cleanCategoryList(
+        user.requestedCategories,
+        validKeys,
+        'requestedCategories',
+        userId,
+      );
+      if (cleanedRequested != user.requestedCategories) {
+        needsUpdate = true;
+      }
+
+      // Update hasPendingCategoryRequest flag
+      final newHasPending = (cleanedRequested?.isNotEmpty ?? false);
+      if (newHasPending != (user.hasPendingCategoryRequest ?? false)) {
+        needsUpdate = true;
+      }
+
+      if (needsUpdate) {
+        final syncedUser = user.copyWith(
+          allowedCategories: cleanedAllowed,
+          vendorCategories: cleanedVendor,
+          requestedCategories: cleanedRequested,
+          hasPendingCategoryRequest: newHasPending,
+        );
+        await _authRepository.updateUser(syncedUser);
+        debugPrint('[CategorySync] Cleaned user $userId');
+      }
+    } catch (e) {
+      debugPrint('[CategorySync] ERROR cleaning user $userId: $e');
+    }
+  }
+
+  /// Master sync: Clean all user category keys against current repository
+  /// Removes deleted/unknown keys, migrates edited keys, deduplicates
+  /// Called after any category edit/delete/disable ONLY
+  Future<void> syncAllUsersCategoryKeysWithRepository() async {
+    debugPrint('[CategorySync] ===== MASTER SYNC START =====');
+    try {
+      await _authRepository.ensureInitialized();
+      final allCategories = state.categories;
+      final validKeys = allCategories.map((c) => c.normalizedKey).toSet();
+      final activeKeys = allCategories
+          .where((c) => c.isActive)
+          .map((c) => c.normalizedKey)
+          .toSet();
+
+      debugPrint('[CategorySync] Valid keys in repo: ${validKeys.length}');
+      debugPrint('[CategorySync] Active keys in repo: ${activeKeys.length}');
+
+      final allUsers = await _authRepository.getAllUsers();
+      int usersSynced = 0;
+
+      for (final user in allUsers) {
+        bool needsUpdate = false;
+
+        // Clean allowedCategories
+        final cleanedAllowed = _cleanCategoryList(
+          user.allowedCategories,
+          validKeys,
+          'allowedCategories',
+          user.id,
+        );
+        if (cleanedAllowed != user.allowedCategories) {
+          needsUpdate = true;
+        }
+
+        // Clean vendorCategories
+        final cleanedVendor = _cleanCategoryList(
+          user.vendorCategories,
+          validKeys,
+          'vendorCategories',
+          user.id,
+        );
+        if (cleanedVendor != user.vendorCategories) {
+          needsUpdate = true;
+        }
+
+        // Clean requestedCategories
+        final cleanedRequested = _cleanCategoryList(
+          user.requestedCategories,
+          validKeys,
+          'requestedCategories',
+          user.id,
+        );
+        if (cleanedRequested != user.requestedCategories) {
+          needsUpdate = true;
+        }
+
+        // Update hasPendingCategoryRequest flag
+        final newHasPending = (cleanedRequested?.isNotEmpty ?? false);
+        if (newHasPending != (user.hasPendingCategoryRequest ?? false)) {
+          debugPrint(
+              '[CategorySync] Updated hasPendingCategoryRequest for ${user.id}: ${user.hasPendingCategoryRequest} → $newHasPending');
+          needsUpdate = true;
+        }
+
+        if (needsUpdate) {
+          final syncedUser = user.copyWith(
+            allowedCategories: cleanedAllowed,
+            vendorCategories: cleanedVendor,
+            requestedCategories: cleanedRequested,
+            hasPendingCategoryRequest: newHasPending,
+          );
+          await _authRepository.updateUser(syncedUser);
+          usersSynced++;
+          debugPrint('[CategorySync] Synced user ${user.id}');
+        }
+      }
+
+      debugPrint('[CategorySync] ===== MASTER SYNC COMPLETE: $usersSynced users updated =====');
+    } catch (e) {
+      debugPrint('[CategorySync] ERROR in master sync: $e');
+      rethrow;
+    }
+  }
+
+  /// Helper: Clean a category list by removing deleted/unknown keys and deduplicating
+  /// Normalizes keys, removes invalid keys, removes duplicates, returns null if empty
+  List<String>? _cleanCategoryList(
+    List<String>? original,
+    Set<String> validKeys,
+    String fieldName,
+    String userId,
+  ) {
+    if (original == null || original.isEmpty) return null;
+
+    // Normalize all keys
+    final normalized = original.map((k) => k.toLowerCase().trim()).toList();
+    
+    // Filter to only valid keys and deduplicate
+    final cleaned = <String>{};
+    int removedCount = 0;
+    
+    for (final key in normalized) {
+      if (validKeys.contains(key)) {
+        cleaned.add(key);
+      } else {
+        removedCount++;
+        debugPrint(
+            '[CategorySync] Removed invalid key "$key" from $fieldName for user $userId');
+      }
+    }
+
+    if (cleaned.isEmpty) {
+      if (removedCount > 0) {
+        debugPrint(
+            '[CategorySync] Field $fieldName is now empty for user $userId (removed $removedCount invalid keys)');
+      }
+      return null;
+    }
+
+    return cleaned.toList();
   }
 
   Future<void> _syncVendorCategoriesAfterDelete(String deletedKey) async {
