@@ -49,6 +49,15 @@ class VendorCategories {
   /// Alias mapping for legacy/alternate category names
   /// Maps old names to normalized keys
   static const Map<String, String> aliasMap = {
+    // Legacy typo mappings
+    'foodss': 'groceries',  // Double-s typo variant
+    'foods': 'groceries',   // Single food variant
+    'food': 'groceries',    // Singular food variant
+    
+    // Underscore variants (match to space versions)
+    'vehicle_parts': 'vehicle parts',
+    'home_appliances': 'home appliances',
+    
     // Hardware aliases
     'hardware items': 'hardware',
     'hardware item': 'hardware',
@@ -65,6 +74,21 @@ class VendorCategories {
     
     // Stationery aliases (common misspelling)
     'stationary': 'stationery',
+    
+    // Umbrella alias
+    'umbrella': 'other',
+    'umbrellas': 'other',
+    
+    // Roof alias
+    'roof': 'hardware',
+    'roofing': 'hardware',
+    
+    // Baby products alias
+    'baby products': 'other',
+    'baby product': 'other',
+    'babies': 'other',
+    'infant': 'other',
+    'infant products': 'other',
   };
 
   /// Convert display format to normalized format
@@ -81,6 +105,7 @@ class VendorCategories {
     
     // Check if it's already a valid normalized category
     if (normalizedList.contains(lowercase)) {
+      debugPrint('[CategoryNormalize] Normalized successfully: "$lowercase"');
       return lowercase;
     }
     
@@ -88,6 +113,7 @@ class VendorCategories {
     if (aliasMap.containsKey(lowercase)) {
       final normalized = aliasMap[lowercase]!;
       debugPrint('[CategoryNormalize] Alias matched: "$displayValue" -> "$normalized"');
+      debugPrint('[CategoryNormalize] Normalized successfully: "$normalized"');
       return normalized;
     }
     
@@ -101,26 +127,26 @@ class VendorCategories {
           )
           .key;
       if (normalized.isNotEmpty) {
+        debugPrint('[CategoryNormalize] Normalized successfully: "$normalized"');
         return normalized;
       }
     }
     
     // Not found in master list or aliases
-    debugPrint('[CategoryNormalize] WARNING: "$displayValue" is not a valid category and has no alias mapping');
+    debugPrint('[CategoryNormalize] WARNING: "$displayValue" not found in normalization map');
     return lowercase; // Return lowercase as fallback
   }
 
   /// Convert normalized format to display format
   /// Example: 'home appliances' -> 'Home Appliances'
   static String display(String normalizedValue) {
-    final displayValue = normalizationMap[normalizedValue.trim().toLowerCase()];
+    final trimmed = normalizedValue.trim().toLowerCase();
+    final displayValue = normalizationMap[trimmed];
     if (displayValue == null) {
-      debugPrint(
-          '[CategoryNormalize] WARNING: "$normalizedValue" not found in normalization map');
       // Fallback: title case if not in map
       return normalizedValue
           .split(' ')
-          .map((word) => word[0].toUpperCase() + word.substring(1))
+          .map((word) => word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1))
           .join(' ');
     }
     return displayValue;
