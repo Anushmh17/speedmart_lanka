@@ -1,0 +1,63 @@
+lib\features\admin\presentation\screens\admin_home_screen.dart:298:            _quickActionCard(Icons.category_rounded, 'Category Management', 'Add, edit, enable/disable categories', AppColors.accent, () {
+lib\features\customer\presentation\screens\customer_home_screen.dart:458:      ('Categories', Icons.category_outlined, () {}),
+lib\features\customer\presentation\screens\customer_home_screen.dart:546:              final proposalCount = request.categoryFulfillments.length;
+lib\features\customer\proposals\presentation\modals\vendor_profile_preview_modal.dart:176:              icon: Icons.category_outlined,
+lib\features\orders\presentation\screens\vendor_order_details_screen.dart:59:      if (proposal != null && proposal.categoryNormalized != null && proposal.categoryNormalized!.isNotEmpty) {
+lib\features\orders\presentation\screens\vendor_order_details_screen.dart:60:        final category = proposal.categoryNormalized!;
+lib\features\orders\presentation\screens\vendor_order_details_screen.dart:68:            request.categoryFulfillments,
+lib\features\payments\presentation\screens\payment_screen.dart:122:    debugPrint('[PaymentFlow] category: ${widget.proposal.categoryNormalized}');
+lib\features\payments\presentation\screens\payment_screen.dart:249:      if (widget.proposal.categoryNormalized != null && widget.proposal.categoryNormalized!.isNotEmpty) {
+lib\features\payments\presentation\screens\payment_screen.dart:250:        final category = widget.proposal.categoryNormalized!;
+lib\features\payments\presentation\screens\payment_screen.dart:257:        final updatedFulfillments = Map<String, RequestCategoryFulfillment>.from(_request!.categoryFulfillments);
+lib\features\proposals\models\proposal.dart:212:    this.categoryNormalized,
+lib\features\proposals\models\proposal.dart:268:      categoryNormalized: categoryNormalized ?? this.categoryNormalized,
+lib\features\proposals\providers\proposal_provider.dart:196:      final acceptedCategory = acceptedProposal.categoryNormalized;
+lib\features\proposals\providers\proposal_provider.dart:208:          if (p.categoryNormalized == acceptedCategory) {
+lib\features\proposals\providers\proposal_provider.dart:228:            print('[MultiCategoryFlow] Preserved other-category proposal: ${p.id} (${p.categoryNormalized})');
+lib\features\proposals\providers\proposal_provider.dart:237:          request.categoryFulfillments,
+lib\features\requests\models\request_category_fulfillment.dart:71:    required this.categoryNormalized,
+lib\features\requests\models\request_category_fulfillment.dart:98:      categoryNormalized: categoryNormalized ?? this.categoryNormalized,
+lib\features\requests\models\request_item.dart:22:    this.category,
+lib\features\requests\models\request_item.dart:47:      category: category ?? this.category,
+lib\features\requests\models\shopping_request.dart:137:      if (item.category != null && item.category!.isNotEmpty) {
+lib\features\requests\models\shopping_request.dart:138:        final normalized = VendorCategories.normalize(item.category!);
+lib\features\requests\models\shopping_request.dart:246:      categoryFulfillments: categoryFulfillments ?? this.categoryFulfillments,
+lib\features\requests\presentation\screens\request_details_screen.dart:283:          final cat = item.category?.trim();
+lib\features\requests\presentation\screens\request_details_screen.dart:294:      final category = proposal.categoryNormalized ?? 'unknown';
+lib\features\requests\presentation\screens\request_details_screen.dart:660:                      final itemCategory = item.category?.trim().toLowerCase() ?? '';
+lib\features\requests\presentation\screens\request_details_screen.dart:900:    required this.categoryStatus,
+lib\features\requests\presentation\screens\request_details_screen.dart:979:                        label: item.category ?? 'General',
+lib\features\requests\presentation\screens\request_details_screen.dart:1024:    required this.categoryStatus,
+lib\features\requests\presentation\screens\request_item_details_screen.dart:42:            Text(item.category ?? 'General', style: AppTextStyles.labelMedium(AppColors.customerColor)),
+lib\features\requests\presentation\screens\request_list_screen.dart:450:    final proposalCount = request.categoryFulfillments.length;
+lib\features\requests\presentation\widgets\category_selector.dart:32:      default: return Icons.category_outlined;
+lib\features\requests\presentation\widgets\image_upload_grid.dart:15:    required this.category,
+lib\features\requests\presentation\widgets\quantity_unit_selector.dart:16:    required this.category,
+lib\features\requests\presentation\widgets\quantity_unit_selector.dart:53:    final cat = widget.category;
+lib\features\requests\presentation\widgets\request_item_card.dart:157:                          widget.item.category ?? 'Groceries',
+lib\features\requests\presentation\widgets\request_item_card.dart:194:                    initialValue: widget.item.category ?? 'Groceries',
+lib\features\requests\presentation\widgets\request_item_card.dart:233:                  category: widget.item.category ?? 'Groceries',
+lib\features\requests\presentation\widgets\request_item_card.dart:278:                  category: widget.item.category ?? 'Groceries',
+lib\features\requests\presentation\widgets\request_item_list_tile.dart:90:                      Text(item.category ?? 'General', style: AppTextStyles.caption(secondaryText)),
+lib\features\requests\presentation\widgets\review_request_sheet.dart:146:                                _getCategoryIcon(item.category),
+lib\features\requests\presentation\widgets\review_request_sheet.dart:163:                                    'Category: ${item.category ?? "Groceries"} | Qty: ${item.quantity} ${item.unit ?? "pieces"}',
+lib\features\shared\presentation\screens\profile_screen.dart:559:                    Icons.category_outlined,
+lib\features\vendor\proposals\presentation\vendor_proposal_form_screen.dart:224:      if (item.category != null && item.category!.isNotEmpty) {
+lib\features\vendor\proposals\presentation\vendor_proposal_form_screen.dart:225:        final normalized = VendorCategories.normalize(item.category!);
+lib\features\vendor\proposals\presentation\vendor_request_detail_screen.dart:185:                            '${item.category != null ? ' · ${item.category}' : ''}',
+lib\features\vendor\request_feed\presentation\vendor_request_feed_screen.dart:230:                categoryChips: feedState.categoryChips,
+lib\features\vendor\request_feed\presentation\vendor_request_feed_screen.dart:231:                selectedCategory: feedState.categoryFilter,
+lib\features\vendor\request_feed\providers\vendor_request_feed_provider.dart:19:    this.categoryFilter,
+lib\features\vendor\request_feed\providers\vendor_request_feed_provider.dart:20:    this.categoryChips = const [],
+lib\features\vendor\request_feed\providers\vendor_request_feed_provider.dart:52:          clearCategoryFilter ? null : (categoryFilter ?? this.categoryFilter),
+lib\features\vendor\request_feed\providers\vendor_request_feed_provider.dart:53:      categoryChips: categoryChips ?? this.categoryChips,
+lib\features\vendor\request_feed\providers\vendor_request_feed_provider.dart:190:        categoryFilter: state.categoryFilter,
+lib\features\vendor\request_feed\services\vendor_request_filter_service.dart:106:      if (item.category == null || item.category!.isEmpty) {
+lib\features\vendor\request_feed\services\vendor_request_filter_service.dart:112:      final originalCategory = item.category!;
+lib\features\vendor\request_feed\services\vendor_request_filter_service.dart:222:      debugPrint('[FeedCategoryFix] original items: ${request.items.map((i) => "${i.itemName} (${i.category})").join(", ")}');
+lib\features\vendor\request_feed\services\vendor_request_filter_service.dart:227:      debugPrint('[FeedCategoryFix] matching items: ${matchingItems.map((i) => "${i.itemName} (${i.category})").join(", ")}');
+lib\features\vendor\request_feed\services\vendor_request_filter_service.dart:271:          (item) => VendorCategories.normalize(item.category ?? '') == filterNormalized,
+lib\features\vendor\request_feed\services\vendor_request_filter_service.dart:355:        .map((i) => i.category?.trim() ?? '')
+lib\features\vendor\request_feed\widgets\vendor_feed_filter_bar.dart:13:    required this.categoryChips,
+lib\features\vendor\request_feed\widgets\vendor_feed_filter_bar.dart:50:              ...categoryChips.map(
+lib\shared\presentation\screens\profile_screen.dart:520:                    Icon(Icons.category_outlined, color: secondaryText, size: 20),

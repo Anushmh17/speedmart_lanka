@@ -186,6 +186,7 @@ class _DeliveryLocationMapPickerState
                         urlTemplate:
                             'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                         userAgentPackageName: 'com.speedmart.lanka',
+                        retinaMode: RetinaMode.isHighDensity(context),
                       ),
                       MarkerLayer(
                         markers: [

@@ -1,161 +1,584 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../../../core/widgets/app_state_widgets.dart';
+import '../../../../core/widgets/theme3/theme3_app_card.dart';
+import '../../../../core/widgets/theme3/theme3_category_chip.dart';
+import '../../../../core/widgets/theme3/theme3_empty_state.dart';
+import '../../../../core/widgets/theme3/theme3_status_chip.dart';
+import '../../../../shared/utils/category_constants.dart';
 import '../../models/shopping_request.dart';
 import '../../providers/request_provider.dart';
 import 'request_details_screen.dart';
 
-class RequestListScreen extends ConsumerWidget {
+enum RequestFilterType {
+  all,
+  submitted,
+  proposalReceived,
+  accepted,
+  completed,
+  cancelled,
+}
+
+class RequestListScreen extends ConsumerStatefulWidget {
   const RequestListScreen({super.key});
 
-  Color _getStatusColor(RequestStatus status) {
-    switch (status) {
-      case RequestStatus.draft:
-        return Colors.grey;
-      case RequestStatus.submitted:
-      case RequestStatus.waitingForVendor:
-        return AppColors.warning;
-      case RequestStatus.vendorAccepted:
-      case RequestStatus.proposalSubmitted:
-        return AppColors.customerColor;
-      case RequestStatus.customerAccepted:
-      case RequestStatus.paid:
-      case RequestStatus.cashOnDeliveryConfirmed:
-      case RequestStatus.delivered:
-        return AppColors.success;
-      case RequestStatus.customerRejected:
-      case RequestStatus.cancelled:
-      case RequestStatus.expired:
-        return AppColors.error;
+  @override
+  ConsumerState<RequestListScreen> createState() => _RequestListScreenState();
+}
+
+class _RequestListScreenState extends ConsumerState<RequestListScreen> {
+  RequestFilterType _selectedFilter = RequestFilterType.all;
+
+  /// Check if image path is a network URL
+  bool _isNetworkImage(String path) {
+    return path.startsWith('http://') || path.startsWith('https://');
+  }
+
+  /// Check if image path is an asset
+  bool _isAssetImage(String path) {
+    return path.startsWith('assets/');
+  }
+
+  /// Build image content with proper loader based on path type
+  Widget _buildImageContent({
+    required String imagePath,
+    required double size,
+    required Widget fallback,
+  }) {
+    if (_isNetworkImage(imagePath)) {
+      return Image.network(
+        imagePath,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => fallback,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return fallback;
+        },
+      );
+    }
+
+    if (_isAssetImage(imagePath)) {
+      return Image.asset(
+        imagePath,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => fallback,
+      );
+    }
+
+    // Local file path
+    return Image.file(
+      File(imagePath),
+      width: size,
+      height: size,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) => fallback,
+    );
+  }
+
+  /// Extract first available customer image from request
+  String? _getRequestThumbnailImage(ShoppingRequest request) {
+    if (request.items.isNotEmpty) {
+      for (final item in request.items) {
+        if (item.imageUrls.isNotEmpty) {
+          final firstImage = item.imageUrls.first.trim();
+          if (firstImage.isNotEmpty) {
+            return firstImage;
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  /// Build smart thumbnail that shows image if available, otherwise category icon
+  Widget _buildSmartRequestThumbnail({
+    required String? imagePath,
+    required String category,
+    required double size,
+    required bool isDark,
+  }) {
+    final categoryIcon = _getCategoryIcon(category);
+    final categoryColor = _getCategoryColor(category);
+    
+    // Build category icon fallback widget
+    final iconFallback = Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: categoryColor.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(
+          color: categoryColor.withValues(alpha: 0.35),
+          width: 1,
+        ),
+      ),
+      child: Icon(
+        categoryIcon,
+        color: categoryColor,
+        size: size * 0.47,
+      ),
+    );
+    
+    // If image exists, show image thumbnail
+    if (imagePath != null && imagePath.trim().isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: categoryColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(AppRadius.md),
+          ),
+          child: _buildImageContent(
+            imagePath: imagePath.trim(),
+            size: size,
+            fallback: iconFallback,
+          ),
+        ),
+      );
+    }
+    
+    // No image, show category icon thumbnail
+    return iconFallback;
+  }
+
+  Color _getCategoryColor(String category) {
+    final normalized = VendorCategories.normalize(category);
+    switch (normalized) {
+      case 'groceries':
+        return const Color(0xFF059669); // green
+      case 'electronics':
+        return const Color(0xFF0EA5E9); // blue
+      case 'hardware':
+        return const Color(0xFFF59E0B); // orange
+      case 'furniture':
+        return const Color(0xFF8B5CF6); // purple
+      case 'pharmacy':
+        return const Color(0xFFDC2626); // red
+      case 'vehicle_parts':
+        return const Color(0xFF6366F1); // indigo
+      case 'home_appliances':
+        return const Color(0xFFEC4899); // pink
+      case 'books':
+        return const Color(0xFF06B6D4); // cyan
+      case 'clothing':
+        return const Color(0xFFF43F5E); // rose
+      case 'stationery':
+        return const Color(0xFFFBBF24); // amber
+      case 'other':
+        return const Color(0xFF6B7280); // gray
       default:
-        return AppColors.customerColor;
+        return const Color(0xFFF59E0B); // orange fallback
+    }
+  }
+
+  IconData _getCategoryIcon(String category) {
+    final normalized = VendorCategories.normalize(category);
+    switch (normalized) {
+      case 'groceries':
+        return Icons.shopping_basket_rounded;
+      case 'pharmacy':
+        return Icons.local_pharmacy_rounded;
+      case 'electronics':
+        return Icons.devices_rounded;
+      case 'stationery':
+        return Icons.drive_file_rename_outline_rounded;
+      case 'hardware':
+        return Icons.build_rounded;
+      case 'bakery':
+        return Icons.cake_rounded;
+      case 'meat_&_seafood':
+        return Icons.set_meal_rounded;
+      case 'clothing':
+        return Icons.checkroom_rounded;
+      default:
+        return Icons.shopping_bag_rounded;
+    }
+  }
+
+  List<ShoppingRequest> _filterRequests(List<ShoppingRequest> requests) {
+    switch (_selectedFilter) {
+      case RequestFilterType.all:
+        return requests;
+      case RequestFilterType.submitted:
+        return requests.where((r) => 
+          r.status == RequestStatus.submitted || 
+          r.status == RequestStatus.waitingForVendor
+        ).toList();
+      case RequestFilterType.proposalReceived:
+        return requests.where((r) => 
+          r.status == RequestStatus.proposalSubmitted
+        ).toList();
+      case RequestFilterType.accepted:
+        return requests.where((r) => 
+          r.status == RequestStatus.customerAccepted || 
+          r.status == RequestStatus.accepted
+        ).toList();
+      case RequestFilterType.completed:
+        return requests.where((r) => 
+          r.status == RequestStatus.delivered
+        ).toList();
+      case RequestFilterType.cancelled:
+        return requests.where((r) => 
+          r.status == RequestStatus.cancelled || 
+          r.status == RequestStatus.customerRejected
+        ).toList();
     }
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     final requestState = ref.watch(requestProvider);
 
     if (requestState.isLoading && requestState.requests.isEmpty) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
+      return Scaffold(
+        backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+        body: Column(
+          children: [
+            _buildHeader(isDark, primaryText, secondaryText),
+            Expanded(
+              child: ListView.builder(
+                padding: EdgeInsets.all(AppSpacing.md),
+                itemCount: 5,
+                itemBuilder: (context, index) => Padding(
+                  padding: EdgeInsets.only(bottom: AppSpacing.md),
+                  child: Container(
+                    height: 180,
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.cardDark : AppColors.cardLight,
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                    ),
+                    child: const Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       );
     }
 
+    final filteredRequests = _filterRequests(requestState.requests);
+
     if (requestState.requests.isEmpty) {
       return Scaffold(
-        body: AppEmptyState(
-          icon: Icons.receipt_long_outlined,
-          title: 'No Requests Yet',
-          subtitle: 'Create a request to see your shopping lists here.',
+        backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+        body: Column(
+          children: [
+            _buildHeader(isDark, primaryText, secondaryText),
+            Expanded(
+              child: Theme3EmptyState(
+                icon: Icons.receipt_long_outlined,
+                title: 'No Requests Yet',
+                subtitle: 'Create your first shopping request and get proposals from vendors',
+                actionLabel: 'Create New Request',
+                onActionPressed: () {
+                  Navigator.of(context).pop();
+                },
+              ),
+            ),
+          ],
         ),
       );
     }
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-      body: RefreshIndicator(
-        onRefresh: () => ref.read(requestProvider.notifier).loadMyRequests(),
-        child: ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: requestState.requests.length,
-          itemBuilder: (context, index) {
-            final request = requestState.requests[index];
-            final statusColor = _getStatusColor(request.status);
-            
-            return Card(
-              color: isDark ? AppColors.cardDark : AppColors.cardLight,
-              margin: const EdgeInsets.only(bottom: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(
-                  color: isDark ? AppColors.borderDark : AppColors.borderLight,
+      body: Column(
+        children: [
+          _buildHeader(isDark, primaryText, secondaryText),
+          _buildFilterChips(isDark),
+          Expanded(
+            child: filteredRequests.isEmpty
+                ? Theme3EmptyState(
+                    icon: Icons.filter_list_off_rounded,
+                    title: 'No ${_selectedFilter.name} Requests',
+                    subtitle: 'Try selecting a different filter',
+                  )
+                : RefreshIndicator(
+                    onRefresh: () => ref.read(requestProvider.notifier).loadMyRequests(),
+                    child: ListView.builder(
+                      padding: EdgeInsets.all(AppSpacing.md),
+                      itemCount: filteredRequests.length,
+                      itemBuilder: (context, index) {
+                        final request = filteredRequests[index];
+                        return _buildRequestCard(context, request, isDark, primaryText, secondaryText);
+                      },
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(bool isDark, Color primaryText, Color secondaryText) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        MediaQuery.of(context).padding.top + AppSpacing.sm,
+        AppSpacing.md,
+        AppSpacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+            width: 1,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'My Requests',
+                      style: AppTextStyles.h2(primaryText),
+                    ),
+                    SizedBox(height: AppSpacing.xs),
+                    Text(
+                      'Track vendor responses and proposals',
+                      style: AppTextStyles.bodySmall(secondaryText),
+                    ),
+                  ],
                 ),
               ),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(16),
-                onTap: () {
-                  Navigator.of(context, rootNavigator: true).push(
-                    MaterialPageRoute(
-                      builder: (context) => RequestDetailsScreen(request: request),
+              IconButton(
+                onPressed: () {},
+                icon: Icon(
+                  Icons.search_rounded,
+                  color: secondaryText,
+                ),
+                style: IconButton.styleFrom(
+                  backgroundColor: isDark ? AppColors.surfaceElevatedDark : AppColors.surfaceLight,
+                ),
+              ),
+              SizedBox(width: AppSpacing.xs),
+              IconButton(
+                onPressed: () {},
+                icon: Icon(
+                  Icons.tune_rounded,
+                  color: secondaryText,
+                ),
+                style: IconButton.styleFrom(
+                  backgroundColor: isDark ? AppColors.surfaceElevatedDark : AppColors.surfaceLight,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChips(bool isDark) {
+    return Container(
+      height: 56,
+      padding: EdgeInsets.symmetric(vertical: AppSpacing.xs),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+            width: 1,
+          ),
+        ),
+      ),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        children: [
+          _buildFilterChip('All', RequestFilterType.all, isDark),
+          SizedBox(width: AppSpacing.xs),
+          _buildFilterChip('Submitted', RequestFilterType.submitted, isDark),
+          SizedBox(width: AppSpacing.xs),
+          _buildFilterChip('Proposal Received', RequestFilterType.proposalReceived, isDark),
+          SizedBox(width: AppSpacing.xs),
+          _buildFilterChip('Accepted', RequestFilterType.accepted, isDark),
+          SizedBox(width: AppSpacing.xs),
+          _buildFilterChip('Completed', RequestFilterType.completed, isDark),
+          SizedBox(width: AppSpacing.xs),
+          _buildFilterChip('Cancelled', RequestFilterType.cancelled, isDark),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String label, RequestFilterType type, bool isDark) {
+    final isSelected = _selectedFilter == type;
+    return Theme3CategoryChip(
+      label: label,
+      isSelected: isSelected,
+      onTap: () {
+        setState(() {
+          _selectedFilter = type;
+        });
+      },
+    );
+  }
+
+  Widget _buildRequestCard(
+    BuildContext context,
+    ShoppingRequest request,
+    bool isDark,
+    Color primaryText,
+    Color secondaryText,
+  ) {
+    final primaryCategory = request.categories.isNotEmpty ? request.categories.first : '';
+    final requestImagePath = _getRequestThumbnailImage(request);
+    final proposalCount = request.categoryFulfillments.length;
+    final firstItemName = request.items.isNotEmpty ? request.items.first.name : 'Request';
+    
+    final statusType = request.status == RequestStatus.submitted || request.status == RequestStatus.waitingForVendor
+        ? Theme3StatusType.pending
+        : (request.status == RequestStatus.delivered ? Theme3StatusType.completed : Theme3StatusType.inProgress);
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: AppSpacing.md),
+      child: Theme3AppCard(
+        onTap: () {
+          Navigator.of(context, rootNavigator: true).push(
+            MaterialPageRoute(
+              builder: (context) => RequestDetailsScreen(request: request),
+            ),
+          );
+        },
+        padding: const EdgeInsets.all(AppSpacing.md),
+        child: Row(
+          children: [
+            // LEFT: Smart Thumbnail (64x64)
+            _buildSmartRequestThumbnail(
+              imagePath: requestImagePath,
+              category: primaryCategory,
+              size: 64,
+              isDark: isDark,
+            ),
+            const SizedBox(width: AppSpacing.md),
+            // CENTER: Details
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    firstItemName,
+                    style: AppTextStyles.labelLarge(primaryText),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  if (primaryCategory.isNotEmpty)
+                    Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xs,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _getCategoryColor(primaryCategory).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(AppRadius.xs),
+                      ),
+                      child: Text(
+                        VendorCategories.display(primaryCategory).toUpperCase(),
+                        style: AppTextStyles.caption(_getCategoryColor(primaryCategory)),
+                      ),
                     ),
-                  );
-                },
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(height: 6),
+                  Row(
                     children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            request.id,
-                            style: AppTextStyles.h3(primaryText),
-                          ),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: statusColor.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: statusColor.withOpacity(0.5)),
-                            ),
-                            child: Text(
-                              request.status.displayName,
-                              style: AppTextStyles.labelMedium(statusColor),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
+                      Icon(Icons.shopping_cart_outlined, size: 12, color: secondaryText),
+                      const SizedBox(width: 4),
                       Text(
-                        'Items: ${request.items.map((i) => i.name).join(", ")}',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextStyles.bodyMedium(primaryText),
+                        '${request.items.length} items',
+                        style: AppTextStyles.caption(secondaryText),
                       ),
-                      const SizedBox(height: 16),
-                      Divider(color: isDark ? AppColors.borderDark : AppColors.borderLight, height: 1),
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Created: ${_formatDate(request.createdAt)}',
-                            style: AppTextStyles.bodySmall(secondaryText),
-                          ),
-                          Row(
-                            children: [
-                              Text(
-                                'View Details',
-                                style: AppTextStyles.button(AppColors.customerColor),
-                              ),
-                              const Icon(
-                                Icons.chevron_right_rounded,
-                                color: AppColors.customerColor,
-                                size: 16,
-                              )
-                            ],
-                          ),
-                        ],
+                      const SizedBox(width: AppSpacing.sm),
+                      Icon(Icons.receipt_long_outlined, size: 12, color: secondaryText),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$proposalCount ${proposalCount == 1 ? 'proposal' : 'proposals'}',
+                        style: AppTextStyles.caption(secondaryText),
                       ),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _formatDate(request.createdAt),
+                    style: AppTextStyles.caption(secondaryText),
+                  ),
+                ],
               ),
-            );
-          },
+            ),
+            // RIGHT: Status Chip & Arrow
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Theme3StatusChip(
+                  label: _formatRequestStatus(request.status),
+                  status: statusType,
+                ),
+                const SizedBox(height: 8),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: secondaryText,
+                  size: 20,
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
   }
 
+  String _formatRequestStatus(dynamic status) {
+    final value = status.toString().split('.').last;
+    return value
+        .replaceAllMapped(
+          RegExp(r'([A-Z])'),
+          (match) => ' ${match.group(0)}',
+        )
+        .trim()
+        .split('_')
+        .map((word) {
+          if (word.isEmpty) return word;
+          return word[0].toUpperCase() + word.substring(1);
+        })
+        .join(' ');
+  }
+
   String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inMinutes < 60) {
+      return '${difference.inMinutes}m ago';
+    } else if (difference.inHours < 24) {
+      return '${difference.inHours}h ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else {
+      return '${date.day}/${date.month}';
+    }
   }
 }

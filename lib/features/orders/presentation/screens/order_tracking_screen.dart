@@ -4,15 +4,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:speedmart_lanka/core/theme/app_colors.dart';
 import 'package:speedmart_lanka/core/theme/app_text_styles.dart';
-import 'package:speedmart_lanka/core/widgets/app_state_widgets.dart';
+import 'package:speedmart_lanka/core/theme/app_radius.dart';
+import 'package:speedmart_lanka/core/widgets/theme3/theme3_app_bar.dart';
+import 'package:speedmart_lanka/core/widgets/theme3/theme3_app_button.dart';
+import 'package:speedmart_lanka/core/widgets/theme3/theme3_app_card.dart';
+import 'package:speedmart_lanka/core/widgets/theme3/theme3_status_chip.dart';
 import 'package:speedmart_lanka/core/providers/notification_provider.dart';
 import 'package:speedmart_lanka/features/proposals/models/proposal.dart';
-import 'package:speedmart_lanka/features/requests/providers/request_provider.dart';
 import 'package:speedmart_lanka/features/orders/models/order_model.dart';
 import 'package:speedmart_lanka/features/orders/providers/order_provider.dart';
 import 'package:speedmart_lanka/features/orders/presentation/widgets/order_timeline_widget.dart';
-import 'package:speedmart_lanka/features/orders/presentation/widgets/order_tracking_map.dart';
-import 'package:speedmart_lanka/features/location/providers/location_provider.dart';
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
 
 class OrderTrackingScreen extends ConsumerStatefulWidget {
@@ -34,7 +35,6 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
   @override
   void initState() {
     super.initState();
-    // Defer timer setup until after first frame so ref.read is valid
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _syncTimerWithStatus();
     });
@@ -46,7 +46,6 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
     super.dispose();
   }
 
-  /// Starts / stops the rider simulation timer based on the current order status.
   void _syncTimerWithStatus() {
     final orderState = ref.read(orderProvider);
     final activeOrder = orderState.orders.firstWhere(
@@ -64,7 +63,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
   void _startRiderSimulation() {
     _riderTimer?.cancel();
     const tickInterval = Duration(milliseconds: 500);
-    final incrementPerTick = 0.5 / _timerDurationSeconds; // each 500ms tick
+    final incrementPerTick = 0.5 / _timerDurationSeconds;
 
     _riderTimer = Timer.periodic(tickInterval, (timer) async {
       if (!mounted) {
@@ -93,7 +92,6 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
       orElse: () => widget.order,
     );
 
-    // Only auto-complete if still outForDelivery
     if (activeOrder.status != OrderStatus.outForDelivery) return;
 
     await ref
@@ -135,52 +133,25 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
         isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryText =
         isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
-    final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
-    final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
 
-    // Live order state from provider
     final orderState = ref.watch(orderProvider);
     final activeOrder = orderState.orders.firstWhere(
       (o) => o.id == widget.order.id,
       orElse: () => widget.order,
     );
 
-    // Kick off rider timer reactively whenever status flips to outForDelivery
     final isOutForDelivery = activeOrder.status == OrderStatus.outForDelivery;
     if (isOutForDelivery && _riderTimer == null && !_autoDelivered) {
       WidgetsBinding.instance
           .addPostFrameCallback((_) => _startRiderSimulation());
     }
 
-    // ---------- Coordinate Resolution ----------
-    // Customer coordinates: look up the order, request, or active location provider
-    final requestState = ref.watch(requestProvider);
-    final matchedRequest = requestState.requests
-        .where((r) => r.id == activeOrder.requestId)
-        .firstOrNull;
-    final deliveryLocation = ref.watch(deliveryLocationProvider);
-
-    final double customerLat = activeOrder.customerLatitude != 0.0
-        ? activeOrder.customerLatitude
-        : (matchedRequest?.latitude ?? deliveryLocation?.latitude ?? 0.0);
-    final double customerLon = activeOrder.customerLongitude != 0.0
-        ? activeOrder.customerLongitude
-        : (matchedRequest?.longitude ?? deliveryLocation?.longitude ?? 0.0);
-
-    // Vendor coordinates: use the vendor coordinates stored directly in activeOrder
-    final vendorLat = activeOrder.vendorLatitude;
-    final vendorLon = activeOrder.vendorLongitude;
-    // ------------------------------------------
-
     return Scaffold(
       backgroundColor:
           isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-      appBar: AppBar(
-        title: Text('Track ${activeOrder.id}'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
-          onPressed: () => context.pop(),
-        ),
+      appBar: Theme3AppBar(
+        title: 'Track ${activeOrder.id}',
+        onBackPressed: () => context.pop(),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -188,26 +159,165 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ─────────────────────────────────────────────────────────────
-            // SECTION 1 — Interactive Live Map
+            // TOP SECTION — Order Header
             // ─────────────────────────────────────────────────────────────
-            _MapSection(
-              isDark: isDark,
-              primaryText: primaryText,
-              activeOrder: activeOrder,
-              customerLat: customerLat,
-              customerLon: customerLon,
-              vendorLat: vendorLat,
-              vendorLon: vendorLon,
-              riderProgress: isOutForDelivery
-                  ? _riderProgress
-                  : activeOrder.status == OrderStatus.delivered
-                      ? 1.0
-                      : 0.0,
+            Theme3AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Order ID',
+                            style: AppTextStyles.caption(secondaryText),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            activeOrder.id,
+                            style: AppTextStyles.h2(primaryText),
+                          ),
+                        ],
+                      ),
+                      Theme3StatusChip(
+                        label: activeOrder.status.displayName,
+                        status: _mapOrderStatusToTheme3Status(activeOrder.status),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Icon(Icons.storefront_rounded,
+                          color: AppColors.customerColor, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          activeOrder.vendorBusinessName,
+                          style: AppTextStyles.bodyMedium(primaryText),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Icon(Icons.schedule_rounded,
+                          color: AppColors.warning, size: 16),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Est. Delivery: ${_formatEstimatedTime(activeOrder.createdAt)}',
+                        style: AppTextStyles.bodyMedium(primaryText),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 24),
 
             // ─────────────────────────────────────────────────────────────
-            // SECTION 2 — Delivery Timeline
+            // DELIVERY UPDATES SECTION — Status Details
+            // ─────────────────────────────────────────────────────────────
+            Text('Delivery Updates', style: AppTextStyles.h2(primaryText)),
+            const SizedBox(height: 12),
+            Theme3AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.customerColor.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.local_shipping_outlined,
+                            color: AppColors.customerColor, size: 24),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Current Status',
+                              style: AppTextStyles.caption(secondaryText),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              _getStatusDisplayText(activeOrder.status),
+                              style: AppTextStyles.subtitle(primaryText)
+                                  .copyWith(fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Divider(height: 1, color: isDark ? AppColors.borderDark : AppColors.borderLight),
+                  const SizedBox(height: 16),
+                  _buildInfoRow(
+                    Icons.schedule_rounded,
+                    'Last Updated',
+                    _formatDateTime(activeOrder.createdAt),
+                    secondaryText,
+                    primaryText,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildInfoRow(
+                    Icons.location_on_outlined,
+                    'Delivery Address',
+                    activeOrder.deliveryAddress,
+                    secondaryText,
+                    primaryText,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildInfoRow(
+                    Icons.access_time_rounded,
+                    'Estimated Delivery',
+                    _formatEstimatedTime(activeOrder.createdAt),
+                    secondaryText,
+                    primaryText,
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.warning.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(
+                        color: AppColors.warning.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.info_outline,
+                            color: AppColors.warning, size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Delivery status is updated by the vendor. Live rider tracking is not available.',
+                            style: AppTextStyles.caption(
+                              isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // ─────────────────────────────────────────────────────────────
+            // TIMELINE SECTION — Delivery Timeline
             // ─────────────────────────────────────────────────────────────
             Text('Delivery Timeline', style: AppTextStyles.h2(primaryText)),
             const SizedBox(height: 12),
@@ -215,12 +325,12 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
             const SizedBox(height: 24),
 
             // ─────────────────────────────────────────────────────────────
-            // SECTION 3 — Merchant Contact
+            // CONTACT SECTION — Vendor Contact
             // ─────────────────────────────────────────────────────────────
-            Text('Merchant Contact Details',
+            Text('Vendor Contact',
                 style: AppTextStyles.h2(primaryText)),
             const SizedBox(height: 12),
-            InkWell(
+            Theme3AppCard(
               onTap: () {
                 context.push(
                   '/customer/vendor/shopfront',
@@ -230,97 +340,82 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                   },
                 );
               },
-              borderRadius: BorderRadius.circular(16),
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: cardColor,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: borderColor),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: AppColors.customerColor.withOpacity(0.15),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.storefront_rounded,
-                          color: AppColors.customerColor, size: 28),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.customerColor.withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
                     ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(activeOrder.vendorBusinessName,
-                              style: AppTextStyles.subtitle(primaryText)),
-                          const SizedBox(height: 4),
-                          Row(
-                            children: [
-                              const Icon(Icons.phone,
-                                  size: 14,
-                                  color: AppColors.customerColor),
-                              const SizedBox(width: 6),
-                              Text(activeOrder.vendorPhone,
-                                  style:
-                                      AppTextStyles.bodyMedium(secondaryText)),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Tap to view Storefront & Catalog ➔',
-                            style: AppTextStyles.caption(AppColors.customerColor)
-                                .copyWith(fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
+                    child: const Icon(Icons.storefront_rounded,
+                        color: AppColors.customerColor, size: 28),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(activeOrder.vendorBusinessName,
+                            style: AppTextStyles.subtitle(primaryText)),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(Icons.phone,
+                                size: 14,
+                                color: AppColors.customerColor),
+                            const SizedBox(width: 6),
+                            Text(activeOrder.vendorPhone,
+                                style:
+                                    AppTextStyles.bodyMedium(secondaryText)),
+                          ],
+                        ),
+                      ],
                     ),
-                    IconButton(
-                      style: IconButton.styleFrom(
-                        backgroundColor:
-                            AppColors.customerColor.withOpacity(0.12),
-                      ),
-                      icon: const Icon(Icons.chat_bubble_outline_rounded,
-                          color: AppColors.customerColor),
-                      onPressed: () {
-                        context.push(
-                          '/chat',
-                          extra: {
-                            'proposalId': activeOrder.proposalId,
-                            'vendorName': activeOrder.vendorBusinessName,
-                            'isUnlocked': true,
-                          },
-                        );
-                      },
+                  ),
+                  IconButton(
+                    style: IconButton.styleFrom(
+                      backgroundColor:
+                          AppColors.customerColor.withValues(alpha: 0.12),
                     ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      style: IconButton.styleFrom(
-                        backgroundColor:
-                            AppColors.customerColor.withOpacity(0.12),
-                      ),
-                      icon: const Icon(Icons.call,
-                          color: AppColors.customerColor),
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                                'Calling ${activeOrder.vendorBusinessName} at ${activeOrder.vendorPhone}...'),
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
+                    icon: const Icon(Icons.chat_bubble_outline_rounded,
+                        color: AppColors.customerColor),
+                    onPressed: () {
+                      context.push(
+                        '/chat',
+                        extra: {
+                          'proposalId': activeOrder.proposalId,
+                          'vendorName': activeOrder.vendorBusinessName,
+                          'isUnlocked': true,
+                        },
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    style: IconButton.styleFrom(
+                      backgroundColor:
+                          AppColors.customerColor.withValues(alpha: 0.12),
                     ),
-                  ],
-                ),
+                    icon: const Icon(Icons.call,
+                        color: AppColors.customerColor),
+                    onPressed: () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                              'Calling ${activeOrder.vendorBusinessName} at ${activeOrder.vendorPhone}...'),
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 24),
 
             // ─────────────────────────────────────────────────────────────
-            // SECTION 4 — Items Summary
+            // ITEMS SECTION — Order Items
             // ─────────────────────────────────────────────────────────────
             Text('Ordered Items', style: AppTextStyles.h2(primaryText)),
             const SizedBox(height: 12),
@@ -339,14 +434,8 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                         ? '${item.alternativeName} (Alternative for ${item.requestItemName})'
                         : item.requestItemName;
 
-                return Container(
+                return Theme3AppCard(
                   margin: const EdgeInsets.only(bottom: 10),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: cardColor,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: borderColor),
-                  ),
                   child: Row(
                     children: [
                       Expanded(
@@ -371,15 +460,9 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
             const SizedBox(height: 24),
 
             // ─────────────────────────────────────────────────────────────
-            // SECTION 5 — Payment & Receipt
+            // RECEIPT SECTION — Payment & Receipt
             // ─────────────────────────────────────────────────────────────
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: cardColor,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: borderColor),
-              ),
+            Theme3AppCard(
               child: Column(
                 children: [
                   Row(
@@ -387,11 +470,11 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                     children: [
                       Text('Payment Status:',
                           style: AppTextStyles.bodyMedium(secondaryText)),
-                      StatusBadge(
+                      Theme3StatusChip(
                         label: activeOrder.paymentStatus.name.toUpperCase(),
-                        color: activeOrder.paymentStatus == PaymentStatus.paid
-                            ? AppColors.success
-                            : AppColors.warning,
+                        status: activeOrder.paymentStatus == PaymentStatus.paid
+                            ? Theme3StatusType.completed
+                            : Theme3StatusType.pending,
                       ),
                     ],
                   ),
@@ -417,22 +500,13 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                               AppColors.customerColor)),
                     ],
                   ),
-                  const Divider(height: 24),
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.customerColor,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      minimumSize: const Size(double.infinity, 44),
-                      elevation: 0,
-                    ),
-                    icon:
-                        const Icon(Icons.download_rounded, color: Colors.white),
-                    label: Text('Download LKR Receipt (PDF)',
-                        style: AppTextStyles.button(Colors.white)),
+                  const SizedBox(height: 16),
+                  Theme3AppButton(
+                    label: 'Download LKR Receipt (PDF)',
                     onPressed: () => _showReceiptDialog(
                         context, activeOrder, isDark),
+                    icon: Icons.download_rounded,
+                    width: double.infinity,
                   ),
                 ],
               ),
@@ -444,7 +518,84 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
     );
   }
 
-  // ── Receipt dialog extracted for readability ──────────────────────────
+  Theme3StatusType _mapOrderStatusToTheme3Status(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.submitted:
+      case OrderStatus.accepted:
+        return Theme3StatusType.pending;
+      case OrderStatus.preparing:
+      case OrderStatus.readyForDelivery:
+      case OrderStatus.outForDelivery:
+        return Theme3StatusType.inProgress;
+      case OrderStatus.delivered:
+      case OrderStatus.completed:
+        return Theme3StatusType.completed;
+      case OrderStatus.cancelled:
+        return Theme3StatusType.cancelled;
+    }
+  }
+
+  String _formatEstimatedTime(DateTime createdAt) {
+    final eta = createdAt.add(const Duration(hours: 2));
+    return '${eta.hour}:${eta.minute.toString().padLeft(2, '0')}';
+  }
+
+  String _getStatusDisplayText(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.submitted:
+        return 'Order Placed';
+      case OrderStatus.accepted:
+        return 'Vendor Confirmed';
+      case OrderStatus.preparing:
+        return 'Preparing Your Items';
+      case OrderStatus.readyForDelivery:
+        return 'Ready for Pickup';
+      case OrderStatus.outForDelivery:
+        return 'Out for Delivery';
+      case OrderStatus.delivered:
+        return 'Delivered';
+      case OrderStatus.completed:
+        return 'Completed';
+      case OrderStatus.cancelled:
+        return 'Cancelled';
+    }
+  }
+
+  String _formatDateTime(DateTime dt) {
+    final now = DateTime.now();
+    final diff = now.difference(dt);
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+    if (diff.inHours < 24) return '${diff.inHours} hr ago';
+    return '${dt.day}/${dt.month}/${dt.year} at ${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildInfoRow(
+    IconData icon,
+    String label,
+    String value,
+    Color labelColor,
+    Color valueColor,
+  ) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: AppColors.customerColor),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: AppTextStyles.caption(labelColor)),
+              const SizedBox(height: 2),
+              Text(value, style: AppTextStyles.bodyMedium(valueColor)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   void _showReceiptDialog(
       BuildContext context, OrderModel activeOrder, bool isDark) {
     showDialog(
@@ -552,15 +703,8 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
               child: Text('Close',
                   style: TextStyle(color: AppColors.customerColor)),
             ),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.customerColor,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-              ),
-              icon: const Icon(Icons.share_rounded, size: 16, color: Colors.white),
-              label: const Text('Share Receipt',
-                  style: TextStyle(color: Colors.white, fontSize: 12)),
+            Theme3AppButton(
+              label: 'Share Receipt',
               onPressed: () {
                 Navigator.pop(ctx);
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -571,6 +715,8 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                   ),
                 );
               },
+              icon: Icons.share_rounded,
+              width: 150,
             ),
           ],
         );
@@ -587,7 +733,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
         children: [
           Text(label,
               style: TextStyle(
-                  fontSize: 12, color: color.withOpacity(0.7))),
+                  fontSize: 12, color: color.withValues(alpha: 0.7))),
           Text(value,
               style: TextStyle(
                   fontSize: 12,
@@ -600,403 +746,3 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Map Section Widget
-// ─────────────────────────────────────────────────────────────────────────────
-class _MapSection extends StatelessWidget {
-  const _MapSection({
-    required this.isDark,
-    required this.primaryText,
-    required this.activeOrder,
-    required this.customerLat,
-    required this.customerLon,
-    required this.vendorLat,
-    required this.vendorLon,
-    required this.riderProgress,
-  });
-
-  final bool isDark;
-  final Color primaryText;
-  final OrderModel activeOrder;
-  final double customerLat;
-  final double customerLon;
-  final double vendorLat;
-  final double vendorLon;
-  final double riderProgress;
-
-  @override
-  Widget build(BuildContext context) {
-    // Only show the live map card if order is in a delivery-relevant state
-    final bool showMap = activeOrder.status == OrderStatus.outForDelivery ||
-        activeOrder.status == OrderStatus.delivered ||
-        activeOrder.status == OrderStatus.preparing;
-
-    if (!showMap) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Section header with status badge
-        Row(
-          children: [
-            Text('Live Tracking Map', style: AppTextStyles.h2(primaryText)),
-            const Spacer(),
-            if (activeOrder.status == OrderStatus.outForDelivery)
-              _PulsingLiveDot(),
-          ],
-        ),
-        const SizedBox(height: 12),
-
-        // Map widget with premium card wrapper
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(24),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.customerColor.withOpacity(
-                    activeOrder.status == OrderStatus.outForDelivery
-                        ? 0.18
-                        : 0.06),
-                blurRadius: 24,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: OrderTrackingMap(
-            customerLatitude: customerLat,
-            customerLongitude: customerLon,
-            vendorLatitude: vendorLat,
-            vendorLongitude: vendorLon,
-            riderProgress: riderProgress,
-            vendorBusinessName: activeOrder.vendorBusinessName,
-          ),
-        ),
-
-        // Progress pill — only visible during active delivery
-        if (activeOrder.status == OrderStatus.outForDelivery) ...[
-          const SizedBox(height: 14),
-          _RiderProgressBar(progress: riderProgress, isDark: isDark),
-        ],
-
-        // Delivered celebration banner
-        if (activeOrder.status == OrderStatus.delivered) ...[
-          const SizedBox(height: 14),
-          _DeliveredBanner(isDark: isDark),
-        ],
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Rider Progress Bar
-// ─────────────────────────────────────────────────────────────────────────────
-class _RiderProgressBar extends StatelessWidget {
-  const _RiderProgressBar(
-      {required this.progress, required this.isDark});
-
-  final double progress;
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    final int etaSeconds =
-        ((1.0 - progress) * 30).ceil().clamp(0, 30);
-    final String etaText = etaSeconds > 0 ? '~$etaSeconds sec away' : 'Arriving!';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.cardDark : AppColors.cardLight,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.customerColor.withOpacity(0.35),
-          width: 1.5,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.delivery_dining_rounded,
-                  color: AppColors.customerColor, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Rider En Route',
-                  style: AppTextStyles.bodyMedium(
-                          isDark
-                              ? AppColors.textPrimaryDark
-                              : AppColors.textPrimaryLight)
-                      .copyWith(fontWeight: FontWeight.bold),
-                ),
-              ),
-              Text(
-                etaText,
-                style: AppTextStyles.caption(AppColors.customerColor)
-                    .copyWith(fontWeight: FontWeight.w600),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 8,
-              backgroundColor: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
-              valueColor:
-                  const AlwaysStoppedAnimation<Color>(AppColors.customerColor),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Merchant',
-                  style: TextStyle(
-                      fontSize: 10,
-                      color: isDark ? Colors.white54 : Colors.black38)),
-              Text('Your Door',
-                  style: TextStyle(
-                      fontSize: 10,
-                      color: isDark ? Colors.white54 : Colors.black38)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Delivered Success Banner
-// ─────────────────────────────────────────────────────────────────────────────
-class _DeliveredBanner extends StatelessWidget {
-  const _DeliveredBanner({required this.isDark});
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppColors.success.withOpacity(0.15),
-            AppColors.success.withOpacity(0.05),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.success.withOpacity(0.4)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: AppColors.success.withOpacity(0.15),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.task_alt_rounded,
-                color: AppColors.success, size: 26),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '🎉 Order Delivered!',
-                  style: AppTextStyles.subtitle(
-                      isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)
-                    ..copyWith(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Your items have been delivered. Thank you for using Speedmart Lanka!',
-                  style: AppTextStyles.caption(
-                      isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Pulsing LIVE Dot Indicator
-// ─────────────────────────────────────────────────────────────────────────────
-class _PulsingLiveDot extends StatefulWidget {
-  @override
-  State<_PulsingLiveDot> createState() => _PulsingLiveDotState();
-}
-
-class _PulsingLiveDotState extends State<_PulsingLiveDot>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _pulseAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat(reverse: true);
-    _pulseAnim =
-        Tween<double>(begin: 0.5, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _pulseAnim,
-      builder: (context, _) {
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: AppColors.error.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AppColors.error.withOpacity(0.5)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 8,
-                height: 8,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: AppColors.error.withOpacity(_pulseAnim.value),
-                ),
-              ),
-              const SizedBox(width: 5),
-              Text(
-                'LIVE',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.error,
-                  letterSpacing: 1,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Status Timeline Step
-// ─────────────────────────────────────────────────────────────────────────────
-class _StatusStep extends StatelessWidget {
-  const _StatusStep({
-    required this.title,
-    required this.subtitle,
-    required this.isCompleted,
-    required this.isActive,
-    this.isLast = false,
-  });
-
-  final String title;
-  final String subtitle;
-  final bool isCompleted;
-  final bool isActive;
-  final bool isLast;
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          children: [
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: isCompleted
-                    ? (isActive ? AppColors.customerColor : AppColors.success)
-                    : (isDark ? Colors.grey.shade800 : Colors.grey.shade200),
-                shape: BoxShape.circle,
-                border: isActive
-                    ? Border.all(
-                        color: isDark ? Colors.white : Colors.black, width: 2)
-                    : null,
-              ),
-              child: Icon(
-                isCompleted ? Icons.check : Icons.circle,
-                size: isCompleted ? 16 : 8,
-                color: isCompleted ? Colors.white : Colors.grey,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                  color: isCompleted
-                      ? (isDark ? Colors.white : Colors.black)
-                      : (isDark ? Colors.grey.shade600 : Colors.grey.shade400),
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                subtitle,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: isCompleted
-                      ? (isDark ? Colors.white70 : Colors.black54)
-                      : (isDark ? Colors.grey.shade600 : Colors.grey.shade400),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _StatusLine extends StatelessWidget {
-  const _StatusLine({required this.isCompleted});
-  final bool isCompleted;
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(left: 13),
-        width: 2,
-        height: 24,
-        color: isCompleted ? AppColors.success : Colors.grey.shade300,
-      ),
-    );
-  }
-}

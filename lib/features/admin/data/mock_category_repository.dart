@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import '../models/category_model.dart';
 import '../../../shared/utils/category_sync_helper.dart';
+import '../../auth/data/mock_auth_repository.dart';
 
 class MockCategoryRepository {
   static const String _storageKey = 'admin_categories';
@@ -209,6 +210,29 @@ class MockCategoryRepository {
     return updated;
   }
 
+  Future<bool> isCategoryInUse(String normalizedKey) async {
+    try {
+      // Check in mock auth repository for vendors using this category
+      final authRepo = MockAuthRepository.instance;
+      await authRepo.ensureInitialized();
+      final allUsers = await authRepo.getAllUsers();
+      
+      for (final user in allUsers) {
+        if ((user.vendorCategories?.contains(normalizedKey) ?? false) ||
+            (user.allowedCategories?.contains(normalizedKey) ?? false) ||
+            (user.requestedCategories?.contains(normalizedKey) ?? false)) {
+          debugPrint('[CategoryAdmin] Category in use by vendor: ${user.id}');
+          return true;
+        }
+      }
+      
+      return false;
+    } catch (e) {
+      debugPrint('[CategoryAdmin] Error checking category in use: $e');
+      return false;
+    }
+  }
+
   Future<void> deleteCategory(String id) async {
     await ensureInitialized();
     
@@ -218,14 +242,15 @@ class MockCategoryRepository {
       throw Exception('Cannot delete default category');
     }
 
+    // Check if category is in use before allowing hard delete
+    final inUse = await isCategoryInUse(category.normalizedKey);
+    if (inUse) {
+      throw Exception('This category is currently used. Disable it instead to preserve history.');
+    }
+
     _categories.removeWhere((c) => c.id == id);
     await _persist();
     
     debugPrint('[CategoryAdmin] deleted: ${category.displayName}');
-  }
-
-  Future<bool> isCategoryInUse(String normalizedKey) async {
-    await Future.delayed(const Duration(milliseconds: 100));
-    return false;
   }
 }

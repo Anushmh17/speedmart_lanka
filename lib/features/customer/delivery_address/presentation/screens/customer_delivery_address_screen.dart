@@ -4,7 +4,9 @@ import 'package:go_router/go_router.dart';
 import '../../../../auth/providers/auth_provider.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_text_styles.dart';
-import '../../../../../core/widgets/app_button.dart';
+import '../../../../../core/theme/app_spacing.dart';
+import '../../../../../core/theme/app_radius.dart';
+import '../../../../../core/widgets/theme3/theme3_widgets.dart';
 import '../../../../location/providers/location_provider.dart';
 import '../../models/customer_delivery_address.dart';
 import '../../providers/customer_delivery_address_provider.dart';
@@ -123,41 +125,134 @@ class _CustomerDeliveryAddressScreenState
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     final addrState = ref.watch(customerDeliveryAddressProvider);
+    final loc = ref.watch(deliveryLocationProvider).currentLocation;
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Delivery Address'),
-        backgroundColor: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+      appBar: Theme3AppBar(
+        title: 'Delivery Address',
       ),
       body: addrState.isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Delivery Address', style: AppTextStyles.h2(primaryText)),
-                  const SizedBox(height: 8),
+                  // Header
+                  Text('Manage Delivery Address', style: AppTextStyles.h2(primaryText)),
+                  const SizedBox(height: AppSpacing.sm),
                   Text(
-                    'This address is used for shopping requests. Vendors see only your approximate area until an order is confirmed.',
-                    style: AppTextStyles.bodySmall(
-                      isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                    'Vendors see only your approximate area until order confirmation',
+                    style: AppTextStyles.bodySmall(secondaryText),
+                  ),
+                  const SizedBox(height: AppSpacing.xl),
+
+                  // Current Address Card
+                  Theme3AppCard(
+                    type: Theme3CardType.elevated,
+                    padding: const EdgeInsets.all(AppSpacing.lg),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.location_on_rounded,
+                              color: isDark ? AppColors.primaryDark : AppColors.primary,
+                              size: 24,
+                            ),
+                            const SizedBox(width: AppSpacing.sm),
+                            Text(
+                              'Current Address',
+                              style: AppTextStyles.h3(primaryText),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: AppSpacing.lg),
+                        DeliveryAddressForm(
+                          key: _formWidgetKey,
+                          formKey: _formKey,
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 24),
-                  DeliveryAddressForm(
-                    key: _formWidgetKey,
-                    formKey: _formKey,
+                  const SizedBox(height: AppSpacing.lg),
+
+                  // Location Status Card
+                  if (loc != null && loc.latitude != null && loc.longitude != null) ...[
+                    Theme3AppCard(
+                      type: Theme3CardType.standard,
+                      padding: const EdgeInsets.all(AppSpacing.lg),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.success.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                                ),
+                                child: Icon(
+                                  Icons.gps_fixed_rounded,
+                                  color: AppColors.success,
+                                  size: 20,
+                                ),
+                              ),
+                              const SizedBox(width: AppSpacing.md),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'GPS Detected',
+                                      style: AppTextStyles.labelLarge(primaryText),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      'Location verified successfully',
+                                      style: AppTextStyles.caption(secondaryText),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
+                  ],
+
+                  // Map Picker
+                  Theme3AppCard(
+                    type: Theme3CardType.standard,
+                    padding: const EdgeInsets.all(AppSpacing.md),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Pin Location on Map',
+                          style: AppTextStyles.labelLarge(primaryText),
+                        ),
+                        const SizedBox(height: AppSpacing.md),
+                        const DeliveryLocationMapPicker(),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 24),
-                  const DeliveryLocationMapPicker(),
-                  const SizedBox(height: 24),
-                  AppButton(
-                    label: 'Confirm Delivery Location',
+                  const SizedBox(height: AppSpacing.xl),
+
+                  // Save Button
+                  Theme3AppButton(
+                    label: 'Save Changes',
                     isLoading: _isSaving,
                     onPressed: _isSaving ? null : _save,
+                    icon: Icons.check_rounded,
                   ),
+                  const SizedBox(height: AppSpacing.lg),
                 ],
               ),
             ),

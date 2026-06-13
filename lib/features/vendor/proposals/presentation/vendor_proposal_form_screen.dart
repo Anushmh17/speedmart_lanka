@@ -227,18 +227,18 @@ class _VendorProposalFormScreenState
       }
     }
     
-    // For now, use first category if single category, otherwise leave null
-    // Multi-category proposals need separate handling
-    if (categoriesInProposal.length == 1) {
-      proposalCategory = categoriesInProposal.first;
-      print('[MultiCategoryFlow] Created proposal category: $proposalCategory');
-    } else if (categoriesInProposal.isNotEmpty) {
-      // For multi-category: use first category for now
-      // TODO: Support category selection or separate proposals per category
-      proposalCategory = categoriesInProposal.first;
-      print('[MultiCategoryFlow] Warning: Proposal covers multiple categories: $categoriesInProposal');
-      print('[MultiCategoryFlow] Created proposal category: $proposalCategory (first)');
-    }
+      // For now, use first category if single category, otherwise leave null
+      // Multi-category proposals need separate handling
+      if (categoriesInProposal.length == 1) {
+        proposalCategory = categoriesInProposal.first;
+        debugPrint('[MultiCategoryFlow] Created proposal category: $proposalCategory');
+      } else if (categoriesInProposal.isNotEmpty) {
+        // For multi-category: use first category for now
+        // TODO: Support category selection or separate proposals per category
+        proposalCategory = categoriesInProposal.first;
+        debugPrint('[MultiCategoryFlow] Warning: Proposal covers multiple categories: $categoriesInProposal');
+        debugPrint('[MultiCategoryFlow] Created proposal category: $proposalCategory (first)');
+      }
 
     return Proposal(
       id: widget.existingProposal?.id ?? '',
@@ -796,7 +796,7 @@ class _ItemEditorCard extends StatelessWidget {
                         decoration: BoxDecoration(
                           color: borderColor,
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: borderColor.withOpacity(0.5)),
+                          border: Border.all(color: borderColor.withValues(alpha: 0.5)),
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(10),
@@ -925,7 +925,7 @@ class _ItemEditorCard extends StatelessWidget {
         label: Text(label, style: const TextStyle(fontSize: 11)),
         selected: selected,
         onSelected: (_) => onStatusChanged(value),
-        selectedColor: AppColors.vendorColor.withOpacity(0.2),
+        selectedColor: AppColors.vendorColor.withValues(alpha: 0.2),
         checkmarkColor: AppColors.vendorColor,
       ),
     );

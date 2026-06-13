@@ -597,113 +597,27 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     required Color secondaryText,
     required Color primaryColor,
   }) {
-    final addrState = ref.watch(customerDeliveryAddressProvider);
-    final saved = addrState.savedAddress;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: borderColor),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (addrState.isLoading)
-            const Center(child: Padding(
-              padding: EdgeInsets.all(12),
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ))
-          else if (saved == null || !saved.isComplete) ...
-            [
-              Text(
-                'No delivery address saved yet.',
-                style: AppTextStyles.bodyMedium(secondaryText),
-              ),
-              const SizedBox(height: 12),
-              FilledButton.icon(
-                onPressed: () => context.push(RouteNames.customerDeliveryAddress),
-                icon: const Icon(Icons.add_location_alt_outlined),
-                label: const Text('Add Delivery Address'),
-                style: FilledButton.styleFrom(backgroundColor: primaryColor),
-              ),
-            ]
-          else ...
-            [
-              Text(saved.approximateArea, style: AppTextStyles.bodyLarge(primaryText)),
-              const SizedBox(height: 4),
-              Text(
-                '${saved.district}, ${saved.province}',
-                style: AppTextStyles.bodySmall(secondaryText),
-              ),
-              const SizedBox(height: 4),
-              Text(saved.streetAddress, style: AppTextStyles.bodySmall(secondaryText)),
-              if (saved.deliveryNote.isNotEmpty) ...
-                [
-                  const SizedBox(height: 6),
-                  Text('Note: ${saved.deliveryNote}', style: AppTextStyles.caption(secondaryText)),
-                ],
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: () => _showSavedDeliveryLocationDialog(saved),
-                    icon: const Icon(Icons.map_outlined),
-                    label: const Text('View Saved Location'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => context.push(RouteNames.customerDeliveryAddress),
-                    icon: const Icon(Icons.edit_location_alt_outlined),
-                    label: const Text('Edit Location'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => context.push(
-                      RouteNames.customerDeliveryAddress,
-                      extra: {'startWithGpsDetection': true},
-                    ),
-                    icon: const Icon(Icons.my_location_rounded),
-                    label: const Text('Detect Again'),
-                  ),
-                ],
-              ),
-            ],
-        ],
-      ),
-    );
-  }
-
-  void _showSavedDeliveryLocationDialog(CustomerDeliveryAddress saved) {
-    showDialog<void>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: const Text('Saved Delivery Location'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(saved.formattedAddress.isNotEmpty
-                ? saved.formattedAddress
-                : '${saved.approximateArea}, ${saved.district}, ${saved.province}'),
-            const SizedBox(height: 12),
-            Text('Latitude: ${saved.latitude?.toStringAsFixed(6) ?? 'Not set'}'),
-            Text('Longitude: ${saved.longitude?.toStringAsFixed(6) ?? 'Not set'}'),
-            const SizedBox(height: 8),
-            Text('Last updated: ${saved.updatedAt.toLocal().toString().split('.').first}'),
-          ],
+    return GestureDetector(
+      onTap: () => context.push(RouteNames.customerDeliveryAddress),
+      child: Container(
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('Close'),
-          ),
-        ],
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          leading: Icon(Icons.location_on_outlined, color: primaryColor),
+          title: Text('Delivery Address', style: AppTextStyles.bodyMedium(primaryText)),
+          subtitle: Text('Manage your delivery location', style: AppTextStyles.caption(secondaryText)),
+          trailing: Icon(Icons.arrow_forward_ios_rounded, size: 18, color: secondaryText),
+        ),
       ),
     );
   }
+
+
 
   Widget _buildFieldCard({
     required Color cardColor,

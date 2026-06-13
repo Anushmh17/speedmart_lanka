@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_radius.dart';
+import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../../../core/widgets/app_state_widgets.dart';
+import '../../../../core/widgets/theme3/theme3_status_chip.dart';
 import '../models/vendor_feed_enums.dart';
 import '../models/vendor_feed_request.dart';
 
@@ -26,7 +28,7 @@ class VendorRequestCard extends StatelessWidget {
       case RequestUrgency.medium:
         return AppColors.warning;
       case RequestUrgency.normal:
-        return AppColors.vendorColor.withOpacity(0.85);
+        return AppColors.vendorColor.withValues(alpha: 0.85);
     }
   }
 
@@ -54,14 +56,14 @@ class VendorRequestCard extends StatelessWidget {
         );
       },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 14),
+        margin: const EdgeInsets.only(bottom: AppSpacing.md),
         decoration: BoxDecoration(
           color: cardColor,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
           border: Border.all(color: borderColor),
           boxShadow: [
             BoxShadow(
-              color: AppColors.vendorColor.withOpacity(isDark ? 0.06 : 0.08),
+              color: AppColors.vendorColor.withValues(alpha: isDark ? 0.06 : 0.08),
               blurRadius: 12,
               offset: const Offset(0, 4),
             ),
@@ -70,7 +72,7 @@ class VendorRequestCard extends StatelessWidget {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(AppRadius.lg),
             onTap: () {
               context.push(
                 '/vendor/requests/detail',
@@ -78,7 +80,7 @@ class VendorRequestCard extends StatelessWidget {
               );
             },
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(AppSpacing.lg),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -86,12 +88,12 @@ class VendorRequestCard extends StatelessWidget {
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
+                          horizontal: AppSpacing.sm,
+                          vertical: AppSpacing.xs,
                         ),
                         decoration: BoxDecoration(
-                          color: AppColors.vendorColor.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(8),
+                          color: AppColors.vendorColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(AppRadius.sm),
                         ),
                         child: Text(
                           feedRequest.primaryCategory,
@@ -100,13 +102,14 @@ class VendorRequestCard extends StatelessWidget {
                         ),
                       ),
                       const Spacer(),
-                      StatusBadge(
+                      Theme3StatusChip(
                         label: feedRequest.urgency.label,
-                        color: _urgencyColor(feedRequest.urgency),
+                        status: Theme3StatusType.custom,
+                        customColor: _urgencyColor(feedRequest.urgency),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpacing.md),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -121,7 +124,7 @@ class VendorRequestCard extends StatelessWidget {
                               overflow: TextOverflow.ellipsis,
                             ),
                             if (feedRequest.district.isNotEmpty) ...[
-                              const SizedBox(height: 4),
+                              const SizedBox(height: AppSpacing.xs),
                               Row(
                                 children: [
                                   Icon(
@@ -129,7 +132,7 @@ class VendorRequestCard extends StatelessWidget {
                                     size: 14,
                                     color: secondaryText,
                                   ),
-                                  const SizedBox(width: 4),
+                                  const SizedBox(width: AppSpacing.xs),
                                   Text(
                                     feedRequest.district,
                                     style: AppTextStyles.bodySmall(secondaryText),
@@ -157,10 +160,10 @@ class VendorRequestCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: AppSpacing.md),
                   Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.sm,
                     children: [
                       _MetaChip(
                         icon: Icons.inventory_2_outlined,
@@ -179,18 +182,19 @@ class VendorRequestCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: AppSpacing.md),
                   const Divider(height: 1),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpacing.md),
                   Row(
                     children: [
                       Flexible(
-                        child: StatusBadge(
+                        child: Theme3StatusChip(
                           label: feedRequest.statusLabel,
-                          color: AppColors.vendorColor,
+                          status: Theme3StatusType.custom,
+                          customColor: AppColors.vendorColor,
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AppSpacing.sm),
                       Flexible(
                         child: Align(
                           alignment: Alignment.centerRight,
@@ -202,11 +206,11 @@ class VendorRequestCard extends StatelessWidget {
                               minimumSize: const Size(0, 36),
                               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                               padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
+                                horizontal: AppSpacing.md,
+                                vertical: AppSpacing.sm,
                               ),
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(AppRadius.md),
                               ),
                             ),
                             onPressed: () {
@@ -249,22 +253,25 @@ class _MetaChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg = isDark ? Colors.white10 : AppColors.vendorColor.withOpacity(0.06);
+    final bg = isDark ? Colors.white10 : AppColors.vendorColor.withValues(alpha: 0.06);
     final text = isDark
         ? AppColors.textSecondaryDark
         : AppColors.textSecondaryLight;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, size: 14, color: AppColors.vendorColor),
-          const SizedBox(width: 6),
+          const SizedBox(width: AppSpacing.xs),
           Text(label, style: AppTextStyles.caption(text)),
         ],
       ),

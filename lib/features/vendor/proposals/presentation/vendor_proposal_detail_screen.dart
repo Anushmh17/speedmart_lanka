@@ -305,8 +305,8 @@ class _VendorProposalDetailScreenState
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: AppColors.vendorColor.withOpacity(0.1),
-                  border: Border.all(color: AppColors.vendorColor.withOpacity(0.3)),
+                  color: AppColors.vendorColor.withValues(alpha: 0.1),
+                  border: Border.all(color: AppColors.vendorColor.withValues(alpha: 0.3)),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -329,8 +329,8 @@ class _VendorProposalDetailScreenState
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: AppColors.error.withOpacity(0.1),
-                  border: Border.all(color: AppColors.error.withOpacity(0.3)),
+                  color: AppColors.error.withValues(alpha: 0.1),
+                  border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(

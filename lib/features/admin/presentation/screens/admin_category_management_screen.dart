@@ -168,6 +168,89 @@ class _AdminCategoryManagementScreenState
     );
   }
 
+  Future<void> _confirmDisable(String id, String name, bool currentState) async {
+    if (!currentState) {
+      // Already disabled, enable it
+      try {
+        await ref.read(categoryProvider.notifier).updateCategory(id, isActive: true);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Category "$name" enabled'),
+              backgroundColor: AppColors.success,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(e.toString()),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+      }
+      return;
+    }
+
+    // Show confirmation dialog when disabling
+    return showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Disable Category?'),
+        content: const Text(
+          'This category may already be used by existing requests, vendors, proposals, or orders.\n\n'
+          'Disabling it will:\n'
+          '• Hide it from new customer requests\n'
+          '• Hide it from new vendor registrations\n'
+          '• Keep existing requests, proposals, orders, and vendor matches working\n\n'
+          'Continue?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await ref.read(categoryProvider.notifier).updateCategory(id, isActive: false);
+                if (!mounted) return;
+
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Category "$name" disabled'),
+                    backgroundColor: AppColors.success,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              } catch (e) {
+                if (!mounted) return;
+
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(e.toString().replaceAll('Exception: ', '')),
+                    backgroundColor: AppColors.error,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.warning,
+            ),
+            child: const Text('Disable Category'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _confirmDelete(String id, String name, bool isDefault) async {
     if (isDefault) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -189,56 +272,20 @@ class _AdminCategoryManagementScreenState
 
           return AlertDialog(
             title: const Text('Delete Category'),
-            content: Text('Are you sure you want to delete "$name"?'),
+            content: const Text(
+              'This category is currently used. Disable it instead to preserve history.',
+            ),
             actions: [
               TextButton(
                 onPressed: isDeleting ? null : () => Navigator.of(ctx).pop(),
                 child: const Text('Cancel'),
               ),
               ElevatedButton(
-                onPressed: isDeleting
-                    ? null
-                    : () async {
-                        setDialogState(() => isDeleting = true);
-
-                        try {
-                          await ref.read(categoryProvider.notifier).deleteCategory(id);
-                          if (!mounted) return;
-
-                          Navigator.of(context).pop();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Category "$name" deleted'),
-                              backgroundColor: AppColors.success,
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        } catch (e) {
-                          if (!mounted) return;
-
-                          setDialogState(() => isDeleting = false);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(e.toString().replaceAll('Exception: ', '')),
-                              backgroundColor: AppColors.error,
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                        }
-                      },
+                onPressed: isDeleting ? null : () => Navigator.of(ctx).pop(),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.error,
                 ),
-                child: isDeleting
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                        ),
-                      )
-                    : const Text('Delete'),
+                child: const Text('Understood'),
               ),
             ],
           );
@@ -316,6 +363,23 @@ class _AdminCategoryManagementScreenState
                                       .copyWith(fontWeight: FontWeight.w600),
                                 ),
                               ),
+                            if (!category.isActive)
+                              Container(
+                                margin: const EdgeInsets.only(left: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.warning.withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'Archived',
+                                  style: AppTextStyles.caption(AppColors.warning)
+                                      .copyWith(fontWeight: FontWeight.w600),
+                                ),
+                              ),
                           ],
                         ),
                         subtitle: Padding(
@@ -330,21 +394,8 @@ class _AdminCategoryManagementScreenState
                           children: [
                             Switch(
                               value: category.isActive,
-                              onChanged: (val) async {
-                                try {
-                                  await ref
-                                      .read(categoryProvider.notifier)
-                                      .updateCategory(category.id, isActive: val);
-                                } catch (e) {
-                                  if (mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(e.toString()),
-                                        backgroundColor: AppColors.error,
-                                      ),
-                                    );
-                                  }
-                                }
+                              onChanged: (val) {
+                                _confirmDisable(category.id, category.displayName, category.isActive);
                               },
                               activeColor: AppColors.success,
                             ),

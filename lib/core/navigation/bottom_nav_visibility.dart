@@ -17,13 +17,18 @@ class BottomNavVisibilityNotifier extends AutoDisposeNotifier<bool> {
   bool build() {
     final location = ref.watch(currentRouteLocationProvider);
     
+    debugPrint('[BottomNav] route=$location');
+    
     // Reset manual override automatically when route location changes
     if (_lastLocation != location) {
       _lastLocation = location;
       _manualHidden = false;
+      debugPrint('[BottomNav] route changed, reset manual hidden');
     }
 
-    final cleanPath = Uri.parse(location).path;
+    // CRITICAL FIX: Parse the location to get the actual path
+    final uri = Uri.tryParse(location);
+    final cleanPath = uri?.path ?? location;
 
     // Only show bottom navigation on MAIN dashboard tabs
     final mainDashboardRoutes = {
@@ -36,8 +41,11 @@ class BottomNavVisibilityNotifier extends AutoDisposeNotifier<bool> {
     };
 
     final routeVisible = mainDashboardRoutes.contains(cleanPath);
+    final result = routeVisible && !_manualHidden;
+    
+    debugPrint('[BottomNav] cleanPath=$cleanPath, visible=$result (routeVisible=$routeVisible, manualHidden=$_manualHidden)');
 
-    return routeVisible && !_manualHidden;
+    return result;
   }
 }
 

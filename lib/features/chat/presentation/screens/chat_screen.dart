@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../providers/chat_provider.dart';
 
@@ -81,73 +84,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-      appBar: AppBar(
-        title: Row(
-          children: [
-            CircleAvatar(
-              backgroundColor: AppColors.customerColor.withOpacity(0.12),
-              child: const Icon(Icons.storefront_rounded, color: AppColors.customerColor, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(displayName, style: AppTextStyles.subtitle(primaryText)),
-                  Text(
-                    widget.isUnlocked ? '● Open Chat Channel' : '🔒 Secure Shield Active',
-                    style: AppTextStyles.caption(widget.isUnlocked ? AppColors.success : AppColors.warning),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: surfaceColor,
-      ),
       body: Column(
         children: [
-          // Security Shield warning / unlock banner
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            decoration: BoxDecoration(
-              color: widget.isUnlocked
-                  ? AppColors.success.withOpacity(0.08)
-                  : AppColors.warning.withOpacity(0.08),
-              border: Border(
-                bottom: BorderSide(
-                  color: widget.isUnlocked
-                      ? AppColors.success.withOpacity(0.2)
-                      : AppColors.warning.withOpacity(0.2),
-                ),
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(
-                  widget.isUnlocked ? Icons.shield_rounded : Icons.shield_outlined,
-                  color: widget.isUnlocked ? AppColors.success : AppColors.warning,
-                  size: 18,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    widget.isUnlocked
-                        ? 'Order Confirmed! Platform safety filters have been lifted. You can communicate openly.'
-                        : 'Security Shield Active: Phone numbers and private links are automatically masked to prevent platform bypass and protect your billing dispute rights.',
-                    style: AppTextStyles.bodySmall(primaryText).copyWith(height: 1.3),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Messages bubble list
+          _buildHeader(context, isDark, primaryText, secondaryText, displayName),
+          _buildSecurityBanner(isDark, primaryText),
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(AppSpacing.md),
               itemCount: messages.length,
               itemBuilder: (context, index) {
                 final message = messages[index];
@@ -164,24 +108,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 final wasRedacted = !widget.isUnlocked && message.maskedText != message.text;
 
                 return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6.0),
+                  padding: EdgeInsets.symmetric(vertical: AppSpacing.xs),
                   child: Align(
                     alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
                     child: Column(
                       crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          padding: EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
                           constraints: BoxConstraints(
                             maxWidth: MediaQuery.of(context).size.width * 0.75,
                           ),
                           decoration: BoxDecoration(
                             color: bubbleColor,
                             borderRadius: BorderRadius.only(
-                              topLeft: const Radius.circular(16),
-                              topRight: const Radius.circular(16),
-                              bottomLeft: Radius.circular(isMe ? 16 : 4),
-                              bottomRight: Radius.circular(isMe ? 4 : 16),
+                              topLeft: Radius.circular(AppRadius.lg),
+                              topRight: Radius.circular(AppRadius.lg),
+                              bottomLeft: Radius.circular(isMe ? AppRadius.lg : AppRadius.xs),
+                              bottomRight: Radius.circular(isMe ? AppRadius.xs : AppRadius.lg),
                             ),
                           ),
                           child: Column(
@@ -192,12 +136,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 style: AppTextStyles.bodyMedium(textColor),
                               ),
                               if (wasRedacted) ...[
-                                const SizedBox(height: 6),
+                                SizedBox(height: AppSpacing.xs),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.xs, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: Colors.red.withOpacity(0.15),
-                                    borderRadius: BorderRadius.circular(4),
+                                    color: Colors.red.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(AppRadius.xs),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
@@ -288,7 +232,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: AppSpacing.sm),
                 IconButton(
                   style: IconButton.styleFrom(
                     backgroundColor: AppColors.customerColor,
@@ -298,6 +242,115 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   onPressed: () => _sendMessage(),
                 ),
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, bool isDark, Color primaryText, Color secondaryText, String displayName) {
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        MediaQuery.of(context).padding.top + AppSpacing.sm,
+        AppSpacing.md,
+        AppSpacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+            width: 1,
+          ),
+        ),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: () => context.pop(),
+            icon: Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: primaryText,
+            ),
+            style: IconButton.styleFrom(
+              backgroundColor: isDark ? AppColors.surfaceElevatedDark : AppColors.borderLight,
+            ),
+          ),
+          SizedBox(width: AppSpacing.sm),
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: AppColors.customerColor.withValues(alpha: 0.12),
+            child: Icon(Icons.storefront_rounded, color: AppColors.customerColor, size: 20),
+          ),
+          SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayName,
+                  style: AppTextStyles.h3(primaryText),
+                ),
+                SizedBox(height: AppSpacing.xs),
+                Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: widget.isUnlocked ? AppColors.success : AppColors.warning,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    SizedBox(width: AppSpacing.xs),
+                    Text(
+                      widget.isUnlocked ? 'Open Channel' : 'Secure Shield',
+                      style: AppTextStyles.bodySmall(
+                        widget.isUnlocked ? AppColors.success : AppColors.warning,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSecurityBanner(bool isDark, Color primaryText) {
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      decoration: BoxDecoration(
+        color: widget.isUnlocked
+            ? AppColors.success.withValues(alpha: 0.08)
+            : AppColors.warning.withValues(alpha: 0.08),
+        border: Border(
+          bottom: BorderSide(
+            color: widget.isUnlocked
+                ? AppColors.success.withValues(alpha: 0.2)
+                : AppColors.warning.withValues(alpha: 0.2),
+          ),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            widget.isUnlocked ? Icons.shield_rounded : Icons.shield_outlined,
+            color: widget.isUnlocked ? AppColors.success : AppColors.warning,
+            size: 18,
+          ),
+          SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Text(
+              widget.isUnlocked
+                  ? 'Order Confirmed! Platform safety filters have been lifted. You can communicate openly.'
+                  : 'Security Shield Active: Phone numbers and private links are automatically masked to prevent platform bypass and protect your billing dispute rights.',
+              style: AppTextStyles.bodySmall(primaryText).copyWith(height: 1.3),
             ),
           ),
         ],

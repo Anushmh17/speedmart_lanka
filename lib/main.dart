@@ -50,14 +50,56 @@ void main() async {
   );
 }
 
-class SpeedmartApp extends ConsumerStatefulWidget {
+class SpeedmartApp extends ConsumerWidget {
   const SpeedmartApp({super.key});
 
   @override
-  ConsumerState<SpeedmartApp> createState() => _SpeedmartAppState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeProvider);
+    final router = ref.watch(appRouterProvider);
+    
+    debugPrint('[Theme] MaterialApp building with themeMode=${themeMode.name}');
+
+    return _AppLifecycleManager(
+      child: MaterialApp.router(
+        title: 'Speedmart Lanka',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.lightTheme,
+        darkTheme: AppTheme.darkTheme,
+        themeMode: themeMode,
+        routerConfig: router,
+        builder: (context, child) {
+          // Update status bar when theme changes
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final isDark = Theme.of(context).brightness == Brightness.dark;
+            SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+              statusBarColor: Colors.transparent,
+              statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+              systemNavigationBarColor: Colors.transparent,
+            ));
+          });
+
+          return Stack(
+            children: [
+              if (child != null) child,
+              const GlobalNotificationOverlay(),
+            ],
+          );
+        },
+      ),
+    );
+  }
 }
 
-class _SpeedmartAppState extends ConsumerState<SpeedmartApp> with WidgetsBindingObserver {
+class _AppLifecycleManager extends StatefulWidget {
+  final Widget child;
+  const _AppLifecycleManager({required this.child});
+
+  @override
+  State<_AppLifecycleManager> createState() => _AppLifecycleManagerState();
+}
+
+class _AppLifecycleManagerState extends State<_AppLifecycleManager> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
@@ -72,50 +114,11 @@ class _SpeedmartAppState extends ConsumerState<SpeedmartApp> with WidgetsBinding
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Restore edge-to-edge if the system reverts it (e.g. after a permission dialog)
     if (state == AppLifecycleState.resumed) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     }
   }
 
-  void _updateStatusBarBrightness(ThemeMode mode) {
-    final isDark = mode == ThemeMode.dark;
-    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-      systemNavigationBarColor: Colors.transparent,
-    ));
-  }
-
   @override
-  Widget build(BuildContext context) {
-    final themeMode = ref.watch(themeProvider);
-    final router = ref.watch(appRouterProvider);
-
-    // Keep status bar icon style in sync with theme
-    _updateStatusBarBrightness(themeMode);
-
-    return MaterialApp.router(
-      title: 'Speedmart Lanka',
-      debugShowCheckedModeBanner: false,
-
-      // Themes
-      theme: AppTheme.lightTheme,
-      darkTheme: AppTheme.darkTheme,
-      themeMode: themeMode,
-
-      // Router
-      routerConfig: router,
-
-      // Global Notification Overlay Layer
-      builder: (context, child) {
-        return Stack(
-          children: [
-            if (child != null) child,
-            const GlobalNotificationOverlay(),
-          ],
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => widget.child;
 }

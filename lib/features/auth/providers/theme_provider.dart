@@ -16,12 +16,15 @@ class ThemeNotifier extends StateNotifier<ThemeMode> {
   }
 
   Future<void> setTheme(ThemeMode mode) async {
+    debugPrint('[Theme] setTheme called with mode=$mode');
     state = mode;
     await StorageService.saveThemeMode(mode.name);
+    debugPrint('[Theme] Theme saved and state updated to $mode');
   }
 
   Future<void> toggleTheme() async {
     final next = state == ThemeMode.dark ? ThemeMode.light : ThemeMode.dark;
+    debugPrint('[Theme] toggle pressed, switching from ${state.name} to ${next.name}');
     await setTheme(next);
   }
 

@@ -6,13 +6,13 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../../../core/widgets/app_state_widgets.dart';
+import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_radius.dart';
 import '../../../customer/delivery_address/utils/vendor_delivery_privacy.dart';
 import '../../../proposals/models/proposal.dart';
 import '../../../proposals/providers/proposal_provider.dart';
 import '../../../requests/models/shopping_request.dart';
 import '../../request_feed/models/vendor_feed_enums.dart';
-import '../widgets/vendor_proposal_status_chip.dart';
 import '../widgets/image_gallery_viewer.dart';
 
 /// Vendor opens a customer request before submitting or editing a proposal.
@@ -85,13 +85,18 @@ class _VendorRequestDetailScreenState
               child: CircularProgressIndicator(color: AppColors.vendorColor),
             )
           : SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 120),
+              padding: EdgeInsets.fromLTRB(
+                AppSpacing.lg,
+                AppSpacing.md,
+                AppSpacing.lg,
+                120,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(18),
+                    padding: EdgeInsets.all(AppSpacing.lg),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         colors: [
@@ -99,7 +104,7 @@ class _VendorRequestDetailScreenState
                           AppColors.vendorColorDark,
                         ],
                       ),
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -114,7 +119,7 @@ class _VendorRequestDetailScreenState
                             request.deliveryLocation!.district,
                             style: AppTextStyles.bodyMedium(Colors.white70),
                           ),
-                        const SizedBox(height: 8),
+                        SizedBox(height: AppSpacing.sm),
                         Text(
                           'Exact address and phone unlock after customer accepts your bid.',
                           style: AppTextStyles.caption(Colors.white70),
@@ -122,30 +127,30 @@ class _VendorRequestDetailScreenState
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: AppSpacing.md),
                   Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                    spacing: AppSpacing.sm,
+                    runSpacing: AppSpacing.sm,
                     children: [
-                      StatusBadge(
+                      _StatusChip(
                         label: request.status.displayName,
                         color: AppColors.vendorColor,
                       ),
-                      StatusBadge(
+                      _StatusChip(
                         label: urgency.label,
                         color: urgency == RequestUrgency.high
                             ? AppColors.error
                             : AppColors.vendorColor,
                       ),
-                      StatusBadge(
+                      _StatusChip(
                         label: '${request.items.length} items',
                         color: AppColors.vendorColor,
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  SizedBox(height: AppSpacing.lg),
                   Text('Requested items', style: AppTextStyles.h2(primaryText)),
-                  const SizedBox(height: 10),
+                  SizedBox(height: AppSpacing.md),
                   ...request.items.map((item) {
                     // [ImageScreen] Screen-level audit
                     debugPrint('[ImageScreen] ========== BUILDING ITEM CARD ==========');
@@ -163,18 +168,18 @@ class _VendorRequestDetailScreenState
                     
                     return Container(
                       width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 10),
-                      padding: const EdgeInsets.all(14),
+                      margin: EdgeInsets.only(bottom: AppSpacing.md),
+                      padding: EdgeInsets.all(AppSpacing.md),
                       decoration: BoxDecoration(
                         color: cardColor,
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                         border: Border.all(color: borderColor),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(item.name, style: AppTextStyles.subtitle(primaryText)),
-                          const SizedBox(height: 4),
+                          SizedBox(height: AppSpacing.xs),
                           Text(
                             'Qty ${item.quantity}${item.unit != null ? ' ${item.unit}' : ''}'
                             '${item.category != null ? ' · ${item.category}' : ''}',
@@ -190,13 +195,13 @@ class _VendorRequestDetailScreenState
                             Builder(builder: (context) {
                               debugPrint('[ImageScreen] *** CONDITION MET: imageUrls.isNotEmpty = true ***');
                               debugPrint('[ImageScreen] About to render ${item.imageUrls.length} images');
-                              return const SizedBox(height: 12);
+                              return SizedBox(height: AppSpacing.md);
                             }),
                             Text(
                               'Customer photos (${item.imageUrls.length})',
                               style: AppTextStyles.caption(secondaryText),
                             ),
-                            const SizedBox(height: 6),
+                            SizedBox(height: AppSpacing.sm),
                             SizedBox(
                               height: 120,
                               child: ListView.builder(
@@ -224,7 +229,7 @@ class _VendorRequestDetailScreenState
                                   }
                                   
                                   return Padding(
-                                    padding: EdgeInsets.only(right: index < item.imageUrls.length - 1 ? 8 : 0),
+                                    padding: EdgeInsets.only(right: index < item.imageUrls.length - 1 ? AppSpacing.sm : 0),
                                     child: GestureDetector(
                                       onTap: () {
                                         Navigator.of(context).push(
@@ -241,11 +246,11 @@ class _VendorRequestDetailScreenState
                                         height: 120,
                                         decoration: BoxDecoration(
                                           color: borderColor,
-                                          borderRadius: BorderRadius.circular(12),
-                                          border: Border.all(color: borderColor.withOpacity(0.5)),
+                                          borderRadius: BorderRadius.circular(AppRadius.md),
+                                          border: Border.all(color: borderColor.withValues(alpha: 0.5)),
                                         ),
                                         child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(AppRadius.md),
                                           child: isNetwork
                                               ? Image.network(
                                                   url,
@@ -299,15 +304,15 @@ class _VendorRequestDetailScreenState
                     );
                   }),
                   if (_existingProposal != null) ...[
-                    const SizedBox(height: 20),
+                    SizedBox(height: AppSpacing.lg),
                     Text('Your proposal', style: AppTextStyles.h2(primaryText)),
-                    const SizedBox(height: 8),
+                    SizedBox(height: AppSpacing.sm),
                     Container(
                       width: double.infinity,
-                      padding: const EdgeInsets.all(16),
+                      padding: EdgeInsets.all(AppSpacing.md),
                       decoration: BoxDecoration(
                         color: cardColor,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(AppRadius.md),
                         border: Border.all(color: borderColor),
                       ),
                       child: Column(
@@ -320,12 +325,13 @@ class _VendorRequestDetailScreenState
                                 style: AppTextStyles.subtitle(primaryText),
                               ),
                               const Spacer(),
-                              VendorProposalStatusChip(
-                                status: _existingProposal!.status,
+                              _StatusChip(
+                                label: _existingProposal!.status.toString().split('.').last,
+                                color: AppColors.vendorColor,
                               ),
                             ],
                           ),
-                          const SizedBox(height: 8),
+                          SizedBox(height: AppSpacing.sm),
                           Text(
                             'Total Rs. ${_existingProposal!.totalPrice.toStringAsFixed(2)}',
                             style: AppTextStyles.bodyMedium(AppColors.vendorColor),
@@ -341,7 +347,7 @@ class _VendorRequestDetailScreenState
           ? null
           : SafeArea(
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: EdgeInsets.all(AppSpacing.md),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -350,6 +356,14 @@ class _VendorRequestDetailScreenState
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.vendorColor,
+                            side: const BorderSide(color: AppColors.vendorColor),
+                            padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(AppRadius.md),
+                            ),
+                          ),
                           onPressed: () {
                             context.push(
                               '/vendor/proposals/edit',
@@ -359,19 +373,11 @@ class _VendorRequestDetailScreenState
                               },
                             );
                           },
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.vendorColor,
-                            side: const BorderSide(color: AppColors.vendorColor),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
-                            ),
-                          ),
                           child: const Text('Edit proposal'),
                         ),
                       ),
                     if (_existingProposal != null) ...[
-                      const SizedBox(height: 8),
+                      SizedBox(height: AppSpacing.sm),
                       SizedBox(
                         width: double.infinity,
                         child: TextButton(
@@ -385,7 +391,7 @@ class _VendorRequestDetailScreenState
                         ),
                       ),
                     ],
-                    const SizedBox(height: 8),
+                    SizedBox(height: AppSpacing.sm),
                     SizedBox(
                       width: double.infinity,
                       height: 52,
@@ -393,7 +399,7 @@ class _VendorRequestDetailScreenState
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.vendorColor,
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(AppRadius.md),
                           ),
                         ),
                         onPressed: () {
@@ -432,6 +438,36 @@ class _VendorRequestDetailScreenState
                 ),
               ),
             ),
+    );
+  }
+}
+
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({
+    required this.label,
+    required this.color,
+  });
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.caption(color),
+      ),
     );
   }
 }

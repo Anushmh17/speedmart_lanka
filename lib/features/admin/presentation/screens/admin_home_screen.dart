@@ -643,6 +643,21 @@ class _OrdersMonitoringTab extends ConsumerWidget {
   const _OrdersMonitoringTab({required this.isDark});
   final bool isDark;
 
+  String _formatOrderStatus(dynamic status) {
+    final raw = status.toString().split('.').last;
+    return raw
+        .replaceAllMapped(
+          RegExp(r'([A-Z])'),
+          (match) => ' ${match.group(0)}',
+        )
+        .replaceAll('_', ' ')
+        .trim()
+        .split(' ')
+        .where((word) => word.isNotEmpty)
+        .map((word) => word[0].toUpperCase() + word.substring(1))
+        .join(' ');
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
@@ -690,7 +705,7 @@ class _OrdersMonitoringTab extends ConsumerWidget {
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Text(order.id, style: AppTextStyles.subtitle(primaryText)),
-                                StatusBadge(label: order.status.displayName, color: AppColors.adminColor),
+                                StatusBadge(label: _formatOrderStatus(order.status), color: AppColors.adminColor),
                               ],
                             ),
                             const SizedBox(height: 6),

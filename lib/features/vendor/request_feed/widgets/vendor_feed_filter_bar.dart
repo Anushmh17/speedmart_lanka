@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_radius.dart';
+import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../models/vendor_feed_enums.dart';
 
@@ -32,11 +34,12 @@ class VendorFeedFilterBar extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const SizedBox(height: AppSpacing.sm),
         SizedBox(
           height: 40,
           child: ListView(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             children: [
               _CategoryChip(
                 label: 'All',
@@ -46,7 +49,7 @@ class VendorFeedFilterBar extends StatelessWidget {
               ),
               ...categoryChips.map(
                 (cat) => Padding(
-                  padding: const EdgeInsets.only(left: 8),
+                  padding: const EdgeInsets.only(left: AppSpacing.sm),
                   child: _CategoryChip(
                     label: cat,
                     selected: selectedCategory?.toLowerCase() ==
@@ -59,15 +62,15 @@ class VendorFeedFilterBar extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: AppSpacing.md),
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
           child: Row(
             children: [
               Icon(Icons.tune_rounded, size: 18, color: primaryText),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpacing.sm),
               Text('Sort', style: AppTextStyles.caption(primaryText)),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -75,13 +78,13 @@ class VendorFeedFilterBar extends StatelessWidget {
                     children: VendorFeedSortMode.values.map((mode) {
                       final selected = sortMode == mode;
                       return Padding(
-                        padding: const EdgeInsets.only(right: 8),
+                        padding: const EdgeInsets.only(right: AppSpacing.sm),
                         child: FilterChip(
                           label: Text(mode.label),
                           selected: selected,
                           onSelected: (_) => onSortChanged(mode),
                           selectedColor:
-                              AppColors.vendorColor.withOpacity(0.2),
+                              AppColors.vendorColor.withValues(alpha: 0.2),
                           checkmarkColor: AppColors.vendorColor,
                           labelStyle: AppTextStyles.caption(
                             selected
@@ -95,7 +98,7 @@ class VendorFeedFilterBar extends StatelessWidget {
                                 : border,
                           ),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                            borderRadius: BorderRadius.circular(AppRadius.md),
                           ),
                         ),
                       );
@@ -130,7 +133,7 @@ class _CategoryChip extends StatelessWidget {
       label: Text(label),
       selected: selected,
       onSelected: (_) => onTap(),
-      selectedColor: AppColors.vendorColor.withOpacity(0.2),
+      selectedColor: AppColors.vendorColor.withValues(alpha: 0.2),
       checkmarkColor: AppColors.vendorColor,
       labelStyle: AppTextStyles.caption(
         selected ? AppColors.vendorColor : (isDark
@@ -143,7 +146,7 @@ class _CategoryChip extends StatelessWidget {
             ? AppColors.vendorColor
             : (isDark ? AppColors.borderDark : AppColors.borderLight),
       ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppRadius.md)),
     );
   }
 }

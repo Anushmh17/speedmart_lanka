@@ -81,6 +81,7 @@ class OrderTrackingMap extends StatelessWidget {
                 urlTemplate: tileUrlTemplate,
                 subdomains: const ['a', 'b', 'c', 'd'],
                 userAgentPackageName: 'com.speedmart.lanka',
+                retinaMode: RetinaMode.isHighDensity(context),
               ),
 
               // Polyline route representation

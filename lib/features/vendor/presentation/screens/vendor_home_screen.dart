@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:speedmart_lanka/core/theme/app_colors.dart';
+import 'package:speedmart_lanka/core/theme/app_spacing.dart';
+import 'package:speedmart_lanka/core/theme/app_radius.dart';
 import 'package:speedmart_lanka/core/theme/app_text_styles.dart';
-import 'package:speedmart_lanka/core/widgets/app_logo.dart';
+import 'package:speedmart_lanka/core/widgets/theme3/theme3_app_card.dart';
+import 'package:speedmart_lanka/core/widgets/theme3/theme3_empty_state.dart';
 import 'package:speedmart_lanka/core/widgets/app_state_widgets.dart';
 import 'package:speedmart_lanka/core/guards/vendor_status_guard.dart';
 import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
@@ -155,50 +158,27 @@ class _VendorHomeScreenState extends ConsumerState<VendorHomeScreen>
       child: Scaffold(
         backgroundColor:
             isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-        appBar: AppBar(
-          title: const AppBarLogo(),
-          actions: [
-            IconButton(
-              icon: Icon(
-                isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
-                color: isDark
-                    ? AppColors.textPrimaryDark
-                    : AppColors.textPrimaryLight,
-              ),
-              onPressed: () => ref.read(themeProvider.notifier).toggleTheme(),
+        body: Column(
+          children: [
+            _buildVendorHeader(context, isDark, user),
+            Expanded(
+              child: shouldShowStatusScreen
+                  ? (user != null
+                      ? VendorStatusScreen(user: user)
+                      : _PendingApprovalView(isDark: isDark))
+                  : IndexedStack(
+                      index: _currentIndex,
+                      children: [
+                        _DashboardTab(user: user, isDark: isDark),
+                        VendorRequestFeedScreen(isDark: isDark),
+                        _MyProposalsTab(isDark: isDark),
+                        const _VendorWalletTab(),
+                        const ProfileScreen(),
+                      ],
+                    ),
             ),
-            IconButton(
-              icon: Icon(Icons.notifications_outlined,
-                  color: isDark
-                      ? AppColors.textPrimaryDark
-                      : AppColors.textPrimaryLight),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                        'Notifications are fully set up for proposals and orders.'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
-              },
-            ),
-            const SizedBox(width: 8),
           ],
         ),
-        body: shouldShowStatusScreen
-            ? (user != null
-                ? VendorStatusScreen(user: user)
-                : _PendingApprovalView(isDark: isDark))
-            : IndexedStack(
-                index: _currentIndex,
-                children: [
-                  _DashboardTab(user: user, isDark: isDark),
-                  VendorRequestFeedScreen(isDark: isDark),
-                  _MyProposalsTab(isDark: isDark),
-                  const _VendorWalletTab(),
-                  const ProfileScreen(),
-                ],
-              ),
         bottomNavigationBar: AnimatedBottomNavWrapper(
           visible: !shouldShowStatusScreen && showBottomNav,
           child: SharedFloatingBottomNav(
@@ -271,8 +251,8 @@ class _DashboardTab extends ConsumerWidget {
         isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryText =
         isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
-    final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
-    final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+    
+    
 
     final feedState = ref.watch(vendorRequestFeedProvider);
     final proposalState = ref.watch(proposalProvider);
@@ -379,46 +359,12 @@ class _DashboardTab extends ConsumerWidget {
       },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
+        padding: EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, 100),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Banner
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [AppColors.vendorColor, AppColors.vendorColorDark],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.vendorColor.withOpacity(0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(user?.businessName ?? 'Your Shop',
-                      style: AppTextStyles.h2(Colors.white)),
-                  const SizedBox(height: 4),
-                  Text('Welcome back, ${user?.firstName ?? ''}',
-                      style: AppTextStyles.bodyMedium(Colors.white70)),
-                  const SizedBox(height: 14),
-                  StatusBadge(label: 'Active & Verified', color: Colors.white),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            Text("Today's Overview", style: AppTextStyles.h2(primaryText)),
-            const SizedBox(height: 14),
+            Text('Business Overview', style: AppTextStyles.h2(primaryText)),
+            SizedBox(height: AppSpacing.md),
             Row(children: [
               Expanded(
                   child: _StatCard(
@@ -427,7 +373,7 @@ class _DashboardTab extends ConsumerWidget {
                       icon: Icons.inbox_rounded,
                       color: AppColors.vendorColor,
                       isDark: isDark)),
-              const SizedBox(width: 12),
+              SizedBox(width: AppSpacing.sm),
               Expanded(
                   child: _StatCard(
                       label: 'Active Proposals',
@@ -436,7 +382,7 @@ class _DashboardTab extends ConsumerWidget {
                       color: AppColors.success,
                       isDark: isDark)),
             ]),
-            const SizedBox(height: 12),
+            SizedBox(height: AppSpacing.sm),
             Row(children: [
               Expanded(
                   child: _StatCard(
@@ -445,7 +391,7 @@ class _DashboardTab extends ConsumerWidget {
                       icon: Icons.shopping_cart_rounded,
                       color: AppColors.warning,
                       isDark: isDark)),
-              const SizedBox(width: 12),
+              SizedBox(width: AppSpacing.sm),
               Expanded(
                   child: _StatCard(
                       label: 'Completed',
@@ -454,7 +400,7 @@ class _DashboardTab extends ConsumerWidget {
                       color: AppColors.success,
                       isDark: isDark)),
             ]),
-            const SizedBox(height: 12),
+            SizedBox(height: AppSpacing.sm),
             Row(children: [
               Expanded(
                   child: _StatCard(
@@ -463,7 +409,7 @@ class _DashboardTab extends ConsumerWidget {
                       icon: Icons.account_balance_wallet_rounded,
                       color: AppColors.accent,
                       isDark: isDark)),
-              const SizedBox(width: 12),
+              SizedBox(width: AppSpacing.sm),
               Expanded(
                   child: _StatCard(
                       label: 'Pending (LKR)',
@@ -472,27 +418,21 @@ class _DashboardTab extends ConsumerWidget {
                       color: Colors.orange,
                       isDark: isDark)),
             ]),
-            const SizedBox(height: 28),
+            SizedBox(height: AppSpacing.lg),
 
             // Active Customer Orders Section
             if (activeOrders.isNotEmpty) ...[
               Text('Active Customer Orders',
                   style: AppTextStyles.h2(primaryText)),
-              const SizedBox(height: 12),
+              SizedBox(height: AppSpacing.sm),
               ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: activeOrders.length,
                 itemBuilder: (context, index) {
                   final order = activeOrders[index];
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: cardColor,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: borderColor),
-                    ),
+                  return Theme3AppCard(
+                    margin: EdgeInsets.only(bottom: AppSpacing.sm),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -502,7 +442,7 @@ class _DashboardTab extends ConsumerWidget {
                             children: [
                               Text(order.id,
                                   style: AppTextStyles.subtitle(primaryText)),
-                              const SizedBox(height: 4),
+                              SizedBox(height: AppSpacing.xs),
                               Text('Customer: ${order.customerName}',
                                   style:
                                       AppTextStyles.bodySmall(secondaryText)),
@@ -516,7 +456,7 @@ class _DashboardTab extends ConsumerWidget {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.vendorColor,
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
+                                borderRadius: BorderRadius.circular(AppRadius.md)),
                             minimumSize: const Size(0, 44),
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                           ),
@@ -532,14 +472,14 @@ class _DashboardTab extends ConsumerWidget {
                   );
                 },
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: AppSpacing.md),
             ],
 
             // Completed Orders Section
             if (completedOrders.isNotEmpty) ...[
               Text('Recently Completed Orders',
                   style: AppTextStyles.h2(primaryText)),
-              const SizedBox(height: 12),
+              SizedBox(height: AppSpacing.sm),
               ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -547,14 +487,8 @@ class _DashboardTab extends ConsumerWidget {
                     completedOrders.length > 3 ? 3 : completedOrders.length,
                 itemBuilder: (context, index) {
                   final order = completedOrders[index];
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: cardColor,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: borderColor),
-                    ),
+                  return Theme3AppCard(
+                    margin: EdgeInsets.only(bottom: AppSpacing.sm),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -564,7 +498,7 @@ class _DashboardTab extends ConsumerWidget {
                             children: [
                               Text(order.id,
                                   style: AppTextStyles.subtitle(primaryText)),
-                              const SizedBox(height: 4),
+                              SizedBox(height: AppSpacing.xs),
                               Text('Customer: ${order.customerName}',
                                   style:
                                       AppTextStyles.bodySmall(secondaryText)),
@@ -576,18 +510,18 @@ class _DashboardTab extends ConsumerWidget {
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 8),
+                          padding: EdgeInsets.symmetric(
+                              horizontal: AppSpacing.sm, vertical: AppSpacing.xs),
                           decoration: BoxDecoration(
-                            color: AppColors.success.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(8),
+                            color: AppColors.success.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(AppRadius.sm),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(Icons.check_circle_outline,
                                   size: 14, color: AppColors.success),
-                              const SizedBox(width: 6),
+                              SizedBox(width: AppSpacing.xs),
                               Text('Completed',
                                   style:
                                       AppTextStyles.caption(AppColors.success)
@@ -601,20 +535,20 @@ class _DashboardTab extends ConsumerWidget {
                   );
                 },
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: AppSpacing.md),
             ],
 
-            const SizedBox(height: 12),
+            SizedBox(height: AppSpacing.sm),
 
             if (feedState.isLoading)
               Center(
                 child: Padding(
-                  padding: const EdgeInsets.all(32.0),
+                  padding: EdgeInsets.all(AppSpacing.xxl),
                   child: Column(
                     children: [
                       const CircularProgressIndicator(
                           color: AppColors.vendorColor),
-                      const SizedBox(height: 12),
+                      SizedBox(height: AppSpacing.sm),
                       Text('Loading requests...',
                           style: AppTextStyles.bodyMedium(primaryText)),
                     ],
@@ -622,7 +556,7 @@ class _DashboardTab extends ConsumerWidget {
                 ),
               )
             else if (feedState.items.isEmpty)
-              const AppEmptyState(
+              Theme3EmptyState(
                 icon: Icons.location_searching_rounded,
                 title: 'No nearby requests',
                 subtitle:
@@ -674,8 +608,8 @@ class _MyProposalsTab extends ConsumerWidget {
         isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryText =
         isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
-    final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
-    final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+    
+    
     final proposalState = ref.watch(proposalProvider);
 
     return Scaffold(
@@ -687,7 +621,7 @@ class _MyProposalsTab extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+              padding: EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
               child: Text(
                 'My Submitted Bids',
                 style: AppTextStyles.h2(primaryText),
@@ -699,14 +633,14 @@ class _MyProposalsTab extends ConsumerWidget {
                       child: CircularProgressIndicator(
                           color: AppColors.vendorColor))
                   : proposalState.proposals.isEmpty
-                      ? const AppEmptyState(
+                      ? Theme3EmptyState(
                           icon: Icons.assignment_outlined,
                           title: 'No Proposals Yet',
                           subtitle:
                               'Accept a request to submit your first shop bid.',
                         )
                       : ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                          padding: EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, 100),
                           itemCount: proposalState.proposals.length,
                           itemBuilder: (context, index) {
                             final proposal = proposalState.proposals[index];
@@ -730,21 +664,15 @@ class _MyProposalsTab extends ConsumerWidget {
                             return Material(
                               color: Colors.transparent,
                               child: InkWell(
-                                borderRadius: BorderRadius.circular(16),
+                                borderRadius: BorderRadius.circular(AppRadius.lg),
                                 onTap: () {
                                   context.push(
                                     '/vendor/proposals/detail',
                                     extra: proposal,
                                   );
                                 },
-                                child: Container(
-                                  margin: const EdgeInsets.only(bottom: 12),
-                                  padding: const EdgeInsets.all(16),
-                                  decoration: BoxDecoration(
-                                    color: cardColor,
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: borderColor),
-                                  ),
+                                child: Theme3AppCard(
+                                  margin: EdgeInsets.only(bottom: AppSpacing.sm),
                                   child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
@@ -824,7 +752,7 @@ class _MyProposalsTab extends ConsumerWidget {
                                           padding: const EdgeInsets.all(10),
                                           decoration: BoxDecoration(
                                             color: AppColors.error
-                                                .withOpacity(0.08),
+                                                .withValues(alpha: 0.08),
                                             borderRadius:
                                                 BorderRadius.circular(10),
                                           ),
@@ -879,10 +807,7 @@ class _MyProposalsTab extends ConsumerWidget {
                                                     const SizedBox(width: 8),
                                                     Expanded(
                                                       child: Text(
-                                                        'Customer: ' +
-                                                            (proposal
-                                                                    .customerResponse ??
-                                                                ''),
+                                                        'Customer: ${proposal.customerResponse ?? ''}',
                                                         style: AppTextStyles
                                                             .bodySmall(
                                                                 primaryText),
@@ -906,10 +831,7 @@ class _MyProposalsTab extends ConsumerWidget {
                                                     const SizedBox(width: 8),
                                                     Expanded(
                                                       child: Text(
-                                                        'You: ' +
-                                                            (proposal
-                                                                    .vendorResponse ??
-                                                                ''),
+                                                        'You: ${proposal.vendorResponse ?? ''}',
                                                         style: AppTextStyles
                                                             .bodySmall(AppColors
                                                                 .vendorColor),
@@ -953,24 +875,17 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark ? AppColors.cardDark : AppColors.cardLight,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-            color: isDark ? AppColors.borderDark : AppColors.borderLight),
-      ),
+    return Theme3AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, color: color, size: 22),
-          const SizedBox(height: 10),
+          SizedBox(height: AppSpacing.sm),
           Text(value,
               style: AppTextStyles.h2(isDark
                   ? AppColors.textPrimaryDark
                   : AppColors.textPrimaryLight)),
-          const SizedBox(height: 2),
+          SizedBox(height: AppSpacing.xs),
           Text(label,
               style: AppTextStyles.caption(isDark
                   ? AppColors.textSecondaryDark
@@ -989,7 +904,7 @@ class _PendingApprovalView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: EdgeInsets.all(AppSpacing.xxl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -997,18 +912,18 @@ class _PendingApprovalView extends StatelessWidget {
               width: 90,
               height: 90,
               decoration: BoxDecoration(
-                color: AppColors.warning.withOpacity(0.12),
+                color: AppColors.warning.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: const Icon(Icons.hourglass_top_rounded,
                   color: AppColors.warning, size: 42),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: AppSpacing.lg),
             Text('Pending Approval',
                 style: AppTextStyles.h1(isDark
                     ? AppColors.textPrimaryDark
                     : AppColors.textPrimaryLight)),
-            const SizedBox(height: 12),
+            SizedBox(height: AppSpacing.sm),
             Text(
               'Your vendor account is under review. You will be notified once approved.',
               style: AppTextStyles.bodyMedium(isDark
@@ -1070,6 +985,8 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
         isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+    
+    
 
     final orderState = ref.watch(orderProvider);
     final completedOrders = orderState.orders
@@ -1129,7 +1046,7 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.vendorColor.withOpacity(0.25),
+                    color: AppColors.vendorColor.withValues(alpha: 0.25),
                     blurRadius: 15,
                     offset: const Offset(0, 8),
                   )
@@ -1148,7 +1065,7 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
@@ -1246,7 +1163,7 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                     color: cardColor,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                        color: AppColors.vendorColor.withOpacity(0.3),
+                        color: AppColors.vendorColor.withValues(alpha: 0.3),
                         width: 1.2),
                   ),
                   child: Column(
@@ -1262,7 +1179,7 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: AppColors.warning.withOpacity(0.12),
+                              color: AppColors.warning.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
@@ -1325,7 +1242,7 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: AppColors.success.withOpacity(0.12),
+                            color: AppColors.success.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
@@ -1419,6 +1336,108 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
               style: AppTextStyles.bodySmall(secondaryText),
               textAlign: TextAlign.end,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+
+extension _VendorHomeScreenStateExtension on _VendorHomeScreenState {
+  Widget _buildVendorHeader(BuildContext context, bool isDark, dynamic user) {
+    final primaryText =
+        isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final secondaryText =
+        isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        AppSpacing.md,
+        MediaQuery.of(context).padding.top + AppSpacing.sm,
+        AppSpacing.md,
+        AppSpacing.md,
+      ),
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark ? AppColors.borderDark : AppColors.borderLight,
+            width: 1,
+          ),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 20,
+                backgroundColor:
+                    AppColors.vendorColor.withValues(alpha: 0.12),
+                child: Icon(
+                  Icons.storefront_rounded,
+                  color: AppColors.vendorColor,
+                  size: 22,
+                ),
+              ),
+              SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      user?.businessName ?? 'Your Shop',
+                      style: AppTextStyles.h2(primaryText),
+                    ),
+                    SizedBox(height: AppSpacing.xs),
+                    Text(
+                      'Welcome back, ${user?.firstName ?? 'Vendor'}',
+                      style: AppTextStyles.bodySmall(secondaryText),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () {
+                  ref.read(themeProvider.notifier).toggleTheme();
+                },
+                icon: Icon(
+                  isDark
+                      ? Icons.light_mode_outlined
+                      : Icons.dark_mode_outlined,
+                  color: secondaryText,
+                ),
+                style: IconButton.styleFrom(
+                  backgroundColor: isDark
+                      ? AppColors.surfaceElevatedDark
+                      : AppColors.borderLight,
+                ),
+              ),
+              SizedBox(width: AppSpacing.xs),
+              IconButton(
+                onPressed: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Notifications are fully set up for proposals and orders.',
+                      ),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                },
+                icon: Icon(
+                  Icons.notifications_outlined,
+                  color: secondaryText,
+                ),
+                style: IconButton.styleFrom(
+                  backgroundColor: isDark
+                      ? AppColors.surfaceElevatedDark
+                      : AppColors.borderLight,
+                ),
+              ),
+            ],
           ),
         ],
       ),

@@ -2,10 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../models/proposal.dart';
 import '../../providers/proposal_provider.dart';
 import '../../../customer/proposals/services/proposal_comparison_service.dart';
+import 'customer_proposal_details_screen_header.dart';
 
 class CustomerProposalDetailsScreen extends ConsumerStatefulWidget {
   const CustomerProposalDetailsScreen({
@@ -139,29 +142,23 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-      appBar: AppBar(
-        title: Text(maskedVendorName),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
-          onPressed: () => context.pop(),
-        ),
-      ),
       body: Column(
         children: [
+          buildProposalDetailsHeader(context, isDark, primaryText, secondaryText, maskedVendorName),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(AppSpacing.md),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Merchant Privacy Banner
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(12),
+                    padding: EdgeInsets.all(AppSpacing.sm),
                     decoration: BoxDecoration(
-                      color: AppColors.customerColor.withOpacity(0.08),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.customerColor.withOpacity(0.2)),
+                      color: AppColors.customerColor.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(AppRadius.md),
+                      border: Border.all(color: AppColors.customerColor.withValues(alpha: 0.2)),
                     ),
                     child: Column(
                       children: [
@@ -309,7 +306,7 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: badgeColor.withOpacity(0.1),
+                                    color: badgeColor.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(20),
                                   ),
                                   child: Row(
@@ -352,9 +349,9 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                                 width: double.infinity,
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: AppColors.warning.withOpacity(0.06),
+                                  color: AppColors.warning.withValues(alpha: 0.06),
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: AppColors.warning.withOpacity(0.2)),
+                                  border: Border.all(color: AppColors.warning.withValues(alpha: 0.2)),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -429,7 +426,7 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                       child: Column(
                         children: [
                           DropdownButtonFormField<String>(
-                            value: _selectedControlledMsg,
+                            initialValue: _selectedControlledMsg,
                             hint: const Text('Select suggested response'),
                             decoration: InputDecoration(
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -531,9 +528,13 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
     int unavailable = 0;
 
     for (final item in proposal.items) {
-      if (item.status == ProposalItemStatus.available) available++;
-      else if (item.status == ProposalItemStatus.alternative) alternative++;
-      else if (item.status == ProposalItemStatus.unavailable) unavailable++;
+      if (item.status == ProposalItemStatus.available) {
+        available++;
+      } else if (item.status == ProposalItemStatus.alternative) {
+        alternative++;
+      } else if (item.status == ProposalItemStatus.unavailable) {
+        unavailable++;
+      }
     }
 
     return Container(

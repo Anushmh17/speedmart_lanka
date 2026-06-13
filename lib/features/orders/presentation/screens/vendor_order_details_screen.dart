@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:speedmart_lanka/core/theme/app_colors.dart';
 import 'package:speedmart_lanka/core/theme/app_text_styles.dart';
-import 'package:speedmart_lanka/core/widgets/app_state_widgets.dart';
 import 'package:speedmart_lanka/features/proposals/models/proposal.dart';
 import 'package:speedmart_lanka/features/proposals/providers/proposal_provider.dart';
 import 'package:speedmart_lanka/features/orders/data/mock_order_repository.dart';
@@ -13,10 +12,8 @@ import 'package:speedmart_lanka/features/orders/providers/order_provider.dart';
 import 'package:speedmart_lanka/features/orders/services/vendor_delivery_access_service.dart';
 import 'package:speedmart_lanka/core/providers/notification_provider.dart';
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
-import 'package:speedmart_lanka/features/payments/providers/payment_provider.dart';
 import 'package:speedmart_lanka/features/payments/data/mock_payment_repository.dart';
 import 'package:speedmart_lanka/features/requests/models/request_category_fulfillment.dart';
-import 'package:speedmart_lanka/features/requests/providers/request_provider.dart';
 import 'package:speedmart_lanka/features/requests/data/mock_request_repository.dart';
 import 'package:speedmart_lanka/features/location/services/location_service.dart';
 
@@ -172,12 +169,7 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text('Order Status:', style: AppTextStyles.bodyMedium(secondaryText)),
-                            StatusBadge(
-                              label: activeOrder.status.displayName,
-                              color: activeOrder.status == OrderStatus.delivered
-                                  ? AppColors.success
-                                  : AppColors.vendorColor,
-                            ),
+                            Text(activeOrder.status.toString().split('.').last),
                           ],
                         ),
                       ],
@@ -692,7 +684,7 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Order updated to: ${nextStatus.displayName}'),
+                            content: Text('Order updated to: ${_formatOrderStatus(nextStatus)}'),
                             backgroundColor: AppColors.success,
                             behavior: SnackBarBehavior.floating,
                           ),
@@ -768,6 +760,22 @@ String _generateInvoiceText(OrderModel order) {
   buffer.writeln('TOTAL REVENUE:   Rs. ${order.totalPrice.toStringAsFixed(2)}');
   buffer.writeln('========================================');
   return buffer.toString();
+}
+
+String _formatOrderStatus(dynamic status) {
+  final value = status.toString().split('.').last;
+  return value
+      .replaceAllMapped(
+        RegExp(r'([A-Z])'),
+        (match) => ' ${match.group(0)}',
+      )
+      .trim()
+      .split('_')
+      .map((word) {
+        if (word.isEmpty) return word;
+        return word[0].toUpperCase() + word.substring(1);
+      })
+      .join(' ');
 }
 
 String _generateRiderShareText(OrderModel order) {
