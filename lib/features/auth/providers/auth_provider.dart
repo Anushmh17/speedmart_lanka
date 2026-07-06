@@ -74,6 +74,25 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  // ── Vendor Credential Check (without authenticating) ──────────────────────
+  /// Verifies vendor email+password without setting auth state.
+  /// Router won't redirect because isAuthenticated stays false.
+  /// Call [login] after OTP is verified to complete authentication.
+  Future<UserModel?> verifyVendorCredentials({
+    required String email,
+    required String password,
+  }) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final user = await _repo.verifyVendorCredentials(email: email, password: password);
+      state = state.copyWith(isLoading: false);
+      return user;
+    } catch (e) {
+      state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
+      return null;
+    }
+  }
+
   // ── Login ──────────────────────────────────────────────────────────────────
   Future<void> login({
     required String email,
@@ -123,7 +142,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState.authenticated(result.user);
     } catch (e) {
       state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
-      rethrow;
+      // Do not rethrow — error is captured in AuthState; callers must not
+      // handle provider exceptions directly to avoid unhandled Future errors.
     }
   }
 
@@ -463,6 +483,32 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
     
     return cleaned.isEmpty ? null : cleaned;
+  }
+
+  // ── Password Reset ──────────────────────────────────────────────────────
+
+  /// Returns the current stored password for a vendor email (for same-password check).
+  Future<String?> getVendorPassword(String email) async {
+    return _repo.getVendorPassword(email);
+  }
+
+  /// Returns a mock OTP string if the email belongs to a vendor.
+  Future<String> generateResetOtp(String email) async {
+    return _repo.generateResetOtp(email);
+  }
+
+  /// Replaces the stored password for [email] with [newPassword].
+  Future<void> resetPassword({
+    required String email,
+    required String newPassword,
+  }) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      await _repo.resetPassword(email: email, newPassword: newPassword);
+      state = state.copyWith(isLoading: false);
+    } catch (e) {
+      state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
+    }
   }
 
   // ── Clear error ────────────────────────────────────────────────────────────

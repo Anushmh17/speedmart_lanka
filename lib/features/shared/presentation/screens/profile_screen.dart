@@ -13,6 +13,7 @@ import '../../../../shared/models/user_role.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/routes/route_names.dart';
 import '../../../../features/admin/providers/category_provider.dart';
+import '../../../../core/storage/storage_service.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -90,6 +91,36 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _handleLogout() async {
+    final user = ref.read(currentUserProvider);
+    if (user?.role == UserRole.vendor) {
+      final rememberMe = await StorageService.getVendorRememberMe();
+      if (rememberMe) {
+        // Vendor had Remember Me checked — ask if they want to keep it
+        final keep = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Remember Me?'),
+            content: const Text(
+              'Would you like to skip OTP next time you log in?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('No'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Yes'),
+              ),
+            ],
+          ),
+        );
+        if (keep == null) return;
+        await StorageService.saveVendorRememberMe(keep);
+      }
+      // If rememberMe was false, just log out — no popup
+    }
     await ref.read(authProvider.notifier).logout();
     if (mounted) {
       context.go(RouteNames.roleSelection);
@@ -113,7 +144,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
-          context.go(RouteNames.customerHome);
+          final role = ref.read(currentUserProvider)?.role;
+          context.go(
+            role == UserRole.vendor
+                ? RouteNames.vendorHome
+                : role == UserRole.admin
+                    ? RouteNames.adminDashboard
+                    : RouteNames.customerHome,
+          );
         }
       },
       child: Scaffold(
@@ -232,6 +270,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
             ),
           ),
+          if (user.selectedCountry != null) ...[  
+            const SizedBox(height: 4),
+            Text(
+              user.selectedCountry == 'LK' ? '🇱🇰 Sri Lanka' : '🌐 International',
+              style: AppTextStyles.caption(
+                isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           if (user.role == UserRole.vendor && user.isVerified)
             Theme3StatusChip(
