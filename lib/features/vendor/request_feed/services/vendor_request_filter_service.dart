@@ -16,18 +16,18 @@ class VendorRequestFilterService {
 
   static const Map<String, double> categoryRadiusKm = {
     'groceries': 5,
-    'electronics': 15,
-    'hardware': 15,
-    'furniture': 20,
-    'pharmacy': 8,
-    'clothing': 12,
-    'vehicle parts': 25,
-    'home appliances': 15,
-    'stationery': 12,
-    'other': 15,
+    'electronics': 5,
+    'hardware': 5,
+    'furniture': 5,
+    'pharmacy': 5,
+    'clothing': 5,
+    'vehicle parts': 5,
+    'home appliances': 5,
+    'stationery': 5,
+    'other': 5,
   };
 
-  static const double defaultRadiusKm = 15;
+  static const double defaultRadiusKm = 5;
 
   static bool isActiveMarketplaceRequest(RequestStatus status) {
     return status == RequestStatus.submitted ||
@@ -144,8 +144,8 @@ class VendorRequestFilterService {
       lat2: vendorLat,
       lon2: vendorLon,
     );
-    // Use admin-assigned radius, default to 20km if not set
-    final maxRadius = assignedRadiusKm ?? 20.0;
+    // Use admin-assigned radius, default to 5km if not set
+    final maxRadius = assignedRadiusKm ?? 5.0;
     return distance <= maxRadius;
   }
 
@@ -209,7 +209,7 @@ class VendorRequestFilterService {
     debugPrint('[FeedCategoryFix] vendor allowedCategories (raw): $vendorCategories');
     debugPrint('[FeedCategoryFix] vendor normalized categories: $vendorNormalized');
     debugPrint('[FeedCategoryFix] Vendor location: lat=$vendorLatitude, lng=$vendorLongitude');
-    debugPrint('[FeedCategoryFix] Assigned radius: ${assignedRadiusKm ?? 20.0}km');
+    debugPrint('[FeedCategoryFix] Assigned radius: ${assignedRadiusKm ?? 5.0}km');
 
     final active =
         allRequests.where((r) => isActiveMarketplaceRequest(r.status));
@@ -251,7 +251,7 @@ class VendorRequestFilterService {
               lon2: vendorLongitude,
             );
 
-      final assignedRadius = assignedRadiusKm ?? 20.0;
+      final assignedRadius = assignedRadiusKm ?? 5.0;
 
       debugPrint('[DistanceAudit] request: ${request.id}');
       debugPrint('[DistanceAudit] Request coords: lat=${request.latitude}, lng=${request.longitude}');
@@ -281,7 +281,7 @@ class VendorRequestFilterService {
       return true;
     });
 
-    final assignedRadius = assignedRadiusKm ?? 20.0;
+    final assignedRadius = assignedRadiusKm ?? 5.0;
 
     return matched.map((request) {
       final distance = request.latitude == 0 && request.longitude == 0

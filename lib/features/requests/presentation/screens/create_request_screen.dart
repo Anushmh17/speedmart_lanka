@@ -24,7 +24,6 @@ import '../widgets/request_type_toggle.dart';
 import '../widgets/category_selector.dart';
 import '../widgets/quantity_unit_selector.dart';
 import '../widgets/image_upload_grid.dart';
-import '../widgets/manual_add_sheet.dart';
 import '../widgets/shopping_list_builder.dart';
 import '../widgets/sticky_submit_bar.dart';
 import '../widgets/review_request_sheet.dart';
@@ -133,46 +132,159 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     try {
       final draft = await DraftService.loadDraft();
       if (draft != null && DraftService.hasValidDraft(draft) && mounted) {
-        final String? action = await showDialog<String>(
+        final String? action = await showModalBottomSheet<String>(
           context: context,
-          barrierDismissible: false,
+          isScrollControlled: true,
+          isDismissible: false,
+          backgroundColor: Colors.transparent,
           builder: (dialogCtx) {
             final isDark = Theme.of(dialogCtx).brightness == Brightness.dark;
             final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
             final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: AppRadius.lgRadius),
-              icon: Icon(
-                Icons.restore_page_rounded,
-                size: 40,
-                color: isDark ? AppColors.primaryDark : AppColors.primary,
+            final surfaceColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+            
+            int itemCount = 0;
+            int imageCount = 0;
+            bool hasLocation = false;
+            
+            if (draft['requestType'] == 'single') {
+              if (draft['singleName'] != null && (draft['singleName'] as String).isNotEmpty) itemCount = 1;
+              imageCount = (draft['singleImageUrls'] as List?)?.length ?? 0;
+            } else {
+              itemCount = (draft['multipleItems'] as List?)?.length ?? 0;
+              for (final item in (draft['multipleItems'] as List? ?? [])) {
+                imageCount += (item['imageUrls'] as List?)?.length ?? 0;
+              }
+            }
+            
+            hasLocation = draft['deliveryLocation'] != null || (draft['locationName'] as String?)?.isNotEmpty == true;
+            
+            return Container(
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.15),
+                    blurRadius: 20,
+                    spreadRadius: 2,
+                  )
+                ],
               ),
-              title: Text(
-                'Resume draft?',
-                style: TextStyle(color: primaryText, fontWeight: FontWeight.bold),
-              ),
-              content: Text(
-                'You have an unfinished shopping request. Do you want to continue where you left off?',
-                style: TextStyle(color: secondaryText),
-                textAlign: TextAlign.center,
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogCtx, 'new'),
-                  style: TextButton.styleFrom(foregroundColor: AppColors.error),
-                  child: const Text('Start New'),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: Container(
+                        width: 48,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.white24 : Colors.black12,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Column(
+                        children: [
+                          Container(
+                            width: 64,
+                            height: 64,
+                            decoration: BoxDecoration(
+                              color: AppColors.customerColor.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Icon(
+                              Icons.restore_page_rounded,
+                              size: 32,
+                              color: AppColors.customerColor,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Resume Your Draft?',
+                            style: AppTextStyles.h2(primaryText),
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'You have an unfinished shopping request. Continue where you left off.',
+                            style: AppTextStyles.bodyMedium(secondaryText),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.black12 : AppColors.customerColor.withOpacity(0.05),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.customerColor.withOpacity(0.2),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _summaryItem(Icons.shopping_cart_outlined, '$itemCount', 'Items', primaryText, secondaryText),
+                            _summaryItem(Icons.image_outlined, '$imageCount', 'Images', primaryText, secondaryText),
+                            _summaryItem(Icons.location_on_outlined, hasLocation ? 'Yes' : 'No', 'Location', primaryText, secondaryText),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Column(
+                        children: [
+                          SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: ElevatedButton.icon(
+                              onPressed: () => Navigator.pop(dialogCtx, 'resume'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.customerColor,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                elevation: 0,
+                              ),
+                              icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                              label: const Text('Resume Draft'),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 48,
+                            child: OutlinedButton.icon(
+                              onPressed: () => Navigator.pop(dialogCtx, 'new'),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: AppColors.error),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              icon: const Icon(Icons.refresh_rounded, size: 18, color: AppColors.error),
+                              label: const Text('Start New', style: TextStyle(color: AppColors.error)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
                 ),
-                ElevatedButton(
-                  onPressed: () => Navigator.pop(dialogCtx, 'resume'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: isDark ? AppColors.primaryDark : AppColors.primary,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: AppRadius.mdRadius),
-                    elevation: 0,
-                  ),
-                  child: const Text('Resume Draft'),
-                ),
-              ],
+              ),
             );
           },
         );
@@ -205,6 +317,18 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
         }
       }
     } catch (_) {}
+  }
+
+  Widget _summaryItem(IconData icon, String value, String label, Color primaryText, Color secondaryText) {
+    return Column(
+      children: [
+        Icon(icon, size: 20, color: AppColors.customerColor),
+        const SizedBox(height: 4),
+        Text(value, style: AppTextStyles.bodyMedium(primaryText).copyWith(fontWeight: FontWeight.bold)),
+        const SizedBox(height: 2),
+        Text(label, style: AppTextStyles.caption(secondaryText)),
+      ],
+    );
   }
 
   void _saveDraft() {
@@ -510,7 +634,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
               isRequestOnly: addrState.requestOnlyLocation != null,
               onChange: _openDeliveryAddressEditor,
             )
-          else ...[
+          else ...[ 
             Text(
               'Add your delivery address to continue.',
               style: AppTextStyles.bodyMedium(secondaryText),
@@ -585,15 +709,6 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
           ? updatedLocation.suburb
           : updatedLocation.approximateAreaText;
       final itemCount = activeItems.length;
-
-      debugPrint('[RequestCreate] Submitting request with:');
-      debugPrint('[RequestCreate] approximateArea: ${updatedLocation.approximateAreaText}');
-      debugPrint('[RequestCreate] streetAddress: ${updatedLocation.streetAddress}');
-      debugPrint('[RequestCreate] province: ${updatedLocation.province}');
-      debugPrint('[RequestCreate] district: ${updatedLocation.district}');
-      debugPrint('[RequestCreate] latitude: ${updatedLocation.latitude}');
-      debugPrint('[RequestCreate] longitude: ${updatedLocation.longitude}');
-      debugPrint('[RequestCreate] accuracy: ${updatedLocation.accuracy}');
 
       await requestNotifier.createRequest(
         items: activeItems,
@@ -721,21 +836,6 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     return verified == true;
   }
 
-  void _showAddItemManualSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => ManualAddSheet(
-        onAdd: (item) {
-          setState(() {
-            _multipleItemsList = [..._multipleItemsList, item];
-          });
-          _saveDraft();
-        },
-      ),
-    );
-  }
 
   Future<void> _confirmPop() async {
     if (!_isFormDirty()) {
@@ -747,50 +847,129 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final surfaceColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
 
-    final String? action = await showDialog<String>(
+    final String? action = await showModalBottomSheet<String>(
       context: context,
-      barrierDismissible: true,
+      isScrollControlled: true,
+      isDismissible: true,
+      backgroundColor: Colors.transparent,
       builder: (dialogCtx) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: AppRadius.lgRadius),
-          icon: Icon(
-            Icons.drafts_rounded,
-            size: 40,
-            color: isDark ? AppColors.primaryDark : AppColors.primary,
+        return Container(
+          decoration: BoxDecoration(
+            color: surfaceColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 20,
+                spreadRadius: 2,
+              )
+            ],
           ),
-          title: Text(
-            'Save this request as draft?',
-            style: TextStyle(color: primaryText, fontWeight: FontWeight.bold),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: Container(
+                    width: 48,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white24 : Colors.black12,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 64,
+                        height: 64,
+                        decoration: BoxDecoration(
+                          color: AppColors.customerColor.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Icon(
+                          Icons.drafts_rounded,
+                          size: 32,
+                          color: AppColors.customerColor,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Save Your Draft?',
+                        style: AppTextStyles.h2(primaryText),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'You have added request details. Save them and continue later.',
+                        style: AppTextStyles.bodyMedium(secondaryText),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: ElevatedButton.icon(
+                          onPressed: () => Navigator.pop(dialogCtx, 'save'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.customerColor,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            elevation: 0,
+                          ),
+                          icon: const Icon(Icons.check_rounded, size: 18),
+                          label: const Text('Save as Draft'),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.pop(dialogCtx, 'discard'),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppColors.error),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.error),
+                          label: const Text("Don't Save", style: TextStyle(color: AppColors.error)),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 48,
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(dialogCtx, 'cancel'),
+                          style: TextButton.styleFrom(
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: Text('Keep Editing', style: AppTextStyles.button(secondaryText)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
-          content: Text(
-            'You have added request details. Do you want to save them and continue later?',
-            style: TextStyle(color: secondaryText),
-            textAlign: TextAlign.center,
-          ),
-          actionsAlignment: MainAxisAlignment.end,
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx, 'cancel'),
-              style: TextButton.styleFrom(foregroundColor: secondaryText),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx, 'discard'),
-              style: TextButton.styleFrom(foregroundColor: AppColors.error),
-              child: const Text("Don't Save"),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogCtx, 'save'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isDark ? AppColors.primaryDark : AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: AppRadius.mdRadius),
-                elevation: 0,
-              ),
-              child: const Text('Save as Draft'),
-            ),
-          ],
         );
       },
     );
@@ -944,7 +1123,12 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                       ),
                       SliverToBoxAdapter(
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+                          padding: const EdgeInsets.fromLTRB(
+                            AppSpacing.lg,
+                            AppSpacing.md,
+                            AppSpacing.lg,
+                            AppSpacing.sm,
+                          ),
                           child: RequestTypeToggle(
                             selectedType: _requestType,
                             onChanged: (type) {
@@ -962,20 +1146,20 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                         SliverToBoxAdapter(
                           child: Theme3AppCard(
                             padding: const EdgeInsets.all(AppSpacing.lg),
-                            margin: const EdgeInsets.all(AppSpacing.lg),
+                            margin: const EdgeInsets.fromLTRB(
+                              AppSpacing.lg,
+                              AppSpacing.sm,
+                              AppSpacing.lg,
+                              AppSpacing.lg,
+                            ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Step 1: Choose Item Category',
+                                  'Selected Category',
                                   style: AppTextStyles.subtitle(primaryText),
                                 ),
-                                const SizedBox(height: AppSpacing.sm),
-                                Text(
-                                  'Select the main category before typing item specifications.',
-                                  style: AppTextStyles.caption(secondaryText),
-                                ),
-                                const SizedBox(height: AppSpacing.lg),
+                                const SizedBox(height: AppSpacing.md),
                                 CategorySelector(
                                   selectedCategory: _singleCategory,
                                   onSelected: (cat) {
@@ -988,6 +1172,23 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                                   },
                                   compact: true,
                                 ),
+                                if (_singleCategory != null) ...[
+                                  const SizedBox(height: AppSpacing.sm),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.info_outline_rounded,
+                                        size: 14,
+                                        color: AppColors.customerColor,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        'This category will be used for your items',
+                                        style: AppTextStyles.caption(AppColors.customerColor),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -1064,32 +1265,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                             ),
                           )
                       ],
-                      if (_requestType == RequestType.multiple) ...[
-                        SliverToBoxAdapter(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: AppSpacing.lg,
-                              vertical: AppSpacing.md,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  'Shopping List',
-                                  style: AppTextStyles.bodySmall(secondaryText),
-                                ),
-                                Theme3AppButton(
-                                  label: 'Add Item',
-                                  onPressed: _showAddItemManualSheet,
-                                  icon: Icons.add_rounded,
-                                  type: Theme3ButtonType.primary,
-                                  width: 120,
-                                  height: 36,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
+                      if (_requestType == RequestType.multiple) ...[ 
                         SliverToBoxAdapter(
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),

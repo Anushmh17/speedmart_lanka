@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../routes/app_router.dart';
 
 class BottomNavVisibilityNotifier extends AutoDisposeNotifier<bool> {
   bool _manualHidden = false;
@@ -13,10 +12,7 @@ class BottomNavVisibilityNotifier extends AutoDisposeNotifier<bool> {
     }
   }
 
-  @override
-  bool build() {
-    final location = ref.watch(currentRouteLocationProvider);
-    
+  void updateLocation(String location) {
     debugPrint('[BottomNav] route=$location');
     
     // Reset manual override automatically when route location changes
@@ -41,11 +37,19 @@ class BottomNavVisibilityNotifier extends AutoDisposeNotifier<bool> {
     };
 
     final routeVisible = mainDashboardRoutes.contains(cleanPath);
-    final result = routeVisible && !_manualHidden;
+    final newState = routeVisible && !_manualHidden;
     
-    debugPrint('[BottomNav] cleanPath=$cleanPath, visible=$result (routeVisible=$routeVisible, manualHidden=$_manualHidden)');
+    debugPrint('[BottomNav] cleanPath=$cleanPath, visible=$newState (routeVisible=$routeVisible, manualHidden=$_manualHidden)');
 
-    return result;
+    if (state != newState) {
+      state = newState;
+    }
+  }
+
+  @override
+  bool build() {
+    // Initial state
+    return false;
   }
 }
 

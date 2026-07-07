@@ -10,70 +10,50 @@ class AppLogo extends StatelessWidget {
     this.size = LogoSize.medium,
     this.showTagline = false,
     this.light = false,
+    this.useDarkPill = false,
   });
 
   final LogoSize size;
   final bool showTagline;
   final bool light;
+  final bool useDarkPill;
 
   @override
   Widget build(BuildContext context) {
-    final iconSize = _iconSize;
-    final nameSize = _nameSize;
-    final primaryColor = light ? Colors.white : AppColors.primary;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final logoWidth = _logoWidth;
+
+    final logoImage = Image.asset(
+      'assets/images/logo.png',
+      width: logoWidth,
+      fit: BoxFit.contain,
+    );
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Logo mark: cart icon inside a rounded box
-        Container(
-          width: iconSize,
-          height: iconSize,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [AppColors.primary, AppColors.primaryDark],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+        // Logo with optional dark pill for light backgrounds
+        if (useDarkPill && !light)
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: logoWidth * 0.12,
+              vertical: logoWidth * 0.08,
             ),
-            borderRadius: BorderRadius.circular(iconSize * 0.25),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.primary.withOpacity(0.35),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Icon(
-            Icons.bolt_rounded,
-            color: Colors.white,
-            size: iconSize * 0.55,
-          ),
-        ),
-        const SizedBox(height: 12),
-        // App name
-        RichText(
-          text: TextSpan(
-            children: [
-              TextSpan(
-                text: 'Speedmart',
-                style: AppTextStyles.display2(primaryColor).copyWith(
-                  fontSize: nameSize,
-                  fontWeight: FontWeight.w800,
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E293B) : const Color(0xFF1E293B),
+              borderRadius: BorderRadius.circular(logoWidth * 0.08),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.08),
+                  blurRadius: 12,
+                  offset: const Offset(0, 2),
                 ),
-              ),
-              TextSpan(
-                text: ' Lanka',
-                style: AppTextStyles.display2(
-                  light ? Colors.white70 : AppColors.textSecondaryLight,
-                ).copyWith(
-                  fontSize: nameSize,
-                  fontWeight: FontWeight.w400,
-                ),
-              ),
-            ],
-          ),
-        ),
+              ],
+            ),
+            child: logoImage,
+          )
+        else
+          logoImage,
         if (showTagline) ...[
           const SizedBox(height: 6),
           Text(
@@ -81,33 +61,22 @@ class AppLogo extends StatelessWidget {
             style: AppTextStyles.bodyMedium(
               light
                   ? Colors.white60
-                  : AppColors.textSecondaryLight,
-            ),
+                  : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
+            ).copyWith(fontWeight: FontWeight.w500),
           ),
         ],
       ],
     );
   }
 
-  double get _iconSize {
+  double get _logoWidth {
     switch (size) {
       case LogoSize.small:
-        return 48;
+        return 120;
       case LogoSize.medium:
-        return 72;
+        return 180;
       case LogoSize.large:
-        return 96;
-    }
-  }
-
-  double get _nameSize {
-    switch (size) {
-      case LogoSize.small:
-        return 18;
-      case LogoSize.medium:
-        return 24;
-      case LogoSize.large:
-        return 30;
+        return 240;
     }
   }
 }
@@ -120,43 +89,10 @@ class AppBarLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 30,
-          height: 30,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [AppColors.primary, AppColors.primaryDark],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Icon(Icons.bolt_rounded, color: Colors.white, size: 18),
-        ),
-        const SizedBox(width: 8),
-        RichText(
-          text: TextSpan(
-            children: [
-              TextSpan(
-                text: 'Speedmart',
-                style: AppTextStyles.h3(
-                  isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
-                ).copyWith(fontWeight: FontWeight.w700),
-              ),
-              TextSpan(
-                text: ' Lanka',
-                style: AppTextStyles.h3(
-                  isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
-                ).copyWith(fontWeight: FontWeight.w400),
-              ),
-            ],
-          ),
-        ),
-      ],
+    return Image.asset(
+      'assets/images/logo.png',
+      height: 28, // Scaled properly for AppBar visibility
+      fit: BoxFit.contain,
     );
   }
 }

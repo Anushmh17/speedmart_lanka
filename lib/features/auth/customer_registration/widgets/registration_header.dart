@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../../../core/widgets/app_logo.dart';
 import '../models/registration_step.dart';
 
 /// Animated gradient header for the customer registration screen.
@@ -61,7 +60,8 @@ class RegistrationHeader extends StatelessWidget {
             const SizedBox(height: 38),
 
           const SizedBox(height: 20),
-          const AppLogo(size: LogoSize.small, light: true),
+          // Logo with dark pill for readability
+          _buildLogoPill(),
           const SizedBox(height: 16),
 
           // ── Title with crossfade transition ────────────────────────
@@ -99,6 +99,28 @@ class RegistrationHeader extends StatelessWidget {
           // ── Step indicator ─────────────────────────────────────────
           _StepDots(step: step),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLogoPill() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.15),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Image.asset(
+        'assets/images/logo.png',
+        width: 105,
+        fit: BoxFit.contain,
       ),
     );
   }

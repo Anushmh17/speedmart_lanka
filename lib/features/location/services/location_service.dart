@@ -256,6 +256,49 @@ class LocationService {
 
   /// Reverse geocode given coordinates to the nearest Sri Lankan suburb.
   /// streetAddress can optionally be provided (e.g. for mock data / GPS updates), defaulting to empty.
+  static const double _maxMatchDistanceKm = 25.0;
+
+  static DeliveryLocation? tryReverseGeocode({
+    required double latitude,
+    required double longitude,
+    String streetAddress = '',
+    bool isManualOverride = false,
+  }) {
+    SriLankanSuburb? nearest;
+    double minDistance = double.maxFinite;
+
+    for (final loc in sriLankanLocations) {
+      final dist = calculateDistance(
+        lat1: latitude,
+        lon1: longitude,
+        lat2: loc.latitude,
+        lon2: loc.longitude,
+      );
+      if (dist < minDistance) {
+        minDistance = dist;
+        nearest = loc;
+      }
+    }
+
+    if (nearest == null || minDistance > _maxMatchDistanceKm) return null;
+
+    final String formatted =
+        '${nearest.name}, ${nearest.city}, ${nearest.district} District, ${nearest.province} Province';
+
+    return DeliveryLocation(
+      province: nearest.province,
+      district: nearest.district,
+      city: nearest.city,
+      suburb: nearest.name,
+      formattedAddress: formatted,
+      streetAddress: streetAddress,
+      latitude: latitude,
+      longitude: longitude,
+      isGpsDetected: !isManualOverride,
+      isManualOverride: isManualOverride,
+    );
+  }
+
   static DeliveryLocation reverseGeocode({
     required double latitude,
     required double longitude,
@@ -276,6 +319,21 @@ class LocationService {
         minDistance = dist;
         nearest = loc;
       }
+    }
+
+    if (minDistance > _maxMatchDistanceKm) {
+      return DeliveryLocation(
+        province: '',
+        district: '',
+        city: '',
+        suburb: '',
+        formattedAddress: '',
+        streetAddress: streetAddress,
+        latitude: latitude,
+        longitude: longitude,
+        isGpsDetected: !isManualOverride,
+        isManualOverride: isManualOverride,
+      );
     }
 
     final String formatted =

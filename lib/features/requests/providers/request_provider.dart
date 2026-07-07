@@ -90,7 +90,7 @@ class RequestNotifier extends StateNotifier<RequestState> {
     try {
       final rawRequests = await _repo.getNearbyRequests();
       
-      // Dynamic Haversine geofencing filter (radius = 20 km)
+      // Dynamic Haversine geofencing filter (radius = 5 km)
       final filteredRequests = rawRequests.where((req) {
         final distance = LocationModel.calculateDistance(
           lat1: req.latitude,
@@ -98,7 +98,7 @@ class RequestNotifier extends StateNotifier<RequestState> {
           lat2: state.vendorLatitude,
           lon2: state.vendorLongitude,
         );
-        return distance <= 20.0;
+        return distance <= 5.0;
       }).map((req) {
         final distance = LocationModel.calculateDistance(
           lat1: req.latitude,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import 'core/routes/app_router.dart';
 import 'core/services/local_notification_service.dart';
 import 'core/theme/app_theme.dart';
@@ -15,29 +16,23 @@ void main() async {
 
   await LocalNotificationService.initialize();
 
-  // Load persisted mock request/proposal/order data before UI.
-  // TODO: Replace with backend API sync on app start.
   await Future.wait([
     MockRequestRepository.instance.ensureInitialized(),
     MockProposalRepository.instance.ensureInitialized(),
     MockOrderRepository.instance.ensureInitialized(),
   ]);
 
-  // Lock to portrait mode
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
-  // Show status bar with transparent background.
-  // Edge-to-edge allows Flutter to draw behind the status/nav bars while
-  // MediaQuery.padding (via SafeArea) ensures content is never obscured.
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark, // overridden per-screen
+      statusBarIconBrightness: Brightness.dark,
       systemNavigationBarColor: Colors.transparent,
       systemNavigationBarDividerColor: Colors.transparent,
     ),
@@ -56,9 +51,10 @@ class SpeedmartApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeProvider);
-    final router = ref.watch(appRouterProvider);
-    
+
     debugPrint('[Theme] MaterialApp building with themeMode=${themeMode.name}');
+
+    final router = ref.watch(appRouterProvider);
 
     return _AppLifecycleManager(
       child: MaterialApp.router(
@@ -69,19 +65,22 @@ class SpeedmartApp extends ConsumerWidget {
         themeMode: themeMode,
         routerConfig: router,
         builder: (context, child) {
-          // Update status bar when theme changes
           WidgetsBinding.instance.addPostFrameCallback((_) {
             final isDark = Theme.of(context).brightness == Brightness.dark;
-            SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
-              statusBarColor: Colors.transparent,
-              statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-              systemNavigationBarColor: Colors.transparent,
-            ));
+
+            SystemChrome.setSystemUIOverlayStyle(
+              SystemUiOverlayStyle(
+                statusBarColor: Colors.transparent,
+                statusBarIconBrightness:
+                    isDark ? Brightness.light : Brightness.dark,
+                systemNavigationBarColor: Colors.transparent,
+              ),
+            );
           });
 
           return Stack(
             children: [
-              if (child != null) child,
+              if (child != null) SizedBox.expand(child: child),
               const GlobalNotificationOverlay(),
             ],
           );
@@ -93,13 +92,15 @@ class SpeedmartApp extends ConsumerWidget {
 
 class _AppLifecycleManager extends StatefulWidget {
   final Widget child;
+
   const _AppLifecycleManager({required this.child});
 
   @override
   State<_AppLifecycleManager> createState() => _AppLifecycleManagerState();
 }
 
-class _AppLifecycleManagerState extends State<_AppLifecycleManager> with WidgetsBindingObserver {
+class _AppLifecycleManagerState extends State<_AppLifecycleManager>
+    with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();

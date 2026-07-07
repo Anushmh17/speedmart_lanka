@@ -61,7 +61,7 @@ class MockAuthRepository {
       shopAddress: 'Main Street, Colombo 03',
       shopLatitude: 6.9271,
       shopLongitude: 80.7789,
-      assignedRadiusKm: 20.0,
+      assignedRadiusKm: 5.0,
       isShopLocationAssigned: true,
       createdAt: DateTime(2025, 2, 10),
     ),
@@ -99,7 +99,7 @@ class MockAuthRepository {
       shopAddress: 'Nallur Street, Jaffna',
       shopLatitude: 9.6615,
       shopLongitude: 80.0255,
-      assignedRadiusKm: 15.0,
+      assignedRadiusKm: 5.0,
       isShopLocationAssigned: true,
       createdAt: DateTime(2025, 1, 20),
     ),
@@ -150,7 +150,7 @@ class MockAuthRepository {
       shopAddress: 'Galle Road, Colombo 04',
       shopLatitude: 6.9271,
       shopLongitude: 80.7500,
-      assignedRadiusKm: 10.0,
+      assignedRadiusKm: 5.0,
       isShopLocationAssigned: true,
       createdAt: DateTime(2025, 1, 10),
     ),
@@ -328,10 +328,10 @@ class MockAuthRepository {
     });
 
     if (match.isEmpty) {
-      throw Exception('No customer account found with this contact details.');
+      throw Exception('No account found for this ${isEmail ? 'email' : 'phone number'}. Please register.');
     }
-
     final user = match.first;
+
     if (!user.isActive) {
       throw Exception('Your account has been suspended. Contact support.');
     }
@@ -591,6 +591,91 @@ class MockAuthRepository {
       await _persistUsers();
       debugPrint('[VendorStatusFix] Persisted vendorStatus: ${_sessionUsers[index].vendorStatus}');
     }
+  }
+
+  // ── Vendor Credential Check (without authenticating) ─────────────────────
+
+  /// Verifies vendor credentials without setting auth state.
+  /// Returns the matched user if credentials are valid.
+  Future<UserModel> verifyVendorCredentials({
+    required String email,
+    required String password,
+  }) async {
+    await ensureInitialized();
+    await Future.delayed(const Duration(milliseconds: 1200));
+
+    final match = _sessionUsers.where(
+      (u) =>
+          u.role == UserRole.vendor &&
+          u.email.toLowerCase() == email.toLowerCase().trim(),
+    );
+
+    if (match.isEmpty) {
+      throw Exception('No vendor account found with this email.');
+    }
+
+    final user = match.first;
+    final storedPassword = _passwordStore[user.email];
+
+    if (storedPassword != password) {
+      throw Exception('Incorrect password. Please try again.');
+    }
+
+    if (!user.isActive) {
+      throw Exception('Your account has been suspended. Contact support.');
+    }
+
+    return user;
+  }
+
+  // ── Password Reset ──────────────────────────────────────────────────────
+
+  /// Returns the current stored password for a vendor email (for same-password check).
+  Future<String?> getVendorPassword(String email) async {
+    await ensureInitialized();
+    final normalizedEmail = email.toLowerCase().trim();
+    final user = _sessionUsers.firstWhere(
+      (u) => u.role == UserRole.vendor && u.email.toLowerCase() == normalizedEmail,
+      orElse: () => throw Exception('User not found'),
+    );
+    return _passwordStore[user.email];
+  }
+
+  /// Checks if a vendor with [email] exists and returns a mock OTP.
+  Future<String> generateResetOtp(String email) async {
+    await ensureInitialized();
+    await Future.delayed(const Duration(milliseconds: 800));
+    final exists = _sessionUsers.any(
+      (u) =>
+          u.role == UserRole.vendor &&
+          u.email.toLowerCase() == email.toLowerCase().trim(),
+    );
+    if (!exists) throw Exception('No vendor account found with this email.');
+    // In a real app this would send an email; here we return a fixed mock OTP.
+    return '123456';
+  }
+
+  /// Updates the password for the vendor with [email].
+  Future<void> resetPassword({
+    required String email,
+    required String newPassword,
+  }) async {
+    await ensureInitialized();
+    await Future.delayed(const Duration(milliseconds: 600));
+    final normalizedEmail = email.toLowerCase().trim();
+    final user = _sessionUsers.firstWhere(
+      (u) =>
+          u.role == UserRole.vendor &&
+          u.email.toLowerCase() == normalizedEmail,
+      orElse: () => throw Exception('No vendor account found with this email.'),
+    );
+    final currentPassword = _passwordStore[user.email];
+    if (currentPassword != null && currentPassword == newPassword) {
+      throw Exception('New password cannot be the same as your previous password.');
+    }
+    _passwordStore[user.email] = newPassword;
+    await _persistUsers();
+    debugPrint('[Auth] Password reset for: $normalizedEmail');
   }
 
   Future<UserModel> updateUser(UserModel user) async {

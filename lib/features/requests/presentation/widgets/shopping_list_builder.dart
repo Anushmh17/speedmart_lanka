@@ -56,7 +56,8 @@ class ShoppingListBuilder extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Clear all items?'),
-        content: const Text('Are you sure you want to clear all items from your shopping list? This cannot be undone.'),
+        content: const Text(
+            'Are you sure you want to clear all items from your shopping list? This cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -90,84 +91,72 @@ class ShoppingListBuilder extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Mode Selector (Same vs Mixed)
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.surfaceDark : Colors.grey.shade50,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: borderColor),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Shopping List Category Mode',
-                style: AppTextStyles.labelMedium(primaryText),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Same Category is best for groceries. Mixed is best for multiple different product types.',
-                style: AppTextStyles.caption(secondaryText),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: ChoiceChip(
-                      label: const Center(child: Text('Same Category')),
-                      selected: !isMixedCategory,
-                      onSelected: (selected) {
-                        if (selected) {
-                          onModeChanged(false);
-                          // Sync category for all items
-                          final synced = items.map((i) => i.copyWith(category: globalCategory)).toList();
-                          onItemsChanged(synced);
-                        }
-                      },
-                      selectedColor: AppColors.customerColor.withOpacity(0.15),
-                      checkmarkColor: AppColors.customerColor,
-                      labelStyle: AppTextStyles.bodySmall(
-                        !isMixedCategory ? AppColors.customerColor : secondaryText,
-                      ).copyWith(fontWeight: !isMixedCategory ? FontWeight.bold : FontWeight.normal),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ChoiceChip(
-                      label: const Center(child: Text('Mixed Categories')),
-                      selected: isMixedCategory,
-                      onSelected: (selected) {
-                        if (selected) {
-                          onModeChanged(true);
-                        }
-                      },
-                      selectedColor: AppColors.customerColor.withOpacity(0.15),
-                      checkmarkColor: AppColors.customerColor,
-                      labelStyle: AppTextStyles.bodySmall(
-                        isMixedCategory ? AppColors.customerColor : secondaryText,
-                      ).copyWith(fontWeight: isMixedCategory ? FontWeight.bold : FontWeight.normal),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+        // ── Mode Header ─────────────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Text(
+            'Choose how you want to create your list',
+            style: AppTextStyles.subtitle(primaryText).copyWith(
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
-        const SizedBox(height: 16),
 
-        // Global Category Selector if Same Category Mode (Mode A) is selected
+        // ── Premium Same / Mixed Category Cards ─────────────────────────────
+        _CategoryModeCard(
+          icon: Icons.label_rounded,
+          title: 'Same Category',
+          description: 'All items belong to one category',
+          accentColor: const Color(0xFF16A34A),
+          accentBgLight: const Color(0xFFDCFCE7),
+          accentBgDark: const Color(0xFF052E16),
+          isSelected: !isMixedCategory,
+          isDark: isDark,
+          onTap: () {
+            if (!isMixedCategory) return;
+            onModeChanged(false);
+            final synced =
+                items.map((i) => i.copyWith(category: globalCategory)).toList();
+            onItemsChanged(synced);
+          },
+        ),
+        const SizedBox(height: 12),
+        _CategoryModeCard(
+          icon: Icons.layers_rounded,
+          title: 'Mixed Categories',
+          description: 'Items can be from different categories',
+          accentColor: const Color(0xFF7C3AED),
+          accentBgLight: const Color(0xFFEDE9FE),
+          accentBgDark: const Color(0xFF1A0D33),
+          isSelected: isMixedCategory,
+          isDark: isDark,
+          onTap: () {
+            if (isMixedCategory) return;
+            onModeChanged(true);
+          },
+        ),
+
+        const SizedBox(height: 20),
+
+        // ── Global Category Selector (Same Category mode only) ─────────────
         if (!isMixedCategory) ...[
-          Text('Select Shopping List Category', style: AppTextStyles.subtitle(primaryText)),
+          Text(
+            'Shopping List Category',
+            style: AppTextStyles.subtitle(primaryText).copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
           const SizedBox(height: 4),
-          Text('All items in this list will be created under this category.', style: AppTextStyles.caption(secondaryText)),
+          Text(
+            'All items in this list will be under this category.',
+            style: AppTextStyles.caption(secondaryText),
+          ),
           const SizedBox(height: 10),
           CategorySelector(
             selectedCategory: globalCategory,
             compact: true,
             onSelected: (cat) {
               onGlobalCategoryChanged(cat);
-              // Sync category for all existing items in the list
               final synced = items.map((i) => i.copyWith(category: cat)).toList();
               onItemsChanged(synced);
             },
@@ -175,33 +164,41 @@ class ShoppingListBuilder extends StatelessWidget {
           const SizedBox(height: 20),
         ],
 
-        // Items Header Row
+        // ── Items Header Row ────────────────────────────────────────────────
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              'Shopping List Builder',
+              'Items in this list (${items.length})',
               style: AppTextStyles.h2(primaryText),
             ),
             if (items.isNotEmpty)
               TextButton.icon(
-                icon: const Icon(Icons.clear_all_rounded, size: 18, color: AppColors.error),
-                label: Text('Clear All', style: AppTextStyles.bodySmall(AppColors.error).copyWith(fontWeight: FontWeight.bold)),
+                icon: const Icon(Icons.clear_all_rounded, size: 16, color: AppColors.error),
+                label: Text(
+                  'Clear All',
+                  style: AppTextStyles.bodySmall(AppColors.error).copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 onPressed: () => _clearAll(context),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                ),
               ),
           ],
         ),
         const SizedBox(height: 12),
 
-        // Empty State or Item Cards
+        // ── Empty State ─────────────────────────────────────────────────────
         if (items.isEmpty)
           Container(
             width: double.infinity,
-            padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+            padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
             decoration: BoxDecoration(
               color: isDark ? Colors.black12 : Colors.grey.shade50,
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: borderColor, style: BorderStyle.solid),
+              border: Border.all(color: borderColor),
             ),
             child: Column(
               children: [
@@ -217,26 +214,33 @@ class ShoppingListBuilder extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Tap "Add Item" to write down your first request.',
+                  'Tap "+ Add item" to write down your first request.',
                   textAlign: TextAlign.center,
                   style: AppTextStyles.caption(secondaryText),
                 ),
                 const SizedBox(height: 20),
-                ElevatedButton.icon(
-                  onPressed: _addItem,
-                  icon: const Icon(Icons.add_rounded, color: Colors.white),
-                  label: const Text('Add First Item'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.customerColor,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                SizedBox(
+                  width: 180,
+                  height: 44,
+                  child: ElevatedButton.icon(
+                    onPressed: _addItem,
+                    icon: const Icon(Icons.add_rounded, color: Colors.white, size: 18),
+                    label: const Text('Add First Item'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.customerColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      elevation: 0,
+                    ),
                   ),
                 ),
               ],
             ),
           )
         else ...[
+          // ── Item Cards ──────────────────────────────────────────────────
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -259,22 +263,207 @@ class ShoppingListBuilder extends StatelessWidget {
             },
           ),
           const SizedBox(height: 12),
-          // Add Another Item Button
+
+          // ── Add Another Item Button (fixed overflow) ────────────────────
           SizedBox(
             width: double.infinity,
-            height: 52,
-            child: OutlinedButton.icon(
+            height: 50,
+            child: OutlinedButton(
               onPressed: _addItem,
-              icon: const Icon(Icons.add_rounded, color: AppColors.customerColor),
-              label: Text('Add Another Item', style: AppTextStyles.button(AppColors.customerColor)),
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppColors.customerColor, width: 1.5),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14)),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.add_rounded, color: AppColors.customerColor, size: 20),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      '+ Add Item',
+                      style: AppTextStyles.button(AppColors.customerColor),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
         ],
       ],
+    );
+  }
+}
+
+// ── Premium Category Mode Card ─────────────────────────────────────────────────
+
+class _CategoryModeCard extends StatefulWidget {
+  const _CategoryModeCard({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.accentColor,
+    required this.accentBgLight,
+    required this.accentBgDark,
+    required this.isSelected,
+    required this.isDark,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+  final Color accentColor;
+  final Color accentBgLight;
+  final Color accentBgDark;
+  final bool isSelected;
+  final bool isDark;
+  final VoidCallback onTap;
+
+  @override
+  State<_CategoryModeCard> createState() => _CategoryModeCardState();
+}
+
+class _CategoryModeCardState extends State<_CategoryModeCard> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final primaryText =
+        widget.isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final secondaryText =
+        widget.isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final cardBg = widget.isDark ? AppColors.cardDark : Colors.white;
+    final borderColor =
+        widget.isDark ? AppColors.borderDark : AppColors.borderLight;
+
+    final selectedBg =
+        widget.accentColor.withOpacity(widget.isDark ? 0.12 : 0.07);
+
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) {
+        setState(() => _pressed = false);
+        widget.onTap();
+      },
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.98 : 1.0,
+        duration: const Duration(milliseconds: 100),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            color: widget.isSelected ? selectedBg : cardBg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color:
+                  widget.isSelected ? widget.accentColor : borderColor,
+              width: widget.isSelected ? 2 : 1,
+            ),
+            boxShadow: widget.isSelected
+                ? [
+                    BoxShadow(
+                      color: widget.accentColor.withOpacity(0.15),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: Colors.black
+                          .withOpacity(widget.isDark ? 0.15 : 0.04),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+          ),
+          child: Row(
+            children: [
+              // Icon box
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: widget.isSelected
+                      ? widget.accentColor
+                      : (widget.isDark
+                          ? widget.accentBgDark
+                          : widget.accentBgLight),
+                  borderRadius: BorderRadius.circular(13),
+                  boxShadow: widget.isSelected
+                      ? [
+                          BoxShadow(
+                            color: widget.accentColor.withOpacity(0.35),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ]
+                      : [],
+                ),
+                child: Icon(
+                  widget.icon,
+                  size: 24,
+                  color: widget.isSelected ? Colors.white : widget.accentColor,
+                ),
+              ),
+              const SizedBox(width: 14),
+
+              // Text
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.title,
+                      style: AppTextStyles.bodyMedium(primaryText).copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: widget.isSelected
+                            ? widget.accentColor
+                            : primaryText,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      widget.description,
+                      style: AppTextStyles.caption(secondaryText),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Radio indicator
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: widget.isSelected
+                      ? widget.accentColor
+                      : Colors.transparent,
+                  border: Border.all(
+                    color: widget.isSelected
+                        ? widget.accentColor
+                        : (widget.isDark
+                            ? AppColors.borderDark
+                            : AppColors.borderLight),
+                    width: 2,
+                  ),
+                ),
+                child: widget.isSelected
+                    ? const Icon(Icons.check_rounded, size: 13, color: Colors.white)
+                    : null,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

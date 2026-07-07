@@ -108,6 +108,12 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final shellLocation = GoRouterState.of(context).matchedLocation;
+    
+    // Update bottom nav visibility with current location after build completes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(bottomNavVisibilityProvider.notifier).updateLocation(shellLocation);
+    });
+    
     final showBottomNav = ref.watch(bottomNavVisibilityProvider);
 
     int currentIndex = 0;

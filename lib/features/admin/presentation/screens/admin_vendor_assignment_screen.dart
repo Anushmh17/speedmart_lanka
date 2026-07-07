@@ -58,7 +58,7 @@ class _AdminVendorAssignmentScreenState
       text: widget.vendor.shopLongitude?.toString() ?? '',
     );
     _radiusCtrl = TextEditingController(
-      text: widget.vendor.assignedRadiusKm?.toString() ?? '20',
+      text: widget.vendor.assignedRadiusKm?.toString() ?? '5',
     );
   }
 
@@ -99,7 +99,7 @@ class _AdminVendorAssignmentScreenState
       _shopAddressCtrl.text = latestVendor.shopAddress ?? '';
       _latitudeCtrl.text = latestVendor.shopLatitude?.toString() ?? '';
       _longitudeCtrl.text = latestVendor.shopLongitude?.toString() ?? '';
-      _radiusCtrl.text = latestVendor.assignedRadiusKm?.toString() ?? '20';
+      _radiusCtrl.text = latestVendor.assignedRadiusKm?.toString() ?? '5';
     } catch (e) {
       debugPrint('[AdminVendorAssignment] Error loading vendor: $e');
     } finally {

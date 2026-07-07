@@ -114,6 +114,11 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final shellLocation = GoRouterState.of(context).matchedLocation;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(bottomNavVisibilityProvider.notifier).updateLocation(shellLocation);
+    });
+    
     final showBottomNav = ref.watch(bottomNavVisibilityProvider);
 
     // PopScope(canPop: false) suppresses the Android 13 predictive-back

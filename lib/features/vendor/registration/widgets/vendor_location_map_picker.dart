@@ -36,11 +36,23 @@ class _VendorLocationMapPickerState extends State<VendorLocationMapPicker> {
     if (_hasValidCoordinates(widget.initialLatitude, widget.initialLongitude)) {
       _pinPoint = LatLng(widget.initialLatitude!, widget.initialLongitude!);
       debugPrint('[VendorLocation] map initialized lat/lng: ${widget.initialLatitude}, ${widget.initialLongitude}');
-      // Auto-center on pin after widget builds
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && _pinPoint != null) {
-          _mapController.move(_pinPoint!, 17);
-        }
+        if (mounted && _pinPoint != null) _mapController.move(_pinPoint!, 17);
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(VendorLocationMapPicker oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // GPS coordinates arrived after initial build — fly to pin
+    if (_hasValidCoordinates(widget.initialLatitude, widget.initialLongitude) &&
+        !_hasValidCoordinates(
+            oldWidget.initialLatitude, oldWidget.initialLongitude)) {
+      final point = LatLng(widget.initialLatitude!, widget.initialLongitude!);
+      setState(() => _pinPoint = point);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _mapController.move(point, 17);
       });
     }
   }
@@ -95,9 +107,14 @@ class _VendorLocationMapPickerState extends State<VendorLocationMapPicker> {
     );
   }
 
+  // Sri Lanka geographic center — used as fallback before GPS resolves
+  static const _sriLankaCenter = LatLng(7.8731, 80.7718);
+
   @override
   Widget build(BuildContext context) {
     final pinPoint = _pinPoint;
+    final hasPin = pinPoint != null;
+    final center = pinPoint ?? _sriLankaCenter;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
@@ -105,28 +122,6 @@ class _VendorLocationMapPickerState extends State<VendorLocationMapPicker> {
         isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryText =
         isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
-
-    if (pinPoint == null) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: cardColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Shop Location Map', style: AppTextStyles.subtitle(primaryText)),
-            const SizedBox(height: 8),
-            Text(
-              'Detect your GPS location first, then drag the pin to your exact shop entrance.',
-              style: AppTextStyles.bodySmall(secondaryText),
-            ),
-          ],
-        ),
-      );
-    }
 
     return Container(
       decoration: BoxDecoration(
@@ -147,61 +142,83 @@ class _VendorLocationMapPickerState extends State<VendorLocationMapPicker> {
                   FlutterMap(
                     mapController: _mapController,
                     options: MapOptions(
-                      initialCenter: pinPoint,
-                      initialZoom: 17,
+                      initialCenter: center,
+                      initialZoom: hasPin ? 17 : 8,
                       minZoom: 6,
                       maxZoom: 19,
-                      onTap: (_, point) => _movePinTo(point, immediate: true),
+                      onTap: hasPin
+                          ? (_, point) => _movePinTo(point, immediate: true)
+                          : null,
                     ),
                     children: [
                       TileLayer(
                         urlTemplate:
                             'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                         userAgentPackageName: 'com.speedmart.lanka',
-                        retinaMode: RetinaMode.isHighDensity(context),
+                        retinaMode: false,
                       ),
-                      MarkerLayer(
-                        markers: [
-                          Marker(
-                            point: pinPoint,
-                            width: 58,
-                            height: 58,
-                            alignment: Alignment.topCenter,
-                            child: GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onPanUpdate: (details) {
-                                final next =
-                                    _latLngFromGlobal(details.globalPosition);
-                                if (next != null) _movePinTo(next);
-                              },
-                              onPanEnd: (_) {
-                                final latest = _pinPoint;
-                                if (latest != null) {
-                                  _movePinTo(latest, immediate: true);
-                                }
-                              },
-                              child: const Icon(
-                                Icons.location_pin,
-                                color: AppColors.vendorColor,
-                                size: 52,
+                      if (hasPin)
+                        MarkerLayer(
+                          markers: [
+                            Marker(
+                              point: pinPoint,
+                              width: 58,
+                              height: 58,
+                              alignment: Alignment.topCenter,
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onPanUpdate: (details) {
+                                  final next =
+                                      _latLngFromGlobal(details.globalPosition);
+                                  if (next != null) _movePinTo(next);
+                                },
+                                onPanEnd: (_) {
+                                  final latest = _pinPoint;
+                                  if (latest != null) {
+                                    _movePinTo(latest, immediate: true);
+                                  }
+                                },
+                                child: const Icon(
+                                  Icons.location_pin,
+                                  color: AppColors.vendorColor,
+                                  size: 52,
+                                ),
                               ),
                             ),
+                          ],
+                        ),
+                    ],
+                  ),
+                  if (!hasPin)
+                    Container(
+                      color: Colors.black38,
+                      alignment: Alignment.center,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const CircularProgressIndicator(
+                            color: AppColors.vendorColor,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Detecting GPS location…',
+                            style: AppTextStyles.bodySmall(Colors.white),
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                  Positioned(
-                    right: 12,
-                    top: 12,
-                    child: FloatingActionButton.small(
-                      heroTag: 'vendor-map-recenter',
-                      onPressed: _recenter,
-                      backgroundColor: cardColor,
-                      foregroundColor: AppColors.vendorColor,
-                      child: const Icon(Icons.center_focus_strong_rounded),
                     ),
-                  ),
+                  if (hasPin)
+                    Positioned(
+                      right: 12,
+                      top: 12,
+                      child: FloatingActionButton.small(
+                        heroTag: 'vendor-map-recenter',
+                        onPressed: _recenter,
+                        backgroundColor: cardColor,
+                        foregroundColor: AppColors.vendorColor,
+                        child: const Icon(Icons.center_focus_strong_rounded),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -211,14 +228,18 @@ class _VendorLocationMapPickerState extends State<VendorLocationMapPicker> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Drag the purple pin to your shop entrance.',
+                    hasPin
+                        ? 'Drag the purple pin to your shop entrance.'
+                        : 'Detect your GPS location first, then drag the pin to your exact shop entrance.',
                     style: AppTextStyles.bodyMedium(primaryText),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Lat ${pinPoint.latitude.toStringAsFixed(6)} • Lng ${pinPoint.longitude.toStringAsFixed(6)}',
-                    style: AppTextStyles.caption(secondaryText),
-                  ),
+                  if (hasPin) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'Lat ${pinPoint.latitude.toStringAsFixed(6)} • Lng ${pinPoint.longitude.toStringAsFixed(6)}',
+                      style: AppTextStyles.caption(secondaryText),
+                    ),
+                  ],
                 ],
               ),
             ),

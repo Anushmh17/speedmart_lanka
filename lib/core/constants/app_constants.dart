@@ -9,7 +9,7 @@ class AppConstants {
   static const int buildNumber = 1;
 
   /// Delivery radius in kilometers (configurable from admin)
-  static const double defaultDeliveryRadius = 20.0;
+  static const double defaultDeliveryRadius = 5.0;
 
   /// Cooldown in minutes before same vendor can accept the same rejected item
   static const int vendorCooldownMinutes = 120;

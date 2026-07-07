@@ -6,14 +6,34 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/utils/validators.dart';
 import '../../../../core/widgets/app_button.dart';
-import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../../shared/models/user_role.dart';
+import '../../domain/auth_state.dart';
 import '../../providers/auth_provider.dart';
 import '../../customer_registration/providers/customer_registration_provider.dart';
 import '../../customer_registration/widgets/country_mismatch_dialog.dart';
 import '../../customer_registration/widgets/phone_field_lk.dart';
 import '../../customer_registration/models/registration_step.dart';
+
+class AuthWaveClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    path.lineTo(0, size.height - 55);
+    path.quadraticBezierTo(
+      size.width * 0.5,
+      size.height + 35,
+      size.width,
+      size.height - 55,
+    );
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
+}
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key, required this.role});
@@ -24,6 +44,9 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
+  static const _hPad = 24.0;
+  bool _rememberMe = false;
+
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
@@ -36,9 +59,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
   Color get _roleColor {
     switch (widget.role) {
-      case UserRole.customer: return AppColors.customerColor;
-      case UserRole.vendor:   return AppColors.vendorColor;
-      case UserRole.admin:    return AppColors.adminColor;
+      case UserRole.customer:
+        return const Color(0xFFFF8A00);
+      case UserRole.vendor:
+        return const Color(0xFF2563EB);
+      case UserRole.admin:
+        return AppColors.adminColor;
     }
   }
 
@@ -63,13 +89,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
+  void _handleBack() {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(RouteNames.roleSelection);
+    }
+  }
+
   void _showCountrySelectionDialog() {
     showDialog(
       context: context,
-      barrierDismissible: false, // Force selection
+      barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: const Text('Select your country'),
-        content: const Text('We could not confidently determine your country. Please select it manually.'),
+        content: const Text(
+          'We could not confidently determine your country. Please select it manually.',
+        ),
         actions: [
           TextButton(
             onPressed: () {
@@ -153,13 +189,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           role: widget.role,
         );
   }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final authState = ref.watch(authProvider);
     final custState = ref.watch(customerRegistrationProvider);
+    final screenHeight = MediaQuery.sizeOf(context).height;
 
-    // Navigate on successful login
+    if (widget.role == UserRole.customer) {
+      debugPrint('[AUTH_UI_V3] customer login active');
+    } else {
+      debugPrint('[AUTH_UI_V3] vendor login active');
+    }
+
     ref.listen(authProvider, (prev, next) {
       if (next.isAuthenticated && !next.isLoading) {
         final role = next.user!.role;
@@ -195,336 +238,95 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       });
     }
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        if (context.canPop()) {
-          context.pop();
-        } else {
-          context.go(RouteNames.roleSelection);
-        }
-      },
-      child: Scaffold(
-        backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-        body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
+    final curvedHero = ClipPath(
+      clipper: AuthWaveClipper(),
+      child: Container(
+        height: 320,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: widget.role == UserRole.customer
+                ? const [Color(0xFFFF8A00), Color(0xFFFFB84D)]
+                : (widget.role == UserRole.admin
+                    ? const [Color(0xFF6C3483), Color(0xFF4A235A)]
+                    : const [Color(0xFF2563EB), Color(0xFF0F4DB8)]),
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+        ),
+        child: SafeArea(
+          bottom: false,
+          child: Stack(
             children: [
-              // ── Header ──────────────────────────────────────────────
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(24, 40, 24, 36),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      _roleColor,
-                      _roleColor.withValues(alpha: 0.75),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+              // Back Button
+              Positioned(
+                top: 12,
+                left: 16,
+                child: GestureDetector(
+                  onTap: _handleBack,
+                  child: Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.22),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      color: Colors.white,
+                      size: 17,
+                    ),
                   ),
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(32),
-                    bottomRight: Radius.circular(32),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Back button
-                    GestureDetector(
-                      onTap: () => context.pop(),
-                      child: Container(
-                        width: 38,
-                        height: 38,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(Icons.arrow_back_ios_new_rounded,
-                            color: Colors.white, size: 18),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    const AppLogo(size: LogoSize.small, light: true),
-                    const SizedBox(height: 20),
-                    Text(
-                      'Welcome back!',
-                      style: AppTextStyles.display2(Colors.white),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Sign in as ${widget.role.label}',
-                      style: AppTextStyles.bodyLarge(Colors.white70),
-                    ),
-                  ],
                 ),
               ),
-
-              // ── Form ────────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.all(24),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 8),
-
-                      // Error banner
-                      if (authState.hasError) ...[
-                        Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: AppColors.errorContainer,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                                color: AppColors.error.withValues(alpha: 0.3)),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.error_outline_rounded,
-                                  color: AppColors.error, size: 18),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  authState.error!,
-                                  style: AppTextStyles.bodySmall(AppColors.error),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-                      ],
-
-                      if (widget.role == UserRole.customer) ...[
-                        if (custState.isDetectingCountry) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                            decoration: BoxDecoration(
-                              color: AppColors.infoContainer,
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              children: [
-                                const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.info,
-                                  ),
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  'Detecting your region…',
-                                  style: AppTextStyles.bodySmall(AppColors.info),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                        ],
-
-                        if (custState.countryDetected) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                            decoration: BoxDecoration(
-                              color: _roleColor.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: _roleColor.withValues(alpha: 0.3)),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  custState.isLkUser ? Icons.phone_android_rounded : Icons.email_outlined,
-                                  size: 16,
-                                  color: _roleColor,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    custState.isLkUser ? '🇱🇰 Sri Lanka Mode' : '🌍 International Mode',
-                                    style: AppTextStyles.bodySmall(_roleColor)
-                                        .copyWith(fontWeight: FontWeight.w600),
-                                  ),
-                                ),
-                                TextButton(
-                                  onPressed: () {
-                                    ref.read(customerRegistrationProvider.notifier).toggleCountry();
-                                    _phoneCtrl.clear();
-                                    _emailCtrl.clear();
-                                  },
-                                  style: TextButton.styleFrom(
-                                    padding: EdgeInsets.zero,
-                                    minimumSize: Size.zero,
-                                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                  ),
-                                  child: Text(
-                                    'Change',
-                                    style: AppTextStyles.labelSmall(_roleColor)
-                                        .copyWith(decoration: TextDecoration.underline),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                        ],
-
-                        if (custState.isLkUser) ...[
-                          PhoneFieldLk(
-                            controller: _phoneCtrl,
-                            focusNode: _phoneFocus,
-                            textInputAction: TextInputAction.done,
-                            onFieldSubmitted: (_) => _loginCustomerOtp(),
-                          ),
-                        ] else ...[
-                          AppTextField(
-                            label: 'Email Address',
-                            hint: 'Enter your email',
-                            controller: _emailCtrl,
-                            focusNode: _emailFocus,
-                            keyboardType: TextInputType.emailAddress,
-                            textInputAction: TextInputAction.done,
-                            prefixIcon: Icons.email_outlined,
-                            validator: Validators.email,
-                            onFieldSubmitted: (_) => _loginCustomerOtp(),
-                          ),
-                        ],
-                        const SizedBox(height: 24),
-
-                        AppButton(
-                          label: 'Send OTP',
-                          onPressed: _loginCustomerOtp,
-                          isLoading: _isSubmittingCustomerOtp || custState.isLoading,
-                          color: _roleColor,
-                          icon: Icons.send_rounded,
-                        ),
-                      ] else ...[
-                        AppTextField(
-                          label: 'Email Address',
-                          hint: 'Enter your email',
-                          controller: _emailCtrl,
-                          keyboardType: TextInputType.emailAddress,
-                          textInputAction: TextInputAction.next,
-                          prefixIcon: Icons.email_outlined,
-                          validator: Validators.email,
-                          onChanged: (_) {
-                            if (authState.hasError) {
-                              ref.read(authProvider.notifier).clearError();
-                            }
-                          },
-                        ),
-                        const SizedBox(height: 16),
-
-                        AppTextField(
-                          label: 'Password',
-                          hint: 'Enter your password',
-                          controller: _passwordCtrl,
-                          obscureText: true,
-                          textInputAction: TextInputAction.done,
-                          prefixIcon: Icons.lock_outline_rounded,
-                          validator: Validators.password,
-                          onFieldSubmitted: (_) => _login(),
-                        ),
-                        const SizedBox(height: 10),
-
-                        // Forgot password
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: () {},
-                            child: Text(
-                              'Forgot Password?',
-                              style: AppTextStyles.labelMedium(_roleColor),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-
-                        // Login button
-                        AppButton(
-                          label: 'Sign In',
-                          onPressed: _login,
-                          isLoading: authState.isLoading,
-                          color: _roleColor,
-                          icon: Icons.login_rounded,
-                        ),
-                        const SizedBox(height: 24),
-
-                        // Mock credentials hint
-                        Container(
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? AppColors.cardDark
-                                : AppColors.backgroundLight,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isDark
-                                  ? AppColors.borderDark
-                                  : AppColors.borderLight,
-                            ),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Icon(Icons.info_outline_rounded,
-                                      size: 14, color: _roleColor),
-                                  const SizedBox(width: 6),
-                                  Text('Demo Credentials',
-                                      style: AppTextStyles.labelSmall(_roleColor)),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              _demoCredential(),
-                            ],
-                          ),
+              // Speedmart Logo Pill Centered near top
+              Positioned(
+                top: 14,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E293B),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
                         ),
                       ],
-                      const SizedBox(height: 32),
-
-                      // Register link
-                      Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              "Don't have an account? ",
-                              style: AppTextStyles.bodyMedium(
-                                isDark
-                                    ? AppColors.textSecondaryDark
-                                    : AppColors.textSecondaryLight,
-                              ),
-                            ),
-                            GestureDetector(
-                              onTap: () {
-                                if (widget.role == UserRole.customer) {
-                                  // Customer gets the dedicated registration flow
-                                  context.push(RouteNames.customerRegister);
-                                } else {
-                                  // Vendor / Admin use the generic register screen
-                                  context.push(
-                                    widget.role == UserRole.vendor
-                                        ? RouteNames.vendorRegister
-                                        : RouteNames.adminRegister,
-                                  );
-                                }
-                              },
-                              child: Text(
-                                'Sign Up',
-                                style: AppTextStyles.labelLarge(_roleColor),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                    ),
+                    child: Image.asset(
+                      'assets/images/logo.png',
+                      width: 110,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+              ),
+              // Circle Container with Icon
+              Positioned(
+                bottom: 55,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.18),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      widget.role == UserRole.customer
+                          ? Icons.shopping_bag_rounded
+                          : (widget.role == UserRole.admin
+                              ? Icons.admin_panel_settings_rounded
+                              : Icons.storefront_rounded),
+                      size: 56,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -532,6 +334,492 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           ),
         ),
       ),
+    );
+
+    final centeredTitle = Column(
+      children: [
+        Text(
+          'Welcome back',
+          style: AppTextStyles.display2(isDark ? Colors.white : const Color(0xFF1F2937)).copyWith(
+            fontSize: 26,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          widget.role == UserRole.customer
+              ? 'Sign in as Customer'
+              : (widget.role == UserRole.admin ? 'Sign in as Admin' : 'Sign in as Vendor'),
+          style: AppTextStyles.bodyLarge(_roleColor).copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+
+    final formFields = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: _hPad),
+      child: widget.role == UserRole.customer
+          ? _buildCustomerForm(isDark: isDark, authState: authState, custState: custState)
+          : _buildVendorForm(isDark: isDark, authState: authState),
+    );
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleBack();
+      },
+      child: Scaffold(
+        resizeToAvoidBottomInset: true,
+        backgroundColor: isDark ? const Color(0xFF0F1115) : const Color(0xFFFFFDF8),
+        body: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: screenHeight),
+              child: Column(
+                children: [
+                  curvedHero,
+                  const SizedBox(height: 22),
+                  centeredTitle,
+                  const SizedBox(height: 26),
+                  formFields,
+                  const SizedBox(height: 40), // spacer bottom padding
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Customer Form ──────────────────────────────────────────────────────────
+  Widget _buildCustomerForm({
+    required bool isDark,
+    required AuthState authState,
+    required CustomerRegistrationState custState,
+  }) {
+    final secondaryText = isDark ? const Color(0xFFA1A1AA) : const Color(0xFF6B7280);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (authState.hasError) ...[
+          _buildErrorBanner(authState.error!),
+          const SizedBox(height: 14),
+        ],
+        if (custState.isDetectingCountry) ...[
+          _buildDetectingBanner(),
+          const SizedBox(height: 12),
+        ],
+        if (custState.countryDetected) ...[
+          _buildCountryModeRow(
+            isDark: isDark,
+            isLkUser: custState.isLkUser,
+            onChange: () {
+              ref.read(customerRegistrationProvider.notifier).toggleCountry();
+            },
+          ),
+          const SizedBox(height: 16),
+        ],
+        Row(
+          children: [
+            Icon(Icons.phone_android_rounded, color: secondaryText, size: 16),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                custState.isLkUser
+                    ? "Enter your mobile number and we'll send you an OTP"
+                    : "Enter your email and we'll send you an OTP",
+                style: AppTextStyles.bodySmall(secondaryText).copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (custState.isLkUser)
+                SizedBox(
+                  height: 52,
+                  child: PhoneFieldLk(
+                    controller: _phoneCtrl,
+                    focusNode: _phoneFocus,
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _loginCustomerOtp(),
+                    hintText: '70 123 4567',
+                    floatingLabelBehavior: FloatingLabelBehavior.never,
+                    labelText: 'Mobile Number',
+                  ),
+                )
+              else
+                AppTextField(
+                  label: 'Email Address',
+                  hint: 'Enter your email',
+                  controller: _emailCtrl,
+                  focusNode: _emailFocus,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.done,
+                  prefixIcon: Icons.email_outlined,
+                  validator: Validators.email,
+                  onFieldSubmitted: (_) => _loginCustomerOtp(),
+                ),
+              const SizedBox(height: 20),
+              AppButton(
+                label: 'Send OTP',
+                onPressed: _loginCustomerOtp,
+                isLoading: _isSubmittingCustomerOtp || custState.isLoading,
+                color: _roleColor,
+                height: 54,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        Center(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.lock_outline_rounded, size: 14, color: secondaryText),
+              const SizedBox(width: 4),
+              Text(
+                'Secure and encrypted login',
+                style: AppTextStyles.bodySmall(secondaryText).copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 28),
+        _buildBenefitsRow(isDark),
+        const SizedBox(height: 24),
+        Divider(color: isDark ? const Color(0xFF2D3340) : const Color(0xFFE5E7EB)),
+        const SizedBox(height: 16),
+        _buildSignUpRow(isDark),
+      ],
+    );
+  }
+
+  // ── Vendor / Admin Form ────────────────────────────────────────────────────
+  Widget _buildVendorForm({
+    required bool isDark,
+    required AuthState authState,
+  }) {
+    final secondaryText = isDark ? const Color(0xFFA1A1AA) : const Color(0xFF6B7280);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (authState.hasError) ...[
+          _buildErrorBanner(authState.error!),
+          const SizedBox(height: 14),
+        ],
+        Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              AppTextField(
+                label: 'Email Address',
+                hint: 'you@example.com',
+                controller: _emailCtrl,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                prefixIcon: Icons.email_outlined,
+                validator: Validators.email,
+                onChanged: (_) {
+                  if (authState.hasError) ref.read(authProvider.notifier).clearError();
+                },
+              ),
+              const SizedBox(height: 16),
+              AppTextField(
+                label: 'Password',
+                hint: 'Enter your password',
+                controller: _passwordCtrl,
+                obscureText: true,
+                textInputAction: TextInputAction.done,
+                prefixIcon: Icons.lock_outline_rounded,
+                validator: Validators.password,
+                onFieldSubmitted: (_) => _login(),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: Checkbox(
+                      value: _rememberMe,
+                      activeColor: _roleColor,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      onChanged: (v) => setState(() => _rememberMe = v ?? false),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Remember me',
+                    style: AppTextStyles.bodySmall(secondaryText).copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: () {},
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: Text(
+                      'Forgot Password?',
+                      style: AppTextStyles.labelSmall(_roleColor).copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              AppButton(
+                label: 'Sign In',
+                onPressed: _login,
+                isLoading: authState.isLoading,
+                color: _roleColor,
+                height: 54,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        _buildCompactDemoCredentials(isDark),
+        const SizedBox(height: 24),
+        Divider(color: isDark ? const Color(0xFF2D3340) : const Color(0xFFE5E7EB)),
+        const SizedBox(height: 16),
+        _buildSignUpRow(isDark),
+      ],
+    );
+  }
+
+  // ── Helper Widgets ─────────────────────────────────────────────────────────
+
+  Widget _buildErrorBanner(String error) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.errorContainer,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 18),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              error,
+              style: AppTextStyles.bodySmall(AppColors.error),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetectingBanner() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.infoContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.info),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            'Detecting your region…',
+            style: AppTextStyles.bodySmall(AppColors.info),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCountryModeRow({
+    required bool isDark,
+    required bool isLkUser,
+    required VoidCallback onChange,
+  }) {
+    final fieldBg = isDark ? const Color(0xFF171A21) : const Color(0xFFFFFDF8);
+    final borderCol = isDark ? const Color(0xFF2D3340) : const Color(0xFFE5E7EB);
+
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: fieldBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: borderCol, width: 1.2),
+      ),
+      child: Row(
+        children: [
+          Text(isLkUser ? '🇱🇰' : '🌍', style: const TextStyle(fontSize: 18)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              isLkUser ? 'Sri Lanka Mode' : 'International Mode',
+              style: AppTextStyles.bodyMedium(isDark ? Colors.white : const Color(0xFF1F2937)).copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          TextButton(
+            onPressed: onChange,
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(
+              'Change',
+              style: TextStyle(
+                color: _roleColor,
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                decoration: TextDecoration.underline,
+                decorationColor: _roleColor,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBenefitsRow(bool isDark) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _buildBenefit(Icons.flash_on_rounded, 'Fast & Secure\nOTP Login', isDark),
+        _buildBenefit(Icons.lock_open_rounded, 'No Password\nRequired', isDark),
+        _buildBenefit(Icons.shield_outlined, 'Your Data is\nProtected', isDark),
+      ],
+    );
+  }
+
+  Widget _buildBenefit(IconData icon, String label, bool isDark) {
+    final secondaryText = isDark ? const Color(0xFFA1A1AA) : const Color(0xFF6B7280);
+
+    return Column(
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: _roleColor.withValues(alpha: isDark ? 0.12 : 0.08),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            icon,
+            size: 18,
+            color: _roleColor,
+          ),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          width: 88,
+          child: Text(
+            label,
+            style: AppTextStyles.caption(secondaryText).copyWith(
+              fontSize: 10,
+              height: 1.3,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompactDemoCredentials(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF171A21) : const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2D3340) : const Color(0xFFE5E7EB),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.info_outline_rounded, size: 14, color: _roleColor),
+              const SizedBox(width: 6),
+              Text(
+                'Demo Credentials',
+                style: AppTextStyles.labelSmall(_roleColor).copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _demoCredential(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSignUpRow(bool isDark) {
+    final secondaryText = isDark ? const Color(0xFFA1A1AA) : const Color(0xFF6B7280);
+
+    return Center(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            "Don't have an account? ",
+            style: AppTextStyles.bodyMedium(secondaryText).copyWith(fontSize: 13),
+          ),
+          GestureDetector(
+            onTap: () {
+              if (widget.role == UserRole.customer) {
+                context.push(RouteNames.customerRegister);
+              } else {
+                context.push(
+                  widget.role == UserRole.vendor
+                      ? RouteNames.vendorRegister
+                      : RouteNames.adminRegister,
+                );
+              }
+            },
+            child: Text(
+              'Sign Up',
+              style: AppTextStyles.labelLarge(_roleColor).copyWith(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -540,9 +828,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     String email;
     switch (widget.role) {
-      case UserRole.customer: email = 'customer@test.com';
-      case UserRole.vendor:   email = 'vendor@test.com';
-      case UserRole.admin:    email = 'admin@speedmart.lk';
+      case UserRole.customer:
+        email = 'customer@test.com';
+      case UserRole.vendor:
+        email = 'vendor@test.com';
+      case UserRole.admin:
+        email = 'admin@speedmart.lk';
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -555,25 +846,26 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Widget _credRow(String label, String value, bool isDark) {
+    final secondaryText = isDark ? const Color(0xFFA1A1AA) : const Color(0xFF6B7280);
+    final primaryText = isDark ? Colors.white : const Color(0xFF1F2937);
+
     return Row(
       children: [
         SizedBox(
           width: 70,
           child: Text(
             '$label:',
-            style: AppTextStyles.caption(
-              isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
-            ),
+            style: AppTextStyles.caption(secondaryText).copyWith(fontSize: 11),
           ),
         ),
         Text(
           value,
-          style: AppTextStyles.caption(
-            isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
-          ).copyWith(fontWeight: FontWeight.w600),
+          style: AppTextStyles.caption(primaryText).copyWith(
+            fontWeight: FontWeight.bold,
+            fontSize: 11,
+          ),
         ),
       ],
     );
   }
 }
-

@@ -32,6 +32,18 @@ class _DeliveryLocationMapPickerState
     super.dispose();
   }
 
+  // Fly to pin the first time GPS coordinates arrive after the widget is built
+  LatLng? _lastSyncedGps;
+
+  void _maybeFlyToNewGps(LocationState state) {
+    final point = _pointFromState(state);
+    if (point == null || point == _lastSyncedGps) return;
+    _lastSyncedGps = point;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _mapController.move(point, 17);
+    });
+  }
+
   bool _hasValidCoordinates(double? latitude, double? longitude) {
     return latitude != null &&
         longitude != null &&
@@ -50,6 +62,7 @@ class _DeliveryLocationMapPickerState
     if (point == null) return;
     _pinPoint ??= point;
     _gpsPoint ??= point;
+    _maybeFlyToNewGps(state);
   }
 
   Future<void> _detectAgain() async {
@@ -116,44 +129,10 @@ class _DeliveryLocationMapPickerState
     final secondaryText =
         isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
 
-    if (pinPoint == null) {
-      return Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: cardColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Delivery Map', style: AppTextStyles.subtitle(primaryText)),
-            const SizedBox(height: 8),
-            Text(
-              'Use current location first, then drag the pin to your exact entrance.',
-              style: AppTextStyles.bodySmall(secondaryText),
-            ),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              onPressed: locationState.isGpsLoading ? null : _detectAgain,
-              icon: locationState.isGpsLoading
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.my_location_rounded),
-              label: Text(
-                locationState.isGpsLoading
-                    ? 'Detecting...'
-                    : 'Use Current Location',
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
+    // Sri Lanka geographic center — used as fallback before GPS resolves
+    const sriLankaCenter = LatLng(7.8731, 80.7718);
+    final hasPin = pinPoint != null;
+    final center = pinPoint ?? sriLankaCenter;
     final loc = locationState.currentLocation;
 
     return Container(
@@ -175,84 +154,107 @@ class _DeliveryLocationMapPickerState
                   FlutterMap(
                     mapController: _mapController,
                     options: MapOptions(
-                      initialCenter: pinPoint,
-                      initialZoom: 17,
+                      initialCenter: center,
+                      initialZoom: hasPin ? 17 : 8,
                       minZoom: 6,
                       maxZoom: 19,
-                      onTap: (_, point) => _movePinTo(point, immediate: true),
+                      onTap: hasPin
+                          ? (_, point) => _movePinTo(point, immediate: true)
+                          : null,
                     ),
                     children: [
                       TileLayer(
                         urlTemplate:
                             'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                         userAgentPackageName: 'com.speedmart.lanka',
-                        retinaMode: RetinaMode.isHighDensity(context),
+                        retinaMode: false,
                       ),
-                      MarkerLayer(
-                        markers: [
-                          if (_gpsPoint != null)
-                            Marker(
-                              point: _gpsPoint!,
-                              width: 34,
-                              height: 34,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.blue.withValues(alpha: 0.18),
-                                  border: Border.all(
+                      if (hasPin)
+                        MarkerLayer(
+                          markers: [
+                            if (_gpsPoint != null)
+                              Marker(
+                                point: _gpsPoint!,
+                                width: 34,
+                                height: 34,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.blue.withValues(alpha: 0.18),
+                                    border: Border.all(
+                                      color: Colors.blue,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.my_location,
                                     color: Colors.blue,
-                                    width: 2,
+                                    size: 16,
                                   ),
                                 ),
+                              ),
+                            Marker(
+                              point: pinPoint,
+                              width: 58,
+                              height: 58,
+                              alignment: Alignment.topCenter,
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onPanUpdate: (details) {
+                                  final next =
+                                      _latLngFromGlobal(details.globalPosition);
+                                  if (next != null) _movePinTo(next);
+                                },
+                                onPanEnd: (_) {
+                                  final latest = _pinPoint;
+                                  if (latest != null) {
+                                    _movePinTo(latest, immediate: true);
+                                  }
+                                },
                                 child: const Icon(
-                                  Icons.my_location,
-                                  color: Colors.blue,
-                                  size: 16,
+                                  Icons.location_pin,
+                                  color: AppColors.customerColor,
+                                  size: 52,
                                 ),
                               ),
                             ),
-                          Marker(
-                            point: pinPoint,
-                            width: 58,
-                            height: 58,
-                            alignment: Alignment.topCenter,
-                            child: GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onPanUpdate: (details) {
-                                final next =
-                                    _latLngFromGlobal(details.globalPosition);
-                                if (next != null) _movePinTo(next);
-                              },
-                              onPanEnd: (_) {
-                                final latest = _pinPoint;
-                                if (latest != null) {
-                                  _movePinTo(latest, immediate: true);
-                                }
-                              },
-                              child: const Icon(
-                                Icons.location_pin,
-                                color: AppColors.customerColor,
-                                size: 52,
-                              ),
-                            ),
+                          ],
+                        ),
+                    ],
+                  ),
+                  // GPS loading overlay
+                  if (locationState.isGpsLoading)
+                    Container(
+                      color: Colors.black38,
+                      alignment: Alignment.center,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const CircularProgressIndicator(
+                            color: AppColors.customerColor,
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Detecting GPS location…',
+                            style: AppTextStyles.bodySmall(Colors.white),
                           ),
                         ],
                       ),
-                    ],
-                  ),
+                    ),
                   Positioned(
                     right: 12,
                     top: 12,
                     child: Column(
                       children: [
-                        FloatingActionButton.small(
-                          heroTag: 'delivery-map-recenter',
-                          onPressed: _recenter,
-                          backgroundColor: cardColor,
-                          foregroundColor: AppColors.customerColor,
-                          child: const Icon(Icons.center_focus_strong_rounded),
-                        ),
-                        const SizedBox(height: 8),
+                        if (hasPin)
+                          FloatingActionButton.small(
+                            heroTag: 'delivery-map-recenter',
+                            onPressed: _recenter,
+                            backgroundColor: cardColor,
+                            foregroundColor: AppColors.customerColor,
+                            child: const Icon(Icons.center_focus_strong_rounded),
+                          ),
+                        if (hasPin) const SizedBox(height: 8),
                         FloatingActionButton.small(
                           heroTag: 'delivery-map-detect-again',
                           onPressed:
@@ -280,19 +282,42 @@ class _DeliveryLocationMapPickerState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Drag the red pin to your gate, lobby, or shop entrance.',
+                    hasPin
+                        ? 'Drag the red pin to your gate, lobby, or shop entrance.'
+                        : 'Use current location first, then drag the pin to your exact entrance.',
                     style: AppTextStyles.bodyMedium(primaryText),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Lat ${pinPoint.latitude.toStringAsFixed(6)} • Lng ${pinPoint.longitude.toStringAsFixed(6)}',
-                    style: AppTextStyles.caption(secondaryText),
-                  ),
-                  if (loc?.formattedAddress.isNotEmpty == true) ...[
-                    const SizedBox(height: 6),
+                  if (hasPin) ...[
+                    const SizedBox(height: 8),
                     Text(
-                      loc!.formattedAddress,
+                      'Lat ${pinPoint.latitude.toStringAsFixed(6)} • Lng ${pinPoint.longitude.toStringAsFixed(6)}',
                       style: AppTextStyles.caption(secondaryText),
+                    ),
+                    if (loc?.formattedAddress.isNotEmpty == true) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        loc!.formattedAddress,
+                        style: AppTextStyles.caption(secondaryText),
+                      ),
+                    ],
+                  ] else ...[
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      onPressed:
+                          locationState.isGpsLoading ? null : _detectAgain,
+                      icon: locationState.isGpsLoading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.my_location_rounded),
+                      label: Text(
+                        locationState.isGpsLoading
+                            ? 'Detecting...'
+                            : 'Use Current Location',
+                      ),
                     ),
                   ],
                 ],

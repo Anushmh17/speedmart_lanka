@@ -55,29 +55,26 @@ class GpsLocationService {
       );
     }
 
-    // ── Strategy 1: last known position (fast, no timeout risk) ──────────────
-    try {
-      final last = await Geolocator.getLastKnownPosition();
-      if (last != null) {
-        return last;
-      }
-    } catch (_) {
-      // Ignore — fall through to fresh fetch.
-    }
-
-    // ── Strategy 2: fresh position with 30-second timeout ────────────────────
+    // ── Strategy 1: fresh position (accurate, required for registration) ──────
     try {
       return await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
         timeLimit: const Duration(seconds: 30),
       );
     } on Exception {
-      throw const LocationException(
-        code: LocationExceptionCode.positionUnavailable,
-        message:
-            'Could not detect GPS. Please type your delivery area manually.',
-      );
+      // Fall through to last-known as a fallback
     }
+
+    // ── Strategy 2: last known position as fallback only ─────────────────────
+    try {
+      final last = await Geolocator.getLastKnownPosition();
+      if (last != null) return last;
+    } catch (_) {}
+
+    throw const LocationException(
+      code: LocationExceptionCode.positionUnavailable,
+      message: 'Could not detect GPS. Please type your delivery area manually.',
+    );
   }
 
   /// Checks the current permission status without requesting it.

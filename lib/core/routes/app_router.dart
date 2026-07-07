@@ -5,8 +5,6 @@ import 'package:speedmart_lanka/features/auth/domain/auth_state.dart';
 import 'package:speedmart_lanka/features/auth/presentation/screens/splash_screen.dart';
 import 'package:speedmart_lanka/features/auth/presentation/screens/role_selection_screen.dart';
 import 'package:speedmart_lanka/features/auth/presentation/screens/login_screen.dart';
-import 'package:speedmart_lanka/features/auth/presentation/screens/register_screen.dart';
-import 'package:speedmart_lanka/features/auth/customer_registration/screens/otp_verification_screen.dart';
 import 'package:speedmart_lanka/features/customer/presentation/screens/customer_home_screen.dart';
 import 'package:speedmart_lanka/features/requests/presentation/screens/create_request_screen.dart';
 import 'package:speedmart_lanka/features/requests/models/shopping_request.dart';
@@ -35,16 +33,35 @@ import 'package:speedmart_lanka/features/customer/delivery_address/presentation/
 import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
 import 'package:speedmart_lanka/shared/models/user_role.dart';
 import 'package:speedmart_lanka/core/routes/route_names.dart';
+import 'package:speedmart_lanka/figma_screens/figma_auth_flow.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 final shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
 
 /// Provider to watch the current route location
+/// This provider listens to GoRouter's route changes and returns the current matched location
 final currentRouteLocationProvider = Provider<String>((ref) {
   final router = ref.watch(appRouterProvider);
-  final location = router.routeInformationProvider.value.uri.toString();
-  debugPrint('[RouteProvider] currentRouteLocationProvider = $location');
-  return location;
+  
+  try {
+    // Get the current configuration from the router delegate
+    final configuration = router.routerDelegate.currentConfiguration;
+    
+    if (configuration.isEmpty) {
+      debugPrint('[RouteProvider] currentRouteLocationProvider = / (empty configuration)');
+      return '/';
+    }
+    
+    // Get the last route match which represents the current screen
+    final lastMatch = configuration.last;
+    final location = lastMatch.matchedLocation;
+    
+    debugPrint('[RouteProvider] currentRouteLocationProvider = $location');
+    return location;
+  } catch (e) {
+    debugPrint('[RouteProvider] Error getting location: $e, returning /');
+    return '/';
+  }
 });
 
 /// GoRouter instance exposed as a Riverpod provider.
@@ -148,23 +165,23 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // ── Auth Routes (Role-Specific) ──────────────────────────────────────
       GoRoute(
         path: RouteNames.customerLogin,
-        builder: (_, __) => const LoginScreen(role: UserRole.customer),
+        builder: (_, __) =>
+            const FigmaAuthFlow(role: FigmaAuthRole.customer),
       ),
       GoRoute(
         path: RouteNames.customerRegister,
-        builder: (_, __) => const RegisterScreen(role: UserRole.customer),
-      ),
-      GoRoute(
-        path: RouteNames.customerOtp,
-        builder: (_, __) => const OtpVerificationScreen(),
+        builder: (_, __) =>
+            const FigmaAuthFlow(role: FigmaAuthRole.customer),
       ),
       GoRoute(
         path: RouteNames.vendorLogin,
-        builder: (_, __) => const LoginScreen(role: UserRole.vendor),
+        builder: (_, __) =>
+            const FigmaAuthFlow(role: FigmaAuthRole.vendor),
       ),
       GoRoute(
         path: RouteNames.vendorRegister,
-        builder: (_, __) => const RegisterScreen(role: UserRole.vendor),
+        builder: (_, __) =>
+            const FigmaAuthFlow(role: FigmaAuthRole.vendor),
       ),
       GoRoute(
         path: RouteNames.adminLogin,
@@ -172,7 +189,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: RouteNames.adminRegister,
-        builder: (_, __) => const RegisterScreen(role: UserRole.admin),
+        builder: (_, __) => const LoginScreen(role: UserRole.admin),
       ),
 
       // ── Customer Shell ───────────────────────────────────────────────────

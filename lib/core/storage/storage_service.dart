@@ -255,6 +255,23 @@ class StorageService {
     }
   }
 
+  // ── Vendor Remember Me ──────────────────────────────────────────────────
+
+  static Future<void> saveVendorRememberMe(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('vendor_remember_me', value);
+  }
+
+  static Future<bool> getVendorRememberMe() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('vendor_remember_me') ?? false;
+  }
+
+  static Future<void> clearVendorRememberMe() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('vendor_remember_me');
+  }
+
   // ── Clear session / all ───────────────────────────────────────────────────
 
   /// Clears logged-in session only. Keeps registered users and app preferences.

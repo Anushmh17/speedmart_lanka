@@ -148,6 +148,11 @@ class _VendorHomeScreenState extends ConsumerState<VendorHomeScreen>
         VendorStatusGuard.shouldShowStatusScreen(user);
 
     // Watch central bottom navigation visibility provider
+    final shellLocation = GoRouterState.of(context).matchedLocation;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(bottomNavVisibilityProvider.notifier).updateLocation(shellLocation);
+    });
+    
     final showBottomNav = ref.watch(bottomNavVisibilityProvider);
 
     // PopScope(canPop: false) suppresses the Android 13 predictive-back

@@ -252,7 +252,7 @@ class SriLankaLocationService {
     final province = gpsResult.province ?? '';
     final district = gpsResult.district ?? '';
     final city = gpsResult.city ?? '';
-    final suburb = city.isNotEmpty ? city : '';
+    final suburb = city;
 
     return DeliveryLocation(
       province: province,

@@ -200,6 +200,7 @@ class _OtpVerificationScreenState
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('[AuthUITrace] OTP screen active file: lib/features/auth/customer_registration/screens/otp_verification_screen.dart');
     final state = ref.watch(customerRegistrationProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isVerifying = state.isLoading;
@@ -212,14 +213,22 @@ class _OtpVerificationScreenState
     });
 
     return Scaffold(
-      backgroundColor:
-          isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+      backgroundColor: isDark ? const Color(0xFF0F1115) : const Color(0xFFFFFDF8),
       body: SafeArea(
-        child: Stack(
-          children: [
-            CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(
+        top: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final availableHeight = constraints.maxHeight;
+            final topGap = (availableHeight * 0.08).clamp(45.0, 80.0);
+            
+            return Stack(
+              children: [
+                CustomScrollView(
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: SizedBox(height: topGap),
+                    ),
+                    SliverToBoxAdapter(
                   child: RegistrationHeader(
                     step: RegistrationStep.verifyOtp,
                     onBack: () {
@@ -231,19 +240,25 @@ class _OtpVerificationScreenState
                   ),
                 ),
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
+                  padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
-                      // ── Contact hint ────────────────────────────────
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.red, width: 3),
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: Column(
+                          children: [
                       if (state.maskedContact != null)
                         _ContactHint(
                           contact: state.maskedContact!,
                           isLk: state.isLkUser,
                           isDark: isDark,
                         ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 28),
 
-                      // ── OTP boxes ───────────────────────────────────
                       _OtpBoxRow(
                         controllers: _controllers,
                         focusNodes: _focusNodes,
@@ -270,35 +285,35 @@ class _OtpVerificationScreenState
                             : const SizedBox(key: ValueKey('no-err')),
                       ),
 
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 24),
 
-                      // ── Verify button ───────────────────────────────
                       AppButton(
                         label: 'Verify & Create Account',
                         onPressed: _verify,
                         isLoading: isVerifying,
                         color: AppColors.primary,
                         icon: Icons.verified_user_rounded,
+                        height: 48,
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 18),
 
-                      // ── Resend row ──────────────────────────────────
                       _ResendRow(
                         secondsLeft: _secondsLeft,
                         canResend: _canResend,
                         onResend: _resendOtp,
                         isDark: isDark,
                       ),
+                          ],
+                        ),
+                      ),
 
-                      const SizedBox(height: 32),
-
+                      SizedBox(height: topGap * 0.5),
                     ]),
                   ),
                 ),
               ],
             ),
 
-            // ── Success overlay ─────────────────────────────────────
             FadeTransition(
               opacity: _successOpacity,
               child: ScaleTransition(
@@ -342,7 +357,28 @@ class _OtpVerificationScreenState
                 ),
               ),
             ),
+            Positioned(
+              bottom: 16,
+              right: 16,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.red,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: const Text(
+                  'OTP NEW FILE ACTIVE',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
           ],
+        );
+          },
         ),
       ),
     );

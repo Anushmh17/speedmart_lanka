@@ -1,3 +1,6 @@
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+
 import '../data/sri_lanka_data.dart';
 import '../models/gps_location_result.dart';
 import '../utils/haversine.dart';
@@ -18,23 +21,130 @@ import '../utils/haversine.dart';
 /// The caller MUST ask the user to type their area manually in that case.
 /// No fallback Colombo/Kandy values are ever used.
 class ReverseGeocodingService {
-  /// Maximum distance in km to consider a match valid.
-  /// If nearest suburb is farther than this, geocoding is considered failed.
-  static const double _maxMatchDistanceKm = 50.0;
+  static const double _maxMatchDistanceKm = 25.0;
 
-  /// Reverse geocode [latitude] / [longitude] using the local Sri Lanka dataset.
-  ///
-  /// Returns a [GpsLocationResult] with address fields populated on success,
-  /// or with [geocodingSucceeded] = false on failure.
+  final Dio _dio;
+
+  ReverseGeocodingService({Dio? dio})
+      : _dio = dio ??
+            Dio(BaseOptions(
+              connectTimeout: const Duration(seconds: 6),
+              receiveTimeout: const Duration(seconds: 6),
+              headers: {'User-Agent': 'SpeedmartLanka/1.0 (contact@speedmart.lk)'},
+            ));
+
   Future<GpsLocationResult> reverseGeocode({
     required double latitude,
     required double longitude,
   }) async {
+    // 1. Try Nominatim first for street-level accuracy
+    try {
+      final result = await _nominatimReverseGeocode(
+        latitude: latitude,
+        longitude: longitude,
+      );
+      if (result != null) return result;
+    } catch (e) {
+      debugPrint('[ReverseGeocoding] Nominatim failed: $e — falling back to local dataset');
+    }
+
+    // 2. Fall back to local dataset
+    return _localReverseGeocode(latitude: latitude, longitude: longitude);
+  }
+
+  Future<GpsLocationResult?> _nominatimReverseGeocode({
+    required double latitude,
+    required double longitude,
+  }) async {
+    final response = await _dio.get<dynamic>(
+      'https://nominatim.openstreetmap.org/reverse',
+      queryParameters: {
+        'lat': latitude,
+        'lon': longitude,
+        'format': 'json',
+        'addressdetails': 1,
+        'zoom': 16,
+      },
+    );
+
+    final raw = response.data;
+    if (raw == null) return null;
+    final data = Map<String, dynamic>.from(raw as Map);
+
+    final rawAddr = data['address'];
+    if (rawAddr == null) return null;
+    final addr = Map<String, dynamic>.from(rawAddr as Map);
+
+    String _s(String key) => addr[key] as String? ?? '';
+
+    // Most specific place name first
+    final suburb = _s('suburb').isNotEmpty
+        ? _s('suburb')
+        : _s('neighbourhood').isNotEmpty
+            ? _s('neighbourhood')
+            : _s('quarter').isNotEmpty
+                ? _s('quarter')
+                : _s('village').isNotEmpty
+                    ? _s('village')
+                    : _s('town').isNotEmpty
+                        ? _s('town')
+                        : _s('city_district');
+
+    final city = _s('city').isNotEmpty
+        ? _s('city')
+        : _s('town').isNotEmpty
+            ? _s('town')
+            : _s('municipality').isNotEmpty
+                ? _s('municipality')
+                : suburb;
+
+    final rawProvince = _s('state');
+    final rawDistrict =
+        _s('state_district').isNotEmpty ? _s('state_district') : _s('county');
+
+    // Nominatim appends " Province" / " District" — strip them before lookup
+    final cleanProvince = rawProvince
+        .replaceAll(RegExp(r'\s+Province$', caseSensitive: false), '')
+        .replaceAll('-', ' ')
+        .trim();
+    final cleanDistrict = rawDistrict
+        .replaceAll(RegExp(r'\s+District$', caseSensitive: false), '')
+        .replaceAll('-', ' ')
+        .trim();
+
+    final province = SriLankaData.provinceByName(cleanProvince);
+    final district = SriLankaData.districtByName(cleanDistrict);
+    final districtName = district?.name ?? cleanDistrict;
+    final provinceName = province?.name ?? cleanProvince;
+
+    final parts = <String>[];
+    if (suburb.isNotEmpty) parts.add(suburb);
+    if (city.isNotEmpty && city != suburb) parts.add(city);
+    if (districtName.isNotEmpty) parts.add('$districtName District');
+    if (provinceName.isNotEmpty) parts.add('$provinceName Province');
+    parts.add('Sri Lanka');
+
+    debugPrint('[ReverseGeocoding] Nominatim: suburb=$suburb city=$city district=$districtName province=$provinceName');
+
+    return GpsLocationResult(
+      latitude: latitude,
+      longitude: longitude,
+      timestamp: DateTime.now(),
+      address: parts.join(', '),
+      province: provinceName,
+      district: districtName,
+      city: suburb.isNotEmpty ? suburb : city,
+      geocodingSucceeded: true,
+    );
+  }
+
+  GpsLocationResult _localReverseGeocode({
+    required double latitude,
+    required double longitude,
+  }) {
     try {
       final match = _findNearestSuburb(latitude, longitude);
-
       if (match == null) {
-        // No match within threshold — do not fabricate a location
         return GpsLocationResult(
           latitude: latitude,
           longitude: longitude,
@@ -45,10 +155,10 @@ class ReverseGeocodingService {
 
       final province = SriLankaData.provinceByName(match.province);
       final district = SriLankaData.districtByName(match.district);
-
-      final address =
-          '${match.name}, ${match.city}, ${match.district} District, '
+      final address = '${match.name}, ${match.city}, ${match.district} District, '
           '${match.province} Province, Sri Lanka';
+
+      debugPrint('[ReverseGeocoding] Local fallback matched: ${match.name}');
 
       return GpsLocationResult(
         latitude: latitude,
@@ -61,7 +171,6 @@ class ReverseGeocodingService {
         geocodingSucceeded: true,
       );
     } catch (_) {
-      // Any unexpected error → fail gracefully, no fake data
       return GpsLocationResult(
         latitude: latitude,
         longitude: longitude,

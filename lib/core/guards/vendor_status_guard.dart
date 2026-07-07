@@ -29,23 +29,21 @@ class VendorStatusGuard {
     if (user == null) return 'User not authenticated.';
     if (user.role != UserRole.vendor) return ''; // Not a vendor
 
-    if (user.vendorStatus == null) {
-      return 'Vendor status not initialized.';
-    }
+    final status = user.vendorStatus ?? VendorStatus.pendingApproval;
 
-    if (user.vendorStatus == VendorStatus.pendingApproval) {
+    if (status == VendorStatus.pendingApproval) {
       return 'Your vendor account is pending admin approval. Please check back later.';
     }
 
-    if (user.vendorStatus == VendorStatus.rejected) {
+    if (status == VendorStatus.rejected) {
       return 'Your vendor registration was rejected and cannot access the marketplace.';
     }
 
-    if (user.vendorStatus == VendorStatus.suspended) {
+    if (status == VendorStatus.suspended) {
       return 'Your vendor account has been suspended. Please contact support for assistance.';
     }
 
-    if (user.vendorStatus == VendorStatus.approved) {
+    if (status == VendorStatus.approved) {
       if (user.isShopLocationAssigned != true) {
         return 'Your shop location has not been assigned by the administrator yet.';
       }
@@ -64,16 +62,18 @@ class VendorStatusGuard {
   static String getStatusScreenTitle(UserModel? user) {
     if (user == null || user.role != UserRole.vendor) return '';
 
-    if (user.vendorStatus == VendorStatus.pendingApproval) {
+    final status = user.vendorStatus ?? VendorStatus.pendingApproval;
+
+    if (status == VendorStatus.pendingApproval) {
       return 'Pending Approval';
     }
-    if (user.vendorStatus == VendorStatus.rejected) {
+    if (status == VendorStatus.rejected) {
       return 'Registration Rejected';
     }
-    if (user.vendorStatus == VendorStatus.suspended) {
+    if (status == VendorStatus.suspended) {
       return 'Account Suspended';
     }
-    if (user.vendorStatus == VendorStatus.approved &&
+    if (status == VendorStatus.approved &&
         user.isShopLocationAssigned != true) {
       return 'Shop Not Assigned';
     }
