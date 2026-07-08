@@ -264,7 +264,16 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: widget.proposal.items.length,
                     itemBuilder: (context, index) {
-                      final item = widget.proposal.items[index];
+                      final sortedItems = [...widget.proposal.items]
+                        ..sort((a, b) {
+                          int rank(ProposalItemStatus s) {
+                            if (s == ProposalItemStatus.available) return 0;
+                            if (s == ProposalItemStatus.alternative) return 1;
+                            return 2;
+                          }
+                          return rank(a.status).compareTo(rank(b.status));
+                        });
+                      final item = sortedItems[index];
                       Color badgeColor = Colors.grey;
                       IconData badgeIcon = Icons.help_outline;
                       String statusText = 'Unknown';

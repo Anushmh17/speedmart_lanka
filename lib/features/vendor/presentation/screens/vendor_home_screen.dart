@@ -1377,14 +1377,16 @@ extension _VendorHomeScreenStateExtension on _VendorHomeScreenState {
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor:
-                    AppColors.vendorColor.withValues(alpha: 0.12),
-                child: Icon(
-                  Icons.storefront_rounded,
-                  color: AppColors.vendorColor,
-                  size: 22,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF161616),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Image.asset(
+                  'assets/images/logo.png',
+                  height: 22,
+                  fit: BoxFit.contain,
                 ),
               ),
               SizedBox(width: AppSpacing.sm),

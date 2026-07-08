@@ -92,14 +92,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       debugPrint('[Router] isOnAuthRoute: $isOnAuthRoute');
 
       // *** WHILE LOADING: Stay on current route (don't redirect) ***
-      // Only show splash if loading AND not on any route (app startup check)
       if (auth.isLoading) {
-        if (isOnAuthRoute || location == RouteNames.splash) {
-          debugPrint('[Router] → Action: Loading, on auth/splash route, STAY ON CURRENT ROUTE');
-          return null; // CRITICAL: Don't redirect while loading on auth routes
-        }
-        debugPrint('[Router] → Action: Loading on protected route, redirect to splash');
-        return RouteNames.splash;
+        debugPrint('[Router] → Action: Loading, STAY ON CURRENT ROUTE');
+        return null;
       }
 
       // *** CRITICAL: If on auth form and has error, NEVER redirect ***
@@ -222,7 +217,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.customerCreateRequest,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, __) => const CreateRequestScreen(),
+        builder: (_, state) {
+          final openCategory = (state.extra as Map<String, dynamic>?)?['openCategoryPicker'] as bool? ?? false;
+          return CreateRequestScreen(openCategoryPicker: openCategory);
+        },
       ),
       GoRoute(
         path: '/customer/proposals/detail',

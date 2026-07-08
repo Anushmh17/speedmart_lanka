@@ -193,6 +193,7 @@ class _ManualAddSheetState extends ConsumerState<ManualAddSheet> {
                 controller: _nameController,
                 label: 'What product do you need?',
                 hint: 'e.g. Anchor Milk Powder 400g, Keeri Samba...',
+                textCapitalization: TextCapitalization.words,
                 validator: (val) => val == null || val.isEmpty ? 'Please enter the item name' : null,
               ),
               const SizedBox(height: 16),

@@ -36,7 +36,8 @@ import 'package:speedmart_lanka/features/customer/delivery_address/presentation/
 
 
 class CreateRequestScreen extends ConsumerStatefulWidget {
-  const CreateRequestScreen({super.key});
+  final bool openCategoryPicker;
+  const CreateRequestScreen({super.key, this.openCategoryPicker = false});
 
   @override
   ConsumerState<CreateRequestScreen> createState() => _CreateRequestScreenState();
@@ -45,7 +46,7 @@ class CreateRequestScreen extends ConsumerStatefulWidget {
 class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   int _progressStep = 0;
 
-  RequestType _requestType = RequestType.single;
+  RequestType? _requestType;
   late final TextEditingController _suburbSearchController;
   late final TextEditingController _addressController;
   late final FocusNode _suburbFocusNode;
@@ -60,10 +61,12 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   List<String> _singleImageUrls = [];
 
   List<RequestItem> _multipleItemsList = [];
-  bool _isMixedCategory = false;
-  String _globalCategory = 'Groceries';
+  bool? _isMixedCategory;
+  String? _globalCategory;
+  String? _preselectedCategory;
   bool _isSubmitting = false;
   bool _deliveryAddressReady = false;
+  DeliveryLocation? _defaultLoadedLocation;
 
   @override
   void initState() {
@@ -98,6 +101,27 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await _checkAndLoadDraft();
       await _loadDefaultDeliveryAddress();
+      if (widget.openCategoryPicker && mounted) {
+        final isDark = Theme.of(context).brightness == Brightness.dark;
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          isDismissible: true,
+          enableDrag: false,
+          backgroundColor: Colors.transparent,
+          builder: (ctx) => CategoryPickerSheet(
+            selectedCategory: null,
+            isDark: isDark,
+            onSelected: (cat) {
+              Navigator.pop(ctx);
+              setState(() {
+                _preselectedCategory = cat;
+              });
+              _saveDraft();
+            },
+          ),
+        );
+      }
     });
   }
 
@@ -113,12 +137,18 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   }
 
   bool _isFormDirty() {
+    final currentLoc = ref.read(deliveryLocationProvider).currentLocation;
+    final isDefaultLoc = _defaultLoadedLocation != null &&
+        currentLoc != null &&
+        currentLoc.formattedAddress == _defaultLoadedLocation!.formattedAddress;
+    // A preselected category with no request type chosen yet is not considered dirty
+    final effectiveCategory = _requestType != null ? _singleCategory : null;
     return DraftService.isFormDirty(
-      deliveryLocation: ref.read(deliveryLocationProvider).currentLocation,
-      suburbText: _suburbSearchController.text.trim(),
-      addressText: _addressController.text.trim(),
-      requestTypeName: _requestType.name,
-      singleCategory: _singleCategory,
+      deliveryLocation: isDefaultLoc ? null : currentLoc,
+      suburbText: isDefaultLoc ? '' : _suburbSearchController.text.trim(),
+      addressText: isDefaultLoc ? '' : _addressController.text.trim(),
+      requestTypeName: _requestType?.name ?? '',
+      singleCategory: effectiveCategory,
       singleName: _singleNameController.text.trim(),
       singleQuantity: _singleQuantity,
       singleBrand: _singleBrandController.text.trim(),
@@ -307,8 +337,8 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
             _singleDescController.clear();
             _singleImageUrls = [];
             _multipleItemsList = [];
-            _isMixedCategory = false;
-            _globalCategory = 'Groceries';
+            _isMixedCategory = null;
+            _globalCategory = null;
           });
         }
       } else {
@@ -372,7 +402,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                 locationState.currentLocation!.approximateAreaText.isNotEmpty));
     final hasRealAddress = _addressController.text.trim().isNotEmpty;
     final draftMap = {
-      'requestType': _requestType.name,
+      'requestType': _requestType?.name ?? 'single',
       'deliveryLocation': hasRealArea ? locationState.currentLocation?.toJson() : null,
       'deliveryAddress': hasRealAddress ? _addressController.text.trim() : null,
       'singleCategory': _singleCategory,
@@ -384,7 +414,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
       'singleDesc': _singleDescController.text.trim(),
       'singleImageUrls': _singleImageUrls,
       'multipleItems': itemsJson,
-      'isMixedCategory': _isMixedCategory,
+      'isMixedCategory': _isMixedCategory ?? false,
       'globalCategory': _globalCategory,
     };
 
@@ -441,7 +471,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
       _singleImageUrls = List<String>.from(draft['singleImageUrls'] as List? ?? []);
 
       _isMixedCategory = draft['isMixedCategory'] as bool? ?? false;
-      _globalCategory = draft['globalCategory'] as String? ?? 'Groceries';
+      _globalCategory = draft['globalCategory'] as String?;
       
       final multItems = draft['multipleItems'] as List? ?? [];
       _multipleItemsList = multItems.map((itemJson) => RequestItem.fromJson(itemJson as Map<String, dynamic>)).toList();
@@ -455,6 +485,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
       await ref.read(customerDeliveryAddressProvider.notifier).applyActiveLocationToProvider();
       final loc = ref.read(deliveryLocationProvider).currentLocation;
       if (loc != null) {
+        _defaultLoadedLocation = loc;
         _suburbSearchController.text = loc.approximateAreaText.isNotEmpty
             ? loc.approximateAreaText
             : loc.displayArea;
@@ -840,10 +871,9 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   Future<void> _confirmPop() async {
     if (!_isFormDirty()) {
       ref.read(deliveryLocationProvider.notifier).clearLocation();
-      if (mounted) context.go(RouteNames.customerHome);
+      if (mounted) context.pop();
       return;
     }
-
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
@@ -984,14 +1014,12 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
             behavior: SnackBarBehavior.floating,
           ),
         );
-        context.go(RouteNames.customerHome);
+        context.pop();
       }
     } else if (action == 'discard') {
       await DraftService.clearDraft();
       ref.read(deliveryLocationProvider.notifier).clearLocation();
-      if (mounted) {
-        context.go(RouteNames.customerHome);
-      }
+      if (mounted) context.pop();
     }
   }
 
@@ -1125,7 +1153,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                         child: Padding(
                           padding: const EdgeInsets.fromLTRB(
                             AppSpacing.lg,
-                            AppSpacing.md,
+                            AppSpacing.xl,
                             AppSpacing.lg,
                             AppSpacing.sm,
                           ),
@@ -1133,9 +1161,22 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                             selectedType: _requestType,
                             onChanged: (type) {
                               setState(() {
+                                final typeChanged = _requestType != type;
                                 _requestType = type;
-                                _singleCategory = null;
-                                _multipleItemsList = [];
+                                if (typeChanged) {
+                                  if (type == RequestType.multiple) {
+                                    _multipleItemsList = [];
+                                    _globalCategory = _preselectedCategory;
+                                    _isMixedCategory = null;
+                                    _singleCategory = null;
+                                  } else {
+                                    _singleCategory = _preselectedCategory ?? _globalCategory;
+                                    _singleUnit = _singleCategory == 'Groceries' ? 'kg' : 'pieces';
+                                    _singleCustomUnitNote = null;
+                                    _globalCategory = null;
+                                    _multipleItemsList = [];
+                                  }
+                                }
                               });
                               _saveDraft();
                             },
@@ -1148,7 +1189,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                             padding: const EdgeInsets.all(AppSpacing.lg),
                             margin: const EdgeInsets.fromLTRB(
                               AppSpacing.lg,
-                              AppSpacing.sm,
+                              AppSpacing.xl,
                               AppSpacing.lg,
                               AppSpacing.lg,
                             ),
@@ -1268,11 +1309,17 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                       if (_requestType == RequestType.multiple) ...[ 
                         SliverToBoxAdapter(
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                            padding: const EdgeInsets.fromLTRB(
+                              AppSpacing.lg,
+                              AppSpacing.xl,
+                              AppSpacing.lg,
+                              AppSpacing.lg,
+                            ),
                             child: ShoppingListBuilder(
                               items: _multipleItemsList,
                               isMixedCategory: _isMixedCategory,
                               globalCategory: _globalCategory,
+                              preselectedCategory: _preselectedCategory,
                               onItemsChanged: (list) {
                                 setState(() {
                                   _multipleItemsList = list;
@@ -1282,6 +1329,17 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                               onModeChanged: (val) {
                                 setState(() {
                                   _isMixedCategory = val;
+                                  if (val && _preselectedCategory != null && _multipleItemsList.isEmpty) {
+                                    _multipleItemsList = [
+                                      RequestItem(
+                                        id: const Uuid().v4(),
+                                        itemName: '',
+                                        quantity: 1,
+                                        unit: 'pieces',
+                                        category: _preselectedCategory,
+                                      )
+                                    ];
+                                  }
                                 });
                                 _saveDraft();
                               },

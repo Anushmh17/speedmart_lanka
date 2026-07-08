@@ -31,72 +31,90 @@ class SharedFloatingBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final safeBottom = MediaQuery.of(context).padding.bottom;
 
-    return SafeArea(
-      bottom: true,
-      top: false,
-      left: false,
-      right: false,
-      minimum: const EdgeInsets.only(bottom: 16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isDark ? AppColors.surfaceDark.withOpacity(0.92) : Colors.white.withOpacity(0.95),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: isDark ? AppColors.borderDark.withOpacity(0.5) : AppColors.borderLight.withOpacity(0.5),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.4 : 0.08),
-                blurRadius: 20,
-                offset: const Offset(0, 8),
-              ),
-            ],
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 0, 20, safeBottom + 14),
+      child: Container(
+        height: 72,
+        decoration: BoxDecoration(
+          color: isDark
+              ? AppColors.surfaceElevatedDark
+              : Colors.white,
+          borderRadius: BorderRadius.circular(32),
+          border: Border.all(
+            color: isDark
+                ? AppColors.borderDark.withValues(alpha: 0.6)
+                : AppColors.borderLight.withValues(alpha: 0.8),
+            width: 1,
           ),
-          child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: activeColor.withValues(alpha: isDark ? 0.18 : 0.12),
+              blurRadius: 24,
+              spreadRadius: 0,
+              offset: const Offset(0, 6),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.07),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: List.generate(items.length, (index) {
               final item = items[index];
               final isSelected = currentIndex == index;
-              final color = isSelected ? activeColor : (isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight);
+              final color = isSelected
+                  ? activeColor
+                  : (isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight);
 
-              return InkWell(
-                onTap: () => onTap(index),
-                borderRadius: BorderRadius.circular(16),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? activeColor.withOpacity(isDark ? 0.15 : 0.08)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isSelected ? item.selectedIcon : item.unselectedIcon,
-                        color: color,
-                        size: 20,
+              return Expanded(
+                child: GestureDetector(
+                  onTap: () => onTap(index),
+                  behavior: HitTestBehavior.opaque,
+                  child: Center(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeInOut,
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 7, horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? activeColor.withValues(
+                                alpha: isDark ? 0.18 : 0.11)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(22),
                       ),
-                      if (isSelected) ...[
-                        const SizedBox(width: 8),
-                        Text(
-                          item.label,
-                          style: AppTextStyles.labelMedium(activeColor).copyWith(
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.1,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            isSelected
+                                ? item.selectedIcon
+                                : item.unselectedIcon,
+                            color: color,
+                            size: 22,
                           ),
-                        ),
-                      ]
-                    ],
+                          const SizedBox(height: 3),
+                          Text(
+                            item.label,
+                            style: AppTextStyles.labelSmall(color).copyWith(
+                              fontWeight: isSelected
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               );
@@ -104,8 +122,6 @@ class SharedFloatingBottomNav extends StatelessWidget {
           ),
         ),
       ),
-    ),
-  ),
-);
+    );
   }
 }

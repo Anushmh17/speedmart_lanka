@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../../../core/routes/route_names.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../payments/models/payment.dart';
@@ -44,6 +46,13 @@ class _CustomerPaymentHistoryScreenState extends ConsumerState<CustomerPaymentHi
       appBar: AppBar(
         title: const Text('Payment History'),
         backgroundColor: AppColors.customerColor,
+        leading: BackButton(onPressed: () {
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go(RouteNames.customerProfile);
+          }
+        }),
       ),
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
       body: Padding(

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'dart:io';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -12,6 +15,7 @@ import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../shared/models/user_role.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/routes/route_names.dart';
+import '../../../../core/routes/app_router.dart';
 import '../../../../features/admin/providers/category_provider.dart';
 import '../../../../core/storage/storage_service.dart';
 
@@ -31,6 +35,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late TextEditingController _businessNameCtrl;
   
   List<String> _requestedCategories = [];
+  String? _pickedImagePath;
 
   @override
   void initState() {
@@ -38,12 +43,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _nameCtrl = TextEditingController();
     _phoneCtrl = TextEditingController();
     _businessNameCtrl = TextEditingController();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _recoverCroppedImage();
+    });
   }
+
+  bool _dataInitialized = false;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _initData();
+    if (!_dataInitialized) {
+      _dataInitialized = true;
+      _initData();
+    }
   }
 
   void _initData() {
@@ -53,6 +67,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _phoneCtrl.text = user.phone;
       _businessNameCtrl.text = user.businessName ?? '';
       _requestedCategories = List.from(user.requestedCategories ?? []);
+      if (_isLocalPath(user.profileImageUrl)) {
+        _pickedImagePath = user.profileImageUrl;
+      }
     }
   }
 
@@ -62,6 +79,53 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _phoneCtrl.dispose();
     _businessNameCtrl.dispose();
     super.dispose();
+  }
+
+  bool _isLocalPath(String? path) =>
+      path != null && (path.startsWith('/') || path.contains(':\\') || path.contains(':/'));
+
+  Future<void> _recoverCroppedImage() async {
+    final recovered = await ImageCropper().recoverImage();
+    if (recovered != null && mounted) {
+      setState(() => _pickedImagePath = recovered.path);
+    }
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
+    if (picked == null || !mounted) return;
+
+    final cropped = await ImageCropper().cropImage(
+      sourcePath: picked.path,
+      compressQuality: 85,
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Crop Profile Photo',
+          toolbarColor: AppColors.primary,
+          toolbarWidgetColor: Colors.white,
+          activeControlsWidgetColor: AppColors.primary,
+          cropStyle: CropStyle.circle,
+          lockAspectRatio: true,
+          hideBottomControls: false,
+          initAspectRatio: CropAspectRatioPreset.square,
+          aspectRatioPresets: [CropAspectRatioPreset.square],
+        ),
+        IOSUiSettings(
+          title: 'Crop Profile Photo',
+          cropStyle: CropStyle.circle,
+          aspectRatioLockEnabled: true,
+          resetAspectRatioEnabled: false,
+          aspectRatioPickerButtonHidden: true,
+        ),
+      ],
+    );
+    if (cropped != null && mounted) {
+      if (_pickedImagePath != null) {
+        FileImage(File(_pickedImagePath!)).evict();
+      }
+      setState(() => _pickedImagePath = cropped.path);
+    }
   }
 
   Future<void> _handleSave() async {
@@ -74,6 +138,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       fullName: _nameCtrl.text.trim(),
       phone: _phoneCtrl.text.trim(),
       businessName: user.role == UserRole.vendor ? _businessNameCtrl.text.trim() : null,
+      profileImageUrl: _pickedImagePath ?? user.profileImageUrl,
       requestedCategories: user.role == UserRole.vendor ? _requestedCategories : null,
     );
     
@@ -91,46 +156,73 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _handleLogout() async {
-    final user = ref.read(currentUserProvider);
-    if (user?.role == UserRole.vendor) {
-      final rememberMe = await StorageService.getVendorRememberMe();
-      if (rememberMe) {
-        // Vendor had Remember Me checked — ask if they want to keep it
-        final keep = await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Remember Me?'),
-            content: const Text(
-              'Would you like to skip OTP next time you log in?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('No'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
-                child: const Text('Yes'),
-              ),
-            ],
+    if (!mounted) return;
+
+    // Use root navigator so dialogs survive shell/route teardown
+    final rootCtx = rootNavigatorKey.currentContext;
+    if (rootCtx == null) return;
+
+    // Step 1: Confirm logout
+    final confirmed = await showDialog<bool>(
+      context: rootCtx,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Log out?'),
+        content: const Text('Are you sure you want to log out of your account?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(rootCtx).pop(false),
+            child: const Text('Cancel'),
           ),
-        );
-        if (keep == null) return;
+          TextButton(
+            onPressed: () => Navigator.of(rootCtx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Log out'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final role = ref.read(currentUserProvider)?.role;
+
+    // Step 2: Ask about OTP preference for customer/vendor
+    if (role == UserRole.customer || role == UserRole.vendor) {
+      final keep = await showDialog<bool>(
+        context: rootCtx,
+        barrierDismissible: false,
+        builder: (_) => AlertDialog(
+          title: const Text('Stay signed in?'),
+          content: const Text(
+            'Would you like to skip OTP verification next time you log in?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(rootCtx).pop(false),
+              child: const Text('No'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(rootCtx).pop(true),
+              child: const Text('Yes'),
+            ),
+          ],
+        ),
+      );
+      if (keep == null) return;
+      if (role == UserRole.customer) {
+        await StorageService.saveCustomerRememberMe(keep);
+      } else {
         await StorageService.saveVendorRememberMe(keep);
       }
-      // If rememberMe was false, just log out — no popup
     }
+
     await ref.read(authProvider.notifier).logout();
-    if (mounted) {
-      context.go(RouteNames.roleSelection);
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final user = ref.watch(currentUserProvider);
+    final user = ref.read(currentUserProvider);  // read, not watch — prevents rebuild killing dialogs
     final isLoading = ref.watch(authLoadingProvider);
     
     if (user == null) {
@@ -168,7 +260,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 icon: const Icon(Icons.close_rounded),
                 onPressed: () {
                   _initData();
-                  setState(() => _isEditing = false);
+                  setState(() {
+                    _isEditing = false;
+                    _pickedImagePath = null;
+                  });
                 },
               ),
           ],
@@ -223,10 +318,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               CircleAvatar(
                 radius: 54,
                 backgroundColor: AppColors.primary.withValues(alpha: 0.2),
-                backgroundImage: user.profileImageUrl != null 
-                  ? NetworkImage(user.profileImageUrl!) 
-                  : null,
-                child: user.profileImageUrl == null
+                backgroundImage: _pickedImagePath != null
+                    ? FileImage(File(_pickedImagePath!))
+                    : _isLocalPath(user.profileImageUrl)
+                        ? FileImage(File(user.profileImageUrl!)) as ImageProvider
+                        : user.profileImageUrl != null
+                            ? NetworkImage(user.profileImageUrl!) as ImageProvider
+                            : null,
+                child: (_pickedImagePath == null && user.profileImageUrl == null)
                     ? Text(
                         user.initials,
                         style: AppTextStyles.h1(
@@ -236,22 +335,25 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     : null,
               ),
               if (isEditing)
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: isDark ? AppColors.surfaceElevatedDark : AppColors.primary,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        blurRadius: 4,
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    Icons.camera_alt_rounded,
-                    color: isDark ? AppColors.primary : Colors.white,
-                    size: 18,
+                GestureDetector(
+                  onTap: _pickImage,
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.surfaceElevatedDark : AppColors.primary,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.2),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.camera_alt_rounded,
+                      color: isDark ? AppColors.primary : Colors.white,
+                      size: 18,
+                    ),
                   ),
                 ),
             ],
@@ -736,8 +838,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         Theme3AppButton(
           label: 'Logout',
           type: Theme3ButtonType.danger,
-          onPressed: onLogout,
-          isLoading: isLoading,
+          onPressed: isLoading ? null : onLogout,
+          isLoading: false,
           icon: Icons.logout_rounded,
         ),
       ],

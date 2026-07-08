@@ -19,7 +19,6 @@ enum RequestFilterType {
   submitted,
   proposalReceived,
   accepted,
-  completed,
   cancelled,
 }
 
@@ -152,6 +151,7 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
   }
 
   Color _getCategoryColor(String category) {
+    if (category.isEmpty) return const Color(0xFFF59E0B);
     final normalized = VendorCategories.normalize(category);
     switch (normalized) {
       case 'groceries':
@@ -182,6 +182,7 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
   }
 
   IconData _getCategoryIcon(String category) {
+    if (category.isEmpty) return Icons.shopping_bag_rounded;
     final normalized = VendorCategories.normalize(category);
     switch (normalized) {
       case 'groceries':
@@ -205,10 +206,19 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
     }
   }
 
+  static const _orderStatuses = {
+    RequestStatus.paid,
+    RequestStatus.cashOnDeliveryConfirmed,
+    RequestStatus.preparingOrder,
+    RequestStatus.readyForDelivery,
+    RequestStatus.outForDelivery,
+    RequestStatus.delivered,
+  };
+
   List<ShoppingRequest> _filterRequests(List<ShoppingRequest> requests) {
     switch (_selectedFilter) {
       case RequestFilterType.all:
-        return requests;
+        return requests.where((r) => !_orderStatuses.contains(r.status)).toList();
       case RequestFilterType.submitted:
         return requests.where((r) => 
           r.status == RequestStatus.submitted || 
@@ -222,10 +232,6 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
         return requests.where((r) => 
           r.status == RequestStatus.customerAccepted || 
           r.status == RequestStatus.accepted
-        ).toList();
-      case RequestFilterType.completed:
-        return requests.where((r) => 
-          r.status == RequestStatus.delivered
         ).toList();
       case RequestFilterType.cancelled:
         return requests.where((r) => 
@@ -417,8 +423,6 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
           SizedBox(width: AppSpacing.xs),
           _buildFilterChip('Accepted', RequestFilterType.accepted, isDark),
           SizedBox(width: AppSpacing.xs),
-          _buildFilterChip('Completed', RequestFilterType.completed, isDark),
-          SizedBox(width: AppSpacing.xs),
           _buildFilterChip('Cancelled', RequestFilterType.cancelled, isDark),
         ],
       ),
@@ -438,6 +442,34 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
     );
   }
 
+  Widget _buildCategoryChips(List<String> categories, Color secondaryText) {
+    const maxVisible = 2;
+    final visible = categories.take(maxVisible).toList();
+    final overflow = categories.length - maxVisible;
+    return Wrap(
+      spacing: 4,
+      runSpacing: 4,
+      children: [
+        ...visible.map((cat) => _categoryChip(
+          VendorCategories.display(cat).toUpperCase(),
+          _getCategoryColor(cat),
+        )),
+        if (overflow > 0) _categoryChip('+$overflow more', secondaryText),
+      ],
+    );
+  }
+
+  Widget _categoryChip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xs, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.xs),
+      ),
+      child: Text(label, style: AppTextStyles.caption(color).copyWith(fontSize: 9)),
+    );
+  }
+
   Widget _buildRequestCard(
     BuildContext context,
     ShoppingRequest request,
@@ -445,14 +477,19 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
     Color primaryText,
     Color secondaryText,
   ) {
-    final primaryCategory = request.categories.isNotEmpty ? request.categories.first : '';
+    final categories = request.categories;
+    final primaryCategory = categories.isNotEmpty ? categories.first : '';
     final requestImagePath = _getRequestThumbnailImage(request);
-    final proposalCount = request.categoryFulfillments.length;
+    final proposalCount = request.proposalCount;
     final firstItemName = request.items.isNotEmpty ? request.items.first.name : 'Request';
     
-    final statusType = request.status == RequestStatus.submitted || request.status == RequestStatus.waitingForVendor
-        ? Theme3StatusType.pending
-        : (request.status == RequestStatus.delivered ? Theme3StatusType.completed : Theme3StatusType.inProgress);
+    final statusType = switch (request.status) {
+      RequestStatus.submitted || RequestStatus.waitingForVendor => Theme3StatusType.pending,
+      RequestStatus.proposalSubmitted => Theme3StatusType.inProgress,
+      RequestStatus.customerAccepted || RequestStatus.accepted => Theme3StatusType.completed,
+      RequestStatus.cancelled || RequestStatus.customerRejected || RequestStatus.expired => Theme3StatusType.cancelled,
+      _ => Theme3StatusType.inProgress,
+    };
 
     return Padding(
       padding: EdgeInsets.only(bottom: AppSpacing.md),
@@ -487,21 +524,8 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
-                  if (primaryCategory.isNotEmpty)
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: AppSpacing.xs,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _getCategoryColor(primaryCategory).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(AppRadius.xs),
-                      ),
-                      child: Text(
-                        VendorCategories.display(primaryCategory).toUpperCase(),
-                        style: AppTextStyles.caption(_getCategoryColor(primaryCategory)),
-                      ),
-                    ),
+                  if (categories.isNotEmpty)
+                    _buildCategoryChips(categories, secondaryText),
                   const SizedBox(height: 6),
                   Row(
                     children: [
@@ -551,20 +575,29 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
     );
   }
 
-  String _formatRequestStatus(dynamic status) {
-    final value = status.toString().split('.').last;
-    return value
-        .replaceAllMapped(
-          RegExp(r'([A-Z])'),
-          (match) => ' ${match.group(0)}',
-        )
-        .trim()
-        .split('_')
-        .map((word) {
-          if (word.isEmpty) return word;
-          return word[0].toUpperCase() + word.substring(1);
-        })
-        .join(' ');
+  String _formatRequestStatus(RequestStatus status) {
+    switch (status) {
+      case RequestStatus.submitted:
+      case RequestStatus.waitingForVendor:
+        return 'Awaiting Proposals';
+      case RequestStatus.proposalSubmitted:
+        return 'Proposal Received';
+      case RequestStatus.customerAccepted:
+      case RequestStatus.accepted:
+        return 'Accepted';
+      case RequestStatus.paymentPending:
+        return 'Payment Pending';
+      case RequestStatus.customerRejected:
+        return 'Rejected';
+      case RequestStatus.cancelled:
+        return 'Cancelled';
+      case RequestStatus.expired:
+        return 'Expired';
+      case RequestStatus.vendorAccepted:
+        return 'Vendor Accepted';
+      default:
+        return status.displayName;
+    }
   }
 
   String _formatDate(DateTime date) {

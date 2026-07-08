@@ -214,6 +214,14 @@ class RequestNotifier extends StateNotifier<RequestState> {
     }
   }
 
+  /// Syncs a single updated request into state without a full reload.
+  void syncRequest(ShoppingRequest request) {
+    final updatedList = state.requests.map((r) {
+      return r.id == request.id ? request : r;
+    }).toList();
+    state = state.copyWith(requests: updatedList);
+  }
+
   /// Updates a request (e.g., for category fulfillment changes)
   Future<void> updateRequest(ShoppingRequest request) async {
     await _repo.ensureInitialized();

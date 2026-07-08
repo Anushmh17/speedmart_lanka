@@ -36,6 +36,13 @@ class CustomerProposalCard extends StatefulWidget {
 class _CustomerProposalCardState extends State<CustomerProposalCard> {
   bool _expanded = false;
 
+  /// Blue for pending/submitted proposals, orange only after acceptance.
+  Color get _accentColor {
+    final status = widget.view.proposal.status;
+    if (status == ProposalStatus.accepted) return AppColors.customerColor;
+    return AppColors.vendorColor;
+  }
+
   Color _statusColor(ProposalStatus status) {
     switch (status) {
       case ProposalStatus.accepted:
@@ -74,13 +81,13 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
           color: cardColor,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: v.isBestForMode ? AppColors.customerColor : borderColor,
+            color: v.isBestForMode ? _accentColor : borderColor,
             width: v.isBestForMode ? 2 : 1,
           ),
           boxShadow: [
             if (v.isBestForMode)
               BoxShadow(
-                color: AppColors.customerColor.withValues(alpha: 0.12),
+                color: _accentColor.withValues(alpha: 0.12),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -108,13 +115,12 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                                 vertical: 4,
                               ),
                               decoration: BoxDecoration(
-                                color:
-                                    AppColors.customerColor.withValues(alpha: 0.12),
+                                color: _accentColor.withValues(alpha: 0.12),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
                                 'Best match',
-                                style: AppTextStyles.caption(AppColors.customerColor)
+                                style: AppTextStyles.caption(_accentColor)
                                     .copyWith(fontWeight: FontWeight.w700),
                               ),
                             ),
@@ -130,11 +136,10 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                       children: [
                         CircleAvatar(
                           radius: 22,
-                          backgroundColor:
-                              AppColors.customerColor.withValues(alpha: 0.12),
-                          child: const Icon(
+                          backgroundColor: _accentColor.withValues(alpha: 0.12),
+                          child: Icon(
                             Icons.storefront_rounded,
-                            color: AppColors.customerColor,
+                            color: _accentColor,
                             size: 22,
                           ),
                         ),
@@ -182,8 +187,7 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                           children: [
                             Text(
                               'Rs. ${v.totalPrice.toStringAsFixed(0)}',
-                              style:
-                                  AppTextStyles.subtitle(AppColors.customerColor),
+                              style: AppTextStyles.subtitle(_accentColor),
                             ),
                             Container(
                               margin: const EdgeInsets.only(top: 4),
@@ -216,18 +220,21 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                           icon: Icons.local_shipping_outlined,
                           label: v.estimatedDelivery,
                           isDark: isDark,
+                          accentColor: _accentColor,
                         ),
                         if (v.distanceKm > 0)
                           _MetaChip(
                             icon: Icons.near_me_outlined,
                             label: '${v.distanceKm.toStringAsFixed(1)} km',
                             isDark: isDark,
+                            accentColor: _accentColor,
                           ),
                         _MetaChip(
                           icon: Icons.receipt_long_outlined,
                           label:
                               'Delivery Rs. ${v.deliveryFee.toStringAsFixed(0)}',
                           isDark: isDark,
+                          accentColor: _accentColor,
                         ),
                       ],
                     ),
@@ -238,7 +245,7 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                         Expanded(
                           child: Text(
                             _expanded ? 'Hide details' : 'View details',
-                            style: AppTextStyles.caption(AppColors.customerColor)
+                            style: AppTextStyles.caption(_accentColor)
                                 .copyWith(fontWeight: FontWeight.w600),
                           ),
                         ),
@@ -251,7 +258,7 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                                   : Icons.favorite_outline_rounded,
                               color: widget.isSaved
                                   ? AppColors.error
-                                  : AppColors.customerColor,
+                                  : _accentColor,
                               size: 20,
                             ),
                             tooltip:
@@ -261,7 +268,7 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                           _expanded
                               ? Icons.keyboard_arrow_up_rounded
                               : Icons.keyboard_arrow_down_rounded,
-                          color: AppColors.customerColor,
+                          color: _accentColor,
                         ),
                       ],
                     ),
@@ -294,6 +301,7 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                       value: 'Rs. ${v.totalPrice.toStringAsFixed(2)}',
                       isDark: isDark,
                       bold: true,
+                      accentColor: _accentColor,
                     ),
                     if (p.notes != null && p.notes!.isNotEmpty) ...[
                       const SizedBox(height: 12),
@@ -307,7 +315,15 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                       ),
                     ],
                     const SizedBox(height: 8),
-                    ...p.items.take(4).map((item) {
+                    ...([...p.items]
+                      ..sort((a, b) {
+                        int rank(ProposalItemStatus s) {
+                          if (s == ProposalItemStatus.available) return 0;
+                          if (s == ProposalItemStatus.alternative) return 1;
+                          return 2;
+                        }
+                        return rank(a.status).compareTo(rank(b.status));
+                      })).take(4).map((item) {
                       final line =
                           item.status == ProposalItemStatus.unavailable
                               ? '${item.itemName} — unavailable'
@@ -341,7 +357,7 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                             child: ElevatedButton(
                               onPressed: widget.onAccept,
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.customerColor,
+                                backgroundColor: _accentColor,
                                 minimumSize: const Size(0, 44),
                               ),
                               child: Text(
@@ -390,24 +406,26 @@ class _MetaChip extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.isDark,
+    required this.accentColor,
   });
 
   final IconData icon;
   final String label;
   final bool isDark;
+  final Color accentColor;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: AppColors.customerColor.withValues(alpha: 0.06),
+        color: accentColor.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 13, color: AppColors.customerColor),
+          Icon(icon, size: 13, color: accentColor),
           const SizedBox(width: 4),
           Text(
             label,
@@ -429,12 +447,14 @@ class _PricingRow extends StatelessWidget {
     required this.value,
     required this.isDark,
     this.bold = false,
+    this.accentColor = AppColors.customerColor,
   });
 
   final String label;
   final String value;
   final bool isDark;
   final bool bold;
+  final Color accentColor;
 
   @override
   Widget build(BuildContext context) {
@@ -457,7 +477,7 @@ class _PricingRow extends StatelessWidget {
           Text(
             value,
             style: bold
-                ? AppTextStyles.subtitle(AppColors.customerColor)
+                ? AppTextStyles.subtitle(accentColor)
                 : AppTextStyles.bodyMedium(primary),
           ),
         ],

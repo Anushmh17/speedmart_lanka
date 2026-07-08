@@ -28,11 +28,19 @@ class QuantityUnitSelector extends StatefulWidget {
 
 class _QuantityUnitSelectorState extends State<QuantityUnitSelector> {
   late TextEditingController _noteController;
+  final _unitLayerLink = LayerLink();
+  OverlayEntry? _unitOverlay;
 
   @override
   void initState() {
     super.initState();
     _noteController = TextEditingController(text: widget.customUnitNote);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    Scrollable.maybeOf(context)?.position.isScrollingNotifier.addListener(_closeUnitOverlay);
   }
 
   @override
@@ -46,7 +54,90 @@ class _QuantityUnitSelectorState extends State<QuantityUnitSelector> {
   @override
   void dispose() {
     _noteController.dispose();
+    _closeUnitOverlay();
     super.dispose();
+  }
+
+  void _openUnitOverlay(BuildContext context, List<String> units, String currentUnit,
+      Color cardColor, Color primaryText, Color secondaryText, bool isDark) {
+    _closeUnitOverlay();
+    final renderBox = context.findRenderObject() as RenderBox;
+    final size = renderBox.size;
+
+    _unitOverlay = OverlayEntry(
+      builder: (_) => Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _closeUnitOverlay,
+            ),
+          ),
+          CompositedTransformFollower(
+            link: _unitLayerLink,
+            showWhenUnlinked: false,
+            offset: Offset(0, size.height + 4),
+            child: SizedBox(
+              width: size.width,
+              child: Material(
+                elevation: 4,
+                borderRadius: BorderRadius.circular(12),
+                color: cardColor,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 220),
+                  child: Scrollbar(
+                    thumbVisibility: true,
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      shrinkWrap: true,
+                      itemCount: units.length,
+                      itemBuilder: (_, i) {
+                        final u = units[i];
+                        final isSelected = currentUnit == u;
+                        return InkWell(
+                          onTap: () {
+                            widget.onUnitChanged(u);
+                            _closeUnitOverlay();
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    u,
+                                    style: TextStyle(
+                                      color: isSelected
+                                          ? (isDark ? AppColors.primaryDark : AppColors.primary)
+                                          : primaryText,
+                                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                                if (isSelected)
+                                  Icon(Icons.check_rounded, size: 16,
+                                      color: isDark ? AppColors.primaryDark : AppColors.primary),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    Overlay.of(context).insert(_unitOverlay!);
+  }
+
+  void _closeUnitOverlay() {
+    _unitOverlay?.remove();
+    _unitOverlay = null;
   }
 
   List<String> _getUnits() {
@@ -148,32 +239,35 @@ class _QuantityUnitSelectorState extends State<QuantityUnitSelector> {
                     style: AppTextStyles.labelMedium(secondaryText),
                   ),
                   const SizedBox(height: 8),
-                  Container(
-                    height: 48,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.black26 : Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: borderColor),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: currentUnit,
-                        dropdownColor: cardColor,
-                        icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.customerColor),
-                        isExpanded: true,
-                        style: AppTextStyles.bodyMedium(primaryText),
-                        items: units.map((u) {
-                          return DropdownMenuItem<String>(
-                            value: u,
-                            child: Text(u),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            widget.onUnitChanged(val);
-                          }
-                        },
+                  CompositedTransformTarget(
+                    link: _unitLayerLink,
+                    child: Builder(
+                      builder: (fieldCtx) => GestureDetector(
+                        onTap: () => _openUnitOverlay(
+                          fieldCtx, units, currentUnit!,
+                          cardColor, primaryText, secondaryText, isDark,
+                        ),
+                        child: Container(
+                          height: 48,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.black26 : Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: borderColor),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  currentUnit!,
+                                  style: AppTextStyles.bodyMedium(primaryText),
+                                ),
+                              ),
+                              const Icon(Icons.keyboard_arrow_down_rounded,
+                                  color: AppColors.customerColor),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),

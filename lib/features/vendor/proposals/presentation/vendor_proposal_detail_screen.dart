@@ -10,6 +10,8 @@ import '../../../requests/data/mock_request_repository.dart';
 import '../../../requests/models/shopping_request.dart';
 import '../../request_feed/providers/vendor_request_feed_provider.dart';
 import '../widgets/vendor_proposal_status_chip.dart';
+import '../widgets/image_gallery_viewer.dart';
+import 'dart:io';
 
 /// View vendor proposal, send notes, edit, or withdraw before acceptance.
 class VendorProposalDetailScreen extends ConsumerStatefulWidget {
@@ -237,6 +239,9 @@ class _VendorProposalDetailScreenState
             Text('Line items', style: AppTextStyles.h2(primaryText)),
             const SizedBox(height: 8),
             ..._proposal.items.map((item) {
+              final requestItem = _request?.items.where((r) => r.id == item.requestItemId).firstOrNull;
+              final customerImages = requestItem?.imageUrls ?? [];
+              final vendorImages = item.vendorImageUrls;
               return Container(
                 width: double.infinity,
                 margin: const EdgeInsets.only(bottom: 8),
@@ -254,17 +259,22 @@ class _VendorProposalDetailScreenState
                       '${item.status.name} · Qty ${item.quantity} · Rs. ${item.subtotal.toStringAsFixed(2)}',
                       style: AppTextStyles.caption(secondaryText),
                     ),
-                    if (item.offeredBrandModel != null &&
-                        item.offeredBrandModel!.isNotEmpty)
-                      Text(
-                        'Brand: ${item.offeredBrandModel}',
-                        style: AppTextStyles.caption(secondaryText),
-                      ),
+                    if (item.offeredBrandModel != null && item.offeredBrandModel!.isNotEmpty)
+                      Text('Brand: ${item.offeredBrandModel}', style: AppTextStyles.caption(secondaryText)),
                     if (item.availableStock != null)
-                      Text(
-                        'Stock: ${item.availableStock}',
-                        style: AppTextStyles.caption(secondaryText),
-                      ),
+                      Text('Stock: ${item.availableStock}', style: AppTextStyles.caption(secondaryText)),
+                    if (customerImages.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text('Customer photos:', style: AppTextStyles.caption(secondaryText)),
+                      const SizedBox(height: 4),
+                      _ImageRow(images: customerImages),
+                    ],
+                    if (vendorImages.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text('Your photos:', style: AppTextStyles.caption(secondaryText)),
+                      const SizedBox(height: 4),
+                      _ImageRow(images: vendorImages),
+                    ],
                   ],
                 ),
               );
@@ -388,6 +398,42 @@ class _VendorProposalDetailScreenState
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ImageRow extends StatelessWidget {
+  const _ImageRow({required this.images});
+  final List<String> images;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 72,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: images.length,
+        itemBuilder: (context, index) {
+          final path = images[index];
+          final isNetwork = path.startsWith('http://') || path.startsWith('https://');
+          return Padding(
+            padding: EdgeInsets.only(right: index < images.length - 1 ? 8 : 0),
+            child: GestureDetector(
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => ImageGalleryViewer(imagePaths: images, initialIndex: index),
+              )),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: isNetwork
+                    ? Image.network(path, width: 72, height: 72, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined))
+                    : Image.file(File(path), width: 72, height: 72, fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined)),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

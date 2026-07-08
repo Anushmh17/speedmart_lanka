@@ -29,6 +29,15 @@ class VendorFeedRequest {
 
   String get statusLabel => request.status.displayName;
 
+  List<String> get allCategories {
+    final cats = request.items
+        .map((i) => i.category?.trim() ?? '')
+        .where((c) => c.isNotEmpty)
+        .toSet()
+        .toList();
+    return cats.isNotEmpty ? cats : [primaryCategory];
+  }
+
   Duration get age => DateTime.now().difference(request.createdAt);
 
   String get timePostedLabel {

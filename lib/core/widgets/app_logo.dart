@@ -89,10 +89,17 @@ class AppBarLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Image.asset(
-      'assets/images/logo.png',
-      height: 28, // Scaled properly for AppBar visibility
-      fit: BoxFit.contain,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFF161616),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Image.asset(
+        'assets/images/logo.png',
+        height: 22,
+        fit: BoxFit.contain,
+      ),
     );
   }
 }

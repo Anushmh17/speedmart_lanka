@@ -8,8 +8,9 @@ import 'category_selector.dart';
 
 class ShoppingListBuilder extends StatelessWidget {
   final List<RequestItem> items;
-  final bool isMixedCategory;
-  final String globalCategory;
+  final bool? isMixedCategory;
+  final String? globalCategory;
+  final String? preselectedCategory;
   final ValueChanged<List<RequestItem>> onItemsChanged;
   final ValueChanged<bool> onModeChanged;
   final ValueChanged<String> onGlobalCategoryChanged;
@@ -19,6 +20,7 @@ class ShoppingListBuilder extends StatelessWidget {
     required this.items,
     required this.isMixedCategory,
     required this.globalCategory,
+    this.preselectedCategory,
     required this.onItemsChanged,
     required this.onModeChanged,
     required this.onGlobalCategoryChanged,
@@ -29,8 +31,8 @@ class ShoppingListBuilder extends StatelessWidget {
       id: const Uuid().v4(),
       itemName: '',
       quantity: 1,
-      unit: isMixedCategory ? 'pieces' : _getCategoryDefaultUnit(globalCategory),
-      category: isMixedCategory ? 'Groceries' : globalCategory,
+      unit: (isMixedCategory ?? false) ? 'pieces' : _getCategoryDefaultUnit(globalCategory ?? ''),
+      category: (isMixedCategory ?? false) ? null : globalCategory,
     );
     onItemsChanged([...items, newItem]);
   }
@@ -93,7 +95,7 @@ class ShoppingListBuilder extends StatelessWidget {
       children: [
         // ── Mode Header ─────────────────────────────────────────────────────
         Padding(
-          padding: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.only(bottom: 14),
           child: Text(
             'Choose how you want to create your list',
             style: AppTextStyles.subtitle(primaryText).copyWith(
@@ -110,17 +112,23 @@ class ShoppingListBuilder extends StatelessWidget {
           accentColor: const Color(0xFF16A34A),
           accentBgLight: const Color(0xFFDCFCE7),
           accentBgDark: const Color(0xFF052E16),
-          isSelected: !isMixedCategory,
+          isSelected: isMixedCategory == false,
           isDark: isDark,
           onTap: () {
-            if (!isMixedCategory) return;
+            if (isMixedCategory == false) return;
             onModeChanged(false);
-            final synced =
-                items.map((i) => i.copyWith(category: globalCategory)).toList();
-            onItemsChanged(synced);
+            final cat = globalCategory ?? preselectedCategory;
+            if (cat != null) {
+              onGlobalCategoryChanged(cat);
+              final synced = items.map((i) => i.copyWith(category: cat)).toList();
+              onItemsChanged(synced);
+            } else {
+              final synced = items.map((i) => i.copyWith(category: globalCategory)).toList();
+              onItemsChanged(synced);
+            }
           },
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         _CategoryModeCard(
           icon: Icons.layers_rounded,
           title: 'Mixed Categories',
@@ -128,30 +136,30 @@ class ShoppingListBuilder extends StatelessWidget {
           accentColor: const Color(0xFF7C3AED),
           accentBgLight: const Color(0xFFEDE9FE),
           accentBgDark: const Color(0xFF1A0D33),
-          isSelected: isMixedCategory,
+          isSelected: isMixedCategory == true,
           isDark: isDark,
           onTap: () {
-            if (isMixedCategory) return;
+            if (isMixedCategory == true) return;
             onModeChanged(true);
           },
         ),
 
-        const SizedBox(height: 20),
+        const SizedBox(height: 28),
 
         // ── Global Category Selector (Same Category mode only) ─────────────
-        if (!isMixedCategory) ...[
+        if (isMixedCategory == false) ...[
           Text(
             'Shopping List Category',
             style: AppTextStyles.subtitle(primaryText).copyWith(
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             'All items in this list will be under this category.',
             style: AppTextStyles.caption(secondaryText),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           CategorySelector(
             selectedCategory: globalCategory,
             compact: true,
@@ -161,7 +169,7 @@ class ShoppingListBuilder extends StatelessWidget {
               onItemsChanged(synced);
             },
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 28),
         ],
 
         // ── Items Header Row ────────────────────────────────────────────────
@@ -251,7 +259,7 @@ class ShoppingListBuilder extends StatelessWidget {
                 key: ValueKey(item.id),
                 item: item,
                 itemNumber: index + 1,
-                isMixedCategory: isMixedCategory,
+                isMixedCategory: isMixedCategory ?? false,
                 onChanged: (updatedItem) {
                   final newList = List<RequestItem>.from(items);
                   newList[index] = updatedItem;

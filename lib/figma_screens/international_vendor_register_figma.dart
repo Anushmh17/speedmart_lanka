@@ -854,7 +854,7 @@ class _InternationalvendorregistrationWidgetState
                               left: 7,
                               title: 'Stationery',
                             ),
-                            categoryChip(top: 231, left: 173, title: 'Tiles'),
+                            categoryChip(top: 231, left: 173, title: 'Other'),
                           ],
                         ),
                       ),

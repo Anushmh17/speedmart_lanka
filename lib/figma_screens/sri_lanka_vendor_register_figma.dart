@@ -159,6 +159,7 @@ class _SrilankavendorregistrationWidgetState
 
   void _handleCreateAccount() {
     if (widget.onCreateAccountWithData != null) {
+      final pin = _effectivePin;
       widget.onCreateAccountWithData!({
         'email': _emailController.text.trim(),
         'fullName': _fullNameController.text.trim(),
@@ -173,10 +174,8 @@ class _SrilankavendorregistrationWidgetState
         'password': _passwordController.text,
         'confirmPassword': _confirmPasswordController.text,
         'country': 'Sri Lanka',
-        if (widget.initialLatitude != null)
-          'latitude': widget.initialLatitude.toString(),
-        if (widget.initialLongitude != null)
-          'longitude': widget.initialLongitude.toString(),
+        if (pin != null) 'latitude': pin.latitude.toString(),
+        if (pin != null) 'longitude': pin.longitude.toString(),
       });
       return;
     }
@@ -862,7 +861,7 @@ class _SrilankavendorregistrationWidgetState
                               left: 7,
                               title: 'Stationery',
                             ),
-                            categoryChip(top: 231, left: 173, title: 'Tiles'),
+                            categoryChip(top: 231, left: 173, title: 'Other'),
                           ],
                         ),
                       ),

@@ -13,6 +13,7 @@ import 'package:speedmart_lanka/core/widgets/theme3/theme3_widgets.dart';
 import 'package:speedmart_lanka/core/navigation/bottom_nav_visibility.dart';
 import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
 import 'package:speedmart_lanka/features/auth/providers/theme_provider.dart';
+import 'package:speedmart_lanka/features/vendor/providers/nearby_vendors_provider.dart';
 import 'package:speedmart_lanka/features/requests/presentation/screens/request_details_screen.dart';
 import 'package:speedmart_lanka/features/requests/providers/request_provider.dart';
 import 'package:speedmart_lanka/features/requests/models/shopping_request.dart';
@@ -31,6 +32,7 @@ class CustomerHomeScreen extends ConsumerStatefulWidget {
 class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
     with WidgetsBindingObserver {
   DateTime? _lastBackPressTime;
+  String? _lastSyncedLocation;
 
   @override
   void initState() {
@@ -45,6 +47,19 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
       ref.read(requestProvider.notifier).loadMyRequests();
       ref.read(orderProvider.notifier).loadCustomerOrders();
     });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final location = GoRouterState.of(context).matchedLocation;
+    if (_lastSyncedLocation != location) {
+      _lastSyncedLocation = location;
+      Future.microtask(() {
+        if (!mounted) return;
+        ref.read(bottomNavVisibilityProvider.notifier).updateLocation(location);
+      });
+    }
   }
 
   @override
@@ -103,16 +118,171 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
     return confirmed != true;
   }
 
+  Widget _buildBottomNav(BuildContext context, int currentIndex) {
+    final user = ref.watch(currentUserProvider);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final profileImageUrl = user?.profileImageUrl;
+    final hasLocalImage = profileImageUrl != null &&
+        (profileImageUrl.startsWith('/') ||
+            profileImageUrl.contains(':\\') ||
+            profileImageUrl.contains(':/'));
+    final hasNetworkImage = profileImageUrl != null &&
+        (profileImageUrl.startsWith('http://') ||
+            profileImageUrl.startsWith('https://'));
+
+    ImageProvider? avatarImage;
+    if (hasLocalImage) avatarImage = FileImage(File(profileImageUrl));
+    else if (hasNetworkImage) avatarImage = NetworkImage(profileImageUrl);
+
+    final activeColor = AppColors.primary;
+    final inactiveColor = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final isProfileSelected = currentIndex == 3;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, 0, 20, MediaQuery.of(context).padding.bottom + 14),
+      child: Container(
+        height: 72,
+        decoration: BoxDecoration(
+          color: isDark ? AppColors.surfaceElevatedDark : Colors.white,
+          borderRadius: BorderRadius.circular(32),
+          border: Border.all(
+            color: isDark
+                ? AppColors.borderDark.withValues(alpha: 0.6)
+                : AppColors.borderLight.withValues(alpha: 0.8),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: activeColor.withValues(alpha: isDark ? 0.18 : 0.12),
+              blurRadius: 24,
+              offset: const Offset(0, 6),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.07),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              _navItem(context, icon: Icons.grid_view_rounded, label: 'Home', index: 0, currentIndex: currentIndex, activeColor: activeColor, inactiveColor: inactiveColor, isDark: isDark),
+              _navItem(context, icon: Icons.list_alt_rounded, label: 'Lists', index: 1, currentIndex: currentIndex, activeColor: activeColor, inactiveColor: inactiveColor, isDark: isDark),
+              _navItem(context, icon: currentIndex == 2 ? Icons.shopping_bag_rounded : Icons.shopping_bag_outlined, label: 'Orders', index: 2, currentIndex: currentIndex, activeColor: activeColor, inactiveColor: inactiveColor, isDark: isDark),
+              Expanded(
+                child: GestureDetector(
+                  onTap: () => context.go(RouteNames.customerProfile),
+                  behavior: HitTestBehavior.opaque,
+                  child: Center(
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeInOut,
+                      padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 14),
+                      decoration: BoxDecoration(
+                        color: isProfileSelected
+                            ? activeColor.withValues(alpha: isDark ? 0.18 : 0.11)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(22),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircleAvatar(
+                            radius: 11,
+                            backgroundColor: isProfileSelected
+                                ? activeColor.withValues(alpha: 0.2)
+                                : inactiveColor.withValues(alpha: 0.15),
+                            backgroundImage: avatarImage,
+                            child: avatarImage == null
+                                ? Icon(
+                                    isProfileSelected ? Icons.person_rounded : Icons.person_outline_rounded,
+                                    color: isProfileSelected ? activeColor : inactiveColor,
+                                    size: 14,
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'Profile',
+                            style: TextStyle(
+                              color: isProfileSelected ? activeColor : inactiveColor,
+                              fontWeight: isProfileSelected ? FontWeight.w700 : FontWeight.w500,
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _navItem(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required int index,
+    required int currentIndex,
+    required Color activeColor,
+    required Color inactiveColor,
+    required bool isDark,
+  }) {
+    final isSelected = currentIndex == index;
+    final color = isSelected ? activeColor : inactiveColor;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          switch (index) {
+            case 0: context.go(RouteNames.customerHome); break;
+            case 1: context.go(RouteNames.customerRequests); break;
+            case 2: context.go(RouteNames.customerOrders); break;
+          }
+        },
+        behavior: HitTestBehavior.opaque,
+        child: Center(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 260),
+            curve: Curves.easeInOut,
+            padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 14),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? activeColor.withValues(alpha: isDark ? 0.18 : 0.11)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: color, size: 22),
+                const SizedBox(height: 3),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: color,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final shellLocation = GoRouterState.of(context).matchedLocation;
-    
-    // Update bottom nav visibility with current location after build completes
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(bottomNavVisibilityProvider.notifier).updateLocation(shellLocation);
-    });
     
     final showBottomNav = ref.watch(bottomNavVisibilityProvider);
 
@@ -128,7 +298,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        // didPopRoute() already handled this event.
+        // didPopRoute() handles all back navigation logic
       },
       child: Scaffold(
         backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
@@ -164,52 +334,12 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
             const SizedBox(width: 8),
           ],
         ),
+        extendBody: true,
         body: widget.child,
         bottomNavigationBar: AnimatedBottomNavWrapper(
-          visible: showBottomNav,
-          child: SharedFloatingBottomNav(
-            currentIndex: currentIndex,
-            onTap: (index) {
-              switch (index) {
-                case 0:
-                  context.go(RouteNames.customerHome);
-                  break;
-                case 1:
-                  context.go(RouteNames.customerRequests);
-                  break;
-                case 2:
-                  context.go(RouteNames.customerOrders);
-                  break;
-                case 3:
-                  context.go(RouteNames.customerProfile);
-                  break;
-              }
-            },
-            activeColor: AppColors.primary,
-            items: const [
-              SharedFloatingBottomNavItem(
-                unselectedIcon: Icons.grid_view_rounded,
-                selectedIcon: Icons.grid_view_rounded,
-                label: 'Home',
-              ),
-              SharedFloatingBottomNavItem(
-                unselectedIcon: Icons.list_alt_rounded,
-                selectedIcon: Icons.list_alt_rounded,
-                label: 'Lists',
-              ),
-              SharedFloatingBottomNavItem(
-                unselectedIcon: Icons.shopping_bag_outlined,
-                selectedIcon: Icons.shopping_bag_rounded,
-                label: 'Orders',
-              ),
-              SharedFloatingBottomNavItem(
-                unselectedIcon: Icons.person_outline_rounded,
-                selectedIcon: Icons.person_rounded,
-                label: 'Profile',
-              ),
-            ],
+            visible: showBottomNav,
+            child: _buildBottomNav(context, currentIndex),
           ),
-        ),
       ),
     );
   }
@@ -233,16 +363,12 @@ class CustomerHomeTab extends ConsumerWidget {
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 100),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 120),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Premium Header ────────────────────────────────────────────
-          _buildHeader(user, isDark, primaryText, secondaryText),
-          const SizedBox(height: AppSpacing.xl),
-
-          // ── Search Bar ────────────────────────────────────────────────
-          _buildSearchBar(context, isDark),
+          _buildHeader(context, user, isDark, primaryText, secondaryText),
           const SizedBox(height: AppSpacing.xl),
 
           // ── Premium Hero Action Card ──────────────────────────────────
@@ -250,8 +376,8 @@ class CustomerHomeTab extends ConsumerWidget {
           const SizedBox(height: AppSpacing.lg),
 
           // ── Vendor Activity Banner ────────────────────────────────────
-          _buildVendorActivityBanner(isDark, primaryText, secondaryText),
-          const SizedBox(height: AppSpacing.xxxl),
+          _buildVendorActivityBanner(isDark, primaryText, secondaryText, ref),
+          const SizedBox(height: AppSpacing.lg),
 
           // ── Quick Actions Row (Compact) ───────────────────────────────
           _buildQuickActionsRow(context, isDark, primaryText, secondaryText),
@@ -294,17 +420,34 @@ class CustomerHomeTab extends ConsumerWidget {
 
           // ── Recent Requests Section ───────────────────────────────────
           _buildRecentRequestsSection(context, ref, requestState, isDark, primaryText, secondaryText),
-          const SizedBox(height: AppSpacing.xxxl),
+          const SizedBox(height: 44),
 
           // ── Recent Orders Section ─────────────────────────────────────
           _buildRecentOrdersSection(context, ref, orderState, isDark, primaryText, secondaryText),
-          const SizedBox(height: AppSpacing.xl),
+          const SizedBox(height: AppSpacing.lg),
         ],
       ),
     );
   }
 
-  Widget _buildHeader(dynamic user, bool isDark, Color primaryText, Color secondaryText) {
+  Widget _buildHeader(BuildContext context, dynamic user, bool isDark, Color primaryText, Color secondaryText) {
+    final primaryColor = isDark ? AppColors.primaryDark : AppColors.primary;
+    final profileImageUrl = user?.profileImageUrl as String?;
+    final hasLocalImage = profileImageUrl != null &&
+        (profileImageUrl.startsWith('/') ||
+            profileImageUrl.contains(':\\') ||
+            profileImageUrl.contains(':/'));
+    final hasNetworkImage = profileImageUrl != null &&
+        (profileImageUrl.startsWith('http://') ||
+            profileImageUrl.startsWith('https://'));
+
+    ImageProvider? avatarImage;
+    if (hasLocalImage) {
+      avatarImage = FileImage(File(profileImageUrl));
+    } else if (hasNetworkImage) {
+      avatarImage = NetworkImage(profileImageUrl);
+    }
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -312,7 +455,7 @@ class CustomerHomeTab extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Hello, ${user?.firstName ?? 'Customer'} 👋',
+              'Welcome, ${user?.firstName ?? 'Customer'} 👋',
               style: AppTextStyles.h2(primaryText),
             ),
             const SizedBox(height: 4),
@@ -322,129 +465,224 @@ class CustomerHomeTab extends ConsumerWidget {
             ),
           ],
         ),
-        CircleAvatar(
-          radius: 24,
-          backgroundColor: (isDark ? AppColors.primaryDark : AppColors.primary).withValues(alpha: 0.15),
-          child: Text(
-            user?.initials ?? 'C',
-            style: AppTextStyles.h3(isDark ? AppColors.primaryDark : AppColors.primary),
+        GestureDetector(
+          onTap: () => context.go(RouteNames.customerProfile),
+          child: CircleAvatar(
+            radius: 24,
+            backgroundColor: primaryColor.withValues(alpha: 0.15),
+            backgroundImage: avatarImage,
+            child: avatarImage == null
+                ? Text(
+                    user?.initials ?? 'C',
+                    style: AppTextStyles.h3(primaryColor),
+                  )
+                : null,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildSearchBar(BuildContext context, bool isDark) {
+  Widget _buildHeroActionCard(BuildContext context, bool isDark) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceElevatedDark : AppColors.surfaceLight,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDark ? AppColors.borderDark : AppColors.borderLight,
-          width: 1,
+        gradient: const LinearGradient(
+          colors: [Color(0xFFF59E0B), Color(0xFFFF6B00)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
+        borderRadius: BorderRadius.circular(26),
         boxShadow: [
           BoxShadow(
-            color: (isDark ? AppColors.primaryDark : AppColors.primary).withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: const Color(0xFFF59E0B).withValues(alpha: 0.38),
+            blurRadius: 22,
+            spreadRadius: 0,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      child: TextField(
-        readOnly: true,
-        onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Search feature coming soon'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        ),
-        decoration: InputDecoration(
-          hintText: 'Search for products or services...',
-          hintStyle: AppTextStyles.bodyMedium(
-            isDark ? AppColors.textHintDark : AppColors.textHintLight,
-          ),
-          prefixIcon: Icon(
-            Icons.search_rounded,
-            color: isDark ? AppColors.primaryDark : AppColors.primary,
-            size: 20,
-          ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 14),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeroActionCard(BuildContext context, bool isDark) {
-    return Theme3AppCard(
-      type: Theme3CardType.highlighted,
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Post what you need',
-            style: AppTextStyles.h2(isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Get proposals from verified vendors',
-            style: AppTextStyles.bodySmall(
-              isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Left: text + button
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Privacy badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.22),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.lock_rounded,
+                            size: 11, color: Colors.white),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Vendor identity hidden until payment',
+                          style: AppTextStyles.caption(Colors.white).copyWith(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Post What You Need',
+                    style: AppTextStyles.h2(Colors.white).copyWith(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 18,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Compare proposals safely.\nVendor details unlock after payment.',
+                    style: AppTextStyles.bodySmall(
+                            Colors.white.withValues(alpha: 0.88))
+                        .copyWith(height: 1.4),
+                  ),
+                  const SizedBox(height: 16),
+                  // White pill button
+                  GestureDetector(
+                    onTap: () =>
+                        context.push(RouteNames.customerCreateRequest),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 18, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white : const Color(0xFFE6FFFF),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                                Colors.blue.withValues(alpha: 0.10),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.add_rounded,
+                              size: 16,
+                              color: isDark ? const Color(0xFFF59E0B) : const Color(0xFFF59E0B)),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Create Request',
+                            style: AppTextStyles.labelMedium(
+                                    const Color(0xFFF59E0B))
+                                .copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          Theme3AppButton(
-            label: 'Create Request',
-            onPressed: () => context.push(RouteNames.customerCreateRequest),
-            icon: Icons.add_rounded,
-            width: double.infinity,
-          ),
-        ],
+            const SizedBox(width: 12),
+            // Right: decorative illustration
+            Column(
+              children: [
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.18),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.storefront_rounded,
+                    size: 32,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.13),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.local_shipping_rounded,
+                    size: 22,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildVendorActivityBanner(bool isDark, Color primaryText, Color secondaryText) {
+  Widget _buildVendorActivityBanner(bool isDark, Color primaryText, Color secondaryText, WidgetRef ref) {
     return Theme3AppCard(
       type: Theme3CardType.standard,
       padding: const EdgeInsets.all(AppSpacing.lg),
       child: Row(
         children: [
-          Stack(
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: AppColors.success.withValues(alpha: 0.2),
-                child: Icon(Icons.storefront_rounded, size: 18, color: AppColors.success),
-              ),
-              Positioned(
-                left: 24,
-                child: CircleAvatar(
+          SizedBox(
+            width: 88,
+            height: 40,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                CircleAvatar(
                   radius: 20,
-                  backgroundColor: AppColors.info.withValues(alpha: 0.2),
-                  child: Icon(Icons.local_shipping_rounded, size: 18, color: AppColors.info),
+                  backgroundColor: AppColors.success.withValues(alpha: 0.2),
+                  child: Icon(Icons.storefront_rounded, size: 18, color: AppColors.success),
                 ),
-              ),
-              Positioned(
-                left: 48,
-                child: CircleAvatar(
-                  radius: 20,
-                  backgroundColor: (isDark ? AppColors.primaryDark : AppColors.primary).withValues(alpha: 0.2),
-                  child: Icon(Icons.shopping_bag_rounded, size: 18, color: isDark ? AppColors.primaryDark : AppColors.primary),
+                Positioned(
+                  left: 24,
+                  child: CircleAvatar(
+                    radius: 20,
+                    backgroundColor: AppColors.info.withValues(alpha: 0.2),
+                    child: Icon(Icons.local_shipping_rounded, size: 18, color: AppColors.info),
+                  ),
                 ),
-              ),
-            ],
+                Positioned(
+                  left: 48,
+                  child: CircleAvatar(
+                    radius: 20,
+                    backgroundColor: (isDark ? AppColors.primaryDark : AppColors.primary).withValues(alpha: 0.2),
+                    child: Icon(Icons.shopping_bag_rounded, size: 18, color: isDark ? AppColors.primaryDark : AppColors.primary),
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(width: 80),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  '200+ Active Vendors Nearby',
-                  style: AppTextStyles.labelLarge(primaryText),
+                ref.watch(nearbyActiveVendorCountProvider).when(
+                  data: (count) => Text(
+                    '$count Active Vendor${count == 1 ? '' : 's'} Nearby',
+                    style: AppTextStyles.labelLarge(primaryText),
+                  ),
+                  loading: () => Text(
+                    'Finding vendors nearby...',
+                    style: AppTextStyles.labelLarge(primaryText),
+                  ),
+                  error: (_, __) => Text(
+                    'Active Vendors Nearby',
+                    style: AppTextStyles.labelLarge(primaryText),
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -461,12 +699,12 @@ class CustomerHomeTab extends ConsumerWidget {
 
   Widget _buildQuickActionsRow(BuildContext context, bool isDark, Color primaryText, Color secondaryText) {
     final actions = [
-      ('Categories', Icons.category_outlined, () {}),
-      ('Orders', Icons.shopping_bag_outlined, () => context.go(RouteNames.customerOrders)),
-      ('Offers', Icons.local_offer_outlined, () => context.go(RouteNames.customerRequests)),
+      ('Categories', Icons.category_outlined, () => context.push(RouteNames.customerCreateRequest, extra: {'openCategoryPicker': true}), const Color(0xFF8B5CF6)),
+      ('Orders', Icons.shopping_bag_outlined, () => context.go(RouteNames.customerOrders), const Color(0xFF0EA5E9)),
+      ('Offers', Icons.local_offer_outlined, () => context.go(RouteNames.customerRequests), const Color(0xFF10B981)),
       ('Messages', Icons.mail_outline_rounded, () => ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Messages coming soon'), behavior: SnackBarBehavior.floating),
-      )),
+      ), const Color(0xFFF59E0B)),
     ];
 
     return Column(
@@ -489,7 +727,7 @@ class CustomerHomeTab extends ConsumerWidget {
                       Icon(
                         action.$2,
                         size: 24,
-                        color: isDark ? AppColors.primaryDark : AppColors.primary,
+                        color: action.$4,
                       ),
                       const SizedBox(height: 6),
                       Text(
@@ -511,6 +749,17 @@ class CustomerHomeTab extends ConsumerWidget {
   }
 
   Widget _buildRecentRequestsSection(BuildContext context, WidgetRef ref, dynamic requestState, bool isDark, Color primaryText, Color secondaryText) {
+    const orderStatuses = {
+      RequestStatus.paid,
+      RequestStatus.cashOnDeliveryConfirmed,
+      RequestStatus.preparingOrder,
+      RequestStatus.readyForDelivery,
+      RequestStatus.outForDelivery,
+      RequestStatus.delivered,
+    };
+    final activeRequests = (requestState.requests as List<ShoppingRequest>)
+        .where((r) => !orderStatuses.contains(r.status))
+        .toList();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -518,9 +767,10 @@ class CustomerHomeTab extends ConsumerWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text('Recent Requests', style: AppTextStyles.h2(primaryText)),
-            if (requestState.requests.isNotEmpty)
+            if (activeRequests.isNotEmpty)
               TextButton(
                 onPressed: () => context.go(RouteNames.customerRequests),
+                style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                 child: Text(
                   'View All →',
                   style: AppTextStyles.labelMedium(isDark ? AppColors.primaryDark : AppColors.primary),
@@ -529,21 +779,20 @@ class CustomerHomeTab extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: AppSpacing.md),
-        if (requestState.requests.isEmpty)
+        if (activeRequests.isEmpty)
           Theme3EmptyState(
             icon: Icons.shopping_basket_rounded,
             title: 'No Requests Yet',
             subtitle: 'Create your first request to get started',
-            actionLabel: 'Create Request',
-            onActionPressed: () => context.push(RouteNames.customerCreateRequest),
           )
         else
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: requestState.requests.length > 3 ? 3 : requestState.requests.length,
+            padding: EdgeInsets.zero,
+            itemCount: activeRequests.length > 4 ? 4 : activeRequests.length,
             itemBuilder: (context, index) {
-              final request = requestState.requests[index];
+              final request = activeRequests[index];
               final statusType = request.status == RequestStatus.submitted
                   ? Theme3StatusType.pending
                   : (request.status == RequestStatus.delivered ? Theme3StatusType.completed : Theme3StatusType.inProgress);
@@ -561,7 +810,9 @@ class CustomerHomeTab extends ConsumerWidget {
                   );
                 },
                 padding: const EdgeInsets.all(AppSpacing.md),
-                margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                margin: index < (activeRequests.length > 4 ? 3 : activeRequests.length - 1)
+                    ? const EdgeInsets.only(bottom: AppSpacing.sm)
+                    : EdgeInsets.zero,
                 child: Row(
                   children: [
                     // LEFT: Smart Thumbnail (Customer Image or Category Icon)
@@ -584,10 +835,7 @@ class CustomerHomeTab extends ConsumerWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 2),
-                          Text(
-                            primaryCategory.isNotEmpty ? primaryCategory.replaceAll('_', ' ').toUpperCase() : 'GENERAL',
-                            style: AppTextStyles.caption(secondaryText),
-                          ),
+                          _CategoryChips(categories: request.categories, secondaryText: secondaryText),
                           const SizedBox(height: 4),
                           Row(
                             children: [
@@ -637,6 +885,7 @@ class CustomerHomeTab extends ConsumerWidget {
             if (orderState.orders.isNotEmpty)
               TextButton(
                 onPressed: () => context.go(RouteNames.customerOrders),
+                style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                 child: Text(
                   'View All →',
                   style: AppTextStyles.labelMedium(isDark ? AppColors.primaryDark : AppColors.primary),
@@ -644,7 +893,7 @@ class CustomerHomeTab extends ConsumerWidget {
               ),
           ],
         ),
-        const SizedBox(height: AppSpacing.md),
+        const SizedBox(height: AppSpacing.sm),
         if (orderState.orders.isEmpty)
           Theme3EmptyState(
             icon: Icons.shopping_bag_outlined,
@@ -655,7 +904,7 @@ class CustomerHomeTab extends ConsumerWidget {
           ListView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: orderState.orders.length > 3 ? 3 : orderState.orders.length,
+            itemCount: orderState.orders.length > 5 ? 5 : orderState.orders.length,
             itemBuilder: (context, index) {
               final order = orderState.orders[index];
               final orderStatusType = order.status == OrderStatus.delivered
@@ -669,14 +918,16 @@ class CustomerHomeTab extends ConsumerWidget {
               return Theme3AppCard(
                 onTap: () => context.push('/customer/orders/track', extra: order),
                 padding: const EdgeInsets.all(AppSpacing.md),
-                margin: const EdgeInsets.only(bottom: AppSpacing.md),
+                margin: index < (orderState.orders.length > 5 ? 4 : orderState.orders.length - 1)
+                    ? const EdgeInsets.only(bottom: AppSpacing.sm)
+                    : EdgeInsets.zero,
                 child: Row(
                   children: [
                     // LEFT: Smart Order Thumbnail (Vendor Image -> Customer Image -> Icon)
                     _buildSmartThumbnail(
                       imagePath: orderImagePath,
                       category: primaryCategory,
-                      size: 56,
+                      size: 64,
                       isDark: isDark,
                       statusColor: statusColor,
                     ),
@@ -900,7 +1151,7 @@ class CustomerHomeTab extends ConsumerWidget {
     final normalized = category.toLowerCase().trim().replaceAll(' ', '_');
     final categoryIcon = _getRequestCategoryIcon(normalized);
     final categoryColor = statusColor ?? _getRequestCategoryColor(normalized);
-    
+
     // Build category icon fallback widget
     final iconFallback = Container(
       width: size,
@@ -945,6 +1196,7 @@ class CustomerHomeTab extends ConsumerWidget {
   }
 
   Color _getRequestCategoryColor(String normalized) {
+    if (normalized.isEmpty) return const Color(0xFFF59E0B);
     switch (normalized) {
       case 'groceries':
         return const Color(0xFF059669); // green
@@ -974,6 +1226,7 @@ class CustomerHomeTab extends ConsumerWidget {
   }
 
   IconData _getRequestCategoryIcon(String normalized) {
+    if (normalized.isEmpty) return Icons.inventory_2_rounded;
     switch (normalized) {
       case 'groceries':
         return Icons.shopping_basket_rounded;
@@ -1085,6 +1338,46 @@ class CustomerHomeTab extends ConsumerWidget {
           return word[0].toUpperCase() + word.substring(1);
         })
         .join(' ');
+  }
+}
+
+// ── Category chips with +N overflow ─────────────────────────────────────
+class _CategoryChips extends StatelessWidget {
+  const _CategoryChips({required this.categories, required this.secondaryText});
+  final List<String> categories;
+  final Color secondaryText;
+
+  static const int _maxVisible = 2;
+
+  @override
+  Widget build(BuildContext context) {
+    if (categories.isEmpty) {
+      return Text('GENERAL', style: AppTextStyles.caption(secondaryText));
+    }
+    final visible = categories.take(_maxVisible).toList();
+    final overflow = categories.length - _maxVisible;
+    return Wrap(
+      spacing: 4,
+      runSpacing: 2,
+      children: [
+        ...visible.map((cat) => _chip(cat, secondaryText)),
+        if (overflow > 0) _chip('+$overflow more', secondaryText),
+      ],
+    );
+  }
+
+  Widget _chip(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label.replaceAll('_', ' ').toUpperCase(),
+        style: AppTextStyles.caption(color).copyWith(fontSize: 9),
+      ),
+    );
   }
 }
 

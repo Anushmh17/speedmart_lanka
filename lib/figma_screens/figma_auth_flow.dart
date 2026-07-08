@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../features/auth/providers/auth_provider.dart';
 import '../features/auth/customer_registration/providers/customer_registration_provider.dart';
+import '../features/auth/customer_registration/services/otp_service.dart';
 import '../features/auth/customer_registration/services/country_detection_service.dart';
 import '../features/customer/delivery_address/models/customer_delivery_address.dart';
 import '../features/customer/delivery_address/providers/customer_delivery_address_provider.dart';
@@ -520,7 +521,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
 
   // ── Customer login: send OTP ──────────────────────────────────────────────
 
-  Future<void> _onSriLankaCustomerSendOtp() async {
+  Future<void> _onSriLankaCustomerSendOtp(bool rememberMe) async {
     final phone = _loginPhoneCtrl.text.trim();
     if (phone.isEmpty) {
       _showError('Please enter your phone number.');
@@ -535,9 +536,24 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       return;
     }
 
+    // Read previous flag BEFORE overwriting it
+    final wasRemembered = await StorageService.getCustomerRememberMe();
+    await StorageService.saveCustomerRememberMe(rememberMe);
+
     final reg = ref.read(customerRegistrationProvider.notifier);
     reg.setMode(isLogin: true);
     reg.updatePhone(phone);
+
+    // Skip OTP only if user checks remember me AND previously opted to stay signed in
+    if (rememberMe && wasRemembered) {
+      await _onCustomerLoginOtpSuccess('');
+      return;
+    }
+
+    // Reset OTP rate-limit for this destination so retries always work
+    final otpService = ref.read(otpServiceProvider);
+    if (otpService is MockOtpService) otpService.resetLimits();
+
     await reg.sendOtp();
 
     if (!mounted) return;
@@ -549,7 +565,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     _go(_FigmaAuthPage.sriLankaCustomerLoginOtp);
   }
 
-  Future<void> _onInternationalCustomerSendOtp() async {
+  Future<void> _onInternationalCustomerSendOtp(bool rememberMe) async {
     final email = _loginEmailCtrl.text.trim();
     if (email.isEmpty || !email.contains('@')) {
       _showError('Please enter a valid email address.');
@@ -564,9 +580,24 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       return;
     }
 
+    // Read previous flag BEFORE overwriting it
+    final wasRemembered = await StorageService.getCustomerRememberMe();
+    await StorageService.saveCustomerRememberMe(rememberMe);
+
     final reg = ref.read(customerRegistrationProvider.notifier);
     reg.setMode(isLogin: true);
     reg.updateEmail(email);
+
+    // Skip OTP only if user checks remember me AND previously opted to stay signed in
+    if (rememberMe && wasRemembered) {
+      await _onCustomerLoginOtpSuccess('');
+      return;
+    }
+
+    // Reset OTP rate-limit for this destination so retries always work
+    final otpService = ref.read(otpServiceProvider);
+    if (otpService is MockOtpService) otpService.resetLimits();
+
     await reg.sendOtp();
 
     if (!mounted) return;
@@ -581,12 +612,14 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
   // ── OTP success handlers ──────────────────────────────────────────────────
 
   Future<void> _onCustomerLoginOtpSuccess(String otp) async {
-    // Real OTP verification via provider
-    final ok = await ref.read(customerRegistrationProvider.notifier).verifyOtp(otp);
-    if (!mounted) return;
-    if (!ok) {
-      _showError(ref.read(customerRegistrationProvider).error ?? 'Incorrect OTP. Please try again.');
-      return;
+    // Empty otp = remember-me skip path, bypass verification
+    if (otp.isNotEmpty) {
+      final ok = await ref.read(customerRegistrationProvider.notifier).verifyOtp(otp);
+      if (!mounted) return;
+      if (!ok) {
+        _showError(ref.read(customerRegistrationProvider).error ?? 'Incorrect OTP. Please try again.');
+        return;
+      }
     }
     final regState = ref.read(customerRegistrationProvider);
     final contact = regState.data.primaryContact;
@@ -764,14 +797,60 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     final lng = double.tryParse(data['longitude'] ?? '');
     if (lat == null || lng == null) { _showError('Please pin your shop location on the map.'); return; }
 
+    // Store form data and send OTP — registration happens after OTP verified
+    _pendingVendorRegData = data;
+
     setState(() => _isVendorLoading = true);
     try {
+      final reg = ref.read(customerRegistrationProvider.notifier);
+      reg.setMode(isLogin: false);
+      reg.updateEmail(email.trim());
+
+      await reg.sendOtp();
+      if (!mounted) return;
+
+      final regState = ref.read(customerRegistrationProvider);
+      if (regState.hasError) {
+        _showError(regState.error!);
+        return;
+      }
+
+      final isLk = data['country'] == 'Sri Lanka';
+      _go(isLk
+          ? _FigmaAuthPage.sriLankaVendorRegisterOtp
+          : _FigmaAuthPage.internationalVendorRegisterOtp);
+    } catch (e) {
+      if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _isVendorLoading = false);
+    }
+  }
+
+  Future<void> _onVendorRegisterOtpSuccess(String otp) async {
+    final data = _pendingVendorRegData;
+    if (data == null) { _showError('Session expired. Please try again.'); return; }
+
+    final ok = await ref.read(customerRegistrationProvider.notifier).verifyOtp(otp);
+    if (!mounted) return;
+    if (!ok) {
+      _showError(ref.read(customerRegistrationProvider).error ?? 'Incorrect OTP. Please try again.');
+      return;
+    }
+
+    setState(() => _isVendorLoading = true);
+    try {
+      final email = data['email'] ?? '';
+      final shopName = data['shopName'] ?? '';
+      final categories = data['categories'] ?? '';
+      final lat = double.tryParse(data['latitude'] ?? '')!;
+      final lng = double.tryParse(data['longitude'] ?? '')!;
       final isSriLanka = data['country'] == 'Sri Lanka';
+
       await ref.read(authProvider.notifier).register(
-        fullName: fullName.trim(),
+        fullName: data['fullName']!.trim(),
         email: email.trim(),
         phone: data['phone'] ?? '',
-        password: password,
+        password: data['password']!,
         role: UserRole.vendor,
         businessName: shopName.trim(),
         categories: categories.isNotEmpty ? categories.split(',') : null,
@@ -785,12 +864,14 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
         businessRegistrationNumber: data['businessRegNo']?.isNotEmpty == true ? data['businessRegNo'] : null,
         detectedCountry: isSriLanka ? 'LK' : 'OTHER',
         selectedCountry: isSriLanka ? 'LK' : 'OTHER',
+        verifiedEmail: true,
       );
       if (!mounted) return;
       final authState = ref.read(authProvider);
       if (authState.hasError) {
         _showError(authState.error!);
       } else if (authState.isAuthenticated) {
+        _pendingVendorRegData = null;
         context.go(RouteNames.vendorHome);
       }
     } catch (e) {
@@ -798,6 +879,17 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     } finally {
       if (mounted) setState(() => _isVendorLoading = false);
     }
+  }
+
+  Future<void> _onVendorRegisterResendOtp() async {
+    final email = _pendingVendorRegData?['email'] ?? '';
+    if (email.isEmpty) return;
+    final reg = ref.read(customerRegistrationProvider.notifier);
+    reg.updateEmail(email);
+    await reg.sendOtp();
+    if (!mounted) return;
+    final state = ref.read(customerRegistrationProvider);
+    if (state.hasError) _showError(state.error!);
   }
 
   // ── Vendor forgot-password handlers ────────────────────────────────────────────
@@ -1117,7 +1209,9 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
 
       case _FigmaAuthPage.sriLankaVendorRegisterOtp:
         return SrilankavendorregistrationotpWidget(
-          onVerifyOtp: _onVendorOtpSuccess,
+          onVerifyOtp: _onVendorRegisterOtpSuccess,
+          onResend: _onVendorRegisterResendOtp,
+          maskedEmail: ref.read(customerRegistrationProvider).maskedContact ?? '',
           onBack: () => _go(_FigmaAuthPage.sriLankaVendorRegister, back: true),
         );
 
@@ -1209,7 +1303,9 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
 
       case _FigmaAuthPage.internationalVendorRegisterOtp:
         return InternationalvendorregistrationotpWidget(
-          onVerifyOtp: _onVendorOtpSuccess,
+          onVerifyOtp: _onVendorRegisterOtpSuccess,
+          onResend: _onVendorRegisterResendOtp,
+          maskedEmail: ref.read(customerRegistrationProvider).maskedContact ?? '',
           onBack: () => _go(_FigmaAuthPage.internationalVendorRegister, back: true),
         );
 

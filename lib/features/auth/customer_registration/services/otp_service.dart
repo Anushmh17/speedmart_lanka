@@ -60,25 +60,57 @@ class MockOtpService implements OtpService {
     this.mockValidCode = '123456',
     this.maxSendsPerDestination = 5,
     this.maxVerifyAttemptsPerDestination = 5,
+    this.baseBlockDuration = const Duration(minutes: 10),
   });
 
-  /// The code that will be accepted as valid in [verifyOtp].
   final String mockValidCode;
-
-  /// Max number of times OTP can be sent to a single destination.
   final int maxSendsPerDestination;
-
-  /// Max number of failed OTP verification attempts for a single destination.
   final int maxVerifyAttemptsPerDestination;
+  final Duration baseBlockDuration;
 
-  // Trackers per destination
+  // Per destination trackers
   final Map<String, int> _sendCounts = {};
   final Map<String, int> _verifyAttempts = {};
+  final Map<String, DateTime> _sessionStart = {};  // start of current send window
+  final Map<String, DateTime> _blockUntil = {};    // absolute time block expires
+  final Map<String, int> _blockCount = {};
 
-  /// Resets the rate limiting counters for testing/dev ease.
+  Duration _nextBlockDuration(String destination) {
+    final blocks = _blockCount[destination] ?? 0;
+    return baseBlockDuration * (blocks + 1);
+  }
+
+  bool _isBlocked(String destination) {
+    final until = _blockUntil[destination];
+    if (until == null) return false;
+    if (DateTime.now().isBefore(until)) return true;
+    // Block expired — clean up
+    _blockUntil.remove(destination);
+    return false;
+  }
+
+  Duration _remainingBlockDuration(String destination) {
+    final until = _blockUntil[destination];
+    if (until == null) return Duration.zero;
+    final remaining = until.difference(DateTime.now());
+    return remaining.isNegative ? Duration.zero : remaining;
+  }
+
+  void _onLimitExceeded(String destination) {
+    final blocks = _blockCount[destination] ?? 0;
+    _blockCount[destination] = blocks + 1;
+    _blockUntil[destination] = DateTime.now().add(_nextBlockDuration(destination));
+    _sendCounts.remove(destination);
+    _verifyAttempts.remove(destination);
+    _sessionStart.remove(destination);
+  }
+
   void resetLimits() {
     _sendCounts.clear();
     _verifyAttempts.clear();
+    _sessionStart.clear();
+    _blockUntil.clear();
+    _blockCount.clear();
   }
 
   @override
@@ -86,19 +118,30 @@ class MockOtpService implements OtpService {
     required OtpChannel channel,
     required String destination,
   }) async {
-    // Simulate network delay
     await Future.delayed(const Duration(milliseconds: 1500));
+
+    if (_isBlocked(destination)) {
+      final remaining = _remainingBlockDuration(destination);
+      final mins = remaining.inMinutes + 1;
+      return OtpSendResult.failure(
+        'Too many OTP requests. Please try again in $mins minute${mins == 1 ? '' : 's'}.',
+      );
+    }
+
+    // Start session window on first send
+    _sessionStart[destination] ??= DateTime.now();
 
     final currentSends = _sendCounts[destination] ?? 0;
     if (currentSends >= maxSendsPerDestination) {
+      _onLimitExceeded(destination);
+      final mins = _remainingBlockDuration(destination).inMinutes + 1;
       return OtpSendResult.failure(
-        'Too many OTP requests for this contact. Please wait or contact support.',
+        'Too many OTP requests. Please try again in $mins minute${mins == 1 ? '' : 's'}.',
       );
     }
 
     _sendCounts[destination] = currentSends + 1;
-    final masked = _maskContact(destination);
-    return OtpSendResult.success(maskedContact: masked);
+    return OtpSendResult.success(maskedContact: _maskContact(destination));
   }
 
   @override
@@ -109,15 +152,21 @@ class MockOtpService implements OtpService {
   }) async {
     await Future.delayed(const Duration(milliseconds: 800));
 
+    if (_isBlocked(destination)) return false;
+
     final currentAttempts = _verifyAttempts[destination] ?? 0;
     if (currentAttempts >= maxVerifyAttemptsPerDestination) {
-      // Exceeded max verification attempts
+      _onLimitExceeded(destination);
       return false;
     }
 
     final isValid = code.trim() == mockValidCode;
     if (!isValid) {
-      _verifyAttempts[destination] = currentAttempts + 1;
+      final newAttempts = currentAttempts + 1;
+      _verifyAttempts[destination] = newAttempts;
+      if (newAttempts >= maxVerifyAttemptsPerDestination) {
+        _onLimitExceeded(destination);
+      }
     }
     return isValid;
   }

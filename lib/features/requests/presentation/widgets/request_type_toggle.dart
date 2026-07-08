@@ -4,9 +4,8 @@ import '../../../../core/theme/app_text_styles.dart';
 
 enum RequestType { single, multiple }
 
-/// Premium selectable card pair for choosing between Single Item and Shopping List.
 class RequestTypeToggle extends StatelessWidget {
-  final RequestType selectedType;
+  final RequestType? selectedType;
   final ValueChanged<RequestType> onChanged;
 
   const RequestTypeToggle({
@@ -40,7 +39,7 @@ class RequestTypeToggle extends StatelessWidget {
           accentColor: AppColors.customerColor,
           onTap: () => onChanged(RequestType.single),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         _RequestTypeCard(
           icon: Icons.format_list_bulleted_rounded,
           title: 'Shopping List',

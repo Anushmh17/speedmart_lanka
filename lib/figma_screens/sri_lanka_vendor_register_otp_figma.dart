@@ -41,25 +41,12 @@ class _SrilankavendorregistrationotpWidgetState
 
   Future<void> _handleVerifyOtp() async {
     final otp = _otpControllers.map((c) => c.text).join();
-
     if (otp.length < 6) {
       setState(() { _errorMessage = 'Please enter the 6 digit OTP.'; _successMessage = ''; });
       return;
     }
-    if (otp != '123456') {
-      setState(() { _errorMessage = 'Invalid OTP. Please try again.'; _successMessage = ''; });
-      return;
-    }
-    setState(() { _errorMessage = ''; _successMessage = 'OTP verified successfully. Please wait...'; });
-    await Future.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
-
-    if (widget.onVerifyOtp != null) {
-      widget.onVerifyOtp!(otp);
-      return;
-    }
-
-    debugPrint('Sri Lanka vendor register OTP verified, navigate to vendor pending approval');
+    setState(() { _errorMessage = ''; _successMessage = ''; });
+    widget.onVerifyOtp?.call(otp);
   }
 
   void _handleResend() {

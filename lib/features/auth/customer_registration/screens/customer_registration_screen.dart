@@ -318,6 +318,7 @@ class _CustomerRegistrationScreenState
                           focusNode: _nameFocus,
                           prefixIcon: Icons.badge_rounded,
                           textInputAction: TextInputAction.next,
+                          textCapitalization: TextCapitalization.words,
                           validator: Validators.fullName,
                           onFieldSubmitted: (_) =>
                               FocusScope.of(context).requestFocus(

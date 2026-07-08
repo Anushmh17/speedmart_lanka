@@ -86,20 +86,24 @@ class VendorRequestCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: AppSpacing.sm,
-                          vertical: AppSpacing.xs,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.vendorColor.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(AppRadius.sm),
-                        ),
-                        child: Text(
-                          feedRequest.primaryCategory,
-                          style: AppTextStyles.caption(AppColors.vendorColor)
-                              .copyWith(fontWeight: FontWeight.w700),
-                        ),
+                      Wrap(
+                        spacing: AppSpacing.xs,
+                        runSpacing: AppSpacing.xs,
+                        children: feedRequest.allCategories.map((cat) => Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: AppSpacing.sm,
+                            vertical: AppSpacing.xs,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppColors.vendorColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(AppRadius.sm),
+                          ),
+                          child: Text(
+                            cat,
+                            style: AppTextStyles.caption(AppColors.vendorColor)
+                                .copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        )).toList(),
                       ),
                       const Spacer(),
                       Theme3StatusChip(

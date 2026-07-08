@@ -35,8 +35,17 @@ class AuthNotifier extends StateNotifier<AuthState> {
       return;
     }
 
+    // Extract userId from token to validate against stored user JSON
+    String? tokenUserId;
+    try {
+      final parts = token.split('_');
+      if (parts.length >= 3) {
+        tokenUserId = parts.sublist(2, parts.length - 1).join('_');
+      }
+    } catch (_) {}
+
     final userJson = await StorageService.getUser();
-    if (userJson != null) {
+    if (userJson != null && (tokenUserId == null || userJson['id'] == tokenUserId)) {
       debugPrint('[CategoryAudit] ===== VENDOR LOGIN RESTORE =====');
       debugPrint('[CategoryAudit] Restoring session from storage');
       debugPrint('[CategoryAudit] userJson allowed_categories (BEFORE): ${userJson['allowed_categories']}');
@@ -240,7 +249,6 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   // ── Logout ─────────────────────────────────────────────────────────────────
   Future<void> logout() async {
-    state = state.copyWith(isLoading: true);
     await _repo.logout();
     await StorageService.clearSession();
     state = const AuthState.unauthenticated();
@@ -251,10 +259,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
     required String fullName,
     required String phone,
     String? businessName,
+    String? profileImageUrl,
     List<String>? vendorCategories,
     List<String>? requestedCategories,
   }) async {
-    state = state.copyWith(isLoading: true, clearError: true);
+    // Do NOT set isLoading here — it triggers the router's refreshListenable
+    // and causes unwanted navigation during a simple profile update.
     try {
       final currentUser = state.user;
       if (currentUser == null) throw Exception('No authenticated user found.');
@@ -263,25 +273,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
         fullName: fullName,
         phone: phone,
         businessName: businessName,
+        profileImageUrl: profileImageUrl ?? currentUser.profileImageUrl,
         vendorCategories: vendorCategories,
         requestedCategories: requestedCategories,
         hasPendingCategoryRequest: requestedCategories?.isNotEmpty == true,
       );
 
-      debugPrint('[AuthSessionFix] Current logged in user: ${currentUser.id}');
-      debugPrint('[AuthSessionFix] Edited user: ${updatedUser.id}');
-      debugPrint('[AuthSessionFix] Same user: ${currentUser.id == updatedUser.id}');
-
-      // Update in repository
       final savedUser = await _repo.updateUser(updatedUser);
 
-      // Only update session if updating current logged-in user
       if (currentUser.id == updatedUser.id) {
-        debugPrint('[AuthSessionFix] Updating current user session because edited user is current user');
         await StorageService.saveUser(savedUser.toJson());
         state = AuthState.authenticated(savedUser);
       } else {
-        debugPrint('[AuthSessionFix] Preserving current session after profile update');
         await StorageService.saveUser(currentUser.toJson());
       }
     } catch (e) {

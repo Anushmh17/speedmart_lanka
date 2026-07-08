@@ -255,6 +255,23 @@ class StorageService {
     }
   }
 
+  // ── Customer Remember Me ─────────────────────────────────────────────────
+
+  static Future<void> saveCustomerRememberMe(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('customer_remember_me', value);
+  }
+
+  static Future<bool> getCustomerRememberMe() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('customer_remember_me') ?? false;
+  }
+
+  static Future<void> clearCustomerRememberMe() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('customer_remember_me');
+  }
+
   // ── Vendor Remember Me ──────────────────────────────────────────────────
 
   static Future<void> saveVendorRememberMe(bool value) async {

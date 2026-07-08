@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../models/request_item.dart';
 import 'quantity_unit_selector.dart';
 import 'image_upload_grid.dart';
+import '../../../admin/providers/category_provider.dart';
 
-class RequestItemCard extends StatefulWidget {
+class RequestItemCard extends ConsumerStatefulWidget {
   final RequestItem item;
   final int itemNumber;
   final bool isMixedCategory; // Mode B
@@ -25,25 +27,92 @@ class RequestItemCard extends StatefulWidget {
   });
 
   @override
-  State<RequestItemCard> createState() => _RequestItemCardState();
+  ConsumerState<RequestItemCard> createState() => _RequestItemCardState();
 }
 
-class _RequestItemCardState extends State<RequestItemCard> {
+class _RequestItemCardState extends ConsumerState<RequestItemCard> {
   late TextEditingController _nameController;
   late TextEditingController _brandController;
   late TextEditingController _descController;
+  final _categoryLayerLink = LayerLink();
+  OverlayEntry? _categoryOverlay;
+  final _overlayScrollController = ScrollController();
 
-  final List<String> _categories = [
-    'Groceries',
-    'Vehicle parts',
-    'Electronics',
-    'Furniture',
-    'Home appliances',
-    'Clothing',
-    'Hardware items',
-    'Stationery',
-    'Other'
-  ];
+  void _openCategoryOverlay(BuildContext context, List<String> categories,
+      Color cardColor, Color primaryText, Color secondaryText, Color borderColor, bool isDark) {
+    _closeCategoryOverlay();
+    final renderBox = context.findRenderObject() as RenderBox;
+    final size = renderBox.size;
+
+    _categoryOverlay = OverlayEntry(
+      builder: (_) => Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: _closeCategoryOverlay,
+            ),
+          ),
+          CompositedTransformFollower(
+            link: _categoryLayerLink,
+            showWhenUnlinked: false,
+            offset: Offset(0, size.height + 4),
+            child: SizedBox(
+              width: size.width,
+              child: Material(
+                elevation: 4,
+                borderRadius: BorderRadius.circular(12),
+                color: cardColor,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 220),
+                  child: Scrollbar(
+                    thumbVisibility: true,
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      shrinkWrap: true,
+                      itemCount: categories.length,
+                      itemBuilder: (_, i) {
+                        final cat = categories[i];
+                        final isSelected = widget.item.category == cat;
+                        return InkWell(
+                          onTap: () {
+                            _updateItem(widget.item.copyWith(category: cat));
+                            _closeCategoryOverlay();
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+                            child: Row(
+                              children: [
+                                Expanded(child: Text(cat,
+                                  style: TextStyle(
+                                    color: isSelected ? (isDark ? AppColors.primaryDark : AppColors.primary) : primaryText,
+                                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                    fontSize: 14,
+                                  ))),
+                                if (isSelected)
+                                  Icon(Icons.check_rounded, size: 16,
+                                    color: isDark ? AppColors.primaryDark : AppColors.primary),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    Overlay.of(context).insert(_categoryOverlay!);
+  }
+
+  void _closeCategoryOverlay() {
+    _categoryOverlay?.remove();
+    _categoryOverlay = null;
+  }
 
   @override
   void initState() {
@@ -51,6 +120,14 @@ class _RequestItemCardState extends State<RequestItemCard> {
     _nameController = TextEditingController(text: widget.item.itemName);
     _brandController = TextEditingController(text: widget.item.preferredBrand);
     _descController = TextEditingController(text: widget.item.description);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Close overlay whenever the nearest scroll view scrolls
+    final scrollable = Scrollable.maybeOf(context);
+    scrollable?.position.isScrollingNotifier.addListener(_closeCategoryOverlay);
   }
 
   @override
@@ -72,6 +149,8 @@ class _RequestItemCardState extends State<RequestItemCard> {
     _nameController.dispose();
     _brandController.dispose();
     _descController.dispose();
+    _overlayScrollController.dispose();
+    _closeCategoryOverlay();
     super.dispose();
   }
 
@@ -190,29 +269,41 @@ class _RequestItemCardState extends State<RequestItemCard> {
                 if (widget.isMixedCategory) ...[
                   Text('Category', style: AppTextStyles.labelMedium(secondaryText)),
                   const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    initialValue: widget.item.category ?? 'Groceries',
-                    dropdownColor: cardColor,
-                    decoration: InputDecoration(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      filled: true,
-                      fillColor: isDark ? Colors.black12 : Colors.grey.shade50,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: borderColor),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: borderColor),
+                  CompositedTransformTarget(
+                    link: _categoryLayerLink,
+                    child: Builder(
+                      builder: (fieldCtx) => GestureDetector(
+                        onTap: () {
+                          final categories = ref.read(activeCategoriesProvider)
+                              .where((c) => c.isActive)
+                              .map((c) => c.displayName)
+                              .toList();
+                          _openCategoryOverlay(fieldCtx, categories, cardColor,
+                              primaryText, secondaryText, borderColor, isDark);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: isDark ? Colors.black12 : Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: borderColor),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  widget.item.category ?? 'Select category',
+                                  style: AppTextStyles.bodyMedium(
+                                    widget.item.category != null ? primaryText : secondaryText,
+                                  ),
+                                ),
+                              ),
+                              Icon(Icons.keyboard_arrow_down_rounded, color: secondaryText, size: 20),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                    style: AppTextStyles.bodyMedium(primaryText),
-                    items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                    onChanged: (val) {
-                      if (val != null) {
-                        _updateItem(widget.item.copyWith(category: val));
-                      }
-                    },
                   ),
                   const SizedBox(height: 16),
                 ],

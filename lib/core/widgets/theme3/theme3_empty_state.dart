@@ -26,13 +26,13 @@ class Theme3EmptyState extends StatelessWidget {
 
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(AppSpacing.xxxl),
+        padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg, horizontal: AppSpacing.xxxl),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 96,
-              height: 96,
+              width: 64,
+              height: 64,
               decoration: BoxDecoration(
                 color: (isDark ? AppColors.primaryDark : AppColors.primary)
                     .withValues(alpha: isDark ? 0.15 : 0.1),
@@ -40,11 +40,11 @@ class Theme3EmptyState extends StatelessWidget {
               ),
               child: Icon(
                 icon,
-                size: 48,
+                size: 32,
                 color: isDark ? AppColors.primaryDark : AppColors.primary,
               ),
             ),
-            const SizedBox(height: AppSpacing.xxl),
+            const SizedBox(height: AppSpacing.md),
             Text(
               title,
               style: AppTextStyles.h2(

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:image_cropper/image_cropper.dart';
+import 'dart:io';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/app_state_widgets.dart';
@@ -7,6 +10,8 @@ import '../../../features/auth/providers/auth_provider.dart';
 import '../../../shared/models/user_role.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/routes/route_names.dart';
+import '../../../core/routes/app_router.dart';
+import '../../../core/storage/storage_service.dart';
 import '../../../features/customer/delivery_address/models/customer_delivery_address.dart';
 import '../../../features/customer/delivery_address/providers/customer_delivery_address_provider.dart';
 import '../../../features/auth/customer_registration/providers/customer_registration_provider.dart';
@@ -32,19 +37,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late TextEditingController _businessNameCtrl;
   
   List<String> _selectedCategories = [];
+  String? _pickedImagePath;  // unsaved pick — never overwritten by _initData
+  String? _savedImagePath;   // last persisted local path from user model
+  int _imageVersion = 0;
 
   bool _deliveryAddressLoadScheduled = false;
+  bool _dataInitialized = false;
 
   @override
   void initState() {
-    super.initState();;
+    super.initState();
     _nameCtrl = TextEditingController();
     _phoneCtrl = TextEditingController();
     _businessNameCtrl = TextEditingController();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _initData();
       _scheduleDeliveryAddressLoad();
     });
   }
@@ -52,7 +60,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _initData();
+    if (!_dataInitialized) {
+      _dataInitialized = true;
+      _initData();
+    }
   }
 
   void _scheduleDeliveryAddressLoad() {
@@ -69,6 +80,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     });
   }
 
+  bool _isLocalPath(String? path) =>
+      path != null && (path.startsWith('/') || path.contains(':\\') || path.contains(':/'));
+
   void _initData() {
     final user = ref.read(currentUserProvider);
     if (user != null) {
@@ -78,8 +92,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _selectedCategories = List.from(user.requestedCategories?.isNotEmpty == true
           ? user.requestedCategories!
           : user.allowedCategories ?? []);
-      // Removed redundant syncAllUsersCategoryKeysWithRepository call
-      // Category sync now happens only during login and category operations
+      // Sync saved path from user model (local file paths only)
+      _savedImagePath = _isLocalPath(user.profileImageUrl) ? user.profileImageUrl : null;
     }
   }
 
@@ -96,53 +110,155 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     super.dispose();
   }
 
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
+    if (picked == null || !mounted) return;
+
+    final user = ref.read(currentUserProvider);
+    final primaryColor = user?.role == UserRole.vendor ? AppColors.vendorColor : AppColors.customerColor;
+
+    final cropped = await ImageCropper().cropImage(
+      sourcePath: picked.path,
+      compressQuality: 85,
+      uiSettings: [
+        AndroidUiSettings(
+          toolbarTitle: 'Crop Photo',
+          toolbarColor: primaryColor,
+          toolbarWidgetColor: Colors.white,
+          statusBarColor: primaryColor,
+          activeControlsWidgetColor: primaryColor,
+          backgroundColor: Colors.black,
+          cropStyle: CropStyle.circle,
+          initAspectRatio: CropAspectRatioPreset.square,
+          lockAspectRatio: true,
+          showCropGrid: false,
+        ),
+        IOSUiSettings(
+          title: 'Crop Photo',
+          cropStyle: CropStyle.circle,
+          aspectRatioLockEnabled: true,
+          resetAspectRatioEnabled: false,
+          aspectRatioPickerButtonHidden: true,
+        ),
+      ],
+    );
+    if (cropped != null && mounted) {
+      if (_pickedImagePath != null) FileImage(File(_pickedImagePath!)).evict();
+      if (_savedImagePath != null) FileImage(File(_savedImagePath!)).evict();
+      setState(() {
+        _pickedImagePath = cropped.path;
+        _imageVersion++;
+      });
+    }
+  }
+
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     final user = ref.read(currentUserProvider);
     if (user == null) return;
+
+    final imageToSave = _pickedImagePath ?? _savedImagePath ?? user.profileImageUrl;
 
     await ref.read(authProvider.notifier).updateProfile(
       fullName: _nameCtrl.text.trim(),
       phone: _phoneCtrl.text.trim(),
       businessName: user.role == UserRole.vendor ? _businessNameCtrl.text.trim() : null,
+      profileImageUrl: imageToSave,
       requestedCategories: user.role == UserRole.vendor ? _selectedCategories : null,
     );
-    
-    if (mounted && !ref.read(authLoadingProvider)) {
-      setState(() {
-        _isEditing = false;
-        ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: user.role == UserRole.vendor
-              ? const Text('Category change request sent to admin.')
-              : const Text('Profile updated successfully!'),
-          backgroundColor: user.role == UserRole.vendor ? AppColors.vendorColor : AppColors.customerColor,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
+
+    if (!mounted) return;
+    final newSaved = _pickedImagePath ?? _savedImagePath;
+    setState(() {
+      _isEditing = false;
+      _savedImagePath = newSaved;
+      _pickedImagePath = null;
+      _imageVersion++;
+      ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: user.role == UserRole.vendor
+            ? const Text('Category change request sent to admin.')
+            : const Text('Profile updated successfully!'),
+        backgroundColor: user.role == UserRole.vendor ? AppColors.vendorColor : AppColors.customerColor,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   Future<void> _handleLogout() async {
-    final bottomNavNotifier = ref.read(bottomNavVisibilityProvider.notifier);
-    final authNotifier = ref.read(authProvider.notifier);
-    final customerRegistrationNotifier = ref.read(customerRegistrationProvider.notifier);
-    final deliveryLocationNotifier = ref.read(deliveryLocationProvider.notifier);
-    final customerDeliveryAddressNotifier = ref.read(customerDeliveryAddressProvider.notifier);
+    final rootCtx = rootNavigatorKey.currentContext;
+    if (rootCtx == null) return;
 
-    bottomNavNotifier.setManualHidden(false);
+    // Step 1: Confirm logout
+    final confirmed = await showDialog<bool>(
+      context: rootCtx,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        title: const Text('Log out?'),
+        content: const Text('Are you sure you want to log out of your account?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(rootCtx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(rootCtx).pop(true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Log out'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
 
-    await authNotifier.logout();
+    final role = ref.read(currentUserProvider)?.role;
 
-    customerRegistrationNotifier.reset();
-    deliveryLocationNotifier.clearLocation();
-    customerDeliveryAddressNotifier.reset();
+    // Step 2: Ask about OTP preference only if they previously opted in to remember me
+    if (role == UserRole.customer || role == UserRole.vendor) {
+      final alreadyRemembered = role == UserRole.customer
+          ? await StorageService.getCustomerRememberMe()
+          : await StorageService.getVendorRememberMe();
 
-    if (!mounted) return;
-    context.go(RouteNames.roleSelection);
+      if (alreadyRemembered) {
+        final keep = await showDialog<bool>(
+          context: rootCtx,
+          barrierDismissible: false,
+          builder: (_) => AlertDialog(
+            title: const Text('Stay signed in?'),
+            content: const Text(
+              'Would you like to skip OTP verification next time you log in?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(rootCtx).pop(false),
+                child: const Text('No'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(rootCtx).pop(true),
+                child: const Text('Yes'),
+              ),
+            ],
+          ),
+        );
+        if (keep == null) return;
+        if (role == UserRole.customer) {
+          await StorageService.saveCustomerRememberMe(keep);
+        } else {
+          await StorageService.saveVendorRememberMe(keep);
+        }
+      }
+    }
+
+    // Step 3: Perform logout and cleanup
+    ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
+    await ref.read(authProvider.notifier).logout();
+    ref.read(customerRegistrationProvider.notifier).reset();
+    ref.read(deliveryLocationProvider.notifier).clearLocation();
+    ref.read(customerDeliveryAddressProvider.notifier).reset();
   }
 
   @override
@@ -164,13 +280,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
 
     final showBottomNav = ref.watch(bottomNavVisibilityProvider);
-    final bottomPadding = showBottomNav ? 100.0 : 16.0;
+    final bottomPadding = showBottomNav ? 140.0 : 32.0;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: EdgeInsets.fromLTRB(20, 20, 20, bottomPadding),
+        padding: EdgeInsets.fromLTRB(20, 8, 20, bottomPadding),
         child: Form(
           key: _formKey,
           child: Column(
@@ -183,11 +299,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   TextButton.icon(
                     onPressed: () {
                       if (_isEditing) {
-                        _initData();
                         setState(() {
                           _isEditing = false;
+                          _pickedImagePath = null;
                           ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
                         });
+                        _initData();
                       } else {
                         setState(() {
                           _isEditing = true;
@@ -240,25 +357,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           radius: 48,
                           backgroundColor: Colors.white,
                           child: CircleAvatar(
+                            key: ValueKey(_imageVersion),
                             radius: 45,
                             backgroundColor: primaryColor.withOpacity(0.1),
-                            backgroundImage: user.profileImageUrl != null 
-                              ? NetworkImage(user.profileImageUrl!) 
-                              : null,
-                            child: user.profileImageUrl == null
+                            backgroundImage: _pickedImagePath != null
+                                ? FileImage(File(_pickedImagePath!)) as ImageProvider
+                                : _savedImagePath != null
+                                    ? FileImage(File(_savedImagePath!)) as ImageProvider
+                                    : user.profileImageUrl != null && !_isLocalPath(user.profileImageUrl)
+                                        ? NetworkImage(user.profileImageUrl!) as ImageProvider
+                                        : null,
+                            child: (_pickedImagePath == null && _savedImagePath == null && user.profileImageUrl == null)
                                 ? Text(user.initials, style: AppTextStyles.h1(primaryColor))
                                 : null,
                           ),
                         ),
                         if (_isEditing)
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: const BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
+                          GestureDetector(
+                            onTap: _pickImage,
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
+                              ),
+                              child: Icon(Icons.camera_alt_rounded, color: primaryColor, size: 20),
                             ),
-                            child: Icon(Icons.camera_alt_rounded, color: primaryColor, size: 20),
                           ),
                       ],
                     ),
@@ -363,7 +488,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   List<Widget> createCustomerSection(BuildContext context, Color primaryText, Color cardColor, Color borderColor, Color primaryColor, Color secondaryText) {
     return [
-      const SizedBox(height: 32),
+      const SizedBox(height: 16),
       Text('Delivery Address', style: AppTextStyles.subtitle(primaryText)),
       const SizedBox(height: 12),
       _buildCustomerDeliveryAddressCard(
@@ -374,11 +499,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         secondaryText: secondaryText,
         primaryColor: primaryColor,
       ),
-      const SizedBox(height: 24),
+      const SizedBox(height: 16),
       Text('Payment History', style: AppTextStyles.subtitle(primaryText)),
       const SizedBox(height: 12),
       GestureDetector(
-        onTap: () => context.go(RouteNames.customerPaymentHistory),
+        onTap: () => context.push(RouteNames.customerPaymentHistory),
         child: Container(
           width: double.infinity,
           decoration: BoxDecoration(
@@ -646,6 +771,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             controller: controller,
             keyboardType: keyboardType,
             validator: validator,
+            textCapitalization: (label == 'Full Name' || label == 'Business Name')
+                ? TextCapitalization.words
+                : TextCapitalization.none,
             style: AppTextStyles.bodyLarge(primaryText),
             decoration: InputDecoration(
               labelText: label,

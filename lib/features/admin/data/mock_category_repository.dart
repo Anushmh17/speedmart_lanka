@@ -92,7 +92,7 @@ class MockCategoryRepository {
       ),
       CategoryModel(
         id: 'cat-007',
-        normalizedKey: 'vehicle_parts',
+        normalizedKey: 'vehicle parts',
         displayName: 'Vehicle Parts',
         isActive: true,
         isDefault: true,
@@ -100,7 +100,7 @@ class MockCategoryRepository {
       ),
       CategoryModel(
         id: 'cat-008',
-        normalizedKey: 'home_appliances',
+        normalizedKey: 'home appliances',
         displayName: 'Home Appliances',
         isActive: true,
         isDefault: true,

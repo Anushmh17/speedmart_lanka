@@ -6,6 +6,7 @@ import '../../vendor/proposals/services/proposal_validation_service.dart';
 import '../../requests/data/mock_request_repository.dart';
 import '../../requests/models/shopping_request.dart';
 import '../../requests/models/request_category_fulfillment.dart';
+import '../../requests/providers/request_provider.dart';
 import '../data/mock_proposal_repository.dart';
 import '../models/proposal.dart';
 
@@ -55,6 +56,13 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final proposals = await _repo.getProposalsForRequest(requestId);
+      print('[ProposalDebug] loadProposalsForRequest($requestId): found ${proposals.length} proposals');
+      for (final p in proposals) {
+        print('[ProposalDebug]   id=${p.id} status=${p.status.name} category=${p.categoryNormalized} items=${p.items.length}');
+        for (final item in p.items) {
+          print('[ProposalDebug]     item=${item.itemName} status=${item.status.name}');
+        }
+      }
       state = state.copyWith(isLoading: false, proposals: proposals);
       return proposals;
     } catch (e) {
@@ -130,10 +138,23 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
 
       _upsertInList(saved);
 
-      await _requestRepo.updateRequestStatus(
-        proposal.requestId,
-        RequestStatus.proposalSubmitted,
-      );
+      // Increment proposalCount on the request and sync to state
+      final request = await _requestRepo.getRequestById(proposal.requestId);
+      if (request != null) {
+        final updatedRequest = request.copyWith(
+          status: RequestStatus.proposalSubmitted,
+          proposalCount: request.proposalCount + 1,
+          updatedAt: DateTime.now(),
+        );
+        await _requestRepo.updateRequest(updatedRequest);
+        ref.read(requestProvider.notifier).syncRequest(updatedRequest);
+      } else {
+        await _requestRepo.updateRequestStatus(
+          proposal.requestId,
+          RequestStatus.proposalSubmitted,
+        );
+      }
+
       state = state.copyWith(isLoading: false, selectedProposal: saved);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
@@ -268,6 +289,12 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
             RequestStatus.customerAccepted,
           );
         }
+
+        // Sync updated request into requestProvider state
+        final refreshed = await _requestRepo.getRequestById(requestId);
+        if (refreshed != null) {
+          ref.read(requestProvider.notifier).syncRequest(refreshed);
+        }
       }
 
       await loadProposalsForRequest(requestId);
@@ -310,7 +337,24 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
             p.status == ProposalStatus.submitted ||
             p.status == ProposalStatus.updated,
       );
-      if (!hasAccepted && !hasOpenBids) {
+
+      // Decrement proposalCount and sync
+      final request = await _requestRepo.getRequestById(requestId);
+      if (request != null) {
+        final newCount = (request.proposalCount - 1).clamp(0, 9999);
+        final newStatus = hasAccepted
+            ? request.status
+            : hasOpenBids
+                ? RequestStatus.proposalSubmitted
+                : RequestStatus.waitingForVendor;
+        final updatedRequest = request.copyWith(
+          status: newStatus,
+          proposalCount: newCount,
+          updatedAt: DateTime.now(),
+        );
+        await _requestRepo.updateRequest(updatedRequest);
+        ref.read(requestProvider.notifier).syncRequest(updatedRequest);
+      } else if (!hasAccepted && !hasOpenBids) {
         await _requestRepo.updateRequestStatus(
           requestId,
           RequestStatus.waitingForVendor,

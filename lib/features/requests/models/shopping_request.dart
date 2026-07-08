@@ -102,6 +102,9 @@ class ShoppingRequest {
   // Multi-category fulfillment tracking
   final Map<String, RequestCategoryFulfillment> categoryFulfillments;
 
+  // Proposal count (updated when vendors submit/withdraw proposals)
+  final int proposalCount;
+
   // TODO: Persist cancellation metadata via backend API when integrated.
   final DateTime? cancelledAt;
   final String? cancelledReason;
@@ -123,6 +126,7 @@ class ShoppingRequest {
     this.longitude = 0.0,
     this.deliveryLocation,
     Map<String, RequestCategoryFulfillment>? categoryFulfillments,
+    this.proposalCount = 0,
     this.cancelledAt,
     this.cancelledReason,
     this.cancelledBy,
@@ -224,6 +228,7 @@ class ShoppingRequest {
     double? longitude,
     DeliveryLocation? deliveryLocation,
     Map<String, RequestCategoryFulfillment>? categoryFulfillments,
+    int? proposalCount,
     DateTime? cancelledAt,
     String? cancelledReason,
     String? cancelledBy,
@@ -244,6 +249,7 @@ class ShoppingRequest {
       longitude: longitude ?? this.longitude,
       deliveryLocation: deliveryLocation ?? this.deliveryLocation,
       categoryFulfillments: categoryFulfillments ?? this.categoryFulfillments,
+      proposalCount: proposalCount ?? this.proposalCount,
       cancelledAt: cancelledAt ?? this.cancelledAt,
       cancelledReason: cancelledReason ?? this.cancelledReason,
       cancelledBy: cancelledBy ?? this.cancelledBy,
@@ -270,6 +276,7 @@ class ShoppingRequest {
       'categoryFulfillments': categoryFulfillments.map(
         (key, value) => MapEntry(key, value.toJson()),
       ),
+      'proposalCount': proposalCount,
       'cancelledAt': cancelledAt?.toIso8601String(),
       'cancelledReason': cancelledReason,
       'cancelledBy': cancelledBy,
@@ -322,6 +329,7 @@ class ShoppingRequest {
             )
           : null,
       categoryFulfillments: fulfillments,
+      proposalCount: json['proposalCount'] as int? ?? 0,
       cancelledAt: json['cancelledAt'] != null
           ? DateTime.tryParse(json['cancelledAt'] as String)
           : null,

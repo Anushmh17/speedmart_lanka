@@ -62,6 +62,7 @@ class ProposalItem {
   final String? alternativeBrand;
   final String? alternativeReason;
   final String? imageUrl;
+  final List<String> vendorImageUrls;
 
   ProposalItem({
     required this.requestItemId,
@@ -77,6 +78,7 @@ class ProposalItem {
     this.alternativeBrand,
     this.alternativeReason,
     this.imageUrl,
+    this.vendorImageUrls = const [],
   })  : requestItemName = requestItemName ?? itemName ?? '',
         itemName = itemName ?? requestItemName ?? '';
 
@@ -102,6 +104,7 @@ class ProposalItem {
       'alternativeBrand': alternativeBrand,
       'alternativeReason': alternativeReason,
       'imageUrl': imageUrl,
+      'vendorImageUrls': vendorImageUrls,
     };
   }
 
@@ -127,6 +130,7 @@ class ProposalItem {
       alternativeBrand: json['alternativeBrand'] as String?,
       alternativeReason: json['alternativeReason'] as String?,
       imageUrl: json['imageUrl'] as String?,
+      vendorImageUrls: (json['vendorImageUrls'] as List<dynamic>? ?? []).map((e) => e.toString()).toList(),
     );
   }
 
@@ -144,6 +148,7 @@ class ProposalItem {
     String? alternativeBrand,
     String? alternativeReason,
     String? imageUrl,
+    List<String>? vendorImageUrls,
   }) {
     return ProposalItem(
       requestItemId: requestItemId ?? this.requestItemId,
@@ -159,6 +164,7 @@ class ProposalItem {
       alternativeBrand: alternativeBrand ?? this.alternativeBrand,
       alternativeReason: alternativeReason ?? this.alternativeReason,
       imageUrl: imageUrl ?? this.imageUrl,
+      vendorImageUrls: vendorImageUrls ?? this.vendorImageUrls,
     );
   }
 }

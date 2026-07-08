@@ -179,8 +179,10 @@ class CategorySelector extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: false,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => _CategoryPickerSheet(
+      builder: (ctx) => CategoryPickerSheet(
         selectedCategory: selectedCategory,
         isDark: isDark,
         onSelected: (cat) {
@@ -291,22 +293,22 @@ class CategorySelector extends ConsumerWidget {
 
 // ── Category Picker Bottom Sheet ──────────────────────────────────────────────
 
-class _CategoryPickerSheet extends ConsumerStatefulWidget {
+class CategoryPickerSheet extends ConsumerStatefulWidget {
   final String? selectedCategory;
   final bool isDark;
   final ValueChanged<String> onSelected;
 
-  const _CategoryPickerSheet({
+  const CategoryPickerSheet({
     required this.selectedCategory,
     required this.isDark,
     required this.onSelected,
   });
 
   @override
-  ConsumerState<_CategoryPickerSheet> createState() => _CategoryPickerSheetState();
+  ConsumerState<CategoryPickerSheet> createState() => _CategoryPickerSheetState();
 }
 
-class _CategoryPickerSheetState extends ConsumerState<_CategoryPickerSheet> {
+class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
   final _searchController = TextEditingController();
   String _query = '';
 
@@ -336,7 +338,7 @@ class _CategoryPickerSheetState extends ConsumerState<_CategoryPickerSheet> {
 
     return DraggableScrollableSheet(
       initialChildSize: 0.82,
-      minChildSize: 0.5,
+      minChildSize: 0.82,
       maxChildSize: 0.95,
       expand: false,
       builder: (ctx, scrollController) {
@@ -407,12 +409,20 @@ class _CategoryPickerSheetState extends ConsumerState<_CategoryPickerSheet> {
               // Search field
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Container(
+                child: Theme(
+                  data: Theme.of(context).copyWith(
+                    textSelectionTheme: TextSelectionThemeData(
+                      cursorColor: primaryText,
+                      selectionColor: primaryText.withOpacity(0.2),
+                      selectionHandleColor: primaryText,
+                    ),
+                  ),
+                  child: Container(
                   height: 44,
                   decoration: BoxDecoration(
                     color: searchBg,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: borderColor),
+                    border: Border.all(color: const Color(0xFF18A3F9), width: 1.5),
                   ),
                   child: Row(
                     children: [
@@ -424,10 +434,15 @@ class _CategoryPickerSheetState extends ConsumerState<_CategoryPickerSheet> {
                           controller: _searchController,
                           onChanged: (v) => setState(() => _query = v),
                           style: AppTextStyles.bodyMedium(primaryText),
+                          cursorColor: primaryText,
                           decoration: InputDecoration(
                             hintText: 'Search categories...',
                             hintStyle: AppTextStyles.bodyMedium(secondaryText),
+                            filled: true,
+                            fillColor: Colors.transparent,
                             border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
                             isDense: true,
                             contentPadding: EdgeInsets.zero,
                           ),
@@ -446,6 +461,7 @@ class _CategoryPickerSheetState extends ConsumerState<_CategoryPickerSheet> {
                         ),
                     ],
                   ),
+                ),
                 ),
               ),
 

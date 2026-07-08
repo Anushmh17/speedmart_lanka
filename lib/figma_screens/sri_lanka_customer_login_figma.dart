@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../core/storage/storage_service.dart';
 
 class SrilankacustomerloginWidget extends StatefulWidget {
-  final VoidCallback? onSendOtp;
+  final ValueChanged<bool>? onSendOtp;
   final VoidCallback? onRegister;
   final VoidCallback? onVendorLogin;
   final VoidCallback? onCountryTap;
@@ -25,6 +26,8 @@ class SrilankacustomerloginWidget extends StatefulWidget {
 
 class _SrilankacustomerloginWidgetState
     extends State<SrilankacustomerloginWidget> {
+  bool _rememberMe = false;
+
   late final TextEditingController _phoneController;
   late final bool _ownsController;
 
@@ -38,6 +41,12 @@ class _SrilankacustomerloginWidgetState
     super.initState();
     _ownsController = widget.phoneController == null;
     _phoneController = widget.phoneController ?? TextEditingController();
+    _loadRememberMe();
+  }
+
+  Future<void> _loadRememberMe() async {
+    final saved = await StorageService.getCustomerRememberMe();
+    if (mounted) setState(() => _rememberMe = saved);
   }
 
   @override
@@ -52,10 +61,9 @@ class _SrilankacustomerloginWidgetState
 
   void _handleSendOtp() {
     if (widget.onSendOtp != null) {
-      widget.onSendOtp!();
+      widget.onSendOtp!(_rememberMe);
       return;
     }
-
     debugPrint('Sri Lanka customer Send OTP clicked: +94 ${_phoneController.text}');
   }
 
@@ -379,6 +387,42 @@ class _SrilankacustomerloginWidgetState
                                     ],
                                   ),
                                 ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
+                    Positioned(
+                      top: y(606),
+                      left: x(22),
+                      child: GestureDetector(
+                        onTap: () => setState(() => _rememberMe = !_rememberMe),
+                        child: Row(
+                          children: [
+                            SizedBox(
+                              width: x(20),
+                              height: y(26),
+                              child: Checkbox(
+                                value: _rememberMe,
+                                onChanged: (v) => setState(() => _rememberMe = v ?? false),
+                                activeColor: const Color(0xFF2E8CFF),
+                                checkColor: Colors.white,
+                                side: const BorderSide(color: Color(0xFF373737), width: 1),
+                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ),
+                            SizedBox(width: x(5)),
+                            Text(
+                              'Remember me',
+                              style: TextStyle(
+                                color: const Color(0xFF373737),
+                                fontFamily: 'OpenSans',
+                                fontSize: fs(14),
+                                fontWeight: FontWeight.w600,
+                                height: 1,
                               ),
                             ),
                           ],

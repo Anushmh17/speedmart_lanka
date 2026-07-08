@@ -37,9 +37,13 @@ class _CustomerProposalComparisonScreenState
     super.initState();
     Future.microtask(() async {
       if (!mounted) return;
-      await ref
+      final proposals = await ref
           .read(proposalProvider.notifier)
           .loadProposalsForRequest(widget.requestId);
+      if (!mounted) return;
+      ref
+          .read(customerProposalComparisonProvider(widget.requestId).notifier)
+          .updateFrom(proposals: proposals, request: widget.request);
     });
   }
 
@@ -132,6 +136,18 @@ class _CustomerProposalComparisonScreenState
     final proposalState = ref.watch(proposalProvider);
     final comparisonState =
         ref.watch(customerProposalComparisonProvider(widget.requestId));
+
+    // Keep comparison views in sync whenever proposals change
+    ref.listen(proposalProvider, (prev, next) {
+      if (prev?.proposals != next.proposals) {
+        ref
+            .read(customerProposalComparisonProvider(widget.requestId).notifier)
+            .updateFrom(
+              proposals: next.proposals,
+              request: widget.request,
+            );
+      }
+    });
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryText =

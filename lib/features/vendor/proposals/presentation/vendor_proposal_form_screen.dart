@@ -19,6 +19,7 @@ import '../../../requests/models/shopping_request.dart';
 import '../../../requests/providers/request_provider.dart';
 import '../../../customer/delivery_address/utils/vendor_delivery_privacy.dart';
 import '../widgets/image_gallery_viewer.dart';
+import '../../../../core/routes/route_names.dart';
 /// Create or edit a vendor proposal (quotation) for a customer request.
 class VendorProposalFormScreen extends ConsumerStatefulWidget {
   const VendorProposalFormScreen({
@@ -51,7 +52,7 @@ class _VendorProposalFormScreenState
   late Map<String, TextEditingController> _altBrandControllers;
   late Map<String, TextEditingController> _altReasonControllers;
 
-  List<String> _productImages = [];
+  late Map<String, List<String>> _vendorItemImages;
   double _itemsSubtotal = 0;
   double _deliveryFee = 200;
   bool _saving = false;
@@ -74,13 +75,13 @@ class _VendorProposalFormScreenState
     _altNameControllers = {};
     _altBrandControllers = {};
     _altReasonControllers = {};
+    _vendorItemImages = {};
 
     final existing = widget.existingProposal;
     if (existing != null) {
       _deliveryFeeController.text = existing.deliveryCharge.toStringAsFixed(0);
       _deliveryTimeController.text = existing.estimatedDeliveryTime;
       _notesController.text = existing.notes ?? '';
-      _productImages = List<String>.from(existing.productImageUrls);
       _deliveryFee = existing.deliveryCharge;
     }
 
@@ -118,6 +119,7 @@ class _VendorProposalFormScreenState
       _altReasonControllers[item.id] = TextEditingController(
         text: match?.alternativeReason ?? 'Original out of stock.',
       );
+      _vendorItemImages[item.id] = List<String>.from(match?.vendorImageUrls ?? []);
     }
     _recalculateSubtotal();
   }
@@ -167,6 +169,7 @@ class _VendorProposalFormScreenState
       final price = double.tryParse(_priceControllers[item.id]?.text ?? '') ?? 0;
       final stock = int.tryParse(_stockControllers[item.id]?.text ?? '');
 
+      final vendorImgs = _vendorItemImages[item.id] ?? [];
       if (status == ProposalItemStatus.unavailable) {
         missing.add(item.id);
         items.add(ProposalItem(
@@ -174,6 +177,7 @@ class _VendorProposalFormScreenState
           itemName: item.name,
           quantity: item.quantity,
           status: status,
+          vendorImageUrls: const [],
         ));
       } else if (status == ProposalItemStatus.available) {
         items.add(ProposalItem(
@@ -185,6 +189,7 @@ class _VendorProposalFormScreenState
           offeredBrandModel: _brandControllers[item.id]?.text,
           availableStock: stock,
           description: _remarkControllers[item.id]?.text,
+          vendorImageUrls: vendorImgs,
         ));
       } else {
         items.add(ProposalItem(
@@ -198,6 +203,7 @@ class _VendorProposalFormScreenState
           alternativeName: _altNameControllers[item.id]?.text,
           alternativeBrand: _altBrandControllers[item.id]?.text,
           alternativeReason: _altReasonControllers[item.id]?.text,
+          vendorImageUrls: vendorImgs,
         ));
       }
     }
@@ -255,20 +261,11 @@ class _VendorProposalFormScreenState
       notes: _notesController.text.trim().isEmpty
           ? null
           : _notesController.text.trim(),
-      productImageUrls: _productImages,
+      productImageUrls: const [],
       vendorLatitude: vendorLatitude,
       vendorLongitude: vendorLongitude,
       categoryNormalized: proposalCategory,
     );
-  }
-
-  Future<void> _pickProductImage() async {
-    if (_productImages.length >= 4) return;
-    final picker = ImagePicker();
-    final file = await picker.pickImage(source: ImageSource.gallery);
-    if (file != null) {
-      setState(() => _productImages = [..._productImages, file.path]);
-    }
   }
 
   Future<void> _saveDraft() async {
@@ -278,7 +275,6 @@ class _VendorProposalFormScreenState
     if (user == null) return;
     final loc = ref.read(requestProvider);
     final proposalNotifier = ref.read(proposalProvider.notifier);
-    final messenger = ScaffoldMessenger.of(context);
 
     final proposal = _buildProposal(
       status: ProposalStatus.draft,
@@ -293,16 +289,16 @@ class _VendorProposalFormScreenState
       await proposalNotifier.saveDraft(proposal);
       if (!mounted) return;
 
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Draft saved locally'),
-          behavior: SnackBarBehavior.floating,
-        ),
+      ref.read(notificationProvider.notifier).triggerNotification(
+        title: 'Draft saved',
+        body: 'Your proposal draft has been saved locally.',
+        icon: Icons.save_outlined,
+        color: AppColors.vendorColor,
       );
       context.pop();
     } catch (e) {
       if (!mounted) return;
-      messenger.showSnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error),
       );
     } finally {
@@ -360,21 +356,15 @@ class _VendorProposalFormScreenState
       if (!mounted) return;
 
       notificationNotifier.triggerNotification(
-        title: 'New bid received',
-        body:
-            'A merchant bid Rs. ${proposal.totalPrice.toStringAsFixed(0)} on ${proposal.requestId}.',
+        title: _isEditing ? 'Proposal updated' : 'Proposal submitted',
+        body: 'Rs. ${proposal.totalPrice.toStringAsFixed(0)} bid sent for ${widget.request.items.length} item(s).',
         icon: Icons.local_offer_rounded,
-        color: AppColors.customerColor,
+        color: AppColors.vendorColor,
       );
-
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Proposal submitted'),
-          backgroundColor: AppColors.success,
-          behavior: SnackBarBehavior.floating,
-        ),
+      context.pushReplacement(
+        RouteNames.vendorProposalDetail,
+        extra: proposal,
       );
-      context.pop();
     } catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
@@ -441,30 +431,24 @@ class _VendorProposalFormScreenState
                     Text('Line items', style: AppTextStyles.h2(primaryText)),
                     const SizedBox(height: 10),
                     ...widget.request.items.map((item) {
-                      // [ImageScreen] Screen-level audit
-                      debugPrint('[ImageScreen] ========== BUILDING PROPOSAL ITEM ==========');
-                      debugPrint('[ImageScreen] Building image section for item: ${item.name}');
-                      debugPrint('[ImageScreen] Item ID: ${item.id}');
-                      debugPrint('[ImageScreen] imageCount: ${item.imageUrls.length}');
-                      debugPrint('[ImageScreen] imageUrls: ${item.imageUrls}');
-                      debugPrint('[ImageScreen] isEmpty check: ${item.imageUrls.isEmpty}');
-                      debugPrint('[ImageScreen] isNotEmpty check: ${item.imageUrls.isNotEmpty}');
-                      
-                      // [ImageAudit] Proposal screen
-                      debugPrint('[ImageAudit] Proposal item: ${item.itemName}');
-                      debugPrint('[ImageAudit] Images: ${item.imageUrls}');
-                      debugPrint('[ImageAudit] Image count: ${item.imageUrls.length}');
-                      
                       final status = _itemStatuses[item.id]!;
                       return _ItemEditorCard(
+                        key: ValueKey(item.id),
                         itemName: item.name,
                         quantity: item.quantity,
                         status: status,
                         isDark: isDark,
-                        imageUrls: item.imageUrls,
+                        customerImageUrls: item.imageUrls,
+                        vendorImageUrls: _vendorItemImages[item.id] ?? [],
+                        onVendorImagesChanged: (imgs) {
+                          setState(() => _vendorItemImages[item.id] = imgs);
+                        },
                         onStatusChanged: (s) {
                           setState(() {
                             _itemStatuses[item.id] = s;
+                            if (s == ProposalItemStatus.unavailable) {
+                              _vendorItemImages[item.id] = [];
+                            }
                             _recalculateSubtotal();
                           });
                         },
@@ -527,57 +511,6 @@ class _VendorProposalFormScreenState
                           ),
                         ],
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text('Product photos (optional)',
-                        style: AppTextStyles.subtitle(primaryText)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        ..._productImages.map(
-                          (path) => Stack(
-                            children: [
-                              ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
-                                child: _productImagePreview(path, cardColor),
-                              ),
-                              Positioned(
-                                right: 0,
-                                top: 0,
-                                child: GestureDetector(
-                                  onTap: () => setState(() {
-                                    _productImages =
-                                        _productImages.where((p) => p != path).toList();
-                                  }),
-                                  child: const CircleAvatar(
-                                    radius: 10,
-                                    backgroundColor: AppColors.error,
-                                    child: Icon(Icons.close, size: 12, color: Colors.white),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (_productImages.length < 4)
-                          InkWell(
-                            onTap: _pickProductImage,
-                            child: Container(
-                              width: 72,
-                              height: 72,
-                              decoration: BoxDecoration(
-                                border: Border.all(color: borderColor),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Icon(
-                                Icons.add_photo_alternate_outlined,
-                                color: AppColors.vendorColor,
-                              ),
-                            ),
-                          ),
-                      ],
                     ),
                     const SizedBox(height: 24),
                   ],
@@ -661,27 +594,11 @@ class _VendorProposalFormScreenState
     );
   }
 
-  Widget _productImagePreview(String path, Color cardColor) {
-    const size = 72.0;
-    if (!kIsWeb && File(path).existsSync()) {
-      return Image.file(
-        File(path),
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-      );
-    }
-    return Container(
-      width: size,
-      height: size,
-      color: cardColor,
-      child: const Icon(Icons.image_outlined),
-    );
-  }
 }
 
-class _ItemEditorCard extends StatelessWidget {
+class _ItemEditorCard extends StatefulWidget {
   const _ItemEditorCard({
+    super.key,
     required this.itemName,
     required this.quantity,
     required this.status,
@@ -695,7 +612,9 @@ class _ItemEditorCard extends StatelessWidget {
     required this.altBrandController,
     required this.altReasonController,
     required this.onPriceChanged,
-    this.imageUrls = const [],
+    this.customerImageUrls = const [],
+    this.vendorImageUrls = const [],
+    required this.onVendorImagesChanged,
   });
 
   final String itemName;
@@ -711,19 +630,29 @@ class _ItemEditorCard extends StatelessWidget {
   final TextEditingController altBrandController;
   final TextEditingController altReasonController;
   final VoidCallback onPriceChanged;
-  final List<String> imageUrls;
+  final List<String> customerImageUrls;
+  final List<String> vendorImageUrls;
+  final ValueChanged<List<String>> onVendorImagesChanged;
+
+  @override
+  State<_ItemEditorCard> createState() => _ItemEditorCardState();
+}
+
+class _ItemEditorCardState extends State<_ItemEditorCard> {
+  Future<void> _pickVendorImage() async {
+    if (widget.vendorImageUrls.length >= 4) return;
+    final picker = ImagePicker();
+    final file = await picker.pickImage(source: ImageSource.gallery);
+    if (file != null) {
+      widget.onVendorImagesChanged([...widget.vendorImageUrls, file.path]);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    debugPrint('[ImageScreen] ========== _ItemEditorCard BUILD ==========');
-    debugPrint('[ImageScreen] Item: $itemName');
-    debugPrint('[ImageScreen] imageUrls length: ${imageUrls.length}');
-    debugPrint('[ImageScreen] imageUrls: $imageUrls');
-    
-    final primaryText =
-        isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
-    final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+    final primaryText = widget.isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final cardColor = widget.isDark ? AppColors.cardDark : AppColors.cardLight;
+    final borderColor = widget.isDark ? AppColors.borderDark : AppColors.borderLight;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -736,111 +665,33 @@ class _ItemEditorCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(itemName, style: AppTextStyles.subtitle(primaryText)),
-          Text('Qty $quantity', style: AppTextStyles.caption(primaryText)),
-          Builder(builder: (context) {
-            if (imageUrls.isNotEmpty) {
-              debugPrint('[ImageScreen] *** CONDITION MET in _ItemEditorCard: imageUrls.isNotEmpty = true ***');
-              debugPrint('[ImageScreen] About to render ${imageUrls.length} customer images');
-            } else {
-              debugPrint('[ImageScreen] *** CONDITION NOT MET: imageUrls.isEmpty = true ***');
-            }
-            return const SizedBox.shrink();
-          }),
-          if (imageUrls.isNotEmpty) ...[
+          Text(widget.itemName, style: AppTextStyles.subtitle(primaryText)),
+          Text('Qty ${widget.quantity}', style: AppTextStyles.caption(primaryText)),
+          if (widget.customerImageUrls.isNotEmpty) ...[
             const SizedBox(height: 12),
-            Text('Customer photos (${imageUrls.length}):', style: AppTextStyles.caption(primaryText)),
+            Text('Customer photos (${widget.customerImageUrls.length}):', style: AppTextStyles.caption(primaryText)),
             const SizedBox(height: 6),
             SizedBox(
-              height: 100,
+              height: 72,
               child: ListView.builder(
                 scrollDirection: Axis.horizontal,
-                itemCount: imageUrls.length,
+                itemCount: widget.customerImageUrls.length,
                 itemBuilder: (context, index) {
-                  final url = imageUrls[index];
+                  final url = widget.customerImageUrls[index];
                   final isNetwork = url.startsWith('http://') || url.startsWith('https://');
-                  
-                  debugPrint('[ImageRender] ========== IMAGE WIDGET BUILD ==========');
-                  debugPrint('[ImageRender] path: $url');
-                  debugPrint('[ImageRender] isNetwork: $isNetwork');
-                  
-                  if (!isNetwork) {
-                    final file = File(url);
-                    debugPrint('[ImageRender] exists: ${file.existsSync()}');
-                    if (file.existsSync()) {
-                      try {
-                        debugPrint('[ImageRender] fileSize: ${file.lengthSync()} bytes');
-                      } catch (e) {
-                        debugPrint('[ImageRender] lengthSync error: $e');
-                      }
-                    }
-                    debugPrint('[ImageRender] extension: ${url.split('.').last}');
-                  }
-                  
                   return Padding(
-                    padding: EdgeInsets.only(right: index < imageUrls.length - 1 ? 8 : 0),
+                    padding: EdgeInsets.only(right: index < widget.customerImageUrls.length - 1 ? 8 : 0),
                     child: GestureDetector(
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => ImageGalleryViewer(
-                              imagePaths: imageUrls,
-                              initialIndex: index,
-                            ),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        width: 100,
-                        height: 100,
-                        decoration: BoxDecoration(
-                          color: borderColor,
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: borderColor.withValues(alpha: 0.5)),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: isNetwork
-                              ? Image.network(
-                                  url,
-                                  fit: BoxFit.cover,
-                                  loadingBuilder: (context, child, loadingProgress) {
-                                    if (loadingProgress == null) {
-                                      debugPrint('[ImageRenderSuccess] path: $url');
-                                      return child;
-                                    }
-                                    return const Center(
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: AppColors.vendorColor,
-                                      ),
-                                    );
-                                  },
-                                  errorBuilder: (_, __, ___) {
-                                    debugPrint('[ImageRenderError] path: $url');
-                                    return const Center(
-                                      child: Icon(Icons.broken_image_outlined, size: 30, color: Colors.white54),
-                                    );
-                                  },
-                                )
-                              : Image.file(
-                                  File(url),
-                                  fit: BoxFit.cover,
-                                  frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                                    if (frame != null) {
-                                      debugPrint('[ImageRenderSuccess] path: $url');
-                                    }
-                                    return child;
-                                  },
-                                  errorBuilder: (_, error, ___) {
-                                    debugPrint('[ImageRenderError] path: $url');
-                                    debugPrint('[ImageRenderError] error: $error');
-                                    return const Center(
-                                      child: Icon(Icons.broken_image_outlined, size: 30, color: Colors.white54),
-                                    );
-                                  },
-                                ),
-                        ),
+                      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => ImageGalleryViewer(imagePaths: widget.customerImageUrls, initialIndex: index),
+                      )),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: isNetwork
+                            ? Image.network(url, width: 72, height: 72, fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined))
+                            : Image.file(File(url), width: 72, height: 72, fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined)),
                       ),
                     ),
                   );
@@ -858,12 +709,57 @@ class _ItemEditorCard extends StatelessWidget {
               _chip('N/A', ProposalItemStatus.unavailable),
             ],
           ),
-          if (status != ProposalItemStatus.unavailable) ...[
+          if (widget.status != ProposalItemStatus.unavailable) ...[
+            const SizedBox(height: 10),
+            Text('Your photos (optional):', style: AppTextStyles.caption(primaryText)),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ...widget.vendorImageUrls.map((path) => Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: _imagePreview(path, cardColor),
+                    ),
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: GestureDetector(
+                        onTap: () => widget.onVendorImagesChanged(
+                          widget.vendorImageUrls.where((p) => p != path).toList(),
+                        ),
+                        child: const CircleAvatar(
+                          radius: 10,
+                          backgroundColor: AppColors.error,
+                          child: Icon(Icons.close, size: 12, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                )),
+                if (widget.vendorImageUrls.length < 4)
+                  InkWell(
+                    onTap: _pickVendorImage,
+                    child: Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        border: Border.all(color: borderColor),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.add_photo_alternate_outlined,
+                          color: AppColors.vendorColor, size: 22),
+                    ),
+                  ),
+              ],
+            ),
             const SizedBox(height: 12),
             TextFormField(
-              controller: priceController,
+              controller: widget.priceController,
               keyboardType: TextInputType.number,
-              onChanged: (_) => onPriceChanged(),
+              onChanged: (_) => widget.onPriceChanged(),
               decoration: InputDecoration(
                 labelText: 'Unit price (LKR) *',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -871,7 +767,7 @@ class _ItemEditorCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             TextFormField(
-              controller: brandController,
+              controller: widget.brandController,
               decoration: InputDecoration(
                 labelText: 'Brand / model offered',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -879,17 +775,17 @@ class _ItemEditorCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             TextFormField(
-              controller: stockController,
+              controller: widget.stockController,
               keyboardType: TextInputType.number,
               decoration: InputDecoration(
                 labelText: 'Available stock',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               ),
             ),
-            if (status == ProposalItemStatus.alternative) ...[
+            if (widget.status == ProposalItemStatus.alternative) ...[
               const SizedBox(height: 8),
               TextFormField(
-                controller: altNameController,
+                controller: widget.altNameController,
                 decoration: InputDecoration(
                   labelText: 'Alternative product name *',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -897,7 +793,7 @@ class _ItemEditorCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               TextFormField(
-                controller: altReasonController,
+                controller: widget.altReasonController,
                 decoration: InputDecoration(
                   labelText: 'Replacement reason',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -906,7 +802,7 @@ class _ItemEditorCard extends StatelessWidget {
             ],
             const SizedBox(height: 8),
             TextFormField(
-              controller: remarkController,
+              controller: widget.remarkController,
               decoration: InputDecoration(
                 labelText: 'Item note',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -918,13 +814,22 @@ class _ItemEditorCard extends StatelessWidget {
     );
   }
 
+  Widget _imagePreview(String path, Color cardColor) {
+    const size = 56.0;
+    if (!kIsWeb && File(path).existsSync()) {
+      return Image.file(File(path), width: size, height: size, fit: BoxFit.cover);
+    }
+    return Container(width: size, height: size, color: cardColor,
+        child: const Icon(Icons.image_outlined));
+  }
+
   Widget _chip(String label, ProposalItemStatus value) {
-    final selected = status == value;
+    final selected = widget.status == value;
     return Expanded(
       child: FilterChip(
         label: Text(label, style: const TextStyle(fontSize: 11)),
         selected: selected,
-        onSelected: (_) => onStatusChanged(value),
+        onSelected: (_) => widget.onStatusChanged(value),
         selectedColor: AppColors.vendorColor.withValues(alpha: 0.2),
         checkmarkColor: AppColors.vendorColor,
       ),

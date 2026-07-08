@@ -30,6 +30,7 @@ class AppTextField extends StatefulWidget {
     this.initialValue,
     this.readOnly = false,
     this.onTap,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   final String label;
@@ -54,6 +55,7 @@ class AppTextField extends StatefulWidget {
   final String? initialValue;
   final bool readOnly;
   final VoidCallback? onTap;
+  final TextCapitalization textCapitalization;
 
   @override
   State<AppTextField> createState() => _AppTextFieldState();
@@ -92,6 +94,7 @@ class _AppTextFieldState extends State<AppTextField> {
       focusNode: widget.focusNode,
       readOnly: widget.readOnly,
       onTap: widget.onTap,
+      textCapitalization: widget.textCapitalization,
       style: AppTextStyles.bodyLarge(textColor),
       decoration: InputDecoration(
         labelText: widget.label,

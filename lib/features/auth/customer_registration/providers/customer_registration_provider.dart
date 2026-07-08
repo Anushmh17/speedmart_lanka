@@ -344,10 +344,19 @@ class CustomerRegistrationNotifier
         );
       }
     } catch (e) {
+      final msg = e.toString();
+      final isNetworkError = msg.contains('SocketException') ||
+          msg.contains('NetworkException') ||
+          msg.contains('TimeoutException') ||
+          msg.contains('HandshakeException') ||
+          msg.contains('Connection refused') ||
+          msg.contains('Failed host lookup');
       state = state.copyWith(
         step: RegistrationStep.details,
         isLoading: false,
-        error: 'Could not send OTP. Check your connection and try again.',
+        error: isNetworkError
+            ? 'No internet connection. Please check your network and try again.'
+            : 'Failed to send OTP. Please try again.',
       );
     }
   }
@@ -381,10 +390,19 @@ class CustomerRegistrationNotifier
         );
         return false;
       }
-    } catch (_) {
+    } catch (e) {
+      final msg = e.toString();
+      final isNetworkError = msg.contains('SocketException') ||
+          msg.contains('NetworkException') ||
+          msg.contains('TimeoutException') ||
+          msg.contains('HandshakeException') ||
+          msg.contains('Connection refused') ||
+          msg.contains('Failed host lookup');
       state = state.copyWith(
         isLoading: false,
-        error: 'Verification failed. Please try again.',
+        error: isNetworkError
+            ? 'No internet connection. Please check your network and try again.'
+            : 'Verification failed. Please try again.',
       );
       return false;
     }
