@@ -21,6 +21,7 @@ import '../../../customer/proposals/services/proposal_comparison_service.dart';
 import '../../../customer/proposals/widgets/customer_proposal_card.dart';
 import '../../../requests/data/mock_request_repository.dart';
 import 'request_item_details_screen.dart';
+import '../widgets/category_selector.dart';
 
 class RequestDetailsScreen extends ConsumerStatefulWidget {
   final ShoppingRequest request;
@@ -35,6 +36,7 @@ class RequestDetailsScreen extends ConsumerStatefulWidget {
 class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
   late ShoppingRequest _request;
   bool _isCancelling = false;
+  bool _isAcceptingProposal = false;
 
   @override
   void initState() {
@@ -173,7 +175,12 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
         .updateFrom(proposals: proposals, request: _request);
   }
 
-  Future<void> _acceptProposal(Proposal proposal) async {
+  Future<void> _acceptProposal(
+    Proposal proposal, {
+    String? categoryNormalized,
+    Proposal? paymentProposal,
+  }) async {
+    if (_isAcceptingProposal) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -196,10 +203,18 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
     );
     if (confirmed != true || !mounted) return;
 
+    setState(() {
+      _isAcceptingProposal = true;
+    });
+
     try {
       await ref
           .read(proposalProvider.notifier)
-          .acceptProposal(proposal.id, _request.id);
+          .acceptProposal(
+            proposal.id,
+            _request.id,
+            categoryNormalized: categoryNormalized,
+          );
       final refreshed =
           await MockRequestRepository.instance.getRequestById(_request.id);
       if (refreshed != null && mounted) {
@@ -215,6 +230,12 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAcceptingProposal = false;
+        });
+      }
     }
   }
 
@@ -556,21 +577,28 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
       if (cat.isNotEmpty) itemCategoryMap[item.id] = cat;
     }
 
+    // Group proposals per category — a single proposal covering multiple
+    // categories appears in EACH category it has items for.
     final groupedProposals = <String, List<Proposal>>{};
     for (final proposal in proposals) {
-      // Use categoryNormalized if set, otherwise infer from proposal items
-      String? category = proposal.categoryNormalized;
-      if (category == null || category.isEmpty) {
-        for (final pi in proposal.items) {
-          final inferred = itemCategoryMap[pi.requestItemId];
-          if (inferred != null) { category = inferred; break; }
-        }
+      // Collect every category this proposal actually covers via its items
+      final coveredCategories = <String>{};
+      for (final pi in proposal.items) {
+        final cat = itemCategoryMap[pi.requestItemId];
+        if (cat != null && cat.isNotEmpty) coveredCategories.add(cat);
       }
-      // If still unresolved, fall back to first known request category
-      if ((category == null || category.isEmpty) && requestCategories.isNotEmpty) {
-        category = requestCategories.first;
+      // Fall back to categoryNormalized field if items gave nothing
+      if (coveredCategories.isEmpty && proposal.categoryNormalized != null &&
+          proposal.categoryNormalized!.isNotEmpty) {
+        coveredCategories.add(proposal.categoryNormalized!);
       }
-      groupedProposals.putIfAbsent(category ?? 'unknown', () => []).add(proposal);
+      // Last resort: first request category
+      if (coveredCategories.isEmpty && requestCategories.isNotEmpty) {
+        coveredCategories.add(requestCategories.first);
+      }
+      for (final cat in coveredCategories) {
+        groupedProposals.putIfAbsent(cat, () => []).add(proposal);
+      }
     }
 
     // Sort: categories with active offers (accepted/pending) first, no-offer categories last
@@ -588,15 +616,16 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
     });
 
     const service = ProposalComparisonService();
-    CustomerProposalView toView(Proposal p) => CustomerProposalView(
-          proposal: p,
-          maskedVendorName: service.maskedVendorName(p.vendorId),
-          distanceKm: service.distanceKmFor(proposal: p, request: _request),
-          ratingPlaceholder: service.ratingPlaceholderFor(p.vendorId),
-          deliverySortHours: service.deliverySortHours(p.estimatedDeliveryTime),
-          isBestForMode: false,
-          badges: [],
-        );
+
+    // Detect which proposals span more than one category (multi-category proposals)
+    final proposalCategoryCount = <String, int>{};
+    for (final catProposals in groupedProposals.values) {
+      for (final p in catProposals) {
+        proposalCategoryCount[p.id] = (proposalCategoryCount[p.id] ?? 0) + 1;
+      }
+    }
+    bool isMultiCategoryProposal(String proposalId) =>
+        (proposalCategoryCount[proposalId] ?? 1) > 1;
 
     final widgets = <Widget>[];
 
@@ -608,41 +637,48 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
           categoryStatus == RequestCategoryStatus.codConfirmed ||
           categoryStatus == RequestCategoryStatus.outForDelivery ||
           categoryStatus == RequestCategoryStatus.paid;
-      final categoryColor = categoryAccepted ? AppColors.success : AppColors.customerColor;
-
-      final accepted = categoryProposals.where((p) => p.status == ProposalStatus.accepted).toList();
-      final pending = categoryProposals.where((p) =>
-          (p.status == ProposalStatus.submitted ||
-           p.status == ProposalStatus.updated)).toList();
-      final closed = categoryProposals.where((p) =>
-          p.status == ProposalStatus.withdrawn ||
-          p.status == ProposalStatus.rejected ||
-          p.status == ProposalStatus.expired).toList();
+      final catMeta = CategoryMeta.of(category);
+      final categoryColor = catMeta.color;
 
       final categoryItems = _request.items
           .where((item) => VendorCategories.normalize(item.category?.trim() ?? '') == category)
           .toList();
 
-      // Build per-item offer status from all proposals in this category
-      final offeredItemIds = <String>{};
-      final offeredItemNames = <String>{};
+      // Map each request item to the proposals that cover it
+      final itemProposalsMap = <String, List<Proposal>>{};
+      for (final item in categoryItems) {
+        itemProposalsMap[item.id] = [];
+      }
       for (final p in categoryProposals) {
         for (final pi in p.items) {
-          if (pi.status == ProposalItemStatus.available ||
-              pi.status == ProposalItemStatus.alternative) {
-            offeredItemIds.add(pi.requestItemId);
-            offeredItemNames.add(pi.requestItemName.trim().toLowerCase());
+          if (itemProposalsMap.containsKey(pi.requestItemId) &&
+              pi.status != ProposalItemStatus.unavailable) {
+            if (!itemProposalsMap[pi.requestItemId]!.contains(p)) {
+              itemProposalsMap[pi.requestItemId]!.add(p);
+            }
           }
         }
       }
-      bool itemHasOffer(RequestItem item) =>
-          offeredItemIds.contains(item.id) ||
-          offeredItemNames.contains(item.name.trim().toLowerCase());
+
+      // Items with any active offer sort to top
+      bool itemHasOffer(RequestItem item) {
+        final ps = itemProposalsMap[item.id] ?? [];
+        return ps.any((p) =>
+            p.status == ProposalStatus.submitted ||
+            p.status == ProposalStatus.updated ||
+            p.status == ProposalStatus.accepted);
+      }
       categoryItems.sort((a, b) {
         final aRank = itemHasOffer(a) ? 0 : 1;
         final bRank = itemHasOffer(b) ? 0 : 1;
         return aRank.compareTo(bRank);
       });
+
+      // Global item number within the category (1-based, stable original order)
+      final originalOrder = _request.items
+          .where((item) => VendorCategories.normalize(item.category?.trim() ?? '') == category)
+          .toList();
+      int itemNumber(RequestItem item) => originalOrder.indexOf(item) + 1;
 
       widgets.add(
         Container(
@@ -659,14 +695,18 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
-                  color: categoryColor.withValues(alpha: 0.12),
+                  color: categoryColor.withValues(alpha: 0.10),
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(17)),
                 ),
                 child: Row(
                   children: [
-                    Icon(
-                      categoryAccepted ? Icons.check_circle_rounded : Icons.category_rounded,
-                      size: 18, color: categoryColor,
+                    Container(
+                      width: 34, height: 34,
+                      decoration: BoxDecoration(
+                        color: categoryColor.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(9),
+                      ),
+                      child: Icon(catMeta.icon, size: 18, color: categoryColor),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -674,9 +714,10 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(VendorCategories.display(category),
-                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: categoryColor)),
+                              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700,
+                                  color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
                           Text('${categoryItems.length} item${categoryItems.length == 1 ? '' : 's'} · ${categoryProposals.length} offer${categoryProposals.length == 1 ? '' : 's'}',
-                              style: TextStyle(fontSize: 11, color: categoryColor.withValues(alpha: 0.8))),
+                              style: TextStyle(fontSize: 11, color: categoryColor.withValues(alpha: 0.85))),
                         ],
                       ),
                     ),
@@ -694,127 +735,210 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ── Requested items ──
-                    Text('Requested Items',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: secondaryText)),
-                    const SizedBox(height: 8),
-                    ...categoryItems.asMap().entries.map((e) => Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: _Theme3RequestItemCard(
-                        itemNumber: e.key + 1,
-                        item: e.value,
-                        categoryStatus: categoryStatus,
-                        hasOffer: itemHasOffer(e.value),
-                        onTap: () => _openItemDetails(e.value),
-                        isDark: isDark,
-                      ),
-                    )),
-                    // ── Divider ──
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: Row(
-                        children: [
-                          Expanded(child: Divider(color: borderColor)),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            child: Text('Vendor Offers',
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: secondaryText)),
-                          ),
-                          Expanded(child: Divider(color: borderColor)),
-                        ],
-                      ),
-                    ),
-                    // ── Confirmed ──
-                    if (accepted.isNotEmpty) ...[
-                      _buildGroupContainer(
-                        color: AppColors.success,
-                        icon: Icons.check_circle_rounded,
-                        label: 'Confirmed Order',
-                        sublabel: 'You accepted this offer',
-                        count: accepted.length,
-                        isDark: isDark,
-                        children: accepted.map((p) => CustomerProposalCard(
-                          key: ValueKey(p.id),
-                          view: toView(p),
-                          requestId: _request.id,
-                          enabled: proposalsEnabled,
-                          onAccept: () => _handleAcceptedProposalAction(p, categoryStatus),
-                          onReject: null,
-                        )).toList(),
-                      ),
-                    ],
-                    // ── Pending ──
-                    if (pending.isNotEmpty) ...[
-                      _buildGroupContainer(
-                        color: AppColors.vendorColor,
-                        icon: Icons.pending_actions_rounded,
-                        label: 'Pending Offers',
-                        sublabel: categoryAccepted ? 'Other offers — already accepted one' : 'Compare and accept the best offer',
-                        count: pending.length,
-                        isDark: isDark,
-                        children: pending.map((p) {
-                          final canAct = proposalsEnabled && !categoryAccepted &&
-                              p.status.isVisibleToCustomer &&
-                              (p.status == ProposalStatus.submitted || p.status == ProposalStatus.updated);
-                          return CustomerProposalCard(
-                            key: ValueKey(p.id),
-                            view: toView(p),
-                            requestId: _request.id,
-                            enabled: proposalsEnabled,
-                            onAccept: canAct ? () => _acceptProposal(p) : null,
-                            onReject: canAct ? () => _rejectProposal(p) : null,
-                          );
-                        }).toList(),
-                      ),
-                    ],
-                    // ── No offers yet ──
-                    if (accepted.isEmpty && pending.isEmpty)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? AppColors.customerColor.withValues(alpha: 0.06)
-                              : AppColors.customerColor.withValues(alpha: 0.04),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.customerColor.withValues(alpha: 0.15)),
-                        ),
-                        child: Row(
+                    ...() {
+                      final itemWidgets = <Widget>[];
+                      for (int ei = 0; ei < categoryItems.length; ei++) {
+                        final item = categoryItems[ei];
+                        final num = itemNumber(item);
+                        final itemProposals = itemProposalsMap[item.id] ?? [];
+                        final hasOffer = itemHasOffer(item);
+
+                        bool isAcceptedForCategory(Proposal p) {
+                          final fulfillment = _request.getFulfillment(category);
+                          return fulfillment?.acceptedProposalId == p.id &&
+                              (fulfillment?.status == RequestCategoryStatus.accepted ||
+                                  fulfillment?.status == RequestCategoryStatus.codConfirmed ||
+                                  fulfillment?.status == RequestCategoryStatus.outForDelivery ||
+                                  fulfillment?.status == RequestCategoryStatus.paid ||
+                                  fulfillment?.status == RequestCategoryStatus.completed);
+                        }
+
+                        final acceptedForItem = itemProposals
+                            .where(isAcceptedForCategory)
+                            .toList();
+                        final pendingForItem = itemProposals.where((p) {
+                          final openStatus = p.status == ProposalStatus.submitted ||
+                              p.status == ProposalStatus.updated ||
+                              p.status == ProposalStatus.accepted;
+                          return openStatus && !isAcceptedForCategory(p);
+                        }).toList();
+                        final closedForItem = itemProposals.where((p) =>
+                            p.status == ProposalStatus.withdrawn ||
+                            p.status == ProposalStatus.rejected ||
+                            p.status == ProposalStatus.expired).toList();
+
+                        if (ei > 0) {
+                          itemWidgets.add(Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            child: Divider(color: AppColors.error.withValues(alpha: 1), thickness: 1),
+                          ));
+                        }
+
+                        itemWidgets.add(Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.hourglass_empty_rounded, color: secondaryText, size: 20),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'No offers yet — Waiting for ${VendorCategories.display(category).toLowerCase()} vendors',
-                                style: AppTextStyles.bodyMedium(secondaryText),
+                            // ── Item heading ──
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 22, height: 22,
+                                    decoration: BoxDecoration(
+                                      color: categoryColor,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: Text(
+                                        '$num',
+                                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Item $num',
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: categoryColor),
+                                  ),
+                                ],
                               ),
                             ),
+                            // ── Item row ──
+                            _Theme3RequestItemCard(
+                              itemNumber: num,
+                              item: item,
+                              categoryStatus: categoryStatus,
+                              hasOffer: hasOffer,
+                              onTap: () => _openItemDetails(item),
+                              isDark: isDark,
+                            ),
+                            const SizedBox(height: 8),
+                            // ── Offers for this item ──
+                            Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 20),
+                              child: Row(
+                                children: [
+                                  Expanded(child: Divider(color: secondaryText.withValues(alpha: 0.3))),
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.local_offer_rounded, size: 13, color: secondaryText),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          'Vendor Offers',
+                                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: secondaryText),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Expanded(child: Divider(color: secondaryText.withValues(alpha: 0.3))),
+                                ],
+                              ),
+                            ),
+                            if (acceptedForItem.isNotEmpty)
+                              ...acceptedForItem.map((p) => Padding(
+                                padding: const EdgeInsets.only(bottom: 6),
+                                child: _ProposalCardWithBadge(
+                                  key: ValueKey('${p.id}_${item.id}_accepted'),
+                                  view: _toItemFilteredView(p, item, service),
+                                  originalProposalId: p.id,
+                                  requestId: _request.id,
+                                  enabled: proposalsEnabled,
+                                  isMultiCategoryProposal: isMultiCategoryProposal(p.id),
+                                  cardBorderColor: AppColors.error,
+                                  onAccept: () => _handleAcceptedProposalAction(
+                                    _toItemFilteredView(p, item, service).proposal,
+                                    categoryStatus,
+                                  ),
+                                  onReject: null,
+                                ),
+                              ))
+                            else if (pendingForItem.isNotEmpty)
+                              ...pendingForItem.map((p) {
+                                final canAct = proposalsEnabled && !categoryAccepted;
+                                return Padding(
+                                  padding: const EdgeInsets.only(bottom: 6),
+                                  child: _ProposalCardWithBadge(
+                                    key: ValueKey('${p.id}_${item.id}_pending'),
+                                    view: _toItemFilteredView(p, item, service),
+                                    originalProposalId: p.id,
+                                    requestId: _request.id,
+                                    enabled: proposalsEnabled,
+                                    isMultiCategoryProposal: isMultiCategoryProposal(p.id),
+                                    cardBorderColor: AppColors.error,
+                                    onAccept: canAct
+                                        ? () {
+                                            final itemView = _toItemFilteredView(
+                                              p,
+                                              item,
+                                              service,
+                                            );
+                                            _acceptProposal(
+                                              p,
+                                              categoryNormalized: category,
+                                              paymentProposal: itemView.proposal,
+                                            );
+                                          }
+                                        : null,
+                                    onReject: canAct ? () => _rejectProposal(p) : null,
+                                  ),
+                                );
+                              })
+                            else
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: isDark
+                                      ? AppColors.customerColor.withValues(alpha: 0.05)
+                                      : AppColors.customerColor.withValues(alpha: 0.03),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: AppColors.customerColor.withValues(alpha: 0.12)),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.hourglass_empty_rounded, size: 15, color: secondaryText),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      'Waiting for vendor offer',
+                                      style: TextStyle(fontSize: 12, color: secondaryText),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            // ── Closed offers for this item ──
+                            if (closedForItem.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: _buildGroupContainer(
+                                  color: AppColors.textSecondaryLight,
+                                  icon: Icons.do_not_disturb_rounded,
+                                  label: 'Closed Offers',
+                                  sublabel: 'Rejected or expired',
+                                  count: closedForItem.length,
+                                  isDark: isDark,
+                                  children: closedForItem.map((p) => Opacity(
+                                    opacity: 0.5,
+                                    child: _ProposalCardWithBadge(
+                                      key: ValueKey('${p.id}_${item.id}_closed'),
+                                      view: _toItemFilteredView(p, item, service),
+                                      originalProposalId: p.id,
+                                      requestId: _request.id,
+                                      enabled: false,
+                                      isMultiCategoryProposal: isMultiCategoryProposal(p.id),
+                                      onAccept: null,
+                                      onReject: null,
+                                    ),
+                                  )).toList(),
+                                ),
+                              ),
                           ],
-                        ),
-                      ),
-                    // ── Closed ──
-                    if (closed.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      _buildGroupContainer(
-                        color: AppColors.textSecondaryLight,
-                        icon: Icons.do_not_disturb_rounded,
-                        label: 'Closed Offers',
-                        sublabel: 'Rejected or expired',
-                        count: closed.length,
-                        isDark: isDark,
-                        children: closed.map((p) => Opacity(
-                          opacity: 0.5,
-                          child: CustomerProposalCard(
-                            key: ValueKey(p.id),
-                            view: toView(p),
-                            requestId: _request.id,
-                            enabled: false,
-                            onAccept: null,
-                            onReject: null,
-                          ),
-                        )).toList(),
-                      ),
-                    ],
+                        ));
+                      }
+                      return itemWidgets;
+                    }(),
                   ],
                 ),
               ),
@@ -825,6 +949,47 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
     }
 
     return widgets;
+  }
+
+  CustomerProposalView _toItemFilteredView(
+    Proposal p,
+    RequestItem requestItem,
+    ProposalComparisonService service,
+  ) {
+    final singleItem = p.items
+        .where((pi) => pi.requestItemId == requestItem.id)
+        .toList();
+    final subtotal = singleItem.fold<double>(0, (s, i) => s + i.subtotal);
+    final category = VendorCategories.normalize(requestItem.category?.trim() ?? '');
+    final fulfillment = _request.getFulfillment(category);
+    final acceptedForCategory = fulfillment?.acceptedProposalId == p.id &&
+        (fulfillment?.status == RequestCategoryStatus.accepted ||
+            fulfillment?.status == RequestCategoryStatus.codConfirmed ||
+            fulfillment?.status == RequestCategoryStatus.outForDelivery ||
+            fulfillment?.status == RequestCategoryStatus.paid ||
+            fulfillment?.status == RequestCategoryStatus.completed);
+    final displayStatus = acceptedForCategory
+        ? ProposalStatus.accepted
+        : p.status == ProposalStatus.accepted
+            ? ProposalStatus.submitted
+            : p.status;
+    final proposalItemId = singleItem.isNotEmpty ? singleItem.first.id : requestItem.id;
+
+    return CustomerProposalView(
+      proposal: p.copyWith(
+        items: singleItem,
+        totalPrice: subtotal + p.deliveryCharge,
+        status: displayStatus,
+        categoryNormalized: category.isEmpty ? p.categoryNormalized : category,
+      ),
+      proposalItemId: proposalItemId,
+      maskedVendorName: service.maskedVendorName(p.vendorId),
+      distanceKm: service.distanceKmFor(proposal: p, request: _request),
+      ratingPlaceholder: service.ratingPlaceholderFor(p.vendorId),
+      deliverySortHours: service.deliverySortHours(p.estimatedDeliveryTime),
+      isBestForMode: false,
+      badges: [],
+    );
   }
 
   void _handleAcceptedProposalAction(
@@ -972,7 +1137,23 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
         _syncComparison(next.proposals);
       }
     });
-    final requestLoading = ref.watch(requestProvider).isLoading;
+    final requestState = ref.watch(requestProvider);
+    final requestLoading = requestState.isLoading;
+
+    // Reactively sync _request from provider state so that category
+    // fulfillment changes (e.g. COD Confirmed after payment) are shown
+    // immediately when the customer navigates back from the payment screen.
+    final freshRequest = requestState.requests
+        .where((r) => r.id == _request.id)
+        .firstOrNull;
+    if (freshRequest != null &&
+        freshRequest.updatedAt != _request.updatedAt) {
+      // Schedule the setState outside of build to avoid calling it during build.
+      Future.microtask(() {
+        if (mounted) setState(() => _request = freshRequest);
+      });
+    }
+
     final hasAcceptedProposal = proposalState.proposals
         .any((p) => p.status == ProposalStatus.accepted);
     final canCancel = _canCancel(proposalState.proposals) && !_isCancelled;
@@ -1598,6 +1779,74 @@ class _ProposalSectionHeader extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Wraps [CustomerProposalCard] and prepends a "same vendor" banner when the
+/// proposal covers items from multiple categories.
+class _ProposalCardWithBadge extends StatelessWidget {
+  const _ProposalCardWithBadge({
+    super.key,
+    required this.view,
+    required this.originalProposalId,
+    required this.requestId,
+    required this.enabled,
+    required this.isMultiCategoryProposal,
+    this.cardBorderColor,
+    this.onAccept,
+    this.onReject,
+  });
+
+  final CustomerProposalView view;
+  final String originalProposalId;
+  final String requestId;
+  final bool enabled;
+  final bool isMultiCategoryProposal;
+  final Color? cardBorderColor;
+  final VoidCallback? onAccept;
+  final VoidCallback? onReject;
+
+  @override
+  Widget build(BuildContext context) {
+    final card = CustomerProposalCard(
+      view: view,
+      requestId: requestId,
+      enabled: enabled,
+      overrideBorderColor: cardBorderColor,
+      onAccept: onAccept,
+      onReject: onReject,
+    );
+    if (!isMultiCategoryProposal) return card;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          margin: const EdgeInsets.only(bottom: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: AppColors.vendorColor.withValues(alpha: 0.10),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.vendorColor.withValues(alpha: 0.25)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.link_rounded, size: 13, color: AppColors.vendorColor),
+              const SizedBox(width: 6),
+              Text(
+                'Same vendor · Ref: $originalProposalId',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.vendorColor,
+                ),
+              ),
+            ],
+          ),
+        ),
+        card,
+      ],
     );
   }
 }

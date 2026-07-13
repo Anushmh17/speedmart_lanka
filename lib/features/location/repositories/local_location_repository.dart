@@ -96,4 +96,30 @@ class LocalLocationRepository implements LocationRepository {
       await prefs.remove(_recentSearchesKey);
     } catch (_) {}
   }
+
+  // ── Delivery Location Persistence ──────────────────────────────────────────
+
+  static const String _deliveryLocationKey = 'saved_delivery_location';
+
+  @override
+  Future<void> saveDeliveryLocation(DeliveryLocation location) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_deliveryLocationKey, json.encode(location.toJson()));
+    } catch (_) {
+      // Fail silently — the location can be re-entered manually
+    }
+  }
+
+  @override
+  Future<DeliveryLocation?> loadDeliveryLocation() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_deliveryLocationKey);
+      if (raw == null) return null;
+      return DeliveryLocation.fromJson(json.decode(raw) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
 }

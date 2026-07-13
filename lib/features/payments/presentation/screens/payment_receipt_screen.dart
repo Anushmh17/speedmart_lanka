@@ -67,7 +67,6 @@ class PaymentReceiptScreen extends ConsumerWidget {
                   _receiptRow('Payment Method', payment.paymentMethod.displayName, primaryText),
                   _receiptRow('Subtotal', 'Rs. ${payment.subtotal.toStringAsFixed(2)}', primaryText),
                   _receiptRow('Delivery Fee', 'Rs. ${payment.deliveryFee.toStringAsFixed(2)}', primaryText),
-                  _receiptRow('Service Fee', 'Rs. ${payment.serviceFee.toStringAsFixed(2)}', primaryText),
                   const Divider(),
                   _receiptRow('Total Paid', 'Rs. ${payment.amount.toStringAsFixed(2)}', AppColors.customerColor),
                 ],

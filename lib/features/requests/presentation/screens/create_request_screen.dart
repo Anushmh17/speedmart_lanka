@@ -782,9 +782,6 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Request dispatched successfully!')),
-      );
       deliveryNotifier.clearLocation();
       context.go(RouteNames.customerHome);
     } catch (e) {
@@ -1256,6 +1253,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                                     controller: _singleNameController,
                                     label: 'Item Name',
                                     hint: 'e.g. Red onions 500g, Exide Battery...',
+                                    textCapitalization: TextCapitalization.sentences,
                                     onChanged: (_) {},
                                   ),
                                   const SizedBox(height: AppSpacing.lg),
@@ -1282,6 +1280,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                                     controller: _singleBrandController,
                                     label: 'Preferred Brand / Model (Optional)',
                                     hint: 'e.g. Prima, Singer, Anchor',
+                                    textCapitalization: TextCapitalization.sentences,
                                     onChanged: (_) => _saveDraft(),
                                   ),
                                   const SizedBox(height: AppSpacing.lg),
@@ -1290,6 +1289,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
                                     label: 'Description / Remarks (Optional)',
                                     hint: 'Any specific instructions...',
                                     maxLines: 3,
+                                    textCapitalization: TextCapitalization.sentences,
                                     onChanged: (_) => _saveDraft(),
                                   ),
                                   const SizedBox(height: AppSpacing.lg),

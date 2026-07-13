@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import '../../../core/storage/storage_service.dart';
+import '../../auth/data/mock_auth_repository.dart';
 import '../models/proposal.dart';
 
 /// Mock vendor proposal repository with local persistence.
@@ -25,9 +26,11 @@ class MockProposalRepository {
 
     final saved = await StorageService.getVendorProposals();
     if (saved.isNotEmpty) {
+      final proposals = saved.map(Proposal.fromJson).toList();
+      final patched = await _patchVendorCoords(proposals);
       _proposals
         ..clear()
-        ..addAll(saved.map(Proposal.fromJson));
+        ..addAll(patched);
     }
 
     final savedIds = await StorageService.getSavedProposals();
@@ -38,6 +41,28 @@ class MockProposalRepository {
     }
 
     _isInitialized = true;
+  }
+
+  /// Patches vendorLatitude/vendorLongitude on loaded proposals using the
+  /// vendor's current shopLatitude/shopLongitude from the auth repository.
+  Future<List<Proposal>> _patchVendorCoords(List<Proposal> proposals) async {
+    final vendorIds = proposals.map((p) => p.vendorId).toSet();
+    final coordMap = <String, ({double lat, double lon})>{};
+    for (final id in vendorIds) {
+      final user = await MockAuthRepository.instance.getUserById(id);
+      if (user != null &&
+          user.shopLatitude != null &&
+          user.shopLongitude != null &&
+          user.shopLatitude != 0 &&
+          user.shopLongitude != 0) {
+        coordMap[id] = (lat: user.shopLatitude!, lon: user.shopLongitude!);
+      }
+    }
+    return proposals.map((p) {
+      final coords = coordMap[p.vendorId];
+      if (coords == null) return p;
+      return p.copyWith(vendorLatitude: coords.lat, vendorLongitude: coords.lon);
+    }).toList();
   }
 
   Future<void> _persistProposals() async {
@@ -85,15 +110,34 @@ class MockProposalRepository {
   Future<Proposal?> getVendorProposalForRequest({
     required String vendorId,
     required String requestId,
+    String? categoryNormalized,
   }) async {
     await ensureInitialized();
     try {
+      if (categoryNormalized != null) {
+        return _proposals.firstWhere(
+          (p) =>
+              p.vendorId == vendorId &&
+              p.requestId == requestId &&
+              p.categoryNormalized == categoryNormalized,
+        );
+      }
       return _proposals.firstWhere(
         (p) => p.vendorId == vendorId && p.requestId == requestId,
       );
     } catch (_) {
       return null;
     }
+  }
+
+  Future<List<Proposal>> getVendorProposalsForRequest({
+    required String vendorId,
+    required String requestId,
+  }) async {
+    await ensureInitialized();
+    return _proposals
+        .where((p) => p.vendorId == vendorId && p.requestId == requestId)
+        .toList();
   }
 
   Future<Proposal> createProposal(Proposal proposal) async {
@@ -240,5 +284,31 @@ class MockProposalRepository {
 
   bool isSavedProposal(String proposalId) {
     return _savedProposalIds.contains(proposalId);
+  }
+
+  /// Updates the [ProposalItemDecision] for a specific item within a proposal.
+  /// Used by item-level accept/reject flow.
+  Future<void> updateProposalItemDecision({
+    required String proposalId,
+    required String requestItemId,
+    required ProposalItemDecision decision,
+  }) async {
+    await ensureInitialized();
+    final proposalIndex = _proposals.indexWhere((p) => p.id == proposalId);
+    if (proposalIndex == -1) return;
+
+    final proposal = _proposals[proposalIndex];
+    final updatedItems = proposal.items.map((item) {
+      if (item.requestItemId == requestItemId) {
+        return item.copyWith(customerDecision: decision);
+      }
+      return item;
+    }).toList();
+
+    _proposals[proposalIndex] = proposal.copyWith(
+      items: updatedItems,
+      updatedAt: DateTime.now(),
+    );
+    await _persistProposals();
   }
 }

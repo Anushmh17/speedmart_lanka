@@ -8,6 +8,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_radius.dart';
+import '../../../../shared/utils/category_constants.dart';
 import '../../../customer/delivery_address/utils/vendor_delivery_privacy.dart';
 import '../../../proposals/models/proposal.dart';
 import '../../../proposals/providers/proposal_provider.dart';
@@ -37,10 +38,23 @@ class _VendorRequestDetailScreenState
     WidgetsBinding.instance.addPostFrameCallback((_) => _load());
   }
 
+  String? get _requestCategory {
+    final cats = widget.request.items
+        .map((i) => i.category)
+        .whereType<String>()
+        .where((c) => c.isNotEmpty)
+        .map(VendorCategories.normalize)
+        .toSet();
+    return cats.length == 1 ? cats.first : (cats.isNotEmpty ? cats.first : null);
+  }
+
   Future<void> _load() async {
     final p = await ref
         .read(proposalProvider.notifier)
-        .loadVendorProposalForRequest(widget.request.id);
+        .loadVendorProposalForRequest(
+          widget.request.id,
+          categoryNormalized: _requestCategory,
+        );
     if (mounted) {
       setState(() {
         _existingProposal = p;
@@ -151,158 +165,8 @@ class _VendorRequestDetailScreenState
                   SizedBox(height: AppSpacing.lg),
                   Text('Requested items', style: AppTextStyles.h2(primaryText)),
                   SizedBox(height: AppSpacing.md),
-                  ...request.items.map((item) {
-                    // [ImageScreen] Screen-level audit
-                    debugPrint('[ImageScreen] ========== BUILDING ITEM CARD ==========');
-                    debugPrint('[ImageScreen] Building image section for item: ${item.name}');
-                    debugPrint('[ImageScreen] Item ID: ${item.id}');
-                    debugPrint('[ImageScreen] imageCount: ${item.imageUrls.length}');
-                    debugPrint('[ImageScreen] imageUrls: ${item.imageUrls}');
-                    debugPrint('[ImageScreen] isEmpty check: ${item.imageUrls.isEmpty}');
-                    debugPrint('[ImageScreen] isNotEmpty check: ${item.imageUrls.isNotEmpty}');
-                    
-                    // [ImageAudit] Vendor details
-                    debugPrint('[ImageAudit] Vendor details item: ${item.itemName}');
-                    debugPrint('[ImageAudit] Images: ${item.imageUrls}');
-                    debugPrint('[ImageAudit] Image count: ${item.imageUrls.length}');
-                    
-                    return Container(
-                      width: double.infinity,
-                      margin: EdgeInsets.only(bottom: AppSpacing.md),
-                      padding: EdgeInsets.all(AppSpacing.md),
-                      decoration: BoxDecoration(
-                        color: cardColor,
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                        border: Border.all(color: borderColor),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(item.name, style: AppTextStyles.subtitle(primaryText)),
-                          SizedBox(height: AppSpacing.xs),
-                          Text(
-                            'Qty ${item.quantity}${item.unit != null ? ' ${item.unit}' : ''}'
-                            '${item.category != null ? ' · ${item.category}' : ''}',
-                            style: AppTextStyles.bodySmall(secondaryText),
-                          ),
-                          if (item.preferredBrand != null &&
-                              item.preferredBrand!.isNotEmpty)
-                            Text(
-                              'Preferred: ${item.preferredBrand}',
-                              style: AppTextStyles.caption(secondaryText),
-                            ),
-                          if (item.imageUrls.isNotEmpty) ...[
-                            Builder(builder: (context) {
-                              debugPrint('[ImageScreen] *** CONDITION MET: imageUrls.isNotEmpty = true ***');
-                              debugPrint('[ImageScreen] About to render ${item.imageUrls.length} images');
-                              return SizedBox(height: AppSpacing.md);
-                            }),
-                            Text(
-                              'Customer photos (${item.imageUrls.length})',
-                              style: AppTextStyles.caption(secondaryText),
-                            ),
-                            SizedBox(height: AppSpacing.sm),
-                            SizedBox(
-                              height: 120,
-                              child: ListView.builder(
-                                scrollDirection: Axis.horizontal,
-                                itemCount: item.imageUrls.length,
-                                itemBuilder: (context, index) {
-                                  final url = item.imageUrls[index];
-                                  final isNetwork = url.startsWith('http://') || url.startsWith('https://');
-                                  
-                                  debugPrint('[ImageRender] ========== IMAGE WIDGET BUILD ==========');
-                                  debugPrint('[ImageRender] path: $url');
-                                  debugPrint('[ImageRender] isNetwork: $isNetwork');
-                                  
-                                  if (!isNetwork) {
-                                    final file = File(url);
-                                    debugPrint('[ImageRender] exists: ${file.existsSync()}');
-                                    if (file.existsSync()) {
-                                      try {
-                                        debugPrint('[ImageRender] fileSize: ${file.lengthSync()} bytes');
-                                      } catch (e) {
-                                        debugPrint('[ImageRender] lengthSync error: $e');
-                                      }
-                                    }
-                                    debugPrint('[ImageRender] extension: ${url.split('.').last}');
-                                  }
-                                  
-                                  return Padding(
-                                    padding: EdgeInsets.only(right: index < item.imageUrls.length - 1 ? AppSpacing.sm : 0),
-                                    child: GestureDetector(
-                                      onTap: () {
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder: (_) => ImageGalleryViewer(
-                                              imagePaths: item.imageUrls,
-                                              initialIndex: index,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                      child: Container(
-                                        width: 120,
-                                        height: 120,
-                                        decoration: BoxDecoration(
-                                          color: borderColor,
-                                          borderRadius: BorderRadius.circular(AppRadius.md),
-                                          border: Border.all(color: borderColor.withValues(alpha: 0.5)),
-                                        ),
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(AppRadius.md),
-                                          child: isNetwork
-                                              ? Image.network(
-                                                  url,
-                                                  fit: BoxFit.cover,
-                                                  loadingBuilder: (context, child, loadingProgress) {
-                                                    if (loadingProgress == null) {
-                                                      debugPrint('[ImageRenderSuccess] path: $url');
-                                                      return child;
-                                                    }
-                                                    return const Center(
-                                                      child: CircularProgressIndicator(
-                                                        strokeWidth: 2,
-                                                        color: AppColors.vendorColor,
-                                                      ),
-                                                    );
-                                                  },
-                                                  errorBuilder: (_, __, ___) {
-                                                    debugPrint('[ImageRenderError] path: $url');
-                                                    return const Center(
-                                                      child: Icon(Icons.broken_image_outlined, color: Colors.white54),
-                                                    );
-                                                  },
-                                                )
-                                              : Image.file(
-                                                  File(url),
-                                                  fit: BoxFit.cover,
-                                                  frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-                                                    if (frame != null) {
-                                                      debugPrint('[ImageRenderSuccess] path: $url');
-                                                    }
-                                                    return child;
-                                                  },
-                                                  errorBuilder: (_, error, ___) {
-                                                    debugPrint('[ImageRenderError] path: $url');
-                                                    debugPrint('[ImageRenderError] error: $error');
-                                                    return const Center(
-                                                      child: Icon(Icons.broken_image_outlined, color: Colors.white54),
-                                                    );
-                                                  },
-                                                ),
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    );
-                  }),
+                  // Group items by category with a header chip per group and detailed cards
+                  ..._buildGroupedItems(context, request.items, primaryText, secondaryText, cardColor, borderColor),
                   if (_existingProposal != null) ...[
                     SizedBox(height: AppSpacing.lg),
                     Text('Your proposal', style: AppTextStyles.h2(primaryText)),
@@ -439,6 +303,172 @@ class _VendorRequestDetailScreenState
               ),
             ),
     );
+  }
+
+  /// Groups request items by category and returns a flat list of widgets
+  /// with a category chip header before each group, followed by the item cards.
+  List<Widget> _buildGroupedItems(
+    BuildContext context,
+    List<dynamic> items,
+    Color primaryText,
+    Color secondaryText,
+    Color cardColor,
+    Color borderColor,
+  ) {
+    final grouped = <String, List<dynamic>>{};
+    for (final item in items) {
+      final cat = (item.category as String?) ?? 'General';
+      grouped.putIfAbsent(cat, () => []).add(item);
+    }
+
+    final widgets = <Widget>[];
+    grouped.forEach((category, catItems) {
+      // Category header chip
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8, top: 12),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.vendorColor.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: AppColors.vendorColor.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.category_outlined,
+                        size: 14, color: AppColors.vendorColor),
+                    const SizedBox(width: 5),
+                    Text(
+                      category,
+                      style: TextStyle(
+                        color: AppColors.vendorColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      // Detailed item cards in this category
+      for (final item in catItems) {
+        widgets.add(
+          Container(
+            width: double.infinity,
+            margin: EdgeInsets.only(bottom: AppSpacing.md),
+            padding: EdgeInsets.all(AppSpacing.md),
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(AppRadius.md),
+              border: Border.all(color: borderColor),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.name, style: AppTextStyles.subtitle(primaryText)),
+                SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Qty ${item.quantity}${item.unit != null ? ' ${item.unit}' : ''}'
+                  '${item.category != null ? ' · ${item.category}' : ''}',
+                  style: AppTextStyles.bodySmall(secondaryText),
+                ),
+                if (item.preferredBrand != null &&
+                    item.preferredBrand!.isNotEmpty)
+                  Text(
+                    'Preferred: ${item.preferredBrand}',
+                    style: AppTextStyles.caption(secondaryText),
+                  ),
+                if (item.imageUrls.isNotEmpty) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  Text(
+                    'Customer photos (${item.imageUrls.length})',
+                    style: AppTextStyles.caption(secondaryText),
+                  ),
+                  SizedBox(height: AppSpacing.sm),
+                  SizedBox(
+                    height: 120,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: item.imageUrls.length,
+                      itemBuilder: (context, index) {
+                        final url = item.imageUrls[index];
+                        final isNetwork = url.startsWith('http://') || url.startsWith('https://');
+                        
+                        return Padding(
+                          padding: EdgeInsets.only(right: index < item.imageUrls.length - 1 ? AppSpacing.sm : 0),
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => ImageGalleryViewer(
+                                    imagePaths: item.imageUrls,
+                                    initialIndex: index,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Container(
+                              width: 120,
+                              height: 120,
+                              decoration: BoxDecoration(
+                                color: borderColor,
+                                borderRadius: BorderRadius.circular(AppRadius.md),
+                                border: Border.all(color: borderColor.withValues(alpha: 0.5)),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(AppRadius.md),
+                                child: isNetwork
+                                    ? Image.network(
+                                        url,
+                                        fit: BoxFit.cover,
+                                        loadingBuilder: (context, child, loadingProgress) {
+                                          if (loadingProgress == null) return child;
+                                          return const Center(
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: AppColors.vendorColor,
+                                            ),
+                                          );
+                                        },
+                                        errorBuilder: (_, __, ___) {
+                                          return const Center(
+                                            child: Icon(Icons.broken_image_outlined, color: Colors.white54),
+                                          );
+                                        },
+                                      )
+                                    : Image.file(
+                                        File(url),
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, error, ___) {
+                                          return const Center(
+                                            child: Icon(Icons.broken_image_outlined, color: Colors.white54),
+                                          );
+                                        },
+                                      ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      }
+    });
+    return widgets;
   }
 }
 

@@ -34,7 +34,6 @@ class DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
   final _streetCtrl = TextEditingController();
   final _noteCtrl = TextEditingController();
   bool _isDetectingGps = false;
-  String? _gpsError;
   bool _userEditedApproxArea = false;
 
   @override
@@ -134,7 +133,6 @@ class DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
     if (!mounted) return;
     setState(() {
       _isDetectingGps = true;
-      _gpsError = null;
       _userEditedApproxArea = false;
     });
     debugPrint('[ApproxAreaAudit] GPS detection triggered - manual edit flag reset');
@@ -144,15 +142,11 @@ class DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
       if (!mounted) return;
 
       final locationState = ref.read(deliveryLocationProvider);
-      if (locationState.errorMessage != null) {
-        setState(() => _gpsError = locationState.errorMessage);
-      } else {
+      if (locationState.errorMessage == null) {
         _applyFromLocationState(locationState);
       }
     } catch (_) {
-      if (mounted) {
-        setState(() => _gpsError = 'Could not detect location. Enter manually.');
-      }
+      // GPS error silently ignored — user can still fill in manually
     } finally {
       if (mounted) setState(() => _isDetectingGps = false);
     }
@@ -367,28 +361,6 @@ class DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _isDetectingGps ? null : detectGps,
-              icon: _isDetectingGps
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.my_location_rounded),
-              label: Text(
-                _isDetectingGps ? 'Detecting...' : 'Use Current Location',
-              ),
-            ),
-          ),
-          if (_gpsError != null) ...[
-            const SizedBox(height: 8),
-            Text(_gpsError!, style: AppTextStyles.caption(AppColors.warning)),
-          ],
-          _buildAccuracyCard(ref),
-          const SizedBox(height: 16),
           ProvinceDropdown(
             value: _province,
             onChanged: (p) {

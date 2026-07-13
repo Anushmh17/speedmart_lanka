@@ -84,13 +84,17 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
     }
   }
 
-  Future<Proposal?> loadVendorProposalForRequest(String requestId) async {
+  Future<Proposal?> loadVendorProposalForRequest(
+    String requestId, {
+    String? categoryNormalized,
+  }) async {
     final user = ref.read(currentUserProvider);
     if (user == null) return null;
     await _repo.ensureInitialized();
     final proposal = await _repo.getVendorProposalForRequest(
       vendorId: user.id,
       requestId: requestId,
+      categoryNormalized: categoryNormalized,
     );
     state = state.copyWith(selectedProposal: proposal);
     return proposal;
@@ -205,7 +209,11 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
     state = state.copyWith(proposals: list, selectedProposal: proposal);
   }
 
-  Future<void> acceptProposal(String proposalId, String requestId) async {
+  Future<void> acceptProposal(
+    String proposalId,
+    String requestId, {
+    String? categoryNormalized,
+  }) async {
     await _repo.ensureInitialized();
     await _requestRepo.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
@@ -414,7 +422,117 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
   bool isSavedProposal(String proposalId) {
     return _repo.isSavedProposal(proposalId);
   }
+
+  // ── Item-level accept/reject ──────────────────────────────────────────────
+
+  /// Accepts one vendor's offer for a specific requested item.
+  /// - Sets that ProposalItem's customerDecision = accepted.
+  /// - Rejects the same requestItemId from ALL OTHER proposals.
+  /// - If all items in the winning proposal are resolved → marks proposal accepted.
+  /// - Competing proposals from other categories remain untouched.
+  Future<void> acceptProposalItem({
+    required String proposalId,
+    required String requestItemId,
+    required String requestId,
+  }) async {
+    await _repo.ensureInitialized();
+    await _requestRepo.ensureInitialized();
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      // 1. Mark the specific item as accepted in the winning proposal
+      await _repo.updateProposalItemDecision(
+        proposalId: proposalId,
+        requestItemId: requestItemId,
+        decision: ProposalItemDecision.accepted,
+      );
+      print('[ItemAccept] Accepted item $requestItemId in proposal $proposalId');
+
+      // 2. Reject the same requestItemId in ALL OTHER proposals for this request
+      final allProps = await _repo.getAllProposalsForRequest(requestId);
+      for (final p in allProps) {
+        if (p.id == proposalId) continue;
+        final hasMatchingItem = p.items.any((i) => i.requestItemId == requestItemId);
+        if (hasMatchingItem) {
+          await _repo.updateProposalItemDecision(
+            proposalId: p.id,
+            requestItemId: requestItemId,
+            decision: ProposalItemDecision.rejected,
+          );
+          print('[ItemAccept] Rejected item $requestItemId in competing proposal ${p.id}');
+        }
+      }
+
+      // 3. Check if the winning proposal's items are all resolved → mark whole proposal accepted
+      final updatedWinner = await _repo.getProposalById(proposalId);
+      if (updatedWinner != null) {
+        final allResolved = updatedWinner.items.every(
+          (i) => i.customerDecision != ProposalItemDecision.pending ||
+              i.status == ProposalItemStatus.unavailable,
+        );
+        final anyAccepted = updatedWinner.items
+            .any((i) => i.customerDecision == ProposalItemDecision.accepted);
+        if (allResolved && anyAccepted) {
+          await _repo.updateProposalStatus(proposalId, ProposalStatus.accepted);
+          print('[ItemAccept] All items resolved — proposal $proposalId → accepted');
+          // Update request category fulfillment
+          final category = updatedWinner.categoryNormalized;
+          final request = await _requestRepo.getRequestById(requestId);
+          if (request != null && category != null) {
+            final updatedFulfillments = Map<String, RequestCategoryFulfillment>.from(
+              request.categoryFulfillments,
+            );
+            final current = updatedFulfillments[category];
+            if (current != null) {
+              updatedFulfillments[category] = current.copyWith(
+                status: RequestCategoryStatus.accepted,
+                acceptedProposalId: proposalId,
+                acceptedVendorId: updatedWinner.vendorId,
+                acceptedAt: DateTime.now(),
+              );
+            }
+            final updatedRequest = request.copyWith(
+              categoryFulfillments: updatedFulfillments,
+              status: RequestStatus.customerAccepted,
+              updatedAt: DateTime.now(),
+            );
+            await _requestRepo.updateRequest(updatedRequest);
+            ref.read(requestProvider.notifier).syncRequest(updatedRequest);
+          }
+        }
+      }
+
+      await loadProposalsForRequest(requestId);
+      state = state.copyWith(isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
+    }
+  }
+
+  /// Rejects one vendor's offer for a specific requested item.
+  Future<void> rejectProposalItem({
+    required String proposalId,
+    required String requestItemId,
+    required String requestId,
+  }) async {
+    await _repo.ensureInitialized();
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      await _repo.updateProposalItemDecision(
+        proposalId: proposalId,
+        requestItemId: requestItemId,
+        decision: ProposalItemDecision.rejected,
+      );
+      print('[ItemReject] Rejected item $requestItemId in proposal $proposalId');
+      await loadProposalsForRequest(requestId);
+      state = state.copyWith(isLoading: false);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
+    }
+  }
 }
+
 
 final proposalProvider =
     StateNotifierProvider<ProposalNotifier, ProposalState>((ref) {

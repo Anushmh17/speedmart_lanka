@@ -193,7 +193,7 @@ class _ManualAddSheetState extends ConsumerState<ManualAddSheet> {
                 controller: _nameController,
                 label: 'What product do you need?',
                 hint: 'e.g. Anchor Milk Powder 400g, Keeri Samba...',
-                textCapitalization: TextCapitalization.words,
+                textCapitalization: TextCapitalization.sentences,
                 validator: (val) => val == null || val.isEmpty ? 'Please enter the item name' : null,
               ),
               const SizedBox(height: 16),
@@ -217,6 +217,7 @@ class _ManualAddSheetState extends ConsumerState<ManualAddSheet> {
                 controller: _brandController,
                 label: 'Prefer a specific brand?',
                 hint: 'e.g. Prima, Singer, Toyota OEM',
+                textCapitalization: TextCapitalization.sentences,
               ),
               const SizedBox(height: 16),
 
@@ -228,6 +229,7 @@ class _ManualAddSheetState extends ConsumerState<ManualAddSheet> {
                 label: 'Additional specifications...',
                 hint: 'e.g. Need fresh items, check expiry, specific color...',
                 maxLines: 3,
+                textCapitalization: TextCapitalization.sentences,
               ),
               const SizedBox(height: 16),
 

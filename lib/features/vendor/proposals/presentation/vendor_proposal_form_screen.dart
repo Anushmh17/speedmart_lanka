@@ -223,28 +223,22 @@ class _VendorProposalFormScreenState
         .toList();
     final subtotal = items.fold<double>(0, (s, i) => s + i.subtotal);
 
-    // Determine category for this proposal from request items
+    // Determine category for this proposal from the (already-filtered) request items
     String? proposalCategory;
-    final categoriesInProposal = <String>{};
-    for (final item in widget.request.items) {
-      if (item.category != null && item.category!.isNotEmpty) {
-        final normalized = VendorCategories.normalize(item.category!);
-        categoriesInProposal.add(normalized);
+    final categoriesInProposal = widget.request.items
+        .map((i) => i.category)
+        .whereType<String>()
+        .where((c) => c.isNotEmpty)
+        .map(VendorCategories.normalize)
+        .toSet();
+
+    if (categoriesInProposal.isNotEmpty) {
+      proposalCategory = categoriesInProposal.first;
+      if (categoriesInProposal.length > 1) {
+        debugPrint('[MultiCategoryFlow] Warning: filtered request still has multiple categories: $categoriesInProposal');
       }
+      debugPrint('[MultiCategoryFlow] Created proposal category: $proposalCategory');
     }
-    
-      // For now, use first category if single category, otherwise leave null
-      // Multi-category proposals need separate handling
-      if (categoriesInProposal.length == 1) {
-        proposalCategory = categoriesInProposal.first;
-        debugPrint('[MultiCategoryFlow] Created proposal category: $proposalCategory');
-      } else if (categoriesInProposal.isNotEmpty) {
-        // For multi-category: use first category for now
-        // TODO: Support category selection or separate proposals per category
-        proposalCategory = categoriesInProposal.first;
-        debugPrint('[MultiCategoryFlow] Warning: Proposal covers multiple categories: $categoriesInProposal');
-        debugPrint('[MultiCategoryFlow] Created proposal category: $proposalCategory (first)');
-      }
 
     return Proposal(
       id: widget.existingProposal?.id ?? '',
@@ -268,6 +262,92 @@ class _VendorProposalFormScreenState
     );
   }
 
+  List<Widget> _buildGroupedItemEditors({
+    required bool isDark,
+  }) {
+    final grouped = <String, List<dynamic>>{};
+    for (final item in widget.request.items) {
+      final cat = item.category ?? 'General';
+      grouped.putIfAbsent(cat, () => []).add(item);
+    }
+
+    final widgets = <Widget>[];
+    grouped.forEach((category, catItems) {
+      // Category header chip
+      widgets.add(
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8, top: 12),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.vendorColor.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: AppColors.vendorColor.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.category_outlined,
+                        size: 14, color: AppColors.vendorColor),
+                    const SizedBox(width: 5),
+                    Text(
+                      category,
+                      style: const TextStyle(
+                        color: AppColors.vendorColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+
+      for (final item in catItems) {
+        final status = _itemStatuses[item.id]!;
+        widgets.add(
+          _ItemEditorCard(
+            key: ValueKey(item.id),
+            itemName: item.name,
+            quantity: item.quantity,
+            status: status,
+            isDark: isDark,
+            customerImageUrls: item.imageUrls,
+            vendorImageUrls: _vendorItemImages[item.id] ?? [],
+            onVendorImagesChanged: (imgs) {
+              setState(() => _vendorItemImages[item.id] = imgs);
+            },
+            onStatusChanged: (s) {
+              setState(() {
+                _itemStatuses[item.id] = s;
+                if (s == ProposalItemStatus.unavailable) {
+                  _vendorItemImages[item.id] = [];
+                }
+                _recalculateSubtotal();
+              });
+            },
+            priceController: _priceControllers[item.id]!,
+            brandController: _brandControllers[item.id]!,
+            stockController: _stockControllers[item.id]!,
+            remarkController: _remarkControllers[item.id]!,
+            altNameController: _altNameControllers[item.id]!,
+            altBrandController: _altBrandControllers[item.id]!,
+            altReasonController: _altReasonControllers[item.id]!,
+            onPriceChanged: _recalculateSubtotal,
+          ),
+        );
+      }
+    });
+
+    return widgets;
+  }
+
   Future<void> _saveDraft() async {
     if (_saving) return;
 
@@ -279,8 +359,8 @@ class _VendorProposalFormScreenState
     final proposal = _buildProposal(
       status: ProposalStatus.draft,
       user: user,
-      vendorLatitude: loc.vendorLatitude,
-      vendorLongitude: loc.vendorLongitude,
+      vendorLatitude: user.shopLatitude ?? loc.vendorLatitude,
+      vendorLongitude: user.shopLongitude ?? loc.vendorLongitude,
     );
     if (proposal == null) return;
 
@@ -338,8 +418,8 @@ class _VendorProposalFormScreenState
     final proposal = _buildProposal(
       status: ProposalStatus.submitted,
       user: user,
-      vendorLatitude: loc.vendorLatitude,
-      vendorLongitude: loc.vendorLongitude,
+      vendorLatitude: user.shopLatitude ?? loc.vendorLatitude,
+      vendorLongitude: user.shopLongitude ?? loc.vendorLongitude,
     );
     if (proposal == null) return;
 
@@ -430,38 +510,7 @@ class _VendorProposalFormScreenState
                     const SizedBox(height: 20),
                     Text('Line items', style: AppTextStyles.h2(primaryText)),
                     const SizedBox(height: 10),
-                    ...widget.request.items.map((item) {
-                      final status = _itemStatuses[item.id]!;
-                      return _ItemEditorCard(
-                        key: ValueKey(item.id),
-                        itemName: item.name,
-                        quantity: item.quantity,
-                        status: status,
-                        isDark: isDark,
-                        customerImageUrls: item.imageUrls,
-                        vendorImageUrls: _vendorItemImages[item.id] ?? [],
-                        onVendorImagesChanged: (imgs) {
-                          setState(() => _vendorItemImages[item.id] = imgs);
-                        },
-                        onStatusChanged: (s) {
-                          setState(() {
-                            _itemStatuses[item.id] = s;
-                            if (s == ProposalItemStatus.unavailable) {
-                              _vendorItemImages[item.id] = [];
-                            }
-                            _recalculateSubtotal();
-                          });
-                        },
-                        priceController: _priceControllers[item.id]!,
-                        brandController: _brandControllers[item.id]!,
-                        stockController: _stockControllers[item.id]!,
-                        remarkController: _remarkControllers[item.id]!,
-                        altNameController: _altNameControllers[item.id]!,
-                        altBrandController: _altBrandControllers[item.id]!,
-                        altReasonController: _altReasonControllers[item.id]!,
-                        onPriceChanged: _recalculateSubtotal,
-                      );
-                    }),
+                    ..._buildGroupedItemEditors(isDark: isDark),
                     const SizedBox(height: 20),
                     Text('Delivery & notes', style: AppTextStyles.h2(primaryText)),
                     const SizedBox(height: 10),
@@ -488,6 +537,7 @@ class _VendorProposalFormScreenState
                           const SizedBox(height: 12),
                           TextFormField(
                             controller: _deliveryTimeController,
+                            textCapitalization: TextCapitalization.sentences,
                             decoration: InputDecoration(
                               labelText: 'Estimated delivery time *',
                               hintText: 'e.g. 1-2 hours',
@@ -501,6 +551,7 @@ class _VendorProposalFormScreenState
                           const SizedBox(height: 12),
                           TextFormField(
                             controller: _notesController,
+                            textCapitalization: TextCapitalization.sentences,
                             maxLines: 3,
                             decoration: InputDecoration(
                               labelText: 'Message / notes to customer',
@@ -768,6 +819,7 @@ class _ItemEditorCardState extends State<_ItemEditorCard> {
             const SizedBox(height: 8),
             TextFormField(
               controller: widget.brandController,
+              textCapitalization: TextCapitalization.sentences,
               decoration: InputDecoration(
                 labelText: 'Brand / model offered',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -786,6 +838,7 @@ class _ItemEditorCardState extends State<_ItemEditorCard> {
               const SizedBox(height: 8),
               TextFormField(
                 controller: widget.altNameController,
+                textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
                   labelText: 'Alternative product name *',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -794,6 +847,7 @@ class _ItemEditorCardState extends State<_ItemEditorCard> {
               const SizedBox(height: 8),
               TextFormField(
                 controller: widget.altReasonController,
+                textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
                   labelText: 'Replacement reason',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -803,6 +857,7 @@ class _ItemEditorCardState extends State<_ItemEditorCard> {
             const SizedBox(height: 8),
             TextFormField(
               controller: widget.remarkController,
+              textCapitalization: TextCapitalization.sentences,
               decoration: InputDecoration(
                 labelText: 'Item note',
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),

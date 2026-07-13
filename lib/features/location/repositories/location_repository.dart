@@ -22,4 +22,10 @@ abstract class LocationRepository {
 
   /// Clear all recent searches.
   Future<void> clearRecentSearches();
+
+  /// Persist the current delivery location so it survives app restarts.
+  Future<void> saveDeliveryLocation(DeliveryLocation location);
+
+  /// Load the previously saved delivery location. Returns null if none saved.
+  Future<DeliveryLocation?> loadDeliveryLocation();
 }

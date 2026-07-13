@@ -13,11 +13,13 @@ class ChatScreen extends ConsumerStatefulWidget {
     required this.proposalId,
     required this.vendorName,
     required this.isUnlocked,
+    this.autoMessage,
   });
 
   final String proposalId;
   final String vendorName;
   final bool isUnlocked;
+  final String? autoMessage;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -33,6 +35,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     'Is the alternative product high quality?',
     'Can we adjust the price details?',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.autoMessage != null) {
+      _controller.text = widget.autoMessage!;
+    }
+  }
 
   @override
   void dispose() {
@@ -84,6 +94,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+      resizeToAvoidBottomInset: false,
       body: Column(
         children: [
           _buildHeader(context, isDark, primaryText, secondaryText, displayName),

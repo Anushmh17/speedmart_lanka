@@ -15,7 +15,7 @@ class VendorRequestFeedState {
     this.isLoading = false,
     this.error,
     this.items = const [],
-    this.sortMode = VendorFeedSortMode.nearest,
+    this.sortMode = VendorFeedSortMode.newest,
     this.categoryFilter,
     this.categoryChips = const [],
     this.vendorApproved = false,
@@ -73,6 +73,10 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
 
   final Ref ref;
 
+  /// True after the first successful feed load — prevents resetting the user's
+  /// chosen sort mode when they pull-to-refresh.
+  bool _hasLoaded = false;
+
   Future<void> loadFeed() async {
     final user = ref.read(currentUserProvider);
     final filterService = ref.read(vendorRequestFilterServiceProvider);
@@ -124,6 +128,8 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
 
     state = state.copyWith(
       isLoading: true,
+      // Only reset to newest on the very first load; preserve user's choice on refresh.
+      sortMode: _hasLoaded ? null : VendorFeedSortMode.newest,
       clearError: true,
       vendorApproved: approved,
       categoryChips: filterService
@@ -134,6 +140,7 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
           ? null
           : 'Your vendor account is pending approval. You will see nearby requests once approved.',
     );
+    _hasLoaded = true;
 
     if (!approved) {
       debugPrint('[FeedAudit] ===== REJECTION: Vendor not approved =====');
@@ -183,12 +190,13 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
       final built = filterService.buildFeed(
         allRequests: requests,
         allProposals: proposals,
-        vendorCategories: sanitizedCategories, // *** PASS SANITIZED CATEGORIES ***
+        vendorCategories: sanitizedCategories,
         vendorLatitude: vendorLat,
         vendorLongitude: vendorLon,
         vendorStatus: user.vendorStatus,
         categoryFilter: state.categoryFilter,
         assignedRadiusKm: assignedRadius,
+        vendorId: user.id,
       );
 
       debugPrint('[FeedAudit] Requests visible to vendor after filtering: ${built.length}');

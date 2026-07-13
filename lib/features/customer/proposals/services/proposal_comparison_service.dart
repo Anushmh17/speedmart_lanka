@@ -1,6 +1,8 @@
 import '../../../../shared/models/location_model.dart';
 import '../../../proposals/models/proposal.dart';
 import '../../../requests/models/shopping_request.dart';
+import '../../../orders/models/order_model.dart';
+import '../models/customer_item_proposal_view.dart';
 import '../models/customer_proposal_view.dart';
 import '../models/proposal_comparison_mode.dart';
 import '../models/proposal_badge.dart';
@@ -41,27 +43,52 @@ class ProposalComparisonService {
     required Proposal proposal,
     required ShoppingRequest request,
   }) {
-    if (request.latitude == 0 && request.longitude == 0) return 0;
-    if (proposal.vendorLatitude == 0 && proposal.vendorLongitude == 0) {
-      return 0;
-    }
+    final dl = request.deliveryLocation;
+    final customerLat = (dl?.latitude != null && dl!.latitude != 0) ? dl.latitude! : request.latitude;
+    final customerLon = (dl?.longitude != null && dl!.longitude != 0) ? dl.longitude! : request.longitude;
+
+    if (customerLat == 0 && customerLon == 0) return 0;
+    if (proposal.vendorLatitude == 0 && proposal.vendorLongitude == 0) return 0;
+
     return LocationModel.calculateDistance(
-      lat1: request.latitude,
-      lon1: request.longitude,
+      lat1: customerLat,
+      lon1: customerLon,
       lat2: proposal.vendorLatitude,
       lon2: proposal.vendorLongitude,
     );
   }
 
-  List<ProposalBadge> _identifyBadges(Proposal proposal, List<Proposal> allProposals) {
+  List<ProposalBadge> _identifyBadges(
+    Proposal proposal,
+    List<Proposal> allProposals,
+    List<OrderModel> orders,
+  ) {
     final badges = <ProposalBadge>[];
 
     if (allProposals.isEmpty) return badges;
 
+    // Helper to get delivery fee for a proposal taking into account waived fee
+    double getEffectiveDeliveryFee(Proposal p) {
+      final existingOrdersForVendor = orders.where((o) =>
+          o.requestId == proposal.requestId &&
+          o.vendorId == p.vendorId &&
+          o.status != OrderStatus.cancelled).toList();
+      if (existingOrdersForVendor.isNotEmpty) {
+        final hasDispatchedOrder = existingOrdersForVendor.any((o) =>
+            o.status == OrderStatus.outForDelivery ||
+            o.status == OrderStatus.delivered ||
+            o.status == OrderStatus.completed);
+        if (!hasDispatchedOrder) {
+          return 0.0;
+        }
+      }
+      return p.deliveryFee;
+    }
+
     final minPrice = allProposals
-        .map((p) => p.totalPrice)
+        .map((p) => p.subtotal + getEffectiveDeliveryFee(p))
         .reduce((a, b) => a < b ? a : b);
-    if (proposal.totalPrice == minPrice) {
+    if (proposal.subtotal + getEffectiveDeliveryFee(proposal) == minPrice) {
       badges.add(ProposalBadge.bestPrice);
     }
 
@@ -90,6 +117,7 @@ class ProposalComparisonService {
     required List<Proposal> proposals,
     required ShoppingRequest request,
     required ProposalComparisonMode mode,
+    List<OrderModel> orders = const [],
   }) {
     final comparable = proposals
         .where((p) => p.status.isVisibleToCustomer || p.status == ProposalStatus.accepted)
@@ -98,6 +126,22 @@ class ProposalComparisonService {
     if (comparable.isEmpty) return [];
 
     final views = comparable.map((p) {
+      final existingOrdersForVendor = orders.where((o) =>
+          o.requestId == request.id &&
+          o.vendorId == p.vendorId &&
+          o.status != OrderStatus.cancelled).toList();
+
+      bool waveDeliveryCharge = false;
+      if (existingOrdersForVendor.isNotEmpty) {
+        final hasDispatchedOrder = existingOrdersForVendor.any((o) =>
+            o.status == OrderStatus.outForDelivery ||
+            o.status == OrderStatus.delivered ||
+            o.status == OrderStatus.completed);
+        if (!hasDispatchedOrder) {
+          waveDeliveryCharge = true;
+        }
+      }
+
       return CustomerProposalView(
         proposal: p,
         maskedVendorName: maskedVendorName(p.vendorId),
@@ -105,7 +149,8 @@ class ProposalComparisonService {
         ratingPlaceholder: ratingPlaceholderFor(p.vendorId),
         deliverySortHours: deliverySortHours(p.estimatedDeliveryTime),
         isBestForMode: false,
-        badges: _identifyBadges(p, comparable),
+        badges: _identifyBadges(p, comparable, orders),
+        waveDeliveryFee: waveDeliveryCharge,
       );
     }).toList();
 
@@ -123,6 +168,7 @@ class ProposalComparisonService {
             deliverySortHours: v.deliverySortHours,
             isBestForMode: v.proposal.id == bestId && v.canAcceptOrReject,
             badges: v.badges,
+            waveDeliveryFee: v.waveDeliveryFee,
           ),
         )
         .toList();
@@ -212,5 +258,74 @@ class ProposalComparisonService {
     final active = sorted.where((v) => v.canAcceptOrReject).toList();
     if (active.isEmpty) return null;
     return active.first.proposal.id;
+  }
+
+  /// Builds item-level views grouped by requested item.
+  /// Each [CustomerItemProposalView] holds all vendor offers for ONE item.
+  /// Filters out [ProposalItemStatus.unavailable] items — customer never sees them.
+  /// Marks [ItemVendorOffer.isSameVendorAsAnother] when a vendor has offers
+  /// for multiple items in the same request.
+  List<CustomerItemProposalView> buildItemViews({
+    required List<Proposal> proposals,
+    required ShoppingRequest request,
+  }) {
+    // Only consider proposals that are visible to the customer.
+    final visibleProposals = proposals
+        .where((p) => p.status.isVisibleToCustomer || p.status == ProposalStatus.accepted)
+        .toList();
+
+    // Collect all vendorIds that appear more than once across items
+    // so we can label "Same Vendor" correctly.
+    final vendorIdAppearanceMap = <String, int>{};
+    for (final proposal in visibleProposals) {
+      for (final item in proposal.items) {
+        if (item.status != ProposalItemStatus.unavailable) {
+          vendorIdAppearanceMap[proposal.vendorId] =
+              (vendorIdAppearanceMap[proposal.vendorId] ?? 0) + 1;
+        }
+      }
+    }
+
+    final result = <CustomerItemProposalView>[];
+
+    for (final requestItem in request.items) {
+      final offers = <ItemVendorOffer>[];
+
+      for (final proposal in visibleProposals) {
+        // Find the matching ProposalItem for this requestItem
+        final matchingProposalItems = proposal.items.where(
+          (pi) => pi.requestItemId == requestItem.id &&
+              pi.status != ProposalItemStatus.unavailable,
+        );
+
+        for (final pi in matchingProposalItems) {
+          offers.add(ItemVendorOffer(
+            vendorProposal: proposal,
+            proposalItem: pi,
+            maskedVendorName: maskedVendorName(proposal.vendorId),
+            distanceKm: distanceKmFor(proposal: proposal, request: request),
+            ratingPlaceholder: ratingPlaceholderFor(proposal.vendorId),
+            isSameVendorAsAnother: (vendorIdAppearanceMap[proposal.vendorId] ?? 0) > 1,
+          ));
+        }
+      }
+
+      // Sort: accepted first, then by price ascending
+      offers.sort((a, b) {
+        if (a.isAccepted && !b.isAccepted) return -1;
+        if (!a.isAccepted && b.isAccepted) return 1;
+        return a.itemSubtotal.compareTo(b.itemSubtotal);
+      });
+
+      // Only add the item card if there's at least one visible offer
+      if (offers.isNotEmpty) {
+        result.add(CustomerItemProposalView(
+          requestItem: requestItem,
+          vendorOffers: offers,
+        ));
+      }
+    }
+
+    return result;
   }
 }

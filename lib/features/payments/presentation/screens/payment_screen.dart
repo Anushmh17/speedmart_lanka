@@ -18,6 +18,24 @@ import 'package:speedmart_lanka/features/notifications/providers/notification_pr
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
 import 'package:speedmart_lanka/features/payments/providers/payment_provider.dart';
 
+class AcceptedVendorGroup {
+  final Proposal proposal;
+  final List<ProposalItem> acceptedItems;
+  final bool waveDeliveryCharge;
+
+  AcceptedVendorGroup({
+    required this.proposal,
+    required this.acceptedItems,
+    this.waveDeliveryCharge = false,
+  });
+
+  double get subtotal => acceptedItems.fold<double>(0.0, (sum, item) => sum + item.subtotal);
+  double get deliveryCharge => waveDeliveryCharge ? 0.0 : proposal.deliveryCharge;
+  double get platformCommission => 0.0;
+  double get customerAmount => subtotal + deliveryCharge; // What customer pays (subtotal + delivery)
+  double get vendorNetAmount => customerAmount; // Vendor net receipt (equals customer amount since commission is 0)
+}
+
 class PaymentScreen extends ConsumerStatefulWidget {
   const PaymentScreen({
     super.key,
@@ -75,6 +93,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     _phoneController.addListener(() {
       setState(() {});
     });
+
+    // Load customer orders to determine waived delivery fees
+    Future.microtask(() {
+      ref.read(orderProvider.notifier).loadCustomerOrders();
+    });
   }
 
   @override
@@ -87,7 +110,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     super.dispose();
   }
 
-  Future<void> _handleConfirmPayment() async {
+  Future<void> _handleConfirmPayment(List<AcceptedVendorGroup> groups) async {
+    if (_isProcessing) return;
+
     // Block if no delivery address
     if (_missingAddressError != null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -116,186 +141,174 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       _isProcessing = true;
     });
 
-    debugPrint('[PaymentFlow] COD confirm start:');
-    debugPrint('[PaymentFlow] proposal id: ${widget.proposal.id}');
-    debugPrint('[PaymentFlow] request id: ${widget.requestId}');
-    debugPrint('[PaymentFlow] category: ${widget.proposal.categoryNormalized}');
-
-    if (widget.proposal.status != ProposalStatus.accepted) {
-      await ref.read(proposalProvider.notifier).acceptProposal(
-            widget.proposal.id,
-            widget.requestId,
-          );
-    }
-
-    final double customerLat = _request!.latitude;
-    final double customerLng = _request!.longitude;
-    final deliveryAddress = _request!.deliveryAddress.isNotEmpty
-        ? _request!.deliveryAddress
-        : (_request!.deliveryLocation?.streetAddress ?? '');
-
-    final subtotal = widget.proposal.subtotal;
-    final deliveryFee = widget.proposal.deliveryCharge;
-    final platformCommission = subtotal * 0.22; // 22% vendor commission for platform
-    final customerAmount = subtotal + deliveryFee; // Customer pays ONLY subtotal + delivery
-    final vendorNetAmount = customerAmount - platformCommission; // Vendor receives: total - commission
-    final receiptNumber = 'RCPT-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
-    final transactionReference = _selectedMethod == PaymentMethod.mockOnline
-        ? 'MOCK-${DateTime.now().millisecondsSinceEpoch}'
-        : 'COD-${DateTime.now().millisecondsSinceEpoch}';
-
-    debugPrint('[PaymentAudit] ===== PAYMENT CREATION =====');
-    debugPrint('[PaymentAudit] Subtotal (items): $subtotal');
-    debugPrint('[PaymentAudit] Delivery fee: $deliveryFee');
-    debugPrint('[PaymentAudit] Platform commission (22%): $platformCommission');
-    debugPrint('[PaymentAudit] Customer pays: $customerAmount');
-    debugPrint('[PaymentAudit] Vendor receives: $vendorNetAmount');
-
-    final pendingPayment = PaymentModel(
-      id: '',
-      orderId: '',
-      customerId: customer.id,
-      vendorId: widget.proposal.vendorId,
-      vendorBusinessName: widget.proposal.vendorBusinessName,
-      proposalId: widget.proposal.id,
-      amount: customerAmount,
-      subtotal: subtotal,
-      deliveryFee: deliveryFee,
-      serviceFee: platformCommission, // Kept for compatibility
-      platformCommission: platformCommission,
-      vendorNetAmount: vendorNetAmount,
-      paymentMethod: _selectedMethod,
-      paymentStatus: PaymentStatus.pending,
-      createdAt: DateTime.now(),
-      transactionReference: transactionReference,
-      receiptNumber: receiptNumber,
-    );
-
-    PaymentModel? createdPayment;
     try {
-      createdPayment = await ref.read(paymentProvider.notifier).createPayment(pendingPayment);
-      PaymentModel finalPayment = createdPayment;
+      final double customerLat = _request!.latitude;
+      final double customerLng = _request!.longitude;
+      final deliveryAddress = _request!.deliveryAddress.isNotEmpty
+          ? _request!.deliveryAddress
+          : (_request!.deliveryLocation?.streetAddress ?? '');
 
-      if (_selectedMethod == PaymentMethod.mockOnline) {
-        await Future.delayed(const Duration(seconds: 2));
-        finalPayment = await ref.read(paymentProvider.notifier).markPaid(createdPayment.id) ?? createdPayment;
-      }
+      OrderModel? firstOrder;
+      PaymentModel? firstPayment;
 
-      final order = OrderModel(
-        id: '',
-        proposalId: widget.proposal.id,
-        requestId: widget.requestId,
-        customerId: customer.id,
-        vendorId: widget.proposal.vendorId,
-        vendorBusinessName: widget.proposal.vendorBusinessName,
-        vendorPhone: '+94 77 555 4321',
-        customerName: customer.fullName,
-        customerPhone: _phoneController.text,
-        deliveryAddress: deliveryAddress,
-        items: widget.proposal.items,
-        deliveryCharge: deliveryFee,
-        totalPrice: customerAmount, // What customer pays
-        paymentId: finalPayment.id,
-        paymentMethod: _selectedMethod,
-        paymentStatus: finalPayment.paymentStatus,
-        isAddressReleased: true,
-        addressReleasedAt: DateTime.now(),
-        status: OrderStatus.accepted,
-        createdAt: DateTime.now(),
-        vendorLatitude: widget.proposal.vendorLatitude,
-        vendorLongitude: widget.proposal.vendorLongitude,
-        customerLatitude: customerLat,
-        customerLongitude: customerLng,
-        accuracy: _request!.deliveryLocation?.accuracy,
-        detectedAt: _request!.deliveryLocation?.detectedAt,
-      );
+      final updatedFulfillments = Map<String, RequestCategoryFulfillment>.from(_request!.categoryFulfillments);
 
-      final createdOrder = await ref.read(orderProvider.notifier).placeOrder(order);
-      finalPayment = await ref.read(paymentProvider.notifier).assignOrderId(createdPayment.id, createdOrder.id) ?? finalPayment;
+      for (final group in groups) {
+        final subtotal = group.subtotal;
+        final deliveryFee = group.deliveryCharge;
+        final platformCommission = group.platformCommission;
+        final customerAmount = group.customerAmount;
+        final vendorNetAmount = group.vendorNetAmount;
+        final receiptNumber = 'RCPT-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+        final transactionReference = _selectedMethod == PaymentMethod.mockOnline
+            ? 'MOCK-${DateTime.now().millisecondsSinceEpoch}'
+            : 'COD-${DateTime.now().millisecondsSinceEpoch}';
 
-      if (_selectedMethod == PaymentMethod.mockOnline) {
-        await ref.read(notification_feature.notificationProvider.notifier).createNotification(
-          type: NotificationType.orderStatusUpdated,
-          title: 'Payment Confirmed',
-          body: 'Payment for order ${createdOrder.id} has been confirmed.',
-          userId: widget.proposal.vendorId,
-          relatedId: createdOrder.id,
+        debugPrint('[PaymentAudit] ===== PAYMENT CREATION (Group: ${group.proposal.vendorBusinessName}) =====');
+        debugPrint('[PaymentAudit] Subtotal (items): $subtotal');
+        debugPrint('[PaymentAudit] Delivery fee: $deliveryFee');
+        debugPrint('[PaymentAudit] Platform commission (0% - no service fee): $platformCommission');
+        debugPrint('[PaymentAudit] Customer pays: $customerAmount');
+        debugPrint('[PaymentAudit] Vendor receives: $vendorNetAmount');
+
+        // Mark individual proposal accepted
+        if (group.proposal.status != ProposalStatus.accepted) {
+          await ref.read(proposalProvider.notifier).acceptProposal(
+                group.proposal.id,
+                widget.requestId,
+              );
+        }
+
+        final pendingPayment = PaymentModel(
+          id: '',
+          orderId: '',
+          customerId: customer.id,
+          vendorId: group.proposal.vendorId,
+          vendorBusinessName: group.proposal.vendorBusinessName,
+          proposalId: group.proposal.id,
+          amount: customerAmount,
+          subtotal: subtotal,
+          deliveryFee: deliveryFee,
+          serviceFee: platformCommission,
+          platformCommission: platformCommission,
+          vendorNetAmount: vendorNetAmount,
+          paymentMethod: _selectedMethod,
+          paymentStatus: PaymentStatus.pending,
+          createdAt: DateTime.now(),
+          transactionReference: transactionReference,
+          receiptNumber: receiptNumber,
         );
-        await ref.read(notification_feature.notificationProvider.notifier).createNotification(
-          type: NotificationType.receiptGenerated,
-          title: 'Receipt Generated',
-          body: 'Your payment for order ${createdOrder.id} is successful and receipt is available.',
-          userId: customer.id,
-          relatedId: createdOrder.id,
-        );
-      } else {
-        await ref.read(notification_feature.notificationProvider.notifier).createNotification(
-          type: NotificationType.cashOnDeliveryConfirmed,
-          title: 'COD Order Confirmed',
-          body: 'Customer confirmed COD for order ${createdOrder.id}.',
-          userId: widget.proposal.vendorId,
-          relatedId: createdOrder.id,
-        );
-        await ref.read(notification_feature.notificationProvider.notifier).createNotification(
-          type: NotificationType.receiptGenerated,
-          title: 'COD Receipt Ready',
-          body: 'Your COD order ${createdOrder.id} has been confirmed successfully.',
-          userId: customer.id,
-          relatedId: createdOrder.id,
-        );
-      }
 
-      // Update category fulfillment based on payment method
-      if (widget.proposal.categoryNormalized != null && widget.proposal.categoryNormalized!.isNotEmpty) {
-        final category = widget.proposal.categoryNormalized!;
-        final currentStatus = _request!.getCategoryStatus(category);
-        
-        debugPrint('[CODFlow] Customer selected ${_selectedMethod.name}:');
-        debugPrint('[CODFlow] Category: $category');
-        debugPrint('[CODFlow] Current category status: ${currentStatus.name}');
-        
-        final updatedFulfillments = Map<String, RequestCategoryFulfillment>.from(_request!.categoryFulfillments);
-        final currentFulfillment = updatedFulfillments[category];
-        
-        if (currentFulfillment != null) {
-          if (_selectedMethod == PaymentMethod.cashOnDelivery) {
-            // COD: Set status to codConfirmed, payment pending on delivery
-            updatedFulfillments[category] = currentFulfillment.copyWith(
-              status: RequestCategoryStatus.codConfirmed,
-              codConfirmedAt: DateTime.now(),
-              // paidAt remains null until vendor confirms cash collected
-            );
-            
-            debugPrint('[CODFlow] COD confirmed, payment pending on delivery:');
-            debugPrint('[CODFlow] category status after COD: codConfirmed');
-            debugPrint('[CODFlow] codConfirmedAt: ${DateTime.now()}');
-            debugPrint('[CODFlow] paidAt: null (awaiting vendor cash collection)');
-          } else if (_selectedMethod == PaymentMethod.mockOnline) {
-            // Card payment: Set status to paid immediately after successful payment
-            updatedFulfillments[category] = currentFulfillment.copyWith(
-              status: RequestCategoryStatus.paid,
-              paidAt: DateTime.now(),
-            );
-            
-            debugPrint('[CODFlow] Card payment successful:');
-            debugPrint('[CODFlow] category status after payment: paid');
-            debugPrint('[CODFlow] paidAt: ${DateTime.now()}');
-          }
-          
-          final updatedRequest = _request!.copyWith(
-            categoryFulfillments: updatedFulfillments,
-            updatedAt: DateTime.now(),
+        PaymentModel createdPayment = await ref.read(paymentProvider.notifier).createPayment(pendingPayment);
+        PaymentModel finalPayment = createdPayment;
+
+        if (_selectedMethod == PaymentMethod.mockOnline) {
+          await Future.delayed(const Duration(seconds: 1));
+          finalPayment = await ref.read(paymentProvider.notifier).markPaid(createdPayment.id) ?? createdPayment;
+        }
+
+        final order = OrderModel(
+          id: '',
+          proposalId: group.proposal.id,
+          requestId: widget.requestId,
+          customerId: customer.id,
+          vendorId: group.proposal.vendorId,
+          vendorBusinessName: group.proposal.vendorBusinessName,
+          vendorPhone: '+94 77 555 4321',
+          customerName: customer.fullName,
+          customerPhone: _phoneController.text,
+          deliveryAddress: deliveryAddress,
+          items: group.acceptedItems,
+          deliveryCharge: deliveryFee,
+          totalPrice: customerAmount,
+          paymentId: finalPayment.id,
+          paymentMethod: _selectedMethod,
+          paymentStatus: finalPayment.paymentStatus,
+          isAddressReleased: true,
+          addressReleasedAt: DateTime.now(),
+          status: OrderStatus.accepted,
+          createdAt: DateTime.now(),
+          vendorLatitude: group.proposal.vendorLatitude,
+          vendorLongitude: group.proposal.vendorLongitude,
+          customerLatitude: customerLat,
+          customerLongitude: customerLng,
+          accuracy: _request!.deliveryLocation?.accuracy,
+          detectedAt: _request!.deliveryLocation?.detectedAt,
+        );
+
+        final createdOrder = await ref.read(orderProvider.notifier).placeOrder(order);
+        finalPayment = await ref.read(paymentProvider.notifier).assignOrderId(createdPayment.id, createdOrder.id) ?? finalPayment;
+
+        if (firstOrder == null) {
+          firstOrder = createdOrder;
+          firstPayment = finalPayment;
+        }
+
+        // Send Notifications
+        if (_selectedMethod == PaymentMethod.mockOnline) {
+          await ref.read(notification_feature.notificationProvider.notifier).createNotification(
+            type: NotificationType.orderStatusUpdated,
+            title: 'Payment Confirmed',
+            body: 'Payment for order ${createdOrder.id} has been confirmed.',
+            userId: group.proposal.vendorId,
+            relatedId: createdOrder.id,
           );
+        } else {
+          await ref.read(notification_feature.notificationProvider.notifier).createNotification(
+            type: NotificationType.cashOnDeliveryConfirmed,
+            title: 'COD Order Confirmed',
+            body: 'Customer confirmed COD for order ${createdOrder.id}.',
+            userId: group.proposal.vendorId,
+            relatedId: createdOrder.id,
+          );
+        }
+
+        // Update category fulfillment based on payment method
+        if (group.proposal.categoryNormalized != null && group.proposal.categoryNormalized!.isNotEmpty) {
+          final category = group.proposal.categoryNormalized!;
+          final currentFulfillment = updatedFulfillments[category];
           
-          await ref.read(requestProvider.notifier).updateRequest(updatedRequest);
-          debugPrint('[CODFlow] request saved after payment confirmation: ${updatedRequest.id}');
-          
-          // Reload to verify
-          final reloadedRequest = await MockRequestRepository.instance.getRequestById(widget.requestId);
-          if (reloadedRequest != null) {
-            final reloadedStatus = reloadedRequest.getCategoryStatus(category);
-            debugPrint('[CODFlow] request reloaded category status: ${reloadedStatus.name}');
+          if (currentFulfillment != null) {
+            if (_selectedMethod == PaymentMethod.cashOnDelivery) {
+              updatedFulfillments[category] = currentFulfillment.copyWith(
+                status: RequestCategoryStatus.codConfirmed,
+                codConfirmedAt: DateTime.now(),
+              );
+            } else if (_selectedMethod == PaymentMethod.mockOnline) {
+              updatedFulfillments[category] = currentFulfillment.copyWith(
+                status: RequestCategoryStatus.paid,
+                paidAt: DateTime.now(),
+              );
+            }
           }
+        }
+      }
+
+      final updatedRequest = _request!.copyWith(
+        categoryFulfillments: updatedFulfillments,
+        updatedAt: DateTime.now(),
+      );
+      
+      await ref.read(requestProvider.notifier).updateRequest(updatedRequest);
+
+      // Create notifications for customer
+      if (firstOrder != null) {
+        if (_selectedMethod == PaymentMethod.mockOnline) {
+          await ref.read(notification_feature.notificationProvider.notifier).createNotification(
+            type: NotificationType.receiptGenerated,
+            title: 'Receipt Generated',
+            body: 'Your payment was successful and receipt is ready.',
+            userId: customer.id,
+            relatedId: firstOrder.id,
+          );
+        } else {
+          await ref.read(notification_feature.notificationProvider.notifier).createNotification(
+            type: NotificationType.receiptGenerated,
+            title: 'COD Receipt Ready',
+            body: 'Your COD order has been confirmed successfully.',
+            userId: customer.id,
+            relatedId: firstOrder.id,
+          );
         }
       }
 
@@ -308,10 +321,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         _isProcessing = false;
       });
 
-      context.push(RouteNames.customerPaymentReceipt, extra: {
-        'order': createdOrder,
-        'payment': finalPayment,
-      });
+      if (firstOrder != null && firstPayment != null) {
+        context.pushReplacement(RouteNames.customerPaymentReceipt, extra: {
+          'order': firstOrder,
+          'payment': firstPayment,
+        });
+      }
     } catch (e) {
       setState(() {
         _isProcessing = false;
@@ -327,13 +342,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         );
       }
 
-      if (createdPayment != null) {
-        await ref.read(paymentProvider.notifier).markFailed(createdPayment.id);
-      }
       await ref.read(notification_feature.notificationProvider.notifier).createNotification(
         type: NotificationType.paymentFailed,
         title: 'Payment Failed',
-        body: 'Your payment attempt for the selected proposal failed. Please try again.',
+        body: 'Your payment attempt for the selected proposals failed. Please try again.',
         userId: customer.id,
         relatedId: widget.proposal.id,
       );
@@ -398,6 +410,71 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         body: const Center(child: CircularProgressIndicator()),
       );
     }
+
+    // Build the accepted groups per vendor
+    final proposals = ref.watch(proposalProvider).proposals;
+    final customerOrders = ref.watch(orderProvider).orders;
+    final acceptedGroups = <AcceptedVendorGroup>[];
+    
+    // Check if there are any explicitly accepted items across any proposal for this request
+    bool hasExplicitAcceptedItems = false;
+    for (final p in proposals) {
+      if (p.requestId == widget.requestId && p.items.any((i) => i.customerDecision == ProposalItemDecision.accepted)) {
+        hasExplicitAcceptedItems = true;
+        break;
+      }
+    }
+
+    bool checkWaveDeliveryCharge(Proposal proposal) {
+      final existingOrdersForVendor = customerOrders.where((o) =>
+          o.requestId == widget.requestId &&
+          o.vendorId == proposal.vendorId &&
+          o.status != OrderStatus.cancelled).toList();
+
+      if (existingOrdersForVendor.isNotEmpty) {
+        final hasDispatchedOrder = existingOrdersForVendor.any((o) =>
+            o.status == OrderStatus.outForDelivery ||
+            o.status == OrderStatus.delivered ||
+            o.status == OrderStatus.completed);
+        if (!hasDispatchedOrder) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    for (final p in proposals) {
+      if (p.requestId != widget.requestId) continue;
+      
+      final List<ProposalItem> items;
+      if (hasExplicitAcceptedItems) {
+        items = p.items.where((i) => i.customerDecision == ProposalItemDecision.accepted).toList();
+      } else {
+        if (p.status == ProposalStatus.accepted || p.id == widget.proposal.id) {
+          items = p.items.where((i) => i.status != ProposalItemStatus.unavailable).toList();
+        } else {
+          items = [];
+        }
+      }
+
+      if (items.isNotEmpty) {
+        acceptedGroups.add(AcceptedVendorGroup(
+          proposal: p,
+          acceptedItems: items,
+          waveDeliveryCharge: checkWaveDeliveryCharge(p),
+        ));
+      }
+    }
+
+    if (acceptedGroups.isEmpty) {
+      acceptedGroups.add(AcceptedVendorGroup(
+        proposal: widget.proposal,
+        acceptedItems: widget.proposal.items.where((i) => i.status != ProposalItemStatus.unavailable).toList(),
+        waveDeliveryCharge: checkWaveDeliveryCharge(widget.proposal),
+      ));
+    }
+
+    final grandTotal = acceptedGroups.fold<double>(0.0, (sum, g) => sum + g.customerAmount);
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
@@ -740,15 +817,31 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                         children: [
                           Text('Order Summary', style: AppTextStyles.subtitle(primaryText).copyWith(fontWeight: FontWeight.bold)),
                           const Divider(height: 20),
-                          _summaryRow('Items Subtotal', 'Rs. ${widget.proposal.subtotal.toStringAsFixed(2)}', primaryText),
+                          ...acceptedGroups.map((group) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    group.proposal.vendorBusinessName,
+                                    style: AppTextStyles.bodyMedium(primaryText).copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  _summaryRow('  Subtotal (${group.acceptedItems.length} items)', 'Rs. ${group.subtotal.toStringAsFixed(2)}', primaryText),
+                                  const SizedBox(height: 4),
+                                  _summaryRow('  Delivery Fee', 'Rs. ${group.deliveryCharge.toStringAsFixed(2)}', primaryText),
+                                  const SizedBox(height: 4),
+                                  _summaryRow('  Vendor Total', 'Rs. ${group.customerAmount.toStringAsFixed(2)}', primaryText),
+                                  const Divider(height: 12),
+                                ],
+                              ),
+                            );
+                          }),
                           const SizedBox(height: 8),
-                          _summaryRow('Delivery Fee', 'Rs. ${widget.proposal.deliveryCharge.toStringAsFixed(2)}', primaryText),
-                          const SizedBox(height: 8),
-                          _summaryRow('Service Fee (22%)', 'Rs. ${(widget.proposal.subtotal * 0.22).toStringAsFixed(2)}', primaryText),
-                          const Divider(height: 20),
                           _summaryRow(
-                            'Total Amount',
-                            'Rs. ${(widget.proposal.subtotal + widget.proposal.deliveryCharge + widget.proposal.subtotal * 0.22).toStringAsFixed(2)}',
+                            'Grand Total',
+                            'Rs. ${grandTotal.toStringAsFixed(2)}',
                             AppColors.customerColor,
                           ),
                         ],
@@ -766,7 +859,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                           elevation: 0,
                         ),
-                        onPressed: _handleConfirmPayment,
+                        onPressed: _isProcessing ? null : () => _handleConfirmPayment(acceptedGroups),
                         child: Text(
                           _selectedMethod == PaymentMethod.cashOnDelivery
                               ? 'Confirm Cash on Delivery'

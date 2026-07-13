@@ -160,6 +160,19 @@ _CategoryMeta _metaFor(String displayName) {
       );
 }
 
+/// Public accessor — looks up icon + color for a normalized category key
+/// (e.g. 'groceries', 'vehicle parts').
+class CategoryMeta {
+  final IconData icon;
+  final Color color;
+  const CategoryMeta({required this.icon, required this.color});
+
+  static CategoryMeta of(String normalizedCategory) {
+    final m = _metaFor(normalizedCategory);
+    return CategoryMeta(icon: m.icon, color: m.color);
+  }
+}
+
 // ── Public CategorySelector widget ───────────────────────────────────────────
 
 class CategorySelector extends ConsumerWidget {

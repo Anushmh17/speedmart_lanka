@@ -48,7 +48,15 @@ enum ProposalItemStatus {
   alternative,
 }
 
+/// Customer decision on a specific ProposalItem.
+enum ProposalItemDecision {
+  pending,
+  accepted,
+  rejected,
+}
+
 class ProposalItem {
+  final String id;
   final String requestItemId;
   final String requestItemName;
   final String itemName;
@@ -63,8 +71,10 @@ class ProposalItem {
   final String? alternativeReason;
   final String? imageUrl;
   final List<String> vendorImageUrls;
+  final ProposalItemDecision customerDecision;
 
   ProposalItem({
+    String? id,
     required this.requestItemId,
     String? requestItemName,
     String? itemName,
@@ -79,7 +89,9 @@ class ProposalItem {
     this.alternativeReason,
     this.imageUrl,
     this.vendorImageUrls = const [],
-  })  : requestItemName = requestItemName ?? itemName ?? '',
+    this.customerDecision = ProposalItemDecision.pending,
+  })  : id = (id != null && id.isNotEmpty) ? id : requestItemId,
+        requestItemName = requestItemName ?? itemName ?? '',
         itemName = itemName ?? requestItemName ?? '';
 
   double get unitPrice => price;
@@ -91,6 +103,7 @@ class ProposalItem {
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'requestItemId': requestItemId,
       'requestItemName': requestItemName,
       'itemName': itemName,
@@ -105,6 +118,7 @@ class ProposalItem {
       'alternativeReason': alternativeReason,
       'imageUrl': imageUrl,
       'vendorImageUrls': vendorImageUrls,
+      'customerDecision': customerDecision.name,
     };
   }
 
@@ -113,6 +127,10 @@ class ProposalItem {
         json['requestItemName'] as String? ??
         '';
     return ProposalItem(
+      id: json['id'] as String? ??
+          json['proposalItemId'] as String? ??
+          json['requestItemId'] as String? ??
+          '',
       requestItemId: json['requestItemId'] as String? ?? '',
       requestItemName: name,
       itemName: name,
@@ -131,10 +149,15 @@ class ProposalItem {
       alternativeReason: json['alternativeReason'] as String?,
       imageUrl: json['imageUrl'] as String?,
       vendorImageUrls: (json['vendorImageUrls'] as List<dynamic>? ?? []).map((e) => e.toString()).toList(),
+      customerDecision: ProposalItemDecision.values.firstWhere(
+        (d) => d.name == json['customerDecision'],
+        orElse: () => ProposalItemDecision.pending,
+      ),
     );
   }
 
   ProposalItem copyWith({
+    String? id,
     String? requestItemId,
     String? requestItemName,
     String? itemName,
@@ -149,8 +172,10 @@ class ProposalItem {
     String? alternativeReason,
     String? imageUrl,
     List<String>? vendorImageUrls,
+    ProposalItemDecision? customerDecision,
   }) {
     return ProposalItem(
+      id: id ?? this.id,
       requestItemId: requestItemId ?? this.requestItemId,
       requestItemName: requestItemName ?? this.requestItemName,
       itemName: itemName ?? this.itemName,
@@ -165,6 +190,7 @@ class ProposalItem {
       alternativeReason: alternativeReason ?? this.alternativeReason,
       imageUrl: imageUrl ?? this.imageUrl,
       vendorImageUrls: vendorImageUrls ?? this.vendorImageUrls,
+      customerDecision: customerDecision ?? this.customerDecision,
     );
   }
 }

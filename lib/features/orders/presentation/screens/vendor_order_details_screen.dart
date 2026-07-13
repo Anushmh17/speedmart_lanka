@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +17,7 @@ import 'package:speedmart_lanka/features/payments/data/mock_payment_repository.d
 import 'package:speedmart_lanka/features/requests/models/request_category_fulfillment.dart';
 import 'package:speedmart_lanka/features/requests/data/mock_request_repository.dart';
 import 'package:speedmart_lanka/features/location/services/location_service.dart';
+import 'package:speedmart_lanka/features/vendor/proposals/widgets/image_gallery_viewer.dart';
 
 class VendorOrderDetailsScreen extends ConsumerWidget {
   const VendorOrderDetailsScreen({super.key, required this.order});
@@ -129,6 +131,8 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
       (o) => o.id == order.id,
       orElse: () => order,
     );
+
+    final Map<String, bool> packedItems = {};
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
@@ -510,43 +514,136 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 24),
 
-                  // Ordered Items
-                  Text('Items for Preparation', style: AppTextStyles.h2(primaryText)),
+                  // Packing Checklist
+                  Text('Packing Checklist', style: AppTextStyles.h2(primaryText)),
+                  const SizedBox(height: 4),
+                  Text('Check items off as you prepare and pack them.', style: AppTextStyles.caption(secondaryText)),
                   const SizedBox(height: 12),
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: activeOrder.items.length,
-                    itemBuilder: (context, index) {
-                      final item = activeOrder.items[index];
-                      if (item.status == ProposalItemStatus.unavailable) return const SizedBox.shrink();
+                  StatefulBuilder(
+                    builder: (context, setStateChecklist) {
+                      return ListView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: activeOrder.items.length,
+                        itemBuilder: (context, index) {
+                          final item = activeOrder.items[index];
+                          if (item.status == ProposalItemStatus.unavailable) return const SizedBox.shrink();
 
-                      final itemName = item.status == ProposalItemStatus.alternative
-                          ? '${item.alternativeName} (Alternative)'
-                          : item.requestItemName;
+                          final itemName = item.status == ProposalItemStatus.alternative
+                              ? '${item.alternativeName} (Alternative)'
+                              : item.requestItemName;
 
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: cardColor,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: borderColor),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(itemName, style: AppTextStyles.bodyLarge(primaryText)),
-                                  Text('Quantity to Pack: ${item.quantity}', style: AppTextStyles.caption(secondaryText)),
-                                ],
+                          final isChecked = packedItems[item.requestItemId] ?? false;
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: cardColor,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isChecked
+                                    ? AppColors.vendorColor.withOpacity(0.5)
+                                    : borderColor,
                               ),
                             ),
-                            Text('Rs. ${item.totalPrice.toStringAsFixed(2)}', style: AppTextStyles.bodyMedium(primaryText)),
-                          ],
-                        ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Checkbox(
+                                  value: isChecked,
+                                  activeColor: AppColors.vendorColor,
+                                  onChanged: (val) {
+                                    setStateChecklist(() {
+                                      packedItems[item.requestItemId] = val ?? false;
+                                    });
+                                  },
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Item name + price row
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  itemName,
+                                                  style: AppTextStyles.bodyLarge(primaryText).copyWith(
+                                                    decoration: isChecked ? TextDecoration.lineThrough : null,
+                                                    color: isChecked ? secondaryText : primaryText,
+                                                  ),
+                                                ),
+                                                Text('Quantity to Pack: ${item.quantity}', style: AppTextStyles.caption(secondaryText)),
+                                              ],
+                                            ),
+                                          ),
+                                          Text('Rs. ${item.totalPrice.toStringAsFixed(2)}', style: AppTextStyles.bodyMedium(primaryText)),
+                                        ],
+                                      ),
+                                      // Image carousel
+                                      Builder(builder: (ctx) {
+                                        final allUrls = [
+                                          if (item.imageUrl != null && item.imageUrl!.isNotEmpty) item.imageUrl!,
+                                          ...item.vendorImageUrls.where((u) => u.isNotEmpty),
+                                        ];
+                                        if (allUrls.isEmpty) return const SizedBox.shrink();
+                                        return Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            const SizedBox(height: 10),
+                                            Text(
+                                              'Product photos (${allUrls.length})',
+                                              style: AppTextStyles.caption(secondaryText),
+                                            ),
+                                            const SizedBox(height: 6),
+                                            SizedBox(
+                                              height: 90,
+                                              child: ListView.builder(
+                                                scrollDirection: Axis.horizontal,
+                                                itemCount: allUrls.length,
+                                                itemBuilder: (_, i) {
+                                                  final url = allUrls[i];
+                                                  final isNetwork = url.startsWith('http://') || url.startsWith('https://');
+                                                  return GestureDetector(
+                                                    onTap: () => Navigator.of(ctx).push(MaterialPageRoute(
+                                                      builder: (_) => ImageGalleryViewer(imagePaths: allUrls, initialIndex: i),
+                                                    )),
+                                                    child: Container(
+                                                      width: 90,
+                                                      height: 90,
+                                                      margin: EdgeInsets.only(right: i < allUrls.length - 1 ? 8 : 0),
+                                                      decoration: BoxDecoration(
+                                                        color: borderColor,
+                                                        borderRadius: BorderRadius.circular(8),
+                                                      ),
+                                                      child: ClipRRect(
+                                                        borderRadius: BorderRadius.circular(8),
+                                                        child: isNetwork
+                                                            ? Image.network(url, width: 90, height: 90, fit: BoxFit.cover,
+                                                                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, color: Colors.white54))
+                                                            : Image.file(File(url), width: 90, height: 90, fit: BoxFit.cover,
+                                                                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, color: Colors.white54)),
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                              ),
+                                            ),
+                                          ],
+                                        );
+                                      }),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
                       );
                     },
                   ),
@@ -682,13 +779,6 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                       }
 
                       if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Order updated to: ${_formatOrderStatus(nextStatus)}'),
-                            backgroundColor: AppColors.success,
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
                         context.pop();
                       }
                     },

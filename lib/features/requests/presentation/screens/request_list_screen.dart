@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -6,9 +5,9 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/theme3/theme3_app_card.dart';
-import '../../../../core/widgets/theme3/theme3_category_chip.dart';
 import '../../../../core/widgets/theme3/theme3_empty_state.dart';
 import '../../../../core/widgets/theme3/theme3_status_chip.dart';
+import '../../../../core/widgets/theme3/request_image_carousel.dart';
 import '../../../../shared/utils/category_constants.dart';
 import '../../models/shopping_request.dart';
 import '../../providers/request_provider.dart';
@@ -32,122 +31,38 @@ class RequestListScreen extends ConsumerStatefulWidget {
 class _RequestListScreenState extends ConsumerState<RequestListScreen> {
   RequestFilterType _selectedFilter = RequestFilterType.all;
 
-  /// Check if image path is a network URL
-  bool _isNetworkImage(String path) {
-    return path.startsWith('http://') || path.startsWith('https://');
-  }
-
-  /// Check if image path is an asset
-  bool _isAssetImage(String path) {
-    return path.startsWith('assets/');
-  }
-
-  /// Build image content with proper loader based on path type
-  Widget _buildImageContent({
-    required String imagePath,
-    required double size,
-    required Widget fallback,
-  }) {
-    if (_isNetworkImage(imagePath)) {
-      return Image.network(
-        imagePath,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => fallback,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return fallback;
-        },
-      );
-    }
-
-    if (_isAssetImage(imagePath)) {
-      return Image.asset(
-        imagePath,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => fallback,
-      );
-    }
-
-    // Local file path
-    return Image.file(
-      File(imagePath),
-      width: size,
-      height: size,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) => fallback,
-    );
-  }
-
-  /// Extract first available customer image from request
-  String? _getRequestThumbnailImage(ShoppingRequest request) {
-    if (request.items.isNotEmpty) {
-      for (final item in request.items) {
-        if (item.imageUrls.isNotEmpty) {
-          final firstImage = item.imageUrls.first.trim();
-          if (firstImage.isNotEmpty) {
-            return firstImage;
-          }
-        }
+  /// Collect all non-empty images across all items in a request.
+  List<String> _getRequestImages(ShoppingRequest request) {
+    final images = <String>[];
+    for (final item in request.items) {
+      for (final url in item.imageUrls) {
+        final t = url.trim();
+        if (t.isNotEmpty) images.add(t);
       }
     }
-    return null;
+    return images;
   }
 
-  /// Build smart thumbnail that shows image if available, otherwise category icon
-  Widget _buildSmartRequestThumbnail({
-    required String? imagePath,
+  /// Build a carousel thumbnail for a request.
+  Widget _buildRequestCarousel({
+    required List<String> images,
     required String category,
     required double size,
     required bool isDark,
   }) {
     final categoryIcon = _getCategoryIcon(category);
     final categoryColor = _getCategoryColor(category);
-    
-    // Build category icon fallback widget
     final iconFallback = Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         color: categoryColor.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(
-          color: categoryColor.withValues(alpha: 0.35),
-          width: 1,
-        ),
+        border: Border.all(color: categoryColor.withValues(alpha: 0.35), width: 1),
       ),
-      child: Icon(
-        categoryIcon,
-        color: categoryColor,
-        size: size * 0.47,
-      ),
+      child: Icon(categoryIcon, color: categoryColor, size: size * 0.47),
     );
-    
-    // If image exists, show image thumbnail
-    if (imagePath != null && imagePath.trim().isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        child: Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            color: categoryColor.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(AppRadius.md),
-          ),
-          child: _buildImageContent(
-            imagePath: imagePath.trim(),
-            size: size,
-            fallback: iconFallback,
-          ),
-        ),
-      );
-    }
-    
-    // No image, show category icon thumbnail
-    return iconFallback;
+    return RequestImageCarousel(images: images, fallback: iconFallback, size: size);
   }
 
   Color _getCategoryColor(String category) {
@@ -302,6 +217,16 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
       );
     }
 
+    final groupedRequests = _groupRequestsByTime(filteredRequests);
+    // Build a flat list: each entry is either a String (section header) or a ShoppingRequest.
+    final List<dynamic> listItems = [];
+    for (final entry in groupedRequests.entries) {
+      if (entry.value.isNotEmpty) {
+        listItems.add(entry.key); // section header label
+        listItems.addAll(entry.value);
+      }
+    }
+
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
       body: Column(
@@ -318,14 +243,91 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
                 : RefreshIndicator(
                     onRefresh: () => ref.read(requestProvider.notifier).loadMyRequests(),
                     child: ListView.builder(
-                      padding: EdgeInsets.all(AppSpacing.md),
-                      itemCount: filteredRequests.length,
+                      padding: EdgeInsets.fromLTRB(
+                        AppSpacing.md,
+                        AppSpacing.sm,
+                        AppSpacing.md,
+                        AppSpacing.md,
+                      ),
+                      itemCount: listItems.length,
                       itemBuilder: (context, index) {
-                        final request = filteredRequests[index];
-                        return _buildRequestCard(context, request, isDark, primaryText, secondaryText);
+                        final item = listItems[index];
+                        if (item is String) {
+                          return _buildSectionHeader(item, isDark, secondaryText);
+                        }
+                        return _buildRequestCard(
+                          context,
+                          item as ShoppingRequest,
+                          isDark,
+                          primaryText,
+                          secondaryText,
+                        );
                       },
                     ),
                   ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Groups requests into time buckets: Today, This Week, Last Week, Last Month, Older.
+  /// Preserves insertion order for consistent display.
+  Map<String, List<ShoppingRequest>> _groupRequestsByTime(List<ShoppingRequest> requests) {
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+    final weekStart = todayStart.subtract(Duration(days: now.weekday - 1)); // Monday
+    final lastWeekStart = weekStart.subtract(const Duration(days: 7));
+    final lastWeekEnd = weekStart;
+    final monthStart = DateTime(now.year, now.month, 1);
+
+    // Use a LinkedHashMap to preserve insertion order
+    final groups = <String, List<ShoppingRequest>>{
+      'Today': [],
+      'This Week': [],
+      'Last Week': [],
+      'Last Month': [],
+      'Older': [],
+    };
+
+    for (final request in requests) {
+      final created = request.createdAt;
+      if (!created.isBefore(todayStart)) {
+        groups['Today']!.add(request);
+      } else if (!created.isBefore(weekStart)) {
+        groups['This Week']!.add(request);
+      } else if (!created.isBefore(lastWeekStart) && created.isBefore(lastWeekEnd)) {
+        groups['Last Week']!.add(request);
+      } else if (!created.isBefore(monthStart)) {
+        groups['Last Month']!.add(request);
+      } else {
+        groups['Older']!.add(request);
+      }
+    }
+
+    return groups;
+  }
+
+  Widget _buildSectionHeader(String label, bool isDark, Color secondaryText) {
+    return Padding(
+      padding: EdgeInsets.only(top: AppSpacing.md, bottom: AppSpacing.sm),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: AppTextStyles.labelMedium(secondaryText).copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Container(
+              height: 1,
+              color: isDark
+                  ? AppColors.borderDark.withValues(alpha: 0.5)
+                  : AppColors.borderLight.withValues(alpha: 0.7),
+            ),
           ),
         ],
       ),
@@ -370,27 +372,6 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
                   ],
                 ),
               ),
-              IconButton(
-                onPressed: () {},
-                icon: Icon(
-                  Icons.search_rounded,
-                  color: secondaryText,
-                ),
-                style: IconButton.styleFrom(
-                  backgroundColor: isDark ? AppColors.surfaceElevatedDark : AppColors.surfaceLight,
-                ),
-              ),
-              SizedBox(width: AppSpacing.xs),
-              IconButton(
-                onPressed: () {},
-                icon: Icon(
-                  Icons.tune_rounded,
-                  color: secondaryText,
-                ),
-                style: IconButton.styleFrom(
-                  backgroundColor: isDark ? AppColors.surfaceElevatedDark : AppColors.surfaceLight,
-                ),
-              ),
             ],
           ),
         ],
@@ -398,47 +379,119 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
     );
   }
 
+  // ── Filter metadata ────────────────────────────────────────────────────────
+  static const _filterMeta = [
+    (type: RequestFilterType.all,              label: 'All',       icon: Icons.apps_rounded,            color: Color(0xFF6366F1)),
+    (type: RequestFilterType.submitted,        label: 'Waiting',   icon: Icons.hourglass_top_rounded,   color: Color(0xFFF59E0B)),
+    (type: RequestFilterType.proposalReceived, label: 'Proposals', icon: Icons.local_offer_rounded,     color: Color(0xFF0EA5E9)),
+    (type: RequestFilterType.accepted,         label: 'Accepted',  icon: Icons.check_circle_rounded,    color: Color(0xFF22C55E)),
+    (type: RequestFilterType.cancelled,        label: 'Cancelled', icon: Icons.cancel_rounded,          color: Color(0xFFEF4444)),
+  ];
+
   Widget _buildFilterChips(bool isDark) {
+    final surfaceBg  = isDark ? AppColors.surfaceDark  : AppColors.surfaceLight;
+    final borderCol  = isDark ? AppColors.borderDark   : AppColors.borderLight;
+    final trackColor = isDark ? AppColors.surfaceElevatedDark : const Color(0xFFF3F4F6);
+
     return Container(
-      height: 56,
-      padding: EdgeInsets.symmetric(vertical: AppSpacing.xs),
       decoration: BoxDecoration(
-        color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+        color: surfaceBg,
         border: Border(
-          bottom: BorderSide(
-            color: isDark ? AppColors.borderDark : AppColors.borderLight,
-            width: 1,
-          ),
+          bottom: BorderSide(color: borderCol, width: 1),
         ),
       ),
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-        children: [
-          _buildFilterChip('All', RequestFilterType.all, isDark),
-          SizedBox(width: AppSpacing.xs),
-          _buildFilterChip('Submitted', RequestFilterType.submitted, isDark),
-          SizedBox(width: AppSpacing.xs),
-          _buildFilterChip('Proposal Received', RequestFilterType.proposalReceived, isDark),
-          SizedBox(width: AppSpacing.xs),
-          _buildFilterChip('Accepted', RequestFilterType.accepted, isDark),
-          SizedBox(width: AppSpacing.xs),
-          _buildFilterChip('Cancelled', RequestFilterType.cancelled, isDark),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        child: Container(
+          height: 52,
+          decoration: BoxDecoration(
+            color: trackColor,
+            borderRadius: BorderRadius.circular(26),
+          ),
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.symmetric(horizontal: 5),
+            itemCount: _filterMeta.length,
+            itemBuilder: (context, index) {
+              final meta = _filterMeta[index];
+              return _buildFilterTab(
+                label: meta.label,
+                icon: meta.icon,
+                accentColor: meta.color,
+                type: meta.type,
+                isDark: isDark,
+              );
+            },
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildFilterChip(String label, RequestFilterType type, bool isDark) {
+  Widget _buildFilterTab({
+    required String label,
+    required IconData icon,
+    required Color accentColor,
+    required RequestFilterType type,
+    required bool isDark,
+  }) {
     final isSelected = _selectedFilter == type;
-    return Theme3CategoryChip(
-      label: label,
-      isSelected: isSelected,
-      onTap: () {
-        setState(() {
-          _selectedFilter = type;
-        });
-      },
+    final unselectedText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+
+    return GestureDetector(
+      onTap: () => setState(() => _selectedFilter = type),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 3),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 0),
+        decoration: BoxDecoration(
+          gradient: isSelected
+              ? LinearGradient(
+                  colors: [accentColor, accentColor.withValues(alpha: 0.78)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: isSelected ? null : Colors.transparent,
+          borderRadius: BorderRadius.circular(21),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: accentColor.withValues(alpha: 0.35),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              child: Icon(
+                icon,
+                key: ValueKey('$type-$isSelected'),
+                size: 18,
+                color: isSelected ? Colors.white : accentColor.withValues(alpha: 0.85),
+              ),
+            ),
+            const SizedBox(width: 6),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 180),
+              style: AppTextStyles.labelMedium(
+                isSelected ? Colors.white : unselectedText,
+              ).copyWith(
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                letterSpacing: isSelected ? 0.2 : 0,
+              ),
+              child: Text(label),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -479,9 +532,11 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
   ) {
     final categories = request.categories;
     final primaryCategory = categories.isNotEmpty ? categories.first : '';
-    final requestImagePath = _getRequestThumbnailImage(request);
+    final requestImages = _getRequestImages(request);
     final proposalCount = request.proposalCount;
-    final firstItemName = request.items.isNotEmpty ? request.items.first.name : 'Request';
+    final firstItemName = request.isMultiCategory
+        ? 'Multiple Category Order'
+        : (request.items.isNotEmpty ? request.items.first.name : 'Request');
     
     final statusType = switch (request.status) {
       RequestStatus.submitted || RequestStatus.waitingForVendor => Theme3StatusType.pending,
@@ -505,8 +560,8 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
         child: Row(
           children: [
             // LEFT: Smart Thumbnail (64x64)
-            _buildSmartRequestThumbnail(
-              imagePath: requestImagePath,
+            _buildRequestCarousel(
+              images: requestImages,
               category: primaryCategory,
               size: 64,
               isDark: isDark,
@@ -517,11 +572,39 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    firstItemName,
-                    style: AppTextStyles.labelLarge(primaryText),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          firstItemName,
+                          style: AppTextStyles.labelLarge(primaryText).copyWith(
+                            fontWeight: request.isMultiCategory ? FontWeight.bold : FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (request.isMultiCategory) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF7C3AED), Color(0xFF9D4EDD)],
+                            ),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'Mixed',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 4),
                   if (categories.isNotEmpty)

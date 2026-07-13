@@ -7,8 +7,8 @@ import 'package:speedmart_lanka/shared/models/vendor_status.dart';
 
 const _distanceCalc = DistanceCalculationService();
 
-/// Returns the count of active vendors within 25 km of the customer's
-/// current delivery location. Falls back to district-match when no GPS coords.
+/// Returns the count of active vendors within 5 km of the customer's
+/// current delivery location. Returns 0 when no location is set.
 final nearbyActiveVendorCountProvider = FutureProvider<int>((ref) async {
   final locationState = ref.watch(locationProvider);
   final allUsers = await MockAuthRepository.instance.getAllUsers();
@@ -38,15 +38,6 @@ final nearbyActiveVendorCountProvider = FutureProvider<int>((ref) async {
     }).length;
   }
 
-  // No GPS: fall back to district match
-  final customerDistrict =
-      locationState.currentLocation?.district.toLowerCase().trim();
-  if (customerDistrict != null && customerDistrict.isNotEmpty) {
-    return activeVendors
-        .where((v) =>
-            v.shopDistrict?.toLowerCase().trim() == customerDistrict)
-        .length;
-  }
-
-  return activeVendors.length;
+  // No location set — cannot determine proximity
+  return 0;
 });

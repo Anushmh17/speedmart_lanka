@@ -433,7 +433,7 @@ class _AdminVendorAssignmentScreenState
 
                     AppTextField(
                       label: 'Service Radius (KM)',
-                      hint: 'e.g., 20',
+                      hint: 'e.g., 5',
                       controller: _radiusCtrl,
                       prefixIcon: Icons.straighten_rounded,
                       keyboardType: TextInputType.number,

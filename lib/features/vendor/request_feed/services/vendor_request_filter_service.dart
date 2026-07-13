@@ -125,6 +125,16 @@ class VendorRequestFilterService {
     return matchingItems;
   }
 
+  /// Resolves the customer's delivery coordinates from a request.
+  /// Prefers deliveryLocation (GPS/picker) over top-level lat/lon fields.
+  static ({double lat, double lon}) resolveCustomerCoords(ShoppingRequest request) {
+    final dl = request.deliveryLocation;
+    if (dl != null && (dl.latitude ?? 0) != 0 && (dl.longitude ?? 0) != 0) {
+      return (lat: dl.latitude!, lon: dl.longitude!);
+    }
+    return (lat: request.latitude, lon: request.longitude);
+  }
+
   bool isWithinRadius({
     required ShoppingRequest request,
     required double vendorLat,
@@ -132,19 +142,17 @@ class VendorRequestFilterService {
     double? assignedRadiusKm,
     List<String> vendorCategories = const [],
   }) {
-    // Invalid coordinates - can't determine distance
-    if ((request.latitude == 0 && request.longitude == 0) && request.deliveryLocation?.latitude == null) {
-      debugPrint('[DistanceAudit] Invalid coordinates (0,0) and no deliveryLocation, rejecting');
+    final coords = resolveCustomerCoords(request);
+    if (coords.lat == 0 && coords.lon == 0) {
+      debugPrint('[DistanceAudit] Invalid customer coordinates (0,0), rejecting');
       return false;
     }
-
     final distance = LocationModel.calculateDistance(
-      lat1: request.latitude,
-      lon1: request.longitude,
+      lat1: coords.lat,
+      lon1: coords.lon,
       lat2: vendorLat,
       lon2: vendorLon,
     );
-    // Use admin-assigned radius, default to 5km if not set
     final maxRadius = assignedRadiusKm ?? 5.0;
     return distance <= maxRadius;
   }
@@ -194,10 +202,25 @@ class VendorRequestFilterService {
     bool? vendorApproved,
     double? assignedRadiusKm,
     String? categoryFilter,
+    String? vendorId,
   }) {
     if (!vendorIsApproved(vendorStatus: vendorStatus, vendorApproved: vendorApproved)) {
       return [];
     }
+
+    // Build a set of request IDs this vendor has already bid on (active proposals only).
+    // These should only appear in "My Submitted Bids", not the feed.
+    final alreadyBidRequestIds = vendorId == null
+        ? <String>{}
+        : allProposals
+            .where((p) =>
+                p.vendorId == vendorId &&
+                p.status != ProposalStatus.withdrawn &&
+                p.status != ProposalStatus.draft)
+            .map((p) => p.requestId)
+            .toSet();
+
+    debugPrint('[FeedAudit] Vendor already-bid request IDs excluded from feed: $alreadyBidRequestIds');
 
     // Normalize vendor categories using VendorCategories.normalize()
     final vendorNormalized = vendorCategories
@@ -218,7 +241,13 @@ class VendorRequestFilterService {
 
     final matched = active.where((request) {
       debugPrint('[FeedCategoryFix] ===== REQUEST ${request.id} =====');
-      debugPrint('[FeedCategoryFix] request id: ${request.id}');
+
+      // Exclude requests this vendor has already submitted a bid for.
+      if (alreadyBidRequestIds.contains(request.id)) {
+        debugPrint('[FeedCategoryFix] hidden reason: vendor_already_bid');
+        return false;
+      }
+
       debugPrint('[FeedCategoryFix] original items: ${request.items.map((i) => "${i.itemName} (${i.category})").join(", ")}');
 
       // Filter items to only those matching vendor categories
@@ -242,11 +271,12 @@ class VendorRequestFilterService {
         vendorCategories: vendorCategories,
       );
 
-      final distance = request.latitude == 0 && request.longitude == 0
+      final coords = resolveCustomerCoords(request);
+      final distance = coords.lat == 0 && coords.lon == 0
           ? 0.0
           : LocationModel.calculateDistance(
-              lat1: request.latitude,
-              lon1: request.longitude,
+              lat1: coords.lat,
+              lon1: coords.lon,
               lat2: vendorLatitude,
               lon2: vendorLongitude,
             );
@@ -254,7 +284,7 @@ class VendorRequestFilterService {
       final assignedRadius = assignedRadiusKm ?? 5.0;
 
       debugPrint('[DistanceAudit] request: ${request.id}');
-      debugPrint('[DistanceAudit] Request coords: lat=${request.latitude}, lng=${request.longitude}');
+      debugPrint('[DistanceAudit] Customer coords: lat=${coords.lat}, lng=${coords.lon}');
       debugPrint('[DistanceAudit] Vendor coords: lat=$vendorLatitude, lng=$vendorLongitude');
       debugPrint('[DistanceAudit] Distance: ${distance.toStringAsFixed(1)}km, Radius: ${assignedRadius}km, Inside: $radiusCheck');
 
@@ -283,20 +313,24 @@ class VendorRequestFilterService {
 
     final assignedRadius = assignedRadiusKm ?? 5.0;
 
-    return matched.map((request) {
-      final distance = request.latitude == 0 && request.longitude == 0
+    final feedItems = <VendorFeedRequest>[];
+
+    for (final request in matched) {
+      final coords = resolveCustomerCoords(request);
+      final distance = coords.lat == 0 && coords.lon == 0
           ? 0.0
           : LocationModel.calculateDistance(
-              lat1: request.latitude,
-              lon1: request.longitude,
+              lat1: coords.lat,
+              lon1: coords.lon,
               lat2: vendorLatitude,
               lon2: vendorLongitude,
             );
 
-      // Filter items to only show matching categories
       final matchingItems = filterMatchingItems(request, vendorCategories);
+
+      // Keep all matching items in one card so allCategories shows every category.
       final filteredRequest = request.copyWith(items: matchingItems);
-      
+
       // [ImageAudit] Vendor feed
       for (final item in filteredRequest.items) {
         debugPrint('[ImageAudit] Vendor feed item: ${filteredRequest.id}');
@@ -305,17 +339,22 @@ class VendorRequestFilterService {
         debugPrint('[ImageAudit] Images: ${item.imageUrls}');
       }
 
-      return VendorFeedRequest(
-        request: filteredRequest, // Use filtered request with only matching items
-        distanceKm: double.parse(distance.toStringAsFixed(1)),
-        proposalCount: proposalCountFor(request.id, allProposals),
-        urgency: urgencyFor(request),
-        primaryCategory: primaryCategoryFor(filteredRequest),
-        approximateArea: approximateAreaFor(request),
-        district: districtFor(request),
-        maxRadiusKm: assignedRadius,
+      feedItems.add(
+        VendorFeedRequest(
+          request: filteredRequest,
+          distanceKm: double.parse(distance.toStringAsFixed(1)),
+          proposalCount: proposalCountFor(request.id, allProposals),
+          urgency: urgencyFor(request),
+          primaryCategory: primaryCategoryFor(filteredRequest),
+          approximateArea: approximateAreaFor(request),
+          district: districtFor(request),
+          maxRadiusKm: assignedRadius,
+        ),
       );
-    }).toList();
+
+    }
+
+    return feedItems;
   }
 
   List<VendorFeedRequest> applySort(

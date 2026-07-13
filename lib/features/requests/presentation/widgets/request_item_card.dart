@@ -313,6 +313,7 @@ class _RequestItemCardState extends ConsumerState<RequestItemCard> {
                   controller: _nameController,
                   label: 'Item Name',
                   hint: 'e.g. Onion, Red Pumpkins...',
+                  textCapitalization: TextCapitalization.sentences,
                   onChanged: (val) {
                     _updateItem(widget.item.copyWith(itemName: val));
                   },
@@ -346,6 +347,7 @@ class _RequestItemCardState extends ConsumerState<RequestItemCard> {
                   controller: _brandController,
                   label: 'Preferred Brand / Model (Optional)',
                   hint: 'e.g. Prima, Anchor, Toyota Genuine',
+                  textCapitalization: TextCapitalization.sentences,
                   onChanged: (val) {
                     _updateItem(widget.item.copyWith(preferredBrand: val));
                   },
@@ -358,6 +360,7 @@ class _RequestItemCardState extends ConsumerState<RequestItemCard> {
                   label: 'Description / Remarks (Optional)',
                   hint: 'e.g. Fresh medium size, organic...',
                   maxLines: 2,
+                  textCapitalization: TextCapitalization.sentences,
                   onChanged: (val) {
                     _updateItem(widget.item.copyWith(description: val));
                   },

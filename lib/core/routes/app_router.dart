@@ -17,6 +17,7 @@ import 'package:speedmart_lanka/features/payments/presentation/screens/payment_r
 import 'package:speedmart_lanka/features/orders/models/order_model.dart';
 import 'package:speedmart_lanka/features/orders/presentation/screens/order_tracking_screen.dart';
 import 'package:speedmart_lanka/features/orders/presentation/screens/vendor_order_details_screen.dart';
+import 'package:speedmart_lanka/features/orders/presentation/screens/vendor_orders_screen.dart';
 import 'package:speedmart_lanka/features/vendor/presentation/screens/vendor_home_screen.dart';
 import 'package:speedmart_lanka/features/vendor/presentation/screens/vendor_shopfront_screen.dart';
 import 'package:speedmart_lanka/features/vendor/proposals/presentation/vendor_request_detail_screen.dart';
@@ -313,14 +314,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final proposalId = extraMap['proposalId'] as String;
           final vendorName = extraMap['vendorName'] as String;
           final isUnlocked = extraMap['isUnlocked'] as bool;
+          final autoMessage = extraMap['autoMessage'] as String?;
           return ChatScreen(
             proposalId: proposalId,
             vendorName: vendorName,
             isUnlocked: isUnlocked,
+            autoMessage: autoMessage,
           );
         },
       ),
-
       // ── Vendor ───────────────────────────────────────────────────────────
       GoRoute(
         path: RouteNames.vendorHome,
@@ -390,6 +392,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             request: request,
             existingProposal: proposal,
           );
+        },
+      ),
+      GoRoute(
+        path: '/vendor/orders',
+        builder: (_, state) {
+          final extra = state.extra;
+          int initialTabIndex = 0;
+          if (extra is Map) {
+            initialTabIndex = extra['initialTabIndex'] as int? ?? 0;
+          }
+          return VendorOrdersScreen(initialTabIndex: initialTabIndex);
         },
       ),
       GoRoute(

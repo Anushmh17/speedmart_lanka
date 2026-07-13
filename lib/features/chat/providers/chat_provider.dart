@@ -23,33 +23,7 @@ class ChatState {
 }
 
 class ChatNotifier extends StateNotifier<ChatState> {
-  ChatNotifier() : super(ChatState(messages: [])) {
-    _seedInitialMessages();
-  }
-
-  void _seedInitialMessages() {
-    // Seed some initial friendly chat logs between customer and vendor
-    state = ChatState(messages: [
-      ChatMessage(
-        id: 'init-msg-1',
-        proposalId: 'seed-proposal-id',
-        senderRole: 'vendor',
-        senderName: 'Partner Merchant #A3B1',
-        text: 'Hi there! I have all your grocery items in stock, except the fresh milk. I have offered Kotmale pasteurized fresh milk as a replacement. Let me know if that is okay!',
-        maskedText: 'Hi there! I have all your grocery items in stock, except the fresh milk. I have offered Kotmale pasteurized fresh milk as a replacement. Let me know if that is okay!',
-        timestamp: DateTime.now().subtract(const Duration(minutes: 10)),
-      ),
-      ChatMessage(
-        id: 'init-msg-2',
-        proposalId: 'seed-proposal-id',
-        senderRole: 'customer',
-        senderName: 'Customer',
-        text: 'Yes, Kotmale fresh milk works perfectly for me. Thank you.',
-        maskedText: 'Yes, Kotmale fresh milk works perfectly for me. Thank you.',
-        timestamp: DateTime.now().subtract(const Duration(minutes: 8)),
-      ),
-    ]);
-  }
+  ChatNotifier() : super(ChatState(messages: []));
 
   // Regex utility to dynamically mask phone numbers, emails and suburb details
   String maskSensitiveDetails(String originalText) {
@@ -131,7 +105,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }
 
   List<ChatMessage> getMessagesForProposal(String proposalId) {
-    return state.messages.where((m) => m.proposalId == proposalId || m.proposalId == 'seed-proposal-id').toList();
+    return state.messages.where((m) => m.proposalId == proposalId).toList();
   }
 }
 

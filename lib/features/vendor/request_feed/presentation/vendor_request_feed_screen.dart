@@ -5,11 +5,10 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../../../core/widgets/theme3/theme3_app_card.dart';
 import '../../../../core/widgets/theme3/theme3_empty_state.dart';
 import '../../../auth/providers/auth_provider.dart';
+import '../models/vendor_feed_enums.dart';
 import '../providers/vendor_request_feed_provider.dart';
-import '../widgets/vendor_feed_filter_bar.dart';
 import '../widgets/vendor_request_card.dart';
 
 /// Vendor marketplace feed: nearby active requests matching categories & radius.
@@ -143,102 +142,10 @@ class _VendorRequestFeedScreenState
                 ],
               ),
             ),
-            // Shop Location Card
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-              child: Theme3AppCard(
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(AppSpacing.sm),
-                      decoration: BoxDecoration(
-                        color: AppColors.vendorColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(AppRadius.md),
-                      ),
-                      child: const Icon(
-                        Icons.storefront_rounded,
-                        color: AppColors.vendorColor,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            user?.shopName ?? 'Shop Location',
-                            style: AppTextStyles.bodyMedium(primaryText)
-                                .copyWith(fontWeight: FontWeight.w600),
-                          ),
-                          const SizedBox(height: AppSpacing.xs),
-                          Text(
-                            'Admin-assigned base',
-                            style: AppTextStyles.caption(secondaryText),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(
-                      Icons.lock_rounded,
-                      color: AppColors.vendorColor.withValues(alpha: 0.4),
-                      size: 18,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: AppSpacing.md),
-            if (!feedState.vendorApproved &&
-                feedState.pendingApprovalMessage != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  decoration: BoxDecoration(
-                    color: AppColors.warning.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(AppRadius.md),
-                    border: Border.all(
-                      color: AppColors.warning.withValues(alpha: 0.4),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.hourglass_top_rounded,
-                        color: AppColors.warning,
-                        size: 20,
-                      ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Expanded(
-                        child: Text(
-                          feedState.pendingApprovalMessage!,
-                          style: AppTextStyles.bodySmall(AppColors.warning),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            if (!feedState.vendorApproved &&
-                feedState.pendingApprovalMessage != null)
-              const SizedBox(height: AppSpacing.md),
+            // Filter bar — category pills + sort pills combined
             if (feedState.vendorApproved) ...[
-              VendorFeedFilterBar(
-                isDark: isDark,
-                categoryChips: feedState.categoryChips,
-                selectedCategory: feedState.categoryFilter,
-                sortMode: feedState.sortMode,
-                onCategorySelected: (cat) {
-                  ref
-                      .read(vendorRequestFeedProvider.notifier)
-                      .setCategoryFilter(cat);
-                },
-                onSortChanged: (mode) {
-                  ref.read(vendorRequestFeedProvider.notifier).setSortMode(mode);
-                },
-              ),
+              const SizedBox(height: AppSpacing.sm),
+              _buildFilterBar(context, feedState, isDark, primaryText, secondaryText),
               const SizedBox(height: AppSpacing.sm),
             ],
             Expanded(
@@ -281,6 +188,168 @@ class _VendorRequestFeedScreenState
                             ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+  // ── Premium pill-tab filter bar ─────────────────────────────────────────────
+  Widget _buildFilterBar(
+    BuildContext context,
+    VendorRequestFeedState feedState,
+    bool isDark,
+    Color primaryText,
+    Color secondaryText,
+  ) {
+    final trackColor = isDark ? AppColors.surfaceElevatedDark : const Color(0xFFF3F4F6);
+    final surfaceBg = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final borderCol = isDark ? AppColors.borderDark : AppColors.borderLight;
+
+    // Sort pills metadata
+    const sortMeta = [
+      (mode: VendorFeedSortMode.newest,       label: 'Newest',          icon: Icons.schedule_rounded,         color: Color(0xFF6366F1)),
+      (mode: VendorFeedSortMode.nearest,      label: 'Nearest',         icon: Icons.near_me_rounded,          color: Color(0xFF0EA5E9)),
+      (mode: VendorFeedSortMode.lowCompetition, label: 'Low Competition', icon: Icons.emoji_events_rounded,    color: Color(0xFF22C55E)),
+    ];
+
+    return Container(
+      decoration: BoxDecoration(
+        color: surfaceBg,
+        border: Border(
+          bottom: BorderSide(color: borderCol, width: 1),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Sort row ─────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, 0),
+            child: Container(
+              height: 52,
+              decoration: BoxDecoration(
+                color: trackColor,
+                borderRadius: BorderRadius.circular(26),
+              ),
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 5),
+                children: sortMeta.map((meta) {
+                  final isSelected = feedState.sortMode == meta.mode;
+                  final unselectedText = isDark
+                      ? AppColors.textSecondaryDark
+                      : AppColors.textSecondaryLight;
+                  return GestureDetector(
+                    onTap: () => ref
+                        .read(vendorRequestFeedProvider.notifier)
+                        .setSortMode(meta.mode),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 3),
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      decoration: BoxDecoration(
+                        gradient: isSelected
+                            ? LinearGradient(
+                                colors: [meta.color, meta.color.withValues(alpha: 0.78)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              )
+                            : null,
+                        color: isSelected ? null : Colors.transparent,
+                        borderRadius: BorderRadius.circular(21),
+                        boxShadow: isSelected
+                            ? [
+                                BoxShadow(
+                                  color: meta.color.withValues(alpha: 0.35),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                )
+                              ]
+                            : null,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            meta.icon,
+                            size: 18,
+                            color: isSelected
+                                ? Colors.white
+                                : meta.color.withValues(alpha: 0.85),
+                          ),
+                          const SizedBox(width: 6),
+                          AnimatedDefaultTextStyle(
+                            duration: const Duration(milliseconds: 180),
+                            style: AppTextStyles.labelMedium(
+                              isSelected ? Colors.white : unselectedText,
+                            ).copyWith(
+                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                            ),
+                            child: Text(meta.label),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+          // ── Category chips ────────────────────────────────────────────
+          if (feedState.categoryChips.isNotEmpty) ...[  
+            const SizedBox(height: AppSpacing.sm),
+            SizedBox(
+              height: 38,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                children: [
+                  _buildCategoryChip('All', feedState.categoryFilter == null, isDark, primaryText, null),
+                  ...feedState.categoryChips.map((cat) => Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: _buildCategoryChip(
+                      cat,
+                      feedState.categoryFilter?.toLowerCase() == cat.toLowerCase(),
+                      isDark,
+                      primaryText,
+                      cat,
+                    ),
+                  )),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: AppSpacing.sm),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryChip(String label, bool selected, bool isDark, Color primaryText, String? categoryValue) {
+    const accent = AppColors.vendorColor;
+    return GestureDetector(
+      onTap: () => ref
+          .read(vendorRequestFeedProvider.notifier)
+          .setCategoryFilter(categoryValue),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? accent.withValues(alpha: 0.15)
+              : (isDark ? AppColors.cardDark : AppColors.cardLight),
+          borderRadius: BorderRadius.circular(AppRadius.full),
+          border: Border.all(
+            color: selected ? accent : (isDark ? AppColors.borderDark : AppColors.borderLight),
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: AppTextStyles.caption(
+            selected ? accent : primaryText,
+          ).copyWith(fontWeight: FontWeight.w600),
         ),
       ),
     );

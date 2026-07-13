@@ -5,6 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/widgets/theme3/request_image_carousel.dart';
 import '../../../../core/widgets/theme3/theme3_status_chip.dart';
 import '../models/vendor_feed_enums.dart';
 import '../models/vendor_feed_request.dart';
@@ -20,6 +21,33 @@ class VendorRequestCard extends StatelessWidget {
   final VendorFeedRequest feedRequest;
   final bool isDark;
   final Duration animationDelay;
+
+  List<String> _getImages() {
+    final images = <String>[];
+    for (final item in feedRequest.request.items) {
+      for (final url in item.imageUrls) {
+        final t = url.trim();
+        if (t.isNotEmpty) images.add(t);
+      }
+    }
+    return images;
+  }
+
+  Widget _buildCarousel(VendorFeedRequest feedRequest) {
+    const size = 56.0;
+    final images = _getImages();
+    final fallback = Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: AppColors.vendorColor.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+        border: Border.all(color: AppColors.vendorColor.withValues(alpha: 0.3)),
+      ),
+      child: const Icon(Icons.inventory_2_outlined, color: AppColors.vendorColor, size: 26),
+    );
+    return RequestImageCarousel(images: images, fallback: fallback, size: size);
+  }
 
   Color _urgencyColor(RequestUrgency urgency) {
     switch (urgency) {
@@ -86,26 +114,48 @@ class VendorRequestCard extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      Wrap(
-                        spacing: AppSpacing.xs,
-                        runSpacing: AppSpacing.xs,
-                        children: feedRequest.allCategories.map((cat) => Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: AppSpacing.sm,
-                            vertical: AppSpacing.xs,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.vendorColor.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(AppRadius.sm),
-                          ),
-                          child: Text(
-                            cat,
-                            style: AppTextStyles.caption(AppColors.vendorColor)
-                                .copyWith(fontWeight: FontWeight.w700),
-                          ),
-                        )).toList(),
+                      Expanded(
+                        child: Wrap(
+                          spacing: AppSpacing.xs,
+                          runSpacing: AppSpacing.xs,
+                          children: [
+                            ...feedRequest.allCategories.take(3).map((cat) =>
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.sm,
+                                  vertical: AppSpacing.xs,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.vendorColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                                ),
+                                child: Text(
+                                  cat,
+                                  style: AppTextStyles.caption(AppColors.vendorColor)
+                                      .copyWith(fontWeight: FontWeight.w700),
+                                ),
+                              ),
+                            ),
+                            if (feedRequest.allCategories.length > 3)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: AppSpacing.sm,
+                                  vertical: AppSpacing.xs,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.vendorColor.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(AppRadius.sm),
+                                ),
+                                child: Text(
+                                  '+${feedRequest.allCategories.length - 3} more',
+                                  style: AppTextStyles.caption(AppColors.vendorColor)
+                                      .copyWith(fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: AppSpacing.sm),
                       Theme3StatusChip(
                         label: feedRequest.urgency.label,
                         status: Theme3StatusType.custom,
@@ -117,6 +167,9 @@ class VendorRequestCard extends StatelessWidget {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Carousel thumbnail
+                      _buildCarousel(feedRequest),
+                      const SizedBox(width: AppSpacing.md),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -189,50 +242,36 @@ class VendorRequestCard extends StatelessWidget {
                   const SizedBox(height: AppSpacing.md),
                   const Divider(height: 1),
                   const SizedBox(height: AppSpacing.md),
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Theme3StatusChip(
-                          label: feedRequest.statusLabel,
-                          status: Theme3StatusType.custom,
-                          customColor: AppColors.vendorColor,
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.vendorColor,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        minimumSize: const Size(0, 36),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md,
+                          vertical: AppSpacing.sm,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.md),
                         ),
                       ),
-                      const SizedBox(width: AppSpacing.sm),
-                      Flexible(
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.vendorColor,
-                              foregroundColor: Colors.white,
-                              elevation: 0,
-                              minimumSize: const Size(0, 36),
-                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.md,
-                                vertical: AppSpacing.sm,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(AppRadius.md),
-                              ),
-                            ),
-                            onPressed: () {
-                              context.push(
-                                '/vendor/requests/detail',
-                                extra: feedRequest.request,
-                              );
-                            },
-                            icon: const Icon(Icons.send_rounded, size: 16),
-                            label: Text(
-                              'Submit bid',
-                              style: AppTextStyles.button(Colors.white)
-                                  .copyWith(fontSize: 13),
-                            ),
-                          ),
-                        ),
+                      onPressed: () {
+                        context.push(
+                          '/vendor/requests/detail',
+                          extra: feedRequest.request,
+                        );
+                      },
+                      icon: const Icon(Icons.send_rounded, size: 16),
+                      label: Text(
+                        'Submit bid',
+                        style: AppTextStyles.button(Colors.white)
+                            .copyWith(fontSize: 13),
                       ),
-                    ],
+                    ),
                   ),
                 ],
               ),

@@ -19,6 +19,7 @@ class CustomerProposalCard extends StatefulWidget {
     this.onReject,
     this.onSave,
     this.isSaved = false,
+    this.overrideBorderColor,
   });
 
   final CustomerProposalView view;
@@ -28,6 +29,7 @@ class CustomerProposalCard extends StatefulWidget {
   final VoidCallback? onReject;
   final VoidCallback? onSave;
   final bool isSaved;
+  final Color? overrideBorderColor;
 
   @override
   State<CustomerProposalCard> createState() => _CustomerProposalCardState();
@@ -81,8 +83,8 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
           color: cardColor,
           borderRadius: BorderRadius.circular(18),
           border: Border.all(
-            color: v.isBestForMode ? _accentColor : borderColor,
-            width: v.isBestForMode ? 2 : 1,
+            color: widget.overrideBorderColor ?? (v.isBestForMode ? _accentColor : borderColor),
+            width: widget.overrideBorderColor != null ? 1.5 : (v.isBestForMode ? 2 : 1),
           ),
           boxShadow: [
             if (v.isBestForMode)
@@ -239,6 +241,36 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                       ],
                     ),
                     const SizedBox(height: 8),
+                    Builder(builder: (context) {
+                      final altCount = p.items
+                          .where((i) => i.status == ProposalItemStatus.alternative)
+                          .length;
+                      final naCount = p.items
+                          .where((i) => i.status == ProposalItemStatus.unavailable)
+                          .length;
+                      if (altCount == 0 && naCount == 0) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 4,
+                          children: [
+                            if (altCount > 0)
+                              _StatusWarningChip(
+                                icon: Icons.swap_horiz_rounded,
+                                label: '$altCount alternative${altCount > 1 ? 's' : ''} offered',
+                                color: AppColors.warning,
+                              ),
+                            if (naCount > 0)
+                              _StatusWarningChip(
+                                icon: Icons.cancel_outlined,
+                                label: '$naCount item${naCount > 1 ? 's' : ''} unavailable',
+                                color: AppColors.error,
+                              ),
+                          ],
+                        ),
+                      );
+                    }),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -324,15 +356,70 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                         }
                         return rank(a.status).compareTo(rank(b.status));
                       })).take(4).map((item) {
-                      final line =
-                          item.status == ProposalItemStatus.unavailable
-                              ? '${item.itemName} — unavailable'
-                              : '${item.itemName} × ${item.quantity} @ Rs. ${item.unitPrice.toStringAsFixed(0)}';
+                      if (item.status == ProposalItemStatus.unavailable) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 5),
+                          child: Row(
+                            children: [
+                              Icon(Icons.cancel_outlined, size: 13, color: AppColors.error),
+                              const SizedBox(width: 5),
+                              Expanded(
+                                child: Text(
+                                  '${item.itemName} — unavailable',
+                                  style: AppTextStyles.caption(AppColors.error),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                      if (item.status == ProposalItemStatus.alternative) {
+                        final altName = (item.alternativeName != null && item.alternativeName!.isNotEmpty)
+                            ? item.alternativeName!
+                            : 'Alternative product';
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 5),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.swap_horiz_rounded, size: 13, color: AppColors.warning),
+                                  const SizedBox(width: 5),
+                                  Expanded(
+                                    child: Text(
+                                      '${item.itemName} — alternative offered',
+                                      style: AppTextStyles.caption(AppColors.warning)
+                                          .copyWith(fontWeight: FontWeight.w600),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(left: 18, top: 1),
+                                child: Text(
+                                  '↳ $altName × ${item.quantity} @ Rs. ${item.unitPrice.toStringAsFixed(0)}',
+                                  style: AppTextStyles.caption(secondaryText),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      }
+                      // available
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(
-                          line,
-                          style: AppTextStyles.caption(secondaryText),
+                        child: Row(
+                          children: [
+                            Icon(Icons.check_circle_outline_rounded, size: 13, color: AppColors.success),
+                            const SizedBox(width: 5),
+                            Expanded(
+                              child: Text(
+                                '${item.itemName} × ${item.quantity} @ Rs. ${item.unitPrice.toStringAsFixed(0)}',
+                                style: AppTextStyles.caption(secondaryText),
+                              ),
+                            ),
+                          ],
                         ),
                       );
                     }),
@@ -479,6 +566,47 @@ class _PricingRow extends StatelessWidget {
             style: bold
                 ? AppTextStyles.subtitle(accentColor)
                 : AppTextStyles.bodyMedium(primary),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Small coloured chip shown in the proposal card header to warn the customer
+/// that some items have alternatives or are unavailable.
+class _StatusWarningChip extends StatelessWidget {
+  const _StatusWarningChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withValues(alpha: 0.30)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
           ),
         ],
       ),

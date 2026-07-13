@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,7 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../models/proposal.dart';
 import '../../providers/proposal_provider.dart';
 import '../../../customer/proposals/services/proposal_comparison_service.dart';
+import '../../../vendor/proposals/widgets/image_gallery_viewer.dart';
 import 'customer_proposal_details_screen_header.dart';
 
 class CustomerProposalDetailsScreen extends ConsumerStatefulWidget {
@@ -36,30 +38,41 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
     'Need exact product only',
   ];
 
+  bool _isProcessingAccept = false;
+
   Future<void> _handleAccept() async {
-    if (widget.proposal.status != ProposalStatus.accepted) {
-      try {
+    if (_isProcessingAccept) return;
+    setState(() {
+      _isProcessingAccept = true;
+    });
+    try {
+      if (widget.proposal.status != ProposalStatus.accepted) {
         await ref.read(proposalProvider.notifier).acceptProposal(
               widget.proposal.id,
               widget.requestId,
             );
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(e.toString().replaceAll('Exception: ', '')),
-              backgroundColor: AppColors.error,
-            ),
-          );
-        }
-        return;
+      }
+      if (!mounted) return;
+      context.push('/customer/payment', extra: {
+        'proposal': widget.proposal,
+        'requestId': widget.requestId,
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessingAccept = false;
+        });
       }
     }
-    if (!mounted) return;
-    context.push('/customer/payment', extra: {
-      'proposal': widget.proposal,
-      'requestId': widget.requestId,
-    });
   }
 
   Future<void> _handleReject(String reason) async {
@@ -184,12 +197,19 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                           icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
                           label: const Text('Chat with Merchant (Secure Link)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                           onPressed: () {
+                            final item = widget.proposal.items.isNotEmpty
+                                ? widget.proposal.items.first
+                                : null;
+                            final autoMsg = item != null
+                                ? _buildItemChatMessage(item)
+                                : null;
                             context.push(
                               '/chat',
                               extra: {
                                 'proposalId': widget.proposal.id,
                                 'vendorName': maskedVendorName,
                                 'isUnlocked': false,
+                                'autoMessage': autoMsg,
                               },
                             );
                           },
@@ -212,56 +232,16 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
 
                   // Item Availability Summary
                   _buildItemAvailabilitySummary(widget.proposal, cardColor, borderColor, primaryText, secondaryText),
-                  const SizedBox(height: 20),
-
-                  // Pricing Summary Card
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: cardColor,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: borderColor),
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('Estimated Delivery Time:', style: AppTextStyles.bodyMedium(secondaryText)),
-                            Text(widget.proposal.estimatedDeliveryTime, style: AppTextStyles.subtitle(primaryText)),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('Delivery Charge:', style: AppTextStyles.bodyMedium(secondaryText)),
-                            Text('Rs. ${widget.proposal.deliveryCharge.toStringAsFixed(2)}', style: AppTextStyles.bodyMedium(primaryText)),
-                          ],
-                        ),
-                        const Divider(height: 24),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text('Total Proposal Bid:', style: AppTextStyles.subtitle(primaryText)),
-                            Text(
-                              'Rs. ${widget.proposal.totalPrice.toStringAsFixed(2)}',
-                              style: AppTextStyles.h1(AppColors.customerColor),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
                   const SizedBox(height: 24),
 
                   Text('Proposal Items Detail', style: AppTextStyles.h2(primaryText)),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
 
                   // Items List
                   ListView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
+                    padding: EdgeInsets.zero,
                     itemCount: widget.proposal.items.length,
                     itemBuilder: (context, index) {
                       final sortedItems = [...widget.proposal.items]
@@ -293,7 +273,7 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                       }
 
                       return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
+                        margin: const EdgeInsets.only(bottom: 6),
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
                           color: cardColor,
@@ -303,6 +283,7 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // Item name + status badge
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
@@ -329,31 +310,38 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
-                            Text('Requested Quantity: ${item.quantity}', style: AppTextStyles.caption(secondaryText)),
-                            
+                            const SizedBox(height: 6),
+                            Text('Qty: ${item.quantity}', style: AppTextStyles.caption(secondaryText)),
+
                             if (item.status == ProposalItemStatus.available) ...[
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text('Unit Price:', style: AppTextStyles.bodySmall(secondaryText)),
-                                  Text('Rs. ${item.price.toStringAsFixed(2)}', style: AppTextStyles.bodyMedium(primaryText)),
-                                ],
-                              ),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text('Total Price:', style: AppTextStyles.bodySmall(secondaryText)),
-                                  Text('Rs. ${item.totalPrice.toStringAsFixed(2)}', style: AppTextStyles.subtitle(primaryText)),
-                                ],
+                              // Vendor photos first
+                              _buildVendorImages(item, borderColor, secondaryText, context),
+                              const SizedBox(height: 10),
+                              // Pricing summary below images
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: AppColors.success.withValues(alpha: 0.05),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: AppColors.success.withValues(alpha: 0.18)),
+                                ),
+                                child: Column(
+                                  children: [
+                                    _priceRow('Unit Price', 'Rs. ${item.price.toStringAsFixed(2)}', secondaryText, primaryText),
+                                    const SizedBox(height: 4),
+                                    _priceRow('Qty × Unit', '${item.quantity} × Rs. ${item.price.toStringAsFixed(2)}', secondaryText, secondaryText),
+                                    const Divider(height: 14),
+                                    _priceRow('Item Total', 'Rs. ${item.totalPrice.toStringAsFixed(2)}', primaryText, AppColors.success, bold: true),
+                                  ],
+                                ),
                               ),
                               if (item.description != null && item.description!.isNotEmpty) ...[
                                 const SizedBox(height: 8),
                                 Text('Merchant Note: "${item.description}"', style: AppTextStyles.caption(AppColors.customerColor)),
-                              ]
+                              ],
                             ] else if (item.status == ProposalItemStatus.alternative) ...[
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 10),
                               Container(
                                 width: double.infinity,
                                 padding: const EdgeInsets.all(12),
@@ -370,28 +358,80 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                                     Text(item.alternativeName ?? 'Replacement Product', style: AppTextStyles.bodyMedium(primaryText)),
                                     if (item.alternativeBrand != null && item.alternativeBrand!.isNotEmpty)
                                       Text('Brand: ${item.alternativeBrand}', style: AppTextStyles.caption(secondaryText)),
-                                    const SizedBox(height: 8),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                      children: [
-                                        Text('Alternative Price:', style: AppTextStyles.bodySmall(secondaryText)),
-                                        Text('Rs. ${item.price.toStringAsFixed(2)}', style: AppTextStyles.bodyMedium(primaryText)),
-                                      ],
-                                    ),
-                                    Text('Reason: "${item.alternativeReason ?? ""}"', style: AppTextStyles.caption(secondaryText)),
+                                    if (item.alternativeReason != null && item.alternativeReason!.isNotEmpty) ...[
+                                      const SizedBox(height: 4),
+                                      Text('Reason: "${item.alternativeReason}"', style: AppTextStyles.caption(secondaryText)),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                              // Vendor photos
+                              _buildVendorImages(item, borderColor, secondaryText, context),
+                              const SizedBox(height: 10),
+                              // Pricing summary below images
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: AppColors.warning.withValues(alpha: 0.05),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: AppColors.warning.withValues(alpha: 0.18)),
+                                ),
+                                child: Column(
+                                  children: [
+                                    _priceRow('Unit Price', 'Rs. ${item.price.toStringAsFixed(2)}', secondaryText, primaryText),
+                                    const SizedBox(height: 4),
+                                    _priceRow('Qty × Unit', '${item.quantity} × Rs. ${item.price.toStringAsFixed(2)}', secondaryText, secondaryText),
+                                    const Divider(height: 14),
+                                    _priceRow('Item Total', 'Rs. ${item.totalPrice.toStringAsFixed(2)}', primaryText, AppColors.warning, bold: true),
                                   ],
                                 ),
                               ),
                             ] else if (item.status == ProposalItemStatus.unavailable) ...[
                               const SizedBox(height: 8),
-                              Text('This item is marked as out of stock by the vendor.', style: AppTextStyles.caption(Colors.red)),
-                            ]
+                              Row(
+                                children: [
+                                  Icon(Icons.info_outline_rounded, size: 14, color: AppColors.error),
+                                  const SizedBox(width: 6),
+                                  Text('Out of stock — not included in bid total.', style: AppTextStyles.caption(AppColors.error)),
+                                ],
+                              ),
+                            ],
                           ],
                         ),
                       );
                     },
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 4),
+
+                  // Total Proposal Bid — below all item cards
+                  Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: cardColor,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: borderColor),
+                    ),
+                    child: Column(
+                      children: [
+                        _priceRow('Estimated Delivery', widget.proposal.estimatedDeliveryTime, secondaryText, primaryText),
+                        const SizedBox(height: 10),
+                        _priceRow('Delivery Charge', 'Rs. ${widget.proposal.deliveryCharge.toStringAsFixed(2)}', secondaryText, primaryText),
+                        const Divider(height: 24),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Total Proposal Bid', style: AppTextStyles.subtitle(primaryText)),
+                            Text(
+                              'Rs. ${widget.proposal.totalPrice.toStringAsFixed(2)}',
+                              style: AppTextStyles.h1(AppColors.customerColor),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
 
                   // Controlled Communication Log
                   if (widget.proposal.customerResponse != null || widget.proposal.vendorResponse != null) ...[
@@ -524,6 +564,92 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
       ),
     );
   }
+
+  Widget _buildVendorImages(ProposalItem item, Color borderColor, Color secondaryText, BuildContext context) {
+    final allUrls = [
+      if (item.imageUrl != null && item.imageUrl!.trim().isNotEmpty) item.imageUrl!.trim(),
+      ...item.vendorImageUrls.where((u) => u.trim().isNotEmpty),
+    ];
+    if (allUrls.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 10),
+        Text('Vendor photos (${allUrls.length})', style: AppTextStyles.caption(secondaryText)),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 80,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: allUrls.length,
+            itemBuilder: (context, index) {
+              final url = allUrls[index];
+              final isNetwork = url.startsWith('http://') || url.startsWith('https://');
+              return Padding(
+                padding: EdgeInsets.only(right: index < allUrls.length - 1 ? 8 : 0),
+                child: GestureDetector(
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => ImageGalleryViewer(imagePaths: allUrls, initialIndex: index),
+                  )),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(AppRadius.sm),
+                    child: isNetwork
+                        ? Image.network(url, width: 80, height: 80, fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _imageFallback(borderColor))
+                        : Image.file(File(url), width: 80, height: 80, fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => _imageFallback(borderColor)),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _buildItemChatMessage(ProposalItem item) {
+    final statusLabel = item.status == ProposalItemStatus.available
+        ? 'available'
+        : item.status == ProposalItemStatus.alternative
+            ? 'offered as an alternative'
+            : 'marked unavailable';
+    final buffer = StringBuffer();
+    buffer.write('Hi, I wanted to discuss the item "${item.requestItemName}" (Qty: ${item.quantity}) which you have $statusLabel');
+    if (item.status == ProposalItemStatus.alternative) {
+      if (item.alternativeName != null && item.alternativeName!.isNotEmpty) {
+        buffer.write('. The alternative offered is "${item.alternativeName}"');
+        if (item.alternativeBrand != null && item.alternativeBrand!.isNotEmpty) {
+          buffer.write(' (${item.alternativeBrand})');
+        }
+      }
+    } else if (item.status == ProposalItemStatus.available) {
+      buffer.write(' at Rs. ${item.price.toStringAsFixed(2)} per unit (Total: Rs. ${item.totalPrice.toStringAsFixed(2)})');
+    }
+    buffer.write('. Could you please provide more details?');
+    return buffer.toString();
+  }
+
+  Widget _priceRow(String label, String value, Color labelColor, Color valueColor, {bool bold = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: AppTextStyles.bodySmall(labelColor)),
+        Text(
+          value,
+          style: bold
+              ? AppTextStyles.subtitle(valueColor)
+              : AppTextStyles.bodyMedium(valueColor),
+        ),
+      ],
+    );
+  }
+
+  Widget _imageFallback(Color borderColor) => Container(
+        width: 80, height: 80,
+        decoration: BoxDecoration(color: borderColor, borderRadius: BorderRadius.circular(AppRadius.sm)),
+        child: const Icon(Icons.broken_image_outlined, color: Colors.white54),
+      );
 
   Widget _buildItemAvailabilitySummary(
     Proposal proposal,

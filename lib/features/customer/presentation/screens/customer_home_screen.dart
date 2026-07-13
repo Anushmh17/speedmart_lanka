@@ -14,6 +14,7 @@ import 'package:speedmart_lanka/core/navigation/bottom_nav_visibility.dart';
 import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
 import 'package:speedmart_lanka/features/auth/providers/theme_provider.dart';
 import 'package:speedmart_lanka/features/vendor/providers/nearby_vendors_provider.dart';
+import 'package:speedmart_lanka/core/widgets/theme3/request_image_carousel.dart';
 import 'package:speedmart_lanka/features/requests/presentation/screens/request_details_screen.dart';
 import 'package:speedmart_lanka/features/requests/providers/request_provider.dart';
 import 'package:speedmart_lanka/features/requests/models/shopping_request.dart';
@@ -455,10 +456,16 @@ class CustomerHomeTab extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Welcome, ${user?.firstName ?? 'Customer'} 👋',
-              style: AppTextStyles.h2(primaryText),
+              'Welcome, ${user?.firstName ?? 'Customer'}',
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w700,
+                color: primaryText,
+                fontFamily: 'SF Pro',
+                fontFamilyFallback: const ['San Francisco', '.SF Pro Text', 'sans-serif'],
+              ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 5),
             Text(
               _formatDate(DateTime.now()),
               style: AppTextStyles.bodySmall(secondaryText),
@@ -672,7 +679,9 @@ class CustomerHomeTab extends ConsumerWidget {
               children: [
                 ref.watch(nearbyActiveVendorCountProvider).when(
                   data: (count) => Text(
-                    '$count Active Vendor${count == 1 ? '' : 's'} Nearby',
+                    count == 0
+                        ? 'No Active Vendors Nearby'
+                        : '$count Active Vendor${count == 1 ? '' : 's'} Nearby',
                     style: AppTextStyles.labelLarge(primaryText),
                   ),
                   loading: () => Text(
@@ -680,14 +689,20 @@ class CustomerHomeTab extends ConsumerWidget {
                     style: AppTextStyles.labelLarge(primaryText),
                   ),
                   error: (_, __) => Text(
-                    'Active Vendors Nearby',
+                    'No Active Vendors Nearby',
                     style: AppTextStyles.labelLarge(primaryText),
                   ),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  'Ready to fulfill your requests',
-                  style: AppTextStyles.caption(secondaryText),
+                ref.watch(nearbyActiveVendorCountProvider).when(
+                  data: (count) => Text(
+                    count == 0
+                        ? 'Set your delivery location to find vendors'
+                        : 'Ready to fulfill your requests',
+                    style: AppTextStyles.caption(secondaryText),
+                  ),
+                  loading: () => Text('Ready to fulfill your requests', style: AppTextStyles.caption(secondaryText)),
+                  error: (_, __) => Text('Set your delivery location to find vendors', style: AppTextStyles.caption(secondaryText)),
                 ),
               ],
             ),
@@ -799,7 +814,7 @@ class CustomerHomeTab extends ConsumerWidget {
               
               final primaryCategory = request.categories.isNotEmpty ? request.categories.first : '';
               final proposalCount = request.categoryFulfillments.length;
-              final requestImagePath = _getRequestThumbnailImage(request);
+              final requestImages = _getRequestImages(request);
               
               return Theme3AppCard(
                 onTap: () {
@@ -816,8 +831,8 @@ class CustomerHomeTab extends ConsumerWidget {
                 child: Row(
                   children: [
                     // LEFT: Smart Thumbnail (Customer Image or Category Icon)
-                    _buildSmartThumbnail(
-                      imagePath: requestImagePath,
+                    _buildRequestCarousel(
+                      images: requestImages,
                       category: primaryCategory,
                       size: 64,
                       isDark: isDark,
@@ -828,11 +843,41 @@ class CustomerHomeTab extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            request.items.isNotEmpty ? request.items.first.name : 'Request',
-                            style: AppTextStyles.labelLarge(primaryText),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  request.isMultiCategory
+                                      ? 'Multiple Category Order'
+                                      : (request.items.isNotEmpty ? request.items.first.name : 'Request'),
+                                  style: AppTextStyles.labelLarge(primaryText).copyWith(
+                                    fontWeight: request.isMultiCategory ? FontWeight.bold : FontWeight.w600,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (request.isMultiCategory) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFF7C3AED), Color(0xFF9D4EDD)],
+                                    ),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: const Text(
+                                    'Mixed',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
                           const SizedBox(height: 2),
                           _CategoryChips(categories: request.categories, secondaryText: secondaryText),
@@ -913,7 +958,7 @@ class CustomerHomeTab extends ConsumerWidget {
               
               final primaryCategory = _getOrderPrimaryCategory(order);
               final statusColor = _getOrderStatusColor(order.status);
-              final orderImagePath = _getOrderThumbnailImage(order, ref);
+              final orderImages = _getOrderImages(order, ref);
               
               return Theme3AppCard(
                 onTap: () => context.push('/customer/orders/track', extra: order),
@@ -923,9 +968,9 @@ class CustomerHomeTab extends ConsumerWidget {
                     : EdgeInsets.zero,
                 child: Row(
                   children: [
-                    // LEFT: Smart Order Thumbnail (Vendor Image -> Customer Image -> Icon)
-                    _buildSmartThumbnail(
-                      imagePath: orderImagePath,
+                    // LEFT: Smart Order Thumbnail
+                    _buildRequestCarousel(
+                      images: orderImages,
                       category: primaryCategory,
                       size: 64,
                       isDark: isDark,
@@ -1016,183 +1061,57 @@ class CustomerHomeTab extends ConsumerWidget {
     }
   }
 
-  IconData _getOrderCategoryIcon(String category) {
-    final normalized = category.toLowerCase().replaceAll(' ', '_');
-    switch (normalized) {
-      case 'groceries':
-        return Icons.shopping_basket_rounded;
-      case 'pharmacy':
-        return Icons.medical_services_rounded;
-      case 'electronics':
-        return Icons.smartphone_rounded;
-      case 'stationery':
-        return Icons.edit_note_rounded;
-      case 'hardware':
-        return Icons.handyman_rounded;
-      case 'furniture':
-        return Icons.weekend_rounded;
-      case 'clothing':
-        return Icons.checkroom_rounded;
-      case 'vehicle_parts':
-        return Icons.directions_car_rounded;
-      case 'home_appliances':
-        return Icons.kitchen_rounded;
-      default:
-        return Icons.shopping_bag_rounded;
-    }
-  }
-
-  /// Check if image path is a network URL
-  bool _isNetworkImage(String path) {
-    return path.startsWith('http://') || path.startsWith('https://');
-  }
-
-  /// Check if image path is an asset
-  bool _isAssetImage(String path) {
-    return path.startsWith('assets/');
-  }
-
-  /// Build image content with proper loader based on path type
-  Widget _buildImageContent({
-    required String imagePath,
-    required double size,
-    required Widget fallback,
-  }) {
-    if (_isNetworkImage(imagePath)) {
-      return Image.network(
-        imagePath,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => fallback,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return fallback;
-        },
-      );
-    }
-
-    if (_isAssetImage(imagePath)) {
-      return Image.asset(
-        imagePath,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => fallback,
-      );
-    }
-
-    // Local file path
-    return Image.file(
-      File(imagePath),
-      width: size,
-      height: size,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) => fallback,
-    );
-  }
-
-  /// Extract first available customer image from request
-  String? _getRequestThumbnailImage(ShoppingRequest request) {
-    // Priority: First request item image
-    if (request.items.isNotEmpty) {
-      for (final item in request.items) {
-        if (item.imageUrls.isNotEmpty) {
-          final firstImage = item.imageUrls.first.trim();
-          if (firstImage.isNotEmpty) {
-            return firstImage;
-          }
-        }
+  /// Collect all non-empty images across all items in a request.
+  List<String> _getRequestImages(ShoppingRequest request) {
+    final images = <String>[];
+    for (final item in request.items) {
+      for (final url in item.imageUrls) {
+        final t = url.trim();
+        if (t.isNotEmpty) images.add(t);
       }
     }
-    return null;
+    return images;
   }
 
-  /// Extract image from order with priority: vendor image -> customer image -> null
-  String? _getOrderThumbnailImage(OrderModel order, WidgetRef ref) {
-    // Priority 1: Vendor provided image (ProposalItem.imageUrl)
-    if (order.items.isNotEmpty) {
-      for (final item in order.items) {
-        if (item.imageUrl != null && item.imageUrl!.trim().isNotEmpty) {
-          return item.imageUrl;
-        }
-      }
+  /// Collect all non-empty images from an order (vendor images first, then request images).
+  List<String> _getOrderImages(OrderModel order, WidgetRef ref) {
+    final images = <String>[];
+    for (final item in order.items) {
+      final url = item.imageUrl?.trim() ?? '';
+      if (url.isNotEmpty) images.add(url);
     }
-    
-    // Priority 2: Customer uploaded request image (from in-memory request state)
-    final requestState = ref.read(requestProvider);
-    try {
-      final request = requestState.requests.firstWhere((r) => r.id == order.requestId);
-      if (request.items.isNotEmpty) {
-        for (final item in request.items) {
-          if (item.imageUrls.isNotEmpty) {
-            final firstImage = item.imageUrls.first.trim();
-            if (firstImage.isNotEmpty) {
-              return firstImage;
-            }
-          }
-        }
-      }
-    } catch (e) {
-      // Request not found in state
+    if (images.isEmpty) {
+      final requestState = ref.read(requestProvider);
+      try {
+        final request = requestState.requests.firstWhere((r) => r.id == order.requestId);
+        images.addAll(_getRequestImages(request));
+      } catch (_) {}
     }
-    
-    return null;
+    return images;
   }
 
-  /// Build smart thumbnail that shows image if available, otherwise category icon
-  Widget _buildSmartThumbnail({
-    required String? imagePath,
+  /// Build a carousel thumbnail for requests.
+  Widget _buildRequestCarousel({
+    required List<String> images,
     required String category,
     required double size,
     required bool isDark,
     Color? statusColor,
   }) {
     final normalized = category.toLowerCase().trim().replaceAll(' ', '_');
-    final categoryIcon = _getRequestCategoryIcon(normalized);
     final categoryColor = statusColor ?? _getRequestCategoryColor(normalized);
-
-    // Build category icon fallback widget
+    final categoryIcon = _getRequestCategoryIcon(normalized);
     final iconFallback = Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
         color: categoryColor.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(AppRadius.md),
-        border: Border.all(
-          color: categoryColor.withValues(alpha: 0.35),
-          width: 1,
-        ),
+        border: Border.all(color: categoryColor.withValues(alpha: 0.35), width: 1),
       ),
-      child: Icon(
-        categoryIcon,
-        color: categoryColor,
-        size: size * 0.47,
-      ),
+      child: Icon(categoryIcon, color: categoryColor, size: size * 0.47),
     );
-    
-    // If image exists, show image thumbnail
-    if (imagePath != null && imagePath.trim().isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        child: Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            color: categoryColor.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(AppRadius.md),
-          ),
-          child: _buildImageContent(
-            imagePath: imagePath.trim(),
-            size: size,
-            fallback: iconFallback,
-          ),
-        ),
-      );
-    }
-    
-    // No image, show category icon thumbnail
-    return iconFallback;
+    return RequestImageCarousel(images: images, fallback: iconFallback, size: size);
   }
 
   Color _getRequestCategoryColor(String normalized) {
@@ -1256,7 +1175,11 @@ class CustomerHomeTab extends ConsumerWidget {
   }
 
   String _formatDate(DateTime date) {
-    return '${date.day}/${date.month}/${date.year}';
+    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    final dayName = days[date.weekday - 1];
+    final monthName = months[date.month - 1];
+    return '$dayName, ${date.day} $monthName ${date.year}';
   }
 
   String _formatTimeAgo(DateTime date) {
@@ -1385,110 +1308,32 @@ class _CategoryChips extends StatelessWidget {
 class CustomerOrdersTab extends ConsumerWidget {
   const CustomerOrdersTab({super.key});
 
-  /// Check if image path is a network URL
-  bool _isNetworkImage(String path) {
-    return path.startsWith('http://') || path.startsWith('https://');
-  }
-
-  /// Check if image path is an asset
-  bool _isAssetImage(String path) {
-    return path.startsWith('assets/');
-  }
-
-  /// Build image content with proper loader based on path type
-  Widget _buildImageContent({
-    required String imagePath,
-    required double size,
-    required Widget fallback,
-  }) {
-    if (_isNetworkImage(imagePath)) {
-      return Image.network(
-        imagePath,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => fallback,
-        loadingBuilder: (context, child, loadingProgress) {
-          if (loadingProgress == null) return child;
-          return fallback;
-        },
-      );
+  List<String> _getOrderImages(OrderModel order, WidgetRef ref) {
+    final images = <String>[];
+    for (final item in order.items) {
+      final url = item.imageUrl?.trim() ?? '';
+      if (url.isNotEmpty) images.add(url);
     }
-
-    if (_isAssetImage(imagePath)) {
-      return Image.asset(
-        imagePath,
-        width: size,
-        height: size,
-        fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => fallback,
-      );
-    }
-
-    // Local file path
-    return Image.file(
-      File(imagePath),
-      width: size,
-      height: size,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) => fallback,
-    );
-  }
-
-  Widget _buildOrderThumbnail(OrderModel order, WidgetRef ref) {
-    final primaryCategory = _getOrderPrimaryCategory(order);
-    final statusColor = _getOrderStatusColor(order.status);
-    final orderImagePath = _getOrderThumbnailImage(order, ref);
-    
-    return _buildSmartOrderThumbnail(
-      imagePath: orderImagePath,
-      category: primaryCategory,
-      statusColor: statusColor,
-    );
-  }
-
-  /// Extract image from order with priority: vendor image -> customer image -> null
-  String? _getOrderThumbnailImage(OrderModel order, WidgetRef ref) {
-    // Priority 1: Vendor provided image (ProposalItem.imageUrl)
-    if (order.items.isNotEmpty) {
-      for (final item in order.items) {
-        if (item.imageUrl != null && item.imageUrl!.trim().isNotEmpty) {
-          return item.imageUrl;
-        }
-      }
-    }
-    
-    // Priority 2: Customer uploaded request image (from in-memory request state)
-    final requestState = ref.read(requestProvider);
-    try {
-      final request = requestState.requests.firstWhere((r) => r.id == order.requestId);
-      if (request.items.isNotEmpty) {
+    if (images.isEmpty) {
+      final requestState = ref.read(requestProvider);
+      try {
+        final request = requestState.requests.firstWhere((r) => r.id == order.requestId);
         for (final item in request.items) {
-          if (item.imageUrls.isNotEmpty) {
-            final firstImage = item.imageUrls.first.trim();
-            if (firstImage.isNotEmpty) {
-              return firstImage;
-            }
+          for (final url in item.imageUrls) {
+            final t = url.trim();
+            if (t.isNotEmpty) images.add(t);
           }
         }
-      }
-    } catch (e) {
-      // Request not found in state
+      } catch (_) {}
     }
-    
-    return null;
+    return images;
   }
 
-  /// Build smart thumbnail for orders (vendor image -> customer image -> icon)
-  Widget _buildSmartOrderThumbnail({
-    required String? imagePath,
-    required String category,
-    required Color statusColor,
-  }) {
-    final categoryIcon = _getCategoryIcon(category);
+  Widget _buildOrderCarousel(OrderModel order, WidgetRef ref) {
+    final statusColor = _getOrderStatusColor(order.status);
+    final category = _getOrderPrimaryCategory(order);
+    final images = _getOrderImages(order, ref);
     const size = 56.0;
-    
-    // Build category icon fallback widget
     final iconFallback = Container(
       width: size,
       height: size,
@@ -1496,35 +1341,9 @@ class CustomerOrdersTab extends ConsumerWidget {
         color: statusColor.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(AppRadius.md),
       ),
-      child: Icon(
-        categoryIcon,
-        color: statusColor,
-        size: 28,
-      ),
+      child: Icon(_getCategoryIcon(category), color: statusColor, size: 28),
     );
-    
-    // If image exists, show it
-    if (imagePath != null && imagePath.trim().isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        child: Container(
-          width: size,
-          height: size,
-          decoration: BoxDecoration(
-            color: statusColor.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(AppRadius.md),
-          ),
-          child: _buildImageContent(
-            imagePath: imagePath.trim(),
-            size: size,
-            fallback: iconFallback,
-          ),
-        ),
-      );
-    }
-    
-    // No image, show category icon
-    return iconFallback;
+    return RequestImageCarousel(images: images, fallback: iconFallback, size: size);
   }
 
   String _getOrderPrimaryCategory(OrderModel order) {
@@ -1703,7 +1522,7 @@ class CustomerOrdersTab extends ConsumerWidget {
                                       margin: const EdgeInsets.only(bottom: AppSpacing.md),
                                       child: Row(
                                         children: [
-                                          _buildOrderThumbnail(order, ref),
+                                          _buildOrderCarousel(order, ref),
                                           const SizedBox(width: AppSpacing.md),
                                           Expanded(
                                             child: Column(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
@@ -158,7 +160,28 @@ class LocationNotifier extends StateNotifier<LocationState> {
   }
 
   Future<void> _init() async {
-    // Load permission status and recent searches on startup
+    // 1. Restore previously saved delivery location (fixes vendor count = 0 on restart)
+    final saved = await _repository.loadDeliveryLocation();
+    if (saved != null) {
+      SriLankaProvince? province;
+      SriLankaDistrict? district;
+      if (saved.province.isNotEmpty) {
+        province = SriLankaData.provinceByName(saved.province);
+      }
+      if (province != null && saved.district.isNotEmpty) {
+        district = SriLankaData.districtByName(saved.district);
+      }
+      state = state.copyWith(
+        currentLocation: saved,
+        selectedProvince: province,
+        selectedDistrict: district,
+        approximateAreaText: saved.approximateAreaText,
+        preciseAddress: saved.preciseAddress,
+      );
+      debugPrint('[Location] Restored saved delivery location: ${saved.displayArea}');
+    }
+
+    // 2. Load permission status and recent searches
     final permission = await GpsLocationService().checkPermission();
     state = state.copyWith(
       permissionStatus: permission,
@@ -169,6 +192,14 @@ class LocationNotifier extends StateNotifier<LocationState> {
       recentSearches: recents,
       isLoadingRecents: false,
     );
+  }
+
+  /// Persists the current delivery location to local storage.
+  Future<void> _persistLocation() async {
+    final loc = state.currentLocation;
+    if (loc != null) {
+      await _repository.saveDeliveryLocation(loc);
+    }
   }
 
   // ── GPS ──────────────────────────────────────────────────────────────────
@@ -213,6 +244,8 @@ class LocationNotifier extends StateNotifier<LocationState> {
         approximateAreaText: location.approximateAreaText,
         permissionStatus: LocationPermission.always,
       );
+
+      await _persistLocation();
 
       if (location.accuracy != null) {
         debugPrint('[Location] Accuracy saved to delivery address: ${location.accuracy}m');
@@ -340,7 +373,9 @@ class LocationNotifier extends StateNotifier<LocationState> {
       approximateAreaText: location.approximateAreaText,
       preciseAddress: location.preciseAddress,
     );
-    
+
+    unawaited(_persistLocation());
+
     debugPrint('[ApproxAreaAudit] State updated: state.approximateAreaText: "${state.approximateAreaText}"');
     debugPrint('[ApproxAreaAudit] State updated: state.currentLocation.approximateAreaText: "${state.currentLocation?.approximateAreaText}"');
   }
