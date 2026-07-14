@@ -53,14 +53,14 @@ class _VendorRejectionDialogState extends ConsumerState<VendorRejectionDialog> {
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
 
     return AlertDialog(
-      title: const Text('Reject Vendor Registration'),
+      title: const Text('Reject Shop Owner Registration'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Rejecting vendor:',
+              'Rejecting shop owner:',
               style: AppTextStyles.bodyMedium(primaryText),
             ),
             const SizedBox(height: 8),
@@ -148,7 +148,7 @@ class _VendorRejectionDialogState extends ConsumerState<VendorRejectionDialog> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Vendor will be notified and cannot reapply automatically',
+                      'Shop owner will be notified and cannot reapply automatically',
                       style: AppTextStyles.caption(secondaryText),
                     ),
                   ),
@@ -195,7 +195,7 @@ class _VendorRejectionDialogState extends ConsumerState<VendorRejectionDialog> {
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Error rejecting vendor: $e'),
+                          content: Text('Error rejecting shop owner: $e'),
                           backgroundColor: AppColors.error,
                         ),
                       );

@@ -73,7 +73,7 @@ class ConfirmDeliveryAddressSheet extends StatelessWidget {
           Text('Confirm delivery address', style: AppTextStyles.h2(primaryText), textAlign: TextAlign.center),
           const SizedBox(height: 8),
           Text(
-            'Vendors see only your approximate area until you confirm an order.',
+            'Shop owners see only your approximate area until you confirm an order.',
             style: AppTextStyles.caption(secondaryText),
             textAlign: TextAlign.center,
           ),

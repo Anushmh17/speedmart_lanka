@@ -271,7 +271,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         body: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           child: Padding(
-            padding: const EdgeInsets.all(AppSpacing.lg),
+            padding: const EdgeInsets.fromLTRB(
+              AppSpacing.lg,
+              AppSpacing.lg,
+              AppSpacing.lg,
+              120,
+            ),
             child: Form(
               key: _formKey,
               child: Column(
@@ -384,7 +389,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           const SizedBox(height: 12),
           if (user.role == UserRole.vendor && user.isVerified)
             Theme3StatusChip(
-              label: 'Verified Vendor',
+              label: 'Verified Shop Owner',
               status: Theme3StatusType.completed,
             )
           else if (user.role == UserRole.vendor)

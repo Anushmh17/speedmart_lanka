@@ -28,7 +28,7 @@ class AppStrings {
   static const String selectRole = 'Who are you?';
   static const String selectRoleSubtitle = 'Choose your role to get started';
   static const String customer = 'Customer';
-  static const String vendor = 'Vendor';
+  static const String vendor = 'Shop Owner';
   static const String admin = 'Admin';
   static const String customerDesc = 'Submit shopping requests & get proposals from nearby shops';
   static const String vendorDesc = 'Receive customer requests & submit product proposals';
@@ -53,7 +53,7 @@ class AppStrings {
 
   // ── Admin ─────────────────────────────────────────────────────────────────
   static const String dashboard = 'Dashboard';
-  static const String vendorApprovals = 'Vendor Approvals';
+  static const String vendorApprovals = 'Shop Owner Approvals';
   static const String userManagement = 'User Management';
   static const String categoryManagement = 'Categories';
   static const String requestMonitoring = 'Requests';

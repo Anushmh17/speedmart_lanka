@@ -678,6 +678,20 @@ class MockAuthRepository {
     debugPrint('[Auth] Password reset for: $normalizedEmail');
   }
 
+  /// Sets the commission rate for a specific vendor (admin-only action).
+  /// [rate] is a fraction 0.0–1.0 (e.g. 0.05 for 5%). Pass null to reset to platform default.
+  Future<void> updateVendorCommission(String vendorId, double? rate) async {
+    await ensureInitialized();
+    final index = _sessionUsers.indexWhere((u) => u.id == vendorId);
+    if (index != -1) {
+      _sessionUsers[index] = rate == null
+          ? _sessionUsers[index].copyWith(clearCommissionRate: true)
+          : _sessionUsers[index].copyWith(commissionRate: rate);
+      await _persistUsers();
+      debugPrint('[CommissionAudit] Vendor $vendorId commission set to ${rate == null ? 'default (0%)' : '${(rate * 100).toStringAsFixed(2)}%'}');
+    }
+  }
+
   Future<UserModel> updateUser(UserModel user) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 500));

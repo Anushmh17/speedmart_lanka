@@ -175,7 +175,7 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen>
             SharedFloatingBottomNavItem(
               unselectedIcon: Icons.verified_user_outlined,
               selectedIcon: Icons.verified_user_rounded,
-              label: 'Vendors',
+              label: 'Shop Owners',
             ),
             SharedFloatingBottomNavItem(
               unselectedIcon: Icons.people_outline_rounded,
@@ -222,10 +222,9 @@ class _AdminDashboardTab extends ConsumerWidget {
     final totalRequests = (requestState.requests.length + requestState.nearbyRequests.length).toString();
     final totalOrders = orderState.orders.length.toString();
 
-    // 3% platform commission on completed/delivered transactions
+    // Platform commission using each order's snapshotted commission rate
     final completedOrders = orderState.orders.where((o) => o.status == OrderStatus.delivered);
-    final totalSales = completedOrders.fold<double>(0, (sum, o) => sum + o.totalPrice);
-    final platformRevenue = totalSales * 0.03;
+    final platformRevenue = completedOrders.fold<double>(0, (sum, o) => sum + o.totalPrice * o.commissionRate);
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -283,11 +282,11 @@ class _AdminDashboardTab extends ConsumerWidget {
               childAspectRatio: 1.4,
               children: [
                 _AdminStatCard(label: 'Total Users', value: totalUsers, icon: Icons.people_rounded, color: AppColors.info, isDark: isDark),
-                _AdminStatCard(label: 'Total Vendors', value: totalVendors, icon: Icons.storefront_rounded, color: AppColors.vendorColor, isDark: isDark),
+                _AdminStatCard(label: 'Total Shop Owners', value: totalVendors, icon: Icons.storefront_rounded, color: AppColors.vendorColor, isDark: isDark),
                 _AdminStatCard(label: 'Pending Approvals', value: pendingApprovals, icon: Icons.pending_actions_rounded, color: AppColors.warning, isDark: isDark),
                 _AdminStatCard(label: 'Shopping Lists', value: totalRequests, icon: Icons.list_alt_rounded, color: AppColors.customerColor, isDark: isDark),
                 _AdminStatCard(label: 'Platform Orders', value: totalOrders, icon: Icons.shopping_bag_rounded, color: AppColors.accent, isDark: isDark),
-                _AdminStatCard(label: 'Comm. LKR (3%)', value: platformRevenue.toStringAsFixed(2), icon: Icons.account_balance_rounded, color: AppColors.success, isDark: isDark),
+                _AdminStatCard(label: 'Comm. LKR', value: platformRevenue.toStringAsFixed(2), icon: Icons.account_balance_rounded, color: AppColors.success, isDark: isDark),
               ],
             ),
             const SizedBox(height: 28),
@@ -295,8 +294,8 @@ class _AdminDashboardTab extends ConsumerWidget {
             // Quick actions
             Text('Platform Control Actions', style: AppTextStyles.h2(primaryText)),
             const SizedBox(height: 14),
-            _quickActionCard(Icons.verified_user_rounded, 'Vendor Approvals', '$pendingApprovals pending applications', AppColors.warning, () => switchTab(1)),
-            _quickActionCard(Icons.storefront_rounded, 'Vendor Management', 'Assign stores & approve vendors', AppColors.vendorColor, () {
+            _quickActionCard(Icons.verified_user_rounded, 'Shop Owner Approvals', '$pendingApprovals pending applications', AppColors.warning, () => switchTab(1)),
+            _quickActionCard(Icons.storefront_rounded, 'Shop Owner Management', 'Assign stores & approve shop owners', AppColors.vendorColor, () {
               context.push(RouteNames.adminVendorManagement);
             }),
             _quickActionCard(Icons.people_rounded, 'User Directories', 'Suspend/Activate users', AppColors.info, () => switchTab(2)),
@@ -419,7 +418,7 @@ class _VendorApprovalsTab extends ConsumerWidget {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-              child: Text('Vendor Account Registrations', style: AppTextStyles.h2(primaryText)),
+              child: Text('Shop Owner Account Registrations', style: AppTextStyles.h2(primaryText)),
             ),
             Expanded(
               child: adminState.isLoading
@@ -427,8 +426,8 @@ class _VendorApprovalsTab extends ConsumerWidget {
                   : vendors.isEmpty
                       ? const AppEmptyState(
                           icon: Icons.storefront_rounded,
-                          title: 'No Registered Vendors',
-                          subtitle: 'New merchant applications will show up here.',
+                          title: 'No Registered Shop Owners',
+                          subtitle: 'New shop owner applications will show up here.',
                         )
                       : ListView.builder(
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
@@ -459,7 +458,7 @@ class _VendorApprovalsTab extends ConsumerWidget {
                                     ],
                                   ),
                                   const SizedBox(height: 6),
-                                  Text('Merchant Partner: ${vendor.fullName}', style: AppTextStyles.bodyMedium(secondaryText)),
+                                  Text('Shop Owner Partner: ${vendor.fullName}', style: AppTextStyles.bodyMedium(secondaryText)),
                                   Text('Phone: ${vendor.phone} | Email: ${vendor.email}', style: AppTextStyles.bodySmall(secondaryText)),
                                   if (vendor.vendorCategories != null) ...[
                                     const SizedBox(height: 6),
@@ -484,7 +483,7 @@ class _VendorApprovalsTab extends ConsumerWidget {
                                             if (context.mounted) {
                                               ScaffoldMessenger.of(context).showSnackBar(
                                                 SnackBar(
-                                                  content: Text('Approved vendor ${vendor.businessName}!'),
+                                                  content: Text('Approved shop owner ${vendor.businessName}!'),
                                                   backgroundColor: AppColors.success,
                                                   behavior: SnackBarBehavior.floating,
                                                 ),
@@ -500,7 +499,7 @@ class _VendorApprovalsTab extends ConsumerWidget {
                                           children: [
                                             Icon(Icons.verified_outlined, color: AppColors.success, size: 14),
                                             const SizedBox(width: 6),
-                                            const Text('Verified merchant partner', style: TextStyle(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.bold)),
+                                            const Text('Verified shop owner partner', style: TextStyle(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.bold)),
                                           ],
                                         ),
                                     ],
@@ -693,7 +692,8 @@ class _OrdersMonitoringTab extends ConsumerWidget {
                     itemCount: orderState.orders.length,
                     itemBuilder: (context, index) {
                       final order = orderState.orders[index];
-                      final commissionLkr = order.totalPrice * 0.03;
+                      final commissionLkr = order.totalPrice * order.commissionRate;
+                      final commissionPct = (order.commissionRate * 100).toStringAsFixed(1);
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 12),
@@ -733,7 +733,7 @@ class _OrdersMonitoringTab extends ConsumerWidget {
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('Speedmart Commission (3%):', style: AppTextStyles.caption(secondaryText)),
+                                    Text('Speedmart Commission ($commissionPct%):', style: AppTextStyles.caption(secondaryText)),
                                     Text('Rs. ${commissionLkr.toStringAsFixed(2)}', style: AppTextStyles.bodyLarge(AppColors.success).copyWith(fontWeight: FontWeight.bold)),
                                   ],
                                 ),

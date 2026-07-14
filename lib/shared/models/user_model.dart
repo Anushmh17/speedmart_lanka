@@ -42,6 +42,10 @@ class UserModel {
   /// Additional vendor info
   final String? businessRegistrationNumber;
 
+  /// Admin-set platform commission rate for this vendor (0.0–1.0, e.g. 0.05 = 5%).
+  /// Null means the platform default (treated as 0%).
+  final double? commissionRate;
+
   /// Country override and risk fields for anti-abuse audit
   final String? detectedCountry;
   final String? selectedCountry;
@@ -106,6 +110,7 @@ class UserModel {
     this.assignedRadiusKm,
     this.isShopLocationAssigned,
     this.businessRegistrationNumber,
+    this.commissionRate,
   });
 
   /// Create from JSON (API response)
@@ -171,6 +176,7 @@ class UserModel {
       assignedRadiusKm: (json['assigned_radius_km'] as num?)?.toDouble(),
       isShopLocationAssigned: json['is_shop_location_assigned'] as bool?,
       businessRegistrationNumber: json['business_registration_number'] as String?,
+      commissionRate: (json['commission_rate'] as num?)?.toDouble(),
     );
   }
 
@@ -220,6 +226,7 @@ class UserModel {
       'assigned_radius_km': assignedRadiusKm,
       'is_shop_location_assigned': isShopLocationAssigned,
       'business_registration_number': businessRegistrationNumber,
+      'commission_rate': commissionRate,
     };
   }
 
@@ -268,6 +275,8 @@ class UserModel {
     double? assignedRadiusKm,
     bool? isShopLocationAssigned,
     String? businessRegistrationNumber,
+    double? commissionRate,
+    bool clearCommissionRate = false,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -314,6 +323,7 @@ class UserModel {
       assignedRadiusKm: assignedRadiusKm ?? this.assignedRadiusKm,
       isShopLocationAssigned: isShopLocationAssigned ?? this.isShopLocationAssigned,
       businessRegistrationNumber: businessRegistrationNumber ?? this.businessRegistrationNumber,
+      commissionRate: clearCommissionRate ? null : (commissionRate ?? this.commissionRate),
     );
   }
 

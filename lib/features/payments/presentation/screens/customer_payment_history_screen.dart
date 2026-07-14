@@ -93,7 +93,7 @@ class _CustomerPaymentHistoryScreenState extends ConsumerState<CustomerPaymentHi
                                 ),
                                 const SizedBox(height: 10),
                                 _historyRow('Order ID', payment.orderId.isNotEmpty ? payment.orderId : 'Pending', secondaryText),
-                                _historyRow('Vendor', payment.vendorBusinessName.isNotEmpty ? payment.vendorBusinessName : payment.vendorId, secondaryText),
+                                _historyRow('Shop', payment.vendorBusinessName.isNotEmpty ? payment.vendorBusinessName : payment.vendorId, secondaryText),
                                 _historyRow('Method', payment.paymentMethod.displayName, secondaryText),
                                 _historyRow('Status', payment.paymentStatus.displayName, secondaryText),
                                 _historyRow('Date', date.toLocal().toString().split('.').first, secondaryText),

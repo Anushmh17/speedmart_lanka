@@ -175,7 +175,7 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                                       style: AppTextStyles.caption(secondaryText),
                                     ),
                                     Text(
-                                      ' · Vendor rating',
+                                      ' · Shop rating',
                                       style: AppTextStyles.caption(secondaryText),
                                     ),
                                   ],
@@ -338,7 +338,7 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                     if (p.notes != null && p.notes!.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       Text(
-                        'Vendor note',
+                        'Shop Owner note',
                         style: AppTextStyles.caption(secondaryText),
                       ),
                       Text(

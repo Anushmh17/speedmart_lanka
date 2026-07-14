@@ -181,7 +181,7 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                'Full merchant profile and contact details are shielded until order confirmation.',
+                                'Full shop profile and contact details are shielded until order confirmation.',
                                 style: AppTextStyles.caption(AppColors.customerColor),
                               ),
                             ),
@@ -195,7 +195,7 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
                           icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
-                          label: const Text('Chat with Merchant (Secure Link)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          label: const Text('Chat with Shop Owner (Secure Link)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                           onPressed: () {
                             final item = widget.proposal.items.isNotEmpty
                                 ? widget.proposal.items.first
@@ -223,7 +223,7 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                       Icon(Icons.star_rounded, color: Colors.amber.shade700, size: 18),
                       const SizedBox(width: 4),
                       Text(
-                        '$rating vendor rating (preview)',
+                        '$rating shop rating (preview)',
                         style: AppTextStyles.bodySmall(secondaryText),
                       ),
                     ],
@@ -338,7 +338,7 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                               ),
                               if (item.description != null && item.description!.isNotEmpty) ...[
                                 const SizedBox(height: 8),
-                                Text('Merchant Note: "${item.description}"', style: AppTextStyles.caption(AppColors.customerColor)),
+                                Text('Shop Owner Note: "${item.description}"', style: AppTextStyles.caption(AppColors.customerColor)),
                               ],
                             ] else if (item.status == ProposalItemStatus.alternative) ...[
                               const SizedBox(height: 10),
@@ -453,7 +453,7 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                             const SizedBox(height: 8),
                           ],
                           if (widget.proposal.vendorResponse != null)
-                            Text('Vendor: "${widget.proposal.vendorResponse}"', style: AppTextStyles.bodyMedium(AppColors.vendorColor)),
+                            Text('Shop Owner: "${widget.proposal.vendorResponse}"', style: AppTextStyles.bodyMedium(AppColors.vendorColor)),
                         ],
                       ),
                     ),
@@ -575,7 +575,7 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SizedBox(height: 10),
-        Text('Vendor photos (${allUrls.length})', style: AppTextStyles.caption(secondaryText)),
+        Text('Shop Owner photos (${allUrls.length})', style: AppTextStyles.caption(secondaryText)),
         const SizedBox(height: 6),
         SizedBox(
           height: 80,

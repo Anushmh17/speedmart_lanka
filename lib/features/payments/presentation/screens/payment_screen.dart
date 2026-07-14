@@ -17,23 +17,26 @@ import 'package:speedmart_lanka/features/notifications/models/notification_type.
 import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart' as notification_feature;
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
 import 'package:speedmart_lanka/features/payments/providers/payment_provider.dart';
+import 'package:speedmart_lanka/features/admin/providers/admin_provider.dart';
 
 class AcceptedVendorGroup {
   final Proposal proposal;
   final List<ProposalItem> acceptedItems;
   final bool waveDeliveryCharge;
+  final double commissionRate;
 
   AcceptedVendorGroup({
     required this.proposal,
     required this.acceptedItems,
     this.waveDeliveryCharge = false,
+    this.commissionRate = 0.0,
   });
 
   double get subtotal => acceptedItems.fold<double>(0.0, (sum, item) => sum + item.subtotal);
   double get deliveryCharge => waveDeliveryCharge ? 0.0 : proposal.deliveryCharge;
-  double get platformCommission => 0.0;
+  double get platformCommission => (subtotal + deliveryCharge) * commissionRate;
   double get customerAmount => subtotal + deliveryCharge; // What customer pays (subtotal + delivery)
-  double get vendorNetAmount => customerAmount; // Vendor net receipt (equals customer amount since commission is 0)
+  double get vendorNetAmount => customerAmount - platformCommission; // Vendor net receipt
 }
 
 class PaymentScreen extends ConsumerStatefulWidget {
@@ -234,6 +237,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           customerLongitude: customerLng,
           accuracy: _request!.deliveryLocation?.accuracy,
           detectedAt: _request!.deliveryLocation?.detectedAt,
+          commissionRate: group.commissionRate,
         );
 
         final createdOrder = await ref.read(orderProvider.notifier).placeOrder(order);
@@ -458,19 +462,23 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       }
 
       if (items.isNotEmpty) {
+        final rate = ref.watch(vendorCommissionRateProvider(p.vendorId));
         acceptedGroups.add(AcceptedVendorGroup(
           proposal: p,
           acceptedItems: items,
           waveDeliveryCharge: checkWaveDeliveryCharge(p),
+          commissionRate: rate,
         ));
       }
     }
 
     if (acceptedGroups.isEmpty) {
+      final rate = ref.watch(vendorCommissionRateProvider(widget.proposal.vendorId));
       acceptedGroups.add(AcceptedVendorGroup(
         proposal: widget.proposal,
         acceptedItems: widget.proposal.items.where((i) => i.status != ProposalItemStatus.unavailable).toList(),
         waveDeliveryCharge: checkWaveDeliveryCharge(widget.proposal),
+        commissionRate: rate,
       ));
     }
 

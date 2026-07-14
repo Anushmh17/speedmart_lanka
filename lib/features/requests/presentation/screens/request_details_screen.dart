@@ -827,7 +827,7 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
                                         Icon(Icons.local_offer_rounded, size: 13, color: secondaryText),
                                         const SizedBox(width: 6),
                                         Text(
-                                          'Vendor Offers',
+                                          'Shop Owner Offers',
                                           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: secondaryText),
                                         ),
                                       ],
@@ -902,7 +902,7 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
                                     Icon(Icons.hourglass_empty_rounded, size: 15, color: secondaryText),
                                     const SizedBox(width: 8),
                                     Text(
-                                      'Waiting for vendor offer',
+                                      'Waiting for shop owner offer',
                                       style: TextStyle(fontSize: 12, color: secondaryText),
                                     ),
                                   ],
@@ -1380,9 +1380,9 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
                       )
                     else
                       _buildProposalsSectionHeader(
-                        title: 'Vendor Offers',
+                        title: 'Shop Owner Offers',
                         subtitle: proposalState.proposals.isEmpty
-                            ? 'Waiting for vendors to respond'
+                            ? 'Waiting for shop owners to respond'
                             : hasAcceptedProposal
                                 ? 'You have confirmed an order'
                                 : '${proposalState.proposals.length} offer${proposalState.proposals.length == 1 ? '' : 's'} received — pick the best one',

@@ -153,7 +153,7 @@ class VendorProfilePreviewModal extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    'Verified Partner Merchant',
+                    'Verified Partner Shop',
                     style: AppTextStyles.bodySmall(AppColors.success),
                   ),
                 ],

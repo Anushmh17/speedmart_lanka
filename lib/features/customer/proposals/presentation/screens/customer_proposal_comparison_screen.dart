@@ -103,7 +103,7 @@ class _CustomerProposalComparisonScreenState
           'Price too high',
           'Wrong product',
           'Need exact brand only',
-          'Prefer another vendor',
+          'Prefer another shop',
         ];
         return AlertDialog(
           shape:
@@ -145,7 +145,7 @@ class _CustomerProposalComparisonScreenState
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Accept Proposal?'),
         content: const Text(
-            'Pending proposals from other vendors will be automatically rejected.'),
+            'Pending proposals from other shops will be automatically rejected.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
@@ -211,7 +211,7 @@ class _CustomerProposalComparisonScreenState
             mainAxisSize: MainAxisSize.min,
             children: [
               const Text(
-                  'This doesn\'t reject the request. Other vendors can still bid.'),
+                  'This doesn\'t reject the request. Other shops can still bid.'),
               const SizedBox(height: 12),
               ...reasons.map((reason) => ListTile(
                     contentPadding: EdgeInsets.zero,
@@ -323,7 +323,7 @@ class _CustomerProposalComparisonScreenState
               child: Theme3EmptyState(
                 icon: Icons.shopping_bag_outlined,
                 title: 'No Proposals Yet',
-                subtitle: 'Vendors will respond to your request shortly',
+                subtitle: 'Shops will respond to your request shortly',
               ),
             ),
           ],
@@ -357,7 +357,7 @@ class _CustomerProposalComparisonScreenState
                 const SizedBox(width: 8),
                 Expanded(
                   child: _ModeToggle(
-                    label: '🏪 By Vendor',
+                    label: '🏪 By Shop',
                     selected: _byVendorMode,
                     onTap: () => setState(() => _byVendorMode = true),
                   ),
@@ -500,7 +500,7 @@ class _CustomerProposalComparisonScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Vendor Proposals', style: AppTextStyles.h2(primaryText)),
+                Text('Shop Owner Proposals', style: AppTextStyles.h2(primaryText)),
                 SizedBox(height: AppSpacing.xs),
                 Text(
                   'Choose the best offer for each item',

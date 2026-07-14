@@ -51,7 +51,7 @@ class VendorStatusScreen extends ConsumerWidget {
         backgroundColor:
             isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
         appBar: AppBar(
-          title: const Text('Vendor Account'),
+          title: const Text('Shop Owner Account'),
           centerTitle: false,
         ),
         body: Center(
@@ -112,7 +112,7 @@ class VendorStatusScreen extends ConsumerWidget {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            '• Our admin team will review your vendor details\n'
+                            '• Our admin team will review your shop details\n'
                             '• You\'ll be notified once your account is approved\n'
                             '• After approval, we\'ll assign your shop location\n'
                             '• Then you can start accepting customer requests',

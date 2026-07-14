@@ -88,8 +88,33 @@ class AdminNotifier extends StateNotifier<AdminState> {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
   }
+
+  /// Sets a per-vendor commission rate. [rate] is 0.0–1.0 (e.g. 0.05 = 5%).
+  /// Pass null to reset to platform default (0%).
+  Future<void> updateVendorCommission(String vendorId, double? rate) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      await _authRepo.updateVendorCommission(vendorId, rate);
+      final users = await _authRepo.getAllUsers();
+      state = state.copyWith(isLoading: false, users: users);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
 }
 
 final adminProvider = StateNotifierProvider<AdminNotifier, AdminState>((ref) {
   return AdminNotifier();
+});
+
+/// Derived provider: returns a specific vendor's commission rate (0.0–1.0).
+/// Falls back to 0.0 if the vendor is not found or has no custom rate set.
+final vendorCommissionRateProvider = Provider.family<double, String>((ref, vendorId) {
+  final users = ref.watch(adminProvider).users;
+  try {
+    final vendor = users.firstWhere((u) => u.id == vendorId);
+    return vendor.commissionRate ?? 0.0;
+  } catch (_) {
+    return 0.0;
+  }
 });

@@ -302,7 +302,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                         const SizedBox(width: 10),
                         Expanded(
                           child: Text(
-                            'Delivery status is updated by the vendor. Live rider tracking is not available.',
+                            'Delivery status is updated by the shop owner. Live rider tracking is not available.',
                             style: AppTextStyles.caption(
                               isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
                             ),
@@ -327,7 +327,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
             // ─────────────────────────────────────────────────────────────
             // CONTACT SECTION — Vendor Contact
             // ─────────────────────────────────────────────────────────────
-            Text('Vendor Contact',
+            Text('Shop Owner Contact',
                 style: AppTextStyles.h2(primaryText)),
             const SizedBox(height: 12),
             Theme3AppCard(
@@ -545,7 +545,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
       case OrderStatus.submitted:
         return 'Order Placed';
       case OrderStatus.accepted:
-        return 'Vendor Confirmed';
+        return 'Shop Owner Confirmed';
       case OrderStatus.preparing:
         return 'Preparing Your Items';
       case OrderStatus.readyForDelivery:

@@ -535,7 +535,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         _InfoBanner(
                           icon: Icons.verified_user_outlined,
                           message:
-                              'Vendor accounts require admin approval before you can start selling.',
+                              'Shop Owner accounts require admin approval before you can start selling.',
                           color: AppColors.vendorColor,
                         ),
                         const SizedBox(height: 20),

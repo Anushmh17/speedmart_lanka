@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/utils/commission_input_formatter.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/routes/route_names.dart';
@@ -118,7 +119,7 @@ class _AdminVendorManagementScreenState
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Vendor Management'),
+        title: const Text('Shop Owner Management'),
         elevation: 0,
       ),
       body: Column(
@@ -159,7 +160,7 @@ class _AdminVendorManagementScreenState
                 : filteredVendors.isEmpty
                     ? Center(
                         child: Text(
-                          'No vendors found',
+                          'No shop owners found',
                           style: AppTextStyles.bodyMedium(secondaryText),
                         ),
                       )
@@ -307,6 +308,36 @@ class _AdminVendorManagementScreenState
               style: AppTextStyles.caption(secondaryText),
             ),
           ],
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text(
+                'Commission: ${((vendor.commissionRate ?? 0.0) * 100).toStringAsFixed(1)}%',
+                style: AppTextStyles.caption(secondaryText).copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (vendor.vendorStatus == VendorStatus.approved) ...[
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: () => _showCommissionEditDialog(context, vendor),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.adminColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'Edit Rate',
+                      style: AppTextStyles.caption(AppColors.adminColor).copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
           if (vendor.allowedCategories != null &&
               vendor.allowedCategories!.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -539,5 +570,75 @@ class _AdminVendorManagementScreenState
         ),
       );
     }
+  }
+
+  void _showCommissionEditDialog(BuildContext context, dynamic vendor) {
+    final controller = TextEditingController(
+      text: ((vendor.commissionRate ?? 0.0) * 100).toStringAsFixed(1),
+    );
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Edit Commission Rate', style: AppTextStyles.h2(primaryText)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Set the platform commission percentage for ${vendor.businessName ?? vendor.fullName}:',
+                style: AppTextStyles.bodyMedium(primaryText),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [CommissionInputFormatter()],
+                decoration: const InputDecoration(
+                  labelText: 'Commission Percentage (%)',
+                  border: OutlineInputBorder(),
+                  suffixText: '%',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final double? pct = double.tryParse(controller.text);
+                if (pct != null && pct >= 0 && pct <= 100) {
+                  final double rate = pct / 100;
+                  await ref.read(adminProvider.notifier).updateVendorCommission(vendor.id, rate);
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Commission updated to ${pct.toStringAsFixed(1)}%'),
+                        backgroundColor: AppColors.success,
+                      ),
+                    );
+                  }
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Please enter a valid percentage between 0 and 100'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
   }
 }

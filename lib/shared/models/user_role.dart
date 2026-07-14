@@ -11,7 +11,7 @@ enum UserRole {
       case UserRole.customer:
         return 'Customer';
       case UserRole.vendor:
-        return 'Vendor';
+        return 'Shop Owner';
       case UserRole.admin:
         return 'Admin';
     }

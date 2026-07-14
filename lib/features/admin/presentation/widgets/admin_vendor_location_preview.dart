@@ -88,7 +88,7 @@ class AdminVendorLocationPreview extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Vendor has not provided a valid shop location.',
+                    'Shop owner has not provided a valid shop location.',
                     style: AppTextStyles.caption(AppColors.error),
                   ),
                 ],

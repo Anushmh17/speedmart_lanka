@@ -62,7 +62,7 @@ class PaymentReceiptScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _receiptRow('Merchant', order.vendorBusinessName, primaryText),
+                  _receiptRow('Shop', order.vendorBusinessName, primaryText),
                   _receiptRow('Payment Status', payment.paymentStatus.displayName, primaryText),
                   _receiptRow('Payment Method', payment.paymentMethod.displayName, primaryText),
                   _receiptRow('Subtotal', 'Rs. ${payment.subtotal.toStringAsFixed(2)}', primaryText),

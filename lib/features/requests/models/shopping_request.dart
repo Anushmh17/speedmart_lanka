@@ -33,7 +33,7 @@ extension RequestStatusExtension on RequestStatus {
       case RequestStatus.waitingForVendor:
         return 'Awaiting Proposals';
       case RequestStatus.vendorAccepted:
-        return 'Vendor Accepted';
+        return 'Shop Owner Accepted';
       case RequestStatus.proposalSubmitted:
         return 'Proposal Submitted';
       case RequestStatus.customerAccepted:

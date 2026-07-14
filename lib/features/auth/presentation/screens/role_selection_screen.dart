@@ -189,7 +189,7 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen>
                                 _buildRoleOptionCard(
                                   role: UserRole.vendor,
                                   icon: Icons.storefront_outlined,
-                                  title: 'Vendor',
+                                  title: 'Shop Owner',
                                   subtitle: 'Receive customer requests & submit product proposals',
                                   isSelected: _selectedRole == UserRole.vendor,
                                   activeColor: const Color(0xFF2563EB),

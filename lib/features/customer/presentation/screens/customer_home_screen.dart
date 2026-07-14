@@ -533,7 +533,7 @@ class CustomerHomeTab extends ConsumerWidget {
                             size: 11, color: Colors.white),
                         const SizedBox(width: 4),
                         Text(
-                          'Vendor identity hidden until payment',
+                          'Shop identity hidden until payment',
                           style: AppTextStyles.caption(Colors.white).copyWith(
                             fontSize: 9.5,
                             fontWeight: FontWeight.w600,

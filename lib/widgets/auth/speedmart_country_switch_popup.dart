@@ -53,11 +53,11 @@ class SpeedmartCountrySwitchPopup extends StatelessWidget {
   }
 
   String get _roleSingle {
-    return role == SpeedmartUserRole.customer ? 'customer' : 'vendor';
+    return role == SpeedmartUserRole.customer ? 'customer' : 'shop owner';
   }
 
   String get _rolePlural {
-    return role == SpeedmartUserRole.customer ? 'customers' : 'vendors';
+    return role == SpeedmartUserRole.customer ? 'customers' : 'shop owners';
   }
 
   String get _title {
@@ -77,7 +77,7 @@ class SpeedmartCountrySwitchPopup extends StatelessWidget {
       return 'We detected that you are not in Sri Lanka. Customer ${_flowText.toLowerCase()} requires Sri Lanka mobile number verification.';
     }
 
-    return 'We detected that you are not in Sri Lanka. Sri Lanka vendor ${_flowText.toLowerCase()} is intended for vendors in Sri Lanka.';
+    return 'We detected that you are not in Sri Lanka. Sri Lanka shop owner ${_flowText.toLowerCase()} is intended for shop owners in Sri Lanka.';
   }
 
   String get _primaryText {

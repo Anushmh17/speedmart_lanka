@@ -44,14 +44,14 @@ class _VendorApprovalDialogState extends ConsumerState<VendorApprovalDialog> {
         isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
 
     return AlertDialog(
-      title: const Text('Approve Vendor'),
+      title: const Text('Approve Shop Owner'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Confirm vendor approval for:',
+              'Confirm shop owner approval for:',
               style: AppTextStyles.bodyMedium(primaryText),
             ),
             const SizedBox(height: 8),
@@ -144,7 +144,7 @@ class _VendorApprovalDialogState extends ConsumerState<VendorApprovalDialog> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Vendor will be notified of approval',
+                      'Shop owner will be notified of approval',
                       style: AppTextStyles.caption(secondaryText),
                     ),
                   ),
@@ -187,7 +187,7 @@ class _VendorApprovalDialogState extends ConsumerState<VendorApprovalDialog> {
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text('Error approving vendor: $e'),
+                    content: Text('Error approving shop owner: $e'),
                     backgroundColor: AppColors.error,
                   ),
                 );

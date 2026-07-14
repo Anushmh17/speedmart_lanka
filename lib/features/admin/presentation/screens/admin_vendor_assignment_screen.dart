@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/utils/commission_input_formatter.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../../shared/utils/category_sync_helper.dart';
+import '../../../admin/providers/admin_provider.dart';
 import '../../../admin/providers/category_provider.dart';
 import '../widgets/admin_vendor_location_preview.dart';
 
@@ -30,6 +32,7 @@ class _AdminVendorAssignmentScreenState
   late final TextEditingController _latitudeCtrl;
   late final TextEditingController _longitudeCtrl;
   late final TextEditingController _radiusCtrl;
+  late final TextEditingController _commissionCtrl;
 
   List<String> _selectedCategories = [];
   bool _hasInitializedCategories = false;
@@ -59,6 +62,9 @@ class _AdminVendorAssignmentScreenState
     );
     _radiusCtrl = TextEditingController(
       text: widget.vendor.assignedRadiusKm?.toString() ?? '5',
+    );
+    _commissionCtrl = TextEditingController(
+      text: ((widget.vendor.commissionRate ?? 0.0) * 100).toStringAsFixed(1),
     );
   }
 
@@ -100,6 +106,7 @@ class _AdminVendorAssignmentScreenState
       _latitudeCtrl.text = latestVendor.shopLatitude?.toString() ?? '';
       _longitudeCtrl.text = latestVendor.shopLongitude?.toString() ?? '';
       _radiusCtrl.text = latestVendor.assignedRadiusKm?.toString() ?? '5';
+      _commissionCtrl.text = ((latestVendor.commissionRate ?? 0.0) * 100).toStringAsFixed(1);
     } catch (e) {
       debugPrint('[AdminVendorAssignment] Error loading vendor: $e');
     } finally {
@@ -116,6 +123,7 @@ class _AdminVendorAssignmentScreenState
     _latitudeCtrl.dispose();
     _longitudeCtrl.dispose();
     _radiusCtrl.dispose();
+    _commissionCtrl.dispose();
     super.dispose();
   }
 
@@ -199,8 +207,8 @@ class _AdminVendorAssignmentScreenState
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(_isApproved
-              ? 'Vendor approved successfully'
-              : 'Vendor categories updated'),
+              ? 'Shop Owner approved successfully'
+              : 'Shop Owner categories updated'),
           backgroundColor: AppColors.success,
           behavior: SnackBarBehavior.floating,
         ),
@@ -257,7 +265,7 @@ class _AdminVendorAssignmentScreenState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Vendor',
+                            'Shop Owner',
                             style: AppTextStyles.caption(secondaryText),
                           ),
                           Text(
@@ -268,13 +276,47 @@ class _AdminVendorAssignmentScreenState
                         ],
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
+
+                    // Commission Rate
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.adminColor.withOpacity(0.07),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.adminColor.withOpacity(0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.percent_rounded, color: AppColors.adminColor, size: 18),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Commission Rate', style: AppTextStyles.caption(secondaryText)),
+                                Text(
+                                  '${(((_latestVendor ?? widget.vendor).commissionRate ?? 0.0) * 100).toStringAsFixed(1)}%',
+                                  style: AppTextStyles.bodyMedium(primaryText).copyWith(fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                          TextButton(
+                            onPressed: () => _showCommissionEditDialog(context, primaryText),
+                            style: TextButton.styleFrom(foregroundColor: AppColors.adminColor),
+                            child: const Text('Edit Rate'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
 
                     Row(
                       children: [
                         Expanded(
                           child: Text(
-                            'Approve Vendor',
+                            'Approve Shop Owner',
                             style: AppTextStyles.bodyMedium(primaryText),
                           ),
                         ),
@@ -301,7 +343,7 @@ class _AdminVendorAssignmentScreenState
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Vendor-Submitted Location',
+                              'Shop Owner-Submitted Location',
                               style: AppTextStyles.labelLarge(primaryText),
                             ),
                             const SizedBox(height: 8),
@@ -456,7 +498,7 @@ class _AdminVendorAssignmentScreenState
 
                     if (_latestVendor?.vendorCategories != null && _latestVendor.vendorCategories!.isNotEmpty) ...[
                       Text(
-                        'Vendor Submitted Categories',
+                        'Shop Owner Submitted Categories',
                         style: AppTextStyles.h3(primaryText),
                       ),
                       const SizedBox(height: 12),
@@ -570,7 +612,7 @@ class _AdminVendorAssignmentScreenState
                     const SizedBox(height: 20),
 
                     Text(
-                      'Vendor Requested Categories',
+                      'Shop Owner Requested Categories',
                       style: AppTextStyles.h3(primaryText),
                     ),
                     const SizedBox(height: 12),
@@ -770,6 +812,77 @@ class _AdminVendorAssignmentScreenState
                 ),
               ),
             ),
+    );
+  }
+
+  void _showCommissionEditDialog(BuildContext context, Color primaryText) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: Text('Edit Commission Rate', style: AppTextStyles.h2(primaryText)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Set commission for ${widget.vendor.businessName ?? widget.vendor.fullName}:',
+                style: AppTextStyles.bodyMedium(primaryText),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _commissionCtrl,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [CommissionInputFormatter()],
+                decoration: const InputDecoration(
+                  labelText: 'Commission Percentage (%)',
+                  border: OutlineInputBorder(),
+                  suffixText: '%',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final pct = double.tryParse(_commissionCtrl.text);
+                if (pct != null && pct >= 0 && pct <= 100) {
+                  await ref.read(adminProvider.notifier).updateVendorCommission(widget.vendor.id, pct / 100);
+                  final updated = await ref.read(authProvider.notifier).getUserById(widget.vendor.id);
+                  if (mounted) {
+                    setState(() => _latestVendor = updated);
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('Commission updated to ${pct.toStringAsFixed(1)}%'),
+                        backgroundColor: AppColors.success,
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  }
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Enter a valid percentage between 0 and 100'),
+                      backgroundColor: Colors.red,
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.adminColor,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

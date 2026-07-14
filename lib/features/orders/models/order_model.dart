@@ -18,7 +18,7 @@ extension OrderStatusExtension on OrderStatus {
       case OrderStatus.submitted:
         return 'Order Submitted';
       case OrderStatus.accepted:
-        return 'Accepted by Merchant';
+        return 'Accepted by Shop Owner';
       case OrderStatus.preparing:
         return 'Preparing Order';
       case OrderStatus.readyForDelivery:
@@ -88,6 +88,9 @@ class OrderModel {
   final double? accuracy;
   final DateTime? detectedAt;
 
+  /// Snapshotted at order creation from the vendor's admin-set commission rate.
+  final double commissionRate;
+
   OrderModel({
     required this.id,
     required this.proposalId,
@@ -116,6 +119,7 @@ class OrderModel {
     this.customerLongitude = 0.0,
     this.accuracy,
     this.detectedAt,
+    this.commissionRate = 0.0,
   });
 
   OrderModel copyWith({
@@ -146,6 +150,7 @@ class OrderModel {
     double? customerLongitude,
     double? accuracy,
     DateTime? detectedAt,
+    double? commissionRate,
   }) {
     return OrderModel(
       id: id ?? this.id,
@@ -175,6 +180,7 @@ class OrderModel {
       customerLongitude: customerLongitude ?? this.customerLongitude,
       accuracy: accuracy ?? this.accuracy,
       detectedAt: detectedAt ?? this.detectedAt,
+      commissionRate: commissionRate ?? this.commissionRate,
     );
   }
 
@@ -208,6 +214,7 @@ class OrderModel {
       'customerLongitude': customerLongitude,
       'accuracy': accuracy,
       'detectedAt': detectedAt?.toIso8601String(),
+      'commissionRate': commissionRate,
     };
   }
 
@@ -256,6 +263,7 @@ class OrderModel {
       customerLongitude: (json['customerLongitude'] as num?)?.toDouble() ?? 0.0,
       accuracy: (json['accuracy'] as num?)?.toDouble(),
       detectedAt: json['detectedAt'] != null ? DateTime.tryParse(json['detectedAt'] as String) : null,
+      commissionRate: (json['commissionRate'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }

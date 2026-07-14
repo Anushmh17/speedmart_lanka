@@ -144,7 +144,7 @@ class _CustomerDeliveryAddressScreenState
                   Text('Manage Delivery Address', style: AppTextStyles.h2(primaryText)),
                   const SizedBox(height: AppSpacing.sm),
                   Text(
-                    'Vendors see only your approximate area until order confirmation',
+                    'Shop owners see only your approximate area until order confirmation',
                     style: AppTextStyles.bodySmall(secondaryText),
                   ),
                   const SizedBox(height: AppSpacing.xl),

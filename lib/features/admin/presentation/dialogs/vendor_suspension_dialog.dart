@@ -54,14 +54,14 @@ class _VendorSuspensionDialogState extends ConsumerState<VendorSuspensionDialog>
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
 
     return AlertDialog(
-      title: const Text('Suspend Vendor Account'),
+      title: const Text('Suspend Shop Owner Account'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Suspending vendor:',
+              'Suspending shop owner:',
               style: AppTextStyles.bodyMedium(primaryText),
             ),
             const SizedBox(height: 8),
@@ -149,7 +149,7 @@ class _VendorSuspensionDialogState extends ConsumerState<VendorSuspensionDialog>
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'Vendor will be blocked from all marketplace activity',
+                      'Shop owner will be blocked from all marketplace activity',
                       style: AppTextStyles.caption(secondaryText),
                     ),
                   ),
@@ -196,7 +196,7 @@ class _VendorSuspensionDialogState extends ConsumerState<VendorSuspensionDialog>
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text('Error suspending vendor: $e'),
+                          content: Text('Error suspending shop owner: $e'),
                           backgroundColor: AppColors.error,
                         ),
                       );

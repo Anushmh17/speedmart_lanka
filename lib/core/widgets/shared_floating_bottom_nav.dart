@@ -44,7 +44,7 @@ class SharedFloatingBottomNav extends StatelessWidget {
           borderRadius: BorderRadius.circular(32),
           border: Border.all(
             color: isDark
-                ? AppColors.borderDark.withValues(alpha: 0.6)
+                ? Colors.white.withValues(alpha: 0.22)
                 : AppColors.borderLight.withValues(alpha: 0.8),
             width: 1,
           ),

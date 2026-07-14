@@ -164,6 +164,7 @@ class _VendorHomeScreenState extends ConsumerState<VendorHomeScreen>
     return PopScope(
       canPop: false,
       child: Scaffold(
+        extendBody: true,
         backgroundColor:
             isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
         body: Column(
@@ -254,7 +255,7 @@ class _DashboardTab extends ConsumerWidget {
             children: [
               Icon(Icons.lock_outline, size: 64, color: AppColors.vendorColor),
               const SizedBox(height: 16),
-              Text('Vendor account required',
+              Text('Shop Owner account required',
                   style: AppTextStyles.h3(isDark
                       ? AppColors.textPrimaryDark
                       : AppColors.textPrimaryLight)),
@@ -349,21 +350,25 @@ class _DashboardTab extends ConsumerWidget {
         .toList();
     final completedOrdersCount = completedOrders.length.toString();
 
-    // Calculate completed earnings from delivered orders
+    final currentUser = ref.watch(currentUserProvider);
+    final double commissionRate = currentUser?.commissionRate ?? 0.0;
+
+    // Calculate confirmed net earnings from delivered/completed orders (both COD and online)
     final paidEarnings = orderState.orders
         .where((o) =>
             (o.status == OrderStatus.delivered ||
                 o.status == OrderStatus.completed) &&
-            o.paymentStatus == PaymentStatus.paid)
-        .fold<double>(0, (sum, o) => sum + o.totalPrice);
+            (o.paymentStatus == PaymentStatus.paid ||
+                o.paymentStatus == PaymentStatus.pendingOnDelivery))
+        .fold<double>(0, (sum, o) => sum + (o.totalPrice - (o.totalPrice * commissionRate)));
 
-    // Calculate pending earnings from active orders
+    // Calculate pending net earnings from active (non-cancelled, non-completed) orders
     final pendingEarnings = orderState.orders
         .where((o) =>
             o.status != OrderStatus.cancelled &&
             o.status != OrderStatus.completed &&
             o.status != OrderStatus.delivered)
-        .fold<double>(0, (sum, o) => sum + o.totalPrice);
+        .fold<double>(0, (sum, o) => sum + (o.totalPrice - (o.totalPrice * commissionRate)));
 
     debugPrint(
         '[VendorHome] dashboard rendered with ${feedState.items.length} requests, ${proposalState.proposals.length} proposals, ${orderState.orders.length} orders');
@@ -1230,7 +1235,7 @@ class _DashboardHeroBanner extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      'Vendor dashboard',
+                      'Shop Owner dashboard',
                       style: AppTextStyles.bodySmall(Colors.white70),
                     ),
                   ],
@@ -1874,7 +1879,7 @@ class _PendingApprovalView extends StatelessWidget {
                     : AppColors.textPrimaryLight)),
             SizedBox(height: AppSpacing.sm),
             Text(
-              'Your vendor account is under review. You will be notified once approved.',
+              'Your shop owner account is under review. You will be notified once approved.',
               style: AppTextStyles.bodyMedium(isDark
                   ? AppColors.textSecondaryDark
                   : AppColors.textSecondaryLight),
@@ -1938,15 +1943,21 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
     
 
     final orderState = ref.watch(orderProvider);
+    // Include delivered and completed orders, for both COD and online payments
     final completedOrders = orderState.orders
         .where((o) =>
-            o.status == OrderStatus.delivered &&
-            o.paymentStatus == PaymentStatus.paid)
+            (o.status == OrderStatus.delivered ||
+                o.status == OrderStatus.completed) &&
+            (o.paymentStatus == PaymentStatus.paid ||
+                o.paymentStatus == PaymentStatus.pendingOnDelivery))
         .toList();
 
+    // Platform commission is dynamically read from vendor profile (set by admin)
     final double liveGrossRevenue =
         completedOrders.fold<double>(0, (sum, o) => sum + o.totalPrice);
-    final double liveCommission = liveGrossRevenue * 0.03;
+    final currentUser = ref.watch(currentUserProvider);
+    final double commissionRate = currentUser?.commissionRate ?? 0.0;
+    final double liveCommission = liveGrossRevenue * commissionRate;
     final double liveNetEarnings = liveGrossRevenue - liveCommission;
 
     final double totalHistoricGross =
@@ -1975,12 +1986,14 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                 const Icon(Icons.account_balance_wallet_rounded,
                     color: AppColors.vendorColor, size: 28),
                 const SizedBox(width: 10),
-                Text('Vendor LKR Wallet', style: AppTextStyles.h1(primaryText)),
+                Text('Shop Owner LKR Wallet', style: AppTextStyles.h1(primaryText)),
               ],
             ),
             const SizedBox(height: 8),
             Text(
-              'Real-time earnings ledger with strict 3% platform commission tracking.',
+              commissionRate > 0
+                  ? 'Real-time earnings ledger — ${(commissionRate * 100).toStringAsFixed(1)}% platform commission. You keep the rest.'
+                  : 'Real-time earnings ledger — 0% platform commission. You keep everything you earn.',
               style: AppTextStyles.bodyMedium(secondaryText),
             ),
             const SizedBox(height: 24),
@@ -2018,7 +2031,7 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          'Platform Fee: 3%',
+                          'Platform Fee: ${(commissionRate * 100).toStringAsFixed(1)}%',
                           style: AppTextStyles.caption(Colors.white).copyWith(
                               fontSize: 10, fontWeight: FontWeight.bold),
                         ),
@@ -2051,7 +2064,7 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Comm. Deducted (3%)',
+                          Text('Comm. Deducted (${(commissionRate * 100).toStringAsFixed(1)}%)',
                               style: AppTextStyles.caption(Colors.white60)),
                           const SizedBox(height: 4),
                           Text('Rs. ${cumulativeCommission.toStringAsFixed(2)}',
@@ -2102,8 +2115,13 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
             if (completedOrders.isNotEmpty) ...[
               ...completedOrders.map((order) {
                 final orderGross = order.totalPrice;
-                final orderComm = orderGross * 0.03;
+                final double orderComm = orderGross * commissionRate;
                 final orderNet = orderGross - orderComm;
+
+                // Determine settlement status from payment status
+                final isCod = order.paymentStatus == PaymentStatus.pendingOnDelivery;
+                final settlementLabel = isCod ? 'COD – Collect on Delivery' : 'Settled (Online)';  
+                final settlementColor = isCod ? AppColors.warning : AppColors.success;
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 12),
@@ -2121,19 +2139,23 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Order Reference: ${order.id}',
-                              style: AppTextStyles.bodyMedium(primaryText)
-                                  .copyWith(fontWeight: FontWeight.bold)),
+                          Expanded(
+                            child: Text('Order: ${order.id}',
+                                style: AppTextStyles.bodyMedium(primaryText)
+                                    .copyWith(fontWeight: FontWeight.bold),
+                                overflow: TextOverflow.ellipsis),
+                          ),
+                          const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: AppColors.warning.withValues(alpha: 0.12),
+                              color: settlementColor.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              'Pending Settlement',
-                              style: AppTextStyles.caption(AppColors.warning)
+                              settlementLabel,
+                              style: AppTextStyles.caption(settlementColor)
                                   .copyWith(
                                       fontWeight: FontWeight.bold,
                                       fontSize: 10),
@@ -2147,8 +2169,11 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                         children: [
                           Text('Customer: ${order.customerName}',
                               style: AppTextStyles.caption(secondaryText)),
-                          Text('Today',
-                              style: AppTextStyles.caption(secondaryText)),
+                          Text(
+                            order.updatedAt != null
+                                ? '${order.updatedAt!.day}/${order.updatedAt!.month}/${order.updatedAt!.year}'
+                                : '${order.createdAt.day}/${order.createdAt.month}/${order.createdAt.year}',
+                            style: AppTextStyles.caption(secondaryText)),
                         ],
                       ),
                       const Divider(height: 16),
@@ -2157,7 +2182,7 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                         children: [
                           Text('Sales: Rs. ${orderGross.toStringAsFixed(0)}',
                               style: AppTextStyles.bodySmall(secondaryText)),
-                          Text('Comm (3%): Rs. ${orderComm.toStringAsFixed(0)}',
+                          Text('Comm (${(commissionRate * 100).toStringAsFixed(1)}%): Rs. ${orderComm.toStringAsFixed(1)}',
                               style: AppTextStyles.bodySmall(secondaryText)),
                           Text('Net: Rs. ${orderNet.toStringAsFixed(2)}',
                               style: AppTextStyles.bodyMedium(AppColors.success)
@@ -2221,9 +2246,9 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                             'Sales: Rs. ${payout['payout'].toStringAsFixed(0)}',
                             style: AppTextStyles.bodySmall(secondaryText)),
                         Text(
-                            'Comm (3%): Rs. ${payout['comm'].toStringAsFixed(0)}',
+                            'Comm (${(payout['comm'] as double) == 0 ? '0%' : '3%'}): Rs. ${(payout['comm'] as double).toStringAsFixed(0)}',
                             style: AppTextStyles.bodySmall(secondaryText)),
-                        Text('Net: Rs. ${payout['net'].toStringAsFixed(2)}',
+                        Text('Net: Rs. ${(payout['net'] as double).toStringAsFixed(2)}',
                             style: AppTextStyles.bodyMedium(primaryText)
                                 .copyWith(fontWeight: FontWeight.bold)),
                       ],
