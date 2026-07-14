@@ -943,7 +943,7 @@ class CustomerHomeTab extends ConsumerWidget {
           Theme3EmptyState(
             icon: Icons.shopping_bag_outlined,
             title: 'No Orders Yet',
-            subtitle: 'Your accepted merchant orders will appear here.',
+            subtitle: 'Your accepted shop owner orders will appear here.',
           )
         else
           ListView.builder(

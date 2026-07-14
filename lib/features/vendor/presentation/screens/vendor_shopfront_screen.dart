@@ -107,7 +107,7 @@ class _VendorShopfrontScreenState extends State<VendorShopfrontScreen> with Sing
                                   const Icon(Icons.verified_user_rounded, color: Colors.white, size: 14),
                                   const SizedBox(width: 4),
                                   Text(
-                                    'Verified Partner Merchant',
+                                    'Verified Partner Shop Owner',
                                     style: AppTextStyles.caption(Colors.white).copyWith(fontWeight: FontWeight.bold),
                                   ),
                                 ],
@@ -174,7 +174,7 @@ class _VendorShopfrontScreenState extends State<VendorShopfrontScreen> with Sing
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Merchant Contact', style: AppTextStyles.subtitle(primaryText)),
+                              Text('Shop Owner Contact', style: AppTextStyles.subtitle(primaryText)),
                               const SizedBox(height: 4),
                               Text(widget.vendorPhone, style: AppTextStyles.bodyLarge(secondaryText)),
                             ],

@@ -164,9 +164,9 @@ class _TimelineStep extends StatelessWidget {
       case OrderStatus.submitted:
         return 'Order has been submitted and is being reviewed';
       case OrderStatus.accepted:
-        return 'Merchant has accepted your order';
+        return 'Shop Owner has accepted your order';
       case OrderStatus.preparing:
-        return 'Merchant is preparing and packing your items';
+        return 'Shop Owner is preparing and packing your items';
       case OrderStatus.readyForDelivery:
         return 'Order is ready for pickup/delivery';
       case OrderStatus.outForDelivery:

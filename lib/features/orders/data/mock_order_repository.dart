@@ -39,6 +39,13 @@ class MockOrderRepository {
     );
   }
 
+  Future<List<OrderModel>> getAllOrders() async {
+    await ensureInitialized();
+    await Future.delayed(const Duration(milliseconds: 300));
+    return List<OrderModel>.from(_orders)
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+  }
+
   Future<List<OrderModel>> getOrdersForCustomer(String customerId) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 300));

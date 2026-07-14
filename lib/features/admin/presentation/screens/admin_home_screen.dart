@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/routes/route_names.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
+import '../../../../core/utils/commission_input_formatter.dart';
+import '../../../../core/storage/storage_service.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../../../core/widgets/app_state_widgets.dart';
 import '../../../auth/providers/auth_provider.dart';
@@ -35,7 +38,7 @@ class _AdminHomeScreenState extends ConsumerState<AdminHomeScreen>
     Future.microtask(() {
       ref.read(adminProvider.notifier).loadAllUsers();
       ref.read(requestProvider.notifier).loadNearbyRequests();
-      ref.read(orderProvider.notifier).loadCustomerOrders(); // Just to load mock database orders if any
+      ref.read(orderProvider.notifier).loadAllOrders();
     });
   }
 
@@ -222,15 +225,11 @@ class _AdminDashboardTab extends ConsumerWidget {
     final totalRequests = (requestState.requests.length + requestState.nearbyRequests.length).toString();
     final totalOrders = orderState.orders.length.toString();
 
-    // Platform commission using each order's snapshotted commission rate
-    final completedOrders = orderState.orders.where((o) => o.status == OrderStatus.delivered);
-    final platformRevenue = completedOrders.fold<double>(0, (sum, o) => sum + o.totalPrice * o.commissionRate);
-
     return RefreshIndicator(
       onRefresh: () async {
         await ref.read(adminProvider.notifier).loadAllUsers();
         await ref.read(requestProvider.notifier).loadNearbyRequests();
-        await ref.read(orderProvider.notifier).loadCustomerOrders();
+        await ref.read(orderProvider.notifier).loadAllOrders();
       },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -286,7 +285,6 @@ class _AdminDashboardTab extends ConsumerWidget {
                 _AdminStatCard(label: 'Pending Approvals', value: pendingApprovals, icon: Icons.pending_actions_rounded, color: AppColors.warning, isDark: isDark),
                 _AdminStatCard(label: 'Shopping Lists', value: totalRequests, icon: Icons.list_alt_rounded, color: AppColors.customerColor, isDark: isDark),
                 _AdminStatCard(label: 'Platform Orders', value: totalOrders, icon: Icons.shopping_bag_rounded, color: AppColors.accent, isDark: isDark),
-                _AdminStatCard(label: 'Comm. LKR', value: platformRevenue.toStringAsFixed(2), icon: Icons.account_balance_rounded, color: AppColors.success, isDark: isDark),
               ],
             ),
             const SizedBox(height: 28),
@@ -302,7 +300,7 @@ class _AdminDashboardTab extends ConsumerWidget {
             _quickActionCard(Icons.category_rounded, 'Category Management', 'Add, edit, enable/disable categories', AppColors.accent, () {
               context.push('/admin/categories');
             }),
-            _quickActionCard(Icons.receipt_long_rounded, 'Monitor Orders', 'Commission & Dispatch status', AppColors.success, () => switchTab(3)),
+            _quickActionCard(Icons.receipt_long_rounded, 'Monitor Orders', 'Track & monitor order dispatch', AppColors.success, () => switchTab(3)),
             _quickActionCard(Icons.settings_rounded, 'Platform Config', 'Commission percentages & values', AppColors.accent, () => switchTab(4)),
           ],
         ),
@@ -643,27 +641,71 @@ class _UsersManagementTab extends ConsumerWidget {
   }
 }
 
-class _OrdersMonitoringTab extends ConsumerWidget {
+class _OrdersMonitoringTab extends ConsumerStatefulWidget {
   const _OrdersMonitoringTab({required this.isDark});
   final bool isDark;
+
+  @override
+  ConsumerState<_OrdersMonitoringTab> createState() => _OrdersMonitoringTabState();
+}
+
+class _OrdersMonitoringTabState extends ConsumerState<_OrdersMonitoringTab> {
+  final _vendorSearchCtrl = TextEditingController();
+  final _productSearchCtrl = TextEditingController();
+  final _expandedVendors = <String>{};
+  String _vendorQuery = '';
+  String _productQuery = '';
+
+  static const _groupOrder = [
+    'Today', 'Yesterday', 'This Week', 'Last Week', 'This Month', 'Last Month', 'Older'
+  ];
+
+  @override
+  void dispose() {
+    _vendorSearchCtrl.dispose();
+    _productSearchCtrl.dispose();
+    super.dispose();
+  }
 
   String _formatOrderStatus(dynamic status) {
     final raw = status.toString().split('.').last;
     return raw
-        .replaceAllMapped(
-          RegExp(r'([A-Z])'),
-          (match) => ' ${match.group(0)}',
-        )
+        .replaceAllMapped(RegExp(r'([A-Z])'), (m) => ' ${m.group(0)}')
         .replaceAll('_', ' ')
         .trim()
         .split(' ')
-        .where((word) => word.isNotEmpty)
-        .map((word) => word[0].toUpperCase() + word.substring(1))
+        .where((w) => w.isNotEmpty)
+        .map((w) => w[0].toUpperCase() + w.substring(1))
         .join(' ');
   }
 
+  String _dateGroup(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final d = DateTime(date.year, date.month, date.day);
+    final diff = today.difference(d).inDays;
+    if (diff == 0) return 'Today';
+    if (diff == 1) return 'Yesterday';
+    final startOfWeek = today.subtract(Duration(days: today.weekday - 1));
+    if (!d.isBefore(startOfWeek)) return 'This Week';
+    final startOfLastWeek = startOfWeek.subtract(const Duration(days: 7));
+    if (!d.isBefore(startOfLastWeek)) return 'Last Week';
+    if (d.year == now.year && d.month == now.month) return 'This Month';
+    final lastMonthDate = DateTime(now.year, now.month - 1);
+    if (d.year == lastMonthDate.year && d.month == lastMonthDate.month) return 'Last Month';
+    return 'Older';
+  }
+
+  bool _matchesProductQuery(OrderModel order) {
+    if (_productQuery.isEmpty) return true;
+    return order.items.any((item) =>
+        item.id.toLowerCase().contains(_productQuery) ||
+        item.requestItemId.toLowerCase().contains(_productQuery));
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    final isDark = widget.isDark;
     final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
@@ -671,99 +713,299 @@ class _OrdersMonitoringTab extends ConsumerWidget {
 
     final orderState = ref.watch(orderProvider);
 
+    // Group orders by vendor, applying product ID filter
+    final Map<String, List<OrderModel>> ordersByVendor = {};
+    for (final order in orderState.orders) {
+      if (_matchesProductQuery(order)) {
+        ordersByVendor.putIfAbsent(order.vendorBusinessName, () => []).add(order);
+      }
+    }
+
+    // Filter vendors by vendor name search
+    final filteredVendors = ordersByVendor.keys
+        .where((name) => name.toLowerCase().contains(_vendorQuery.toLowerCase()))
+        .toList();
+
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-            child: Text('Live Order Transactions', style: AppTextStyles.h2(primaryText)),
-          ),
-          Expanded(
-            child: orderState.orders.isEmpty
-                ? const AppEmptyState(
-                    icon: Icons.receipt_long_outlined,
-                    title: 'No Completed Orders',
-                    subtitle: 'Transaction volumes will appear when orders are confirmed.',
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                    itemCount: orderState.orders.length,
-                    itemBuilder: (context, index) {
-                      final order = orderState.orders[index];
-                      final commissionLkr = order.totalPrice * order.commissionRate;
-                      final commissionPct = (order.commissionRate * 100).toStringAsFixed(1);
-
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: cardColor,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: borderColor),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(order.id, style: AppTextStyles.subtitle(primaryText)),
-                                StatusBadge(label: _formatOrderStatus(order.status), color: AppColors.adminColor),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text('Customer: ${order.customerName} | Partner: ${order.vendorBusinessName}', style: AppTextStyles.bodyMedium(secondaryText)),
-                            Text('Transaction Date: ${order.createdAt.day}/${order.createdAt.month}/${order.createdAt.year}', style: AppTextStyles.bodySmall(secondaryText)),
-                            const SizedBox(height: 6),
-                            Text('Delivery Address: ${order.deliveryAddress}', style: AppTextStyles.bodySmall(secondaryText)),
-                            Text(
-                              'Delivery Coordinates: ${order.customerLatitude.toStringAsFixed(6)}, ${order.customerLongitude.toStringAsFixed(6)}',
-                              style: AppTextStyles.bodySmall(secondaryText),
-                            ),
-                            Text(
-                              'Location Updated: ${(order.detectedAt ?? order.addressReleasedAt ?? order.createdAt).toLocal().toString().split('.').first}',
-                              style: AppTextStyles.caption(secondaryText),
-                            ),
-                            const Divider(height: 20),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Speedmart Commission ($commissionPct%):', style: AppTextStyles.caption(secondaryText)),
-                                    Text('Rs. ${commissionLkr.toStringAsFixed(2)}', style: AppTextStyles.bodyLarge(AppColors.success).copyWith(fontWeight: FontWeight.bold)),
-                                  ],
-                                ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text('Order Value:', style: AppTextStyles.caption(secondaryText)),
-                                    Text('Rs. ${order.totalPrice.toStringAsFixed(2)}', style: AppTextStyles.subtitle(primaryText)),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      );
-                    },
+      body: RefreshIndicator(
+        onRefresh: () => ref.read(orderProvider.notifier).loadAllOrders(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Live Order Transactions', style: AppTextStyles.h2(primaryText)),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _vendorSearchCtrl,
+                    onChanged: (v) => setState(() => _vendorQuery = v),
+                    decoration: InputDecoration(
+                      hintText: 'Search vendor shop name…',
+                      prefixIcon: const Icon(Icons.storefront_outlined, size: 20),
+                      suffixIcon: _vendorQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear_rounded, size: 18),
+                              onPressed: () {
+                                _vendorSearchCtrl.clear();
+                                setState(() => _vendorQuery = '');
+                              },
+                            )
+                          : null,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      isDense: true,
+                    ),
                   ),
-          ),
-        ],
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _productSearchCtrl,
+                    onChanged: (v) => setState(() => _productQuery = v.trim().toLowerCase()),
+                    decoration: InputDecoration(
+                      hintText: 'Search by product ID…',
+                      prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                      suffixIcon: _productQuery.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear_rounded, size: 18),
+                              onPressed: () {
+                                _productSearchCtrl.clear();
+                                setState(() => _productQuery = '');
+                              },
+                            )
+                          : null,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      isDense: true,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: orderState.orders.isEmpty
+                  ? const AppEmptyState(
+                      icon: Icons.receipt_long_outlined,
+                      title: 'No Orders Yet',
+                      subtitle: 'Orders will appear here once customers place them.',
+                    )
+                  : filteredVendors.isEmpty
+                      ? const AppEmptyState(
+                          icon: Icons.storefront_outlined,
+                          title: 'No Matching Orders',
+                          subtitle: 'Try a different vendor name or product ID.',
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                          itemCount: filteredVendors.length,
+                          itemBuilder: (context, vendorIndex) {
+                            final vendorName = filteredVendors[vendorIndex];
+                            final vendorOrders = ordersByVendor[vendorName]!;
+                            final isExpanded = _expandedVendors.contains(vendorName);
+
+                            // Group vendor orders by date
+                            final Map<String, List<OrderModel>> grouped = {};
+                            for (final o in vendorOrders) {
+                              grouped.putIfAbsent(_dateGroup(o.createdAt), () => []).add(o);
+                            }
+                            final groupKeys = _groupOrder.where(grouped.containsKey).toList();
+
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Tappable vendor header
+                                InkWell(
+                                  onTap: () => setState(() {
+                                    if (isExpanded) {
+                                      _expandedVendors.remove(vendorName);
+                                    } else {
+                                      _expandedVendors.add(vendorName);
+                                    }
+                                  }),
+                                  borderRadius: BorderRadius.circular(10),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                                    child: Row(
+                                      children: [
+                                        const Icon(Icons.storefront_rounded, size: 16, color: AppColors.adminColor),
+                                        const SizedBox(width: 6),
+                                        Expanded(child: Text(vendorName, style: AppTextStyles.subtitle(primaryText))),
+                                        Text('(${vendorOrders.length})', style: AppTextStyles.caption(secondaryText)),
+                                        const SizedBox(width: 6),
+                                        Icon(
+                                          isExpanded ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                                          size: 18,
+                                          color: secondaryText,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                // Collapsible date-grouped orders
+                                if (isExpanded)
+                                  ...groupKeys.expand((dateLabel) => [
+                                    Padding(
+                                      padding: const EdgeInsets.only(left: 4, top: 6, bottom: 4),
+                                      child: Text(
+                                        dateLabel,
+                                        style: AppTextStyles.labelMedium(AppColors.adminColor)
+                                            .copyWith(fontWeight: FontWeight.w800, letterSpacing: 0.4),
+                                      ),
+                                    ),
+                                    ...grouped[dateLabel]!.map((order) => GestureDetector(
+                                      onTap: () => context.push('/admin/orders/detail', extra: order),
+                                      child: Container(
+                                        margin: const EdgeInsets.only(bottom: 10),
+                                        padding: const EdgeInsets.all(14),
+                                        decoration: BoxDecoration(
+                                          color: cardColor,
+                                          borderRadius: BorderRadius.circular(16),
+                                          border: Border.all(color: borderColor),
+                                        ),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                              children: [
+                                                Text(order.id, style: AppTextStyles.subtitle(primaryText)),
+                                                StatusBadge(label: _formatOrderStatus(order.status), color: AppColors.adminColor),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text('Customer: ${order.customerName}', style: AppTextStyles.bodySmall(secondaryText)),
+                                            Text('${order.createdAt.day}/${order.createdAt.month}/${order.createdAt.year}  •  Rs. ${order.totalPrice.toStringAsFixed(2)}', style: AppTextStyles.caption(secondaryText)),
+                                            if (order.items.isNotEmpty) ...[
+                                              const SizedBox(height: 6),
+                                              Wrap(
+                                                spacing: 4,
+                                                runSpacing: 4,
+                                                children: order.items.map((item) => Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                  decoration: BoxDecoration(
+                                                    color: AppColors.adminColor.withOpacity(0.08),
+                                                    borderRadius: BorderRadius.circular(5),
+                                                    border: Border.all(color: AppColors.adminColor.withOpacity(0.2)),
+                                                  ),
+                                                  child: Text('ID: ${item.id}', style: AppTextStyles.labelSmall(AppColors.adminColor)),
+                                                )).toList(),
+                                              ),
+                                            ],
+                                            const SizedBox(height: 4),
+                                            Row(
+                                              mainAxisAlignment: MainAxisAlignment.end,
+                                              children: [
+                                                Text('View Details', style: AppTextStyles.caption(AppColors.adminColor)),
+                                                const Icon(Icons.arrow_forward_ios_rounded, size: 10, color: AppColors.adminColor),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    )),
+                                  ]),
+                                const SizedBox(height: 4),
+                              ],
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-class _PlatformSettingsTab extends StatelessWidget {
+class _PlatformSettingsTab extends ConsumerStatefulWidget {
   const _PlatformSettingsTab({required this.isDark});
   final bool isDark;
 
   @override
+  ConsumerState<_PlatformSettingsTab> createState() => _PlatformSettingsTabState();
+}
+
+class _PlatformSettingsTabState extends ConsumerState<_PlatformSettingsTab> {
+  late final TextEditingController _commissionCtrl;
+  late final TextEditingController _radiusCtrl;
+
+  bool _editingCommission = false;
+  bool _editingRadius = false;
+  String _savedCommission = '10.0';
+  String _savedRadius = '5';
+
+  @override
+  void initState() {
+    super.initState();
+    _commissionCtrl = TextEditingController();
+    _radiusCtrl = TextEditingController();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final settings = await StorageService.getPlatformSettings();
+    if (mounted) {
+      setState(() {
+        _savedCommission = settings.commissionPct.toStringAsFixed(1);
+        _savedRadius = settings.radiusKm.toString();
+        _commissionCtrl.text = _savedCommission;
+        _radiusCtrl.text = _savedRadius;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _commissionCtrl.dispose();
+    _radiusCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _saveCommission() async {
+    final pct = double.tryParse(_commissionCtrl.text);
+    if (pct == null || pct < 0 || pct > 100) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a valid percentage between 0 and 100'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+      );
+      return;
+    }
+    final current = await StorageService.getPlatformSettings();
+    await StorageService.savePlatformSettings(standardCommissionPct: pct, standardRadiusKm: current.radiusKm);
+    if (!mounted) return;
+    setState(() {
+      _savedCommission = pct.toStringAsFixed(1);
+      _editingCommission = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Standard commission rate saved as ${pct.toStringAsFixed(1)}%'), backgroundColor: AppColors.success, behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  Future<void> _saveRadius() async {
+    final km = int.tryParse(_radiusCtrl.text);
+    if (km == null || km <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a valid radius greater than 0'), backgroundColor: Colors.red, behavior: SnackBarBehavior.floating),
+      );
+      return;
+    }
+    final current = await StorageService.getPlatformSettings();
+    await StorageService.savePlatformSettings(standardCommissionPct: current.commissionPct, standardRadiusKm: km);
+    if (!mounted) return;
+    setState(() {
+      _savedRadius = km.toString();
+      _editingRadius = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Standard search radius saved as ${km}km'), backgroundColor: AppColors.success, behavior: SnackBarBehavior.floating),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final isDark = widget.isDark;
     final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
@@ -778,8 +1020,8 @@ class _PlatformSettingsTab extends StatelessWidget {
           children: [
             Text('Platform Configuration', style: AppTextStyles.h2(primaryText)),
             const SizedBox(height: 16),
-            
-            // Commission Setting Card
+
+            // Commission Card
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -794,28 +1036,60 @@ class _PlatformSettingsTab extends StatelessWidget {
                     children: [
                       const Icon(Icons.percent_rounded, color: AppColors.adminColor),
                       const SizedBox(width: 12),
-                      Text('Platform Commission Rate', style: AppTextStyles.subtitle(primaryText)),
+                      Expanded(child: Text('Platform Commission Rate', style: AppTextStyles.subtitle(primaryText))),
+                      if (!_editingCommission)
+                        TextButton(
+                          onPressed: () => setState(() => _editingCommission = true),
+                          child: const Text('Edit'),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  const TextField(
-                    controller: null,
+                  TextField(
+                    controller: _commissionCtrl,
+                    readOnly: !_editingCommission,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [CommissionInputFormatter()],
                     decoration: InputDecoration(
-                      labelText: 'Flat Commission Percentage',
-                      hintText: '10%',
+                      labelText: 'Standard Commission Percentage',
                       suffixText: '%',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+                      border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+                      filled: !_editingCommission,
+                      fillColor: isDark ? Colors.white10 : Colors.grey.shade100,
                     ),
-                    readOnly: true,
                   ),
                   const SizedBox(height: 8),
-                  Text('This flat commission applies to every confirmed order to cover delivery operations and system hosting.', style: AppTextStyles.caption(secondaryText)),
+                  Text('Default rate for new shop owners. Individual vendors can be adjusted separately.', style: AppTextStyles.caption(secondaryText)),
+                  if (_editingCommission) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => setState(() {
+                              _commissionCtrl.text = _savedCommission;
+                              _editingCommission = false;
+                            }),
+                            child: const Text('Cancel'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _saveCommission,
+                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.adminColor, foregroundColor: Colors.white),
+                            child: const Text('Save'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
             const SizedBox(height: 16),
 
-            // Sri Lankan Location boundaries
+            // Radius Card
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -830,21 +1104,54 @@ class _PlatformSettingsTab extends StatelessWidget {
                     children: [
                       const Icon(Icons.explore_outlined, color: AppColors.adminColor),
                       const SizedBox(width: 12),
-                      Text('Sri Lankan Matching Settings', style: AppTextStyles.subtitle(primaryText)),
+                      Expanded(child: Text('Sri Lankan Matching Settings', style: AppTextStyles.subtitle(primaryText))),
+                      if (!_editingRadius)
+                        TextButton(
+                          onPressed: () => setState(() => _editingRadius = true),
+                          child: const Text('Edit'),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 12),
-                  const TextField(
+                  TextField(
+                    controller: _radiusCtrl,
+                    readOnly: !_editingRadius,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                     decoration: InputDecoration(
-                      labelText: 'Maximum Vendor Search Radius',
-                      hintText: '20 km',
+                      labelText: 'Standard Vendor Search Radius',
                       suffixText: 'km',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+                      border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(12))),
+                      filled: !_editingRadius,
+                      fillColor: isDark ? Colors.white10 : Colors.grey.shade100,
                     ),
-                    readOnly: true,
                   ),
                   const SizedBox(height: 8),
-                  Text('Speedmart Lanka limits proposal feeds to 20 km to maintain fresh grocery delivery and auto parts shipping timelines.', style: AppTextStyles.caption(secondaryText)),
+                  Text('Default radius for new shop owners. Existing vendors keep their individually assigned radius.', style: AppTextStyles.caption(secondaryText)),
+                  if (_editingRadius) ...[
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => setState(() {
+                              _radiusCtrl.text = _savedRadius;
+                              _editingRadius = false;
+                            }),
+                            child: const Text('Cancel'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _saveRadius,
+                            style: ElevatedButton.styleFrom(backgroundColor: AppColors.adminColor, foregroundColor: Colors.white),
+                            child: const Text('Save'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),

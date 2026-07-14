@@ -41,6 +41,17 @@ class OrderNotifier extends StateNotifier<OrderState> {
   late final MockOrderRepository _repo;
   late final MockRequestRepository _requestRepo;
 
+  Future<void> loadAllOrders() async {
+    await _repo.ensureInitialized();
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final orders = await _repo.getAllOrders();
+      state = state.copyWith(isLoading: false, orders: orders);
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+    }
+  }
+
   Future<void> loadCustomerOrders() async {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
@@ -69,7 +80,7 @@ class OrderNotifier extends StateNotifier<OrderState> {
     }
   }
 
-  Future<OrderModel> placeOrder(OrderModel order) async {
+  Future<OrderModel> placeOrder(OrderModel order, {bool updateRequestStatus = true}) async {
     await _repo.ensureInitialized();
     await _requestRepo.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
@@ -79,12 +90,14 @@ class OrderNotifier extends StateNotifier<OrderState> {
         isLoading: false,
         orders: [newOrder, ...state.orders],
       );
-      
-      // Update the request status depending on payment method
-      final nextStatus = order.paymentMethod == PaymentMethod.mockOnline
-          ? RequestStatus.paid
-          : RequestStatus.cashOnDeliveryConfirmed;
-      await _requestRepo.updateRequestStatus(order.requestId, nextStatus);
+
+      // Only update request status once (first order in a multi-vendor placement)
+      if (updateRequestStatus) {
+        final nextStatus = order.paymentMethod == PaymentMethod.mockOnline
+            ? RequestStatus.paid
+            : RequestStatus.cashOnDeliveryConfirmed;
+        await _requestRepo.updateRequestStatus(order.requestId, nextStatus);
+      }
 
       return newOrder;
     } catch (e) {
@@ -132,6 +145,8 @@ class OrderNotifier extends StateNotifier<OrderState> {
         } else {
           await loadVendorOrders();
         }
+      } else {
+        state = state.copyWith(isLoading: false);
       }
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());

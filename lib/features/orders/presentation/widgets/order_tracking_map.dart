@@ -96,10 +96,10 @@ class OrderTrackingMap extends StatelessWidget {
                 ],
               ),
 
-              // Custom Map Pins (Merchant, Rider, Customer)
+              // Custom Map Pins (Shop Owner, Rider, Customer)
               MarkerLayer(
                 markers: [
-                  // 1. Merchant Shop Marker
+                  // 1. Shop Owner Marker
                   Marker(
                     point: vendorLatLng,
                     width: 100,

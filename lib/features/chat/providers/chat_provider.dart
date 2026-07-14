@@ -77,7 +77,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     state = state.copyWith(messages: [...state.messages, newMessage]);
 
-    // Simulate merchant responding to customer after 2 seconds
+    // Simulate shop owner responding to customer after 2 seconds
     if (senderRole == 'customer') {
       Future.delayed(const Duration(seconds: 2), () {
         final String vendorReply;
@@ -93,7 +93,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
           id: const Uuid().v4(),
           proposalId: proposalId,
           senderRole: 'vendor',
-          senderName: 'Partner Merchant #A3B1',
+          senderName: 'Partner Shop Owner #A3B1',
           text: vendorReply,
           maskedText: maskSensitiveDetails(vendorReply),
           timestamp: DateTime.now(),

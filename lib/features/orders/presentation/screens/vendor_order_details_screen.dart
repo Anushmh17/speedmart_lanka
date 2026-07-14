@@ -19,13 +19,19 @@ import 'package:speedmart_lanka/features/requests/data/mock_request_repository.d
 import 'package:speedmart_lanka/features/location/services/location_service.dart';
 import 'package:speedmart_lanka/features/vendor/proposals/widgets/image_gallery_viewer.dart';
 
-class VendorOrderDetailsScreen extends ConsumerWidget {
+class VendorOrderDetailsScreen extends ConsumerStatefulWidget {
   const VendorOrderDetailsScreen({super.key, required this.order});
   final OrderModel order;
 
+  @override
+  ConsumerState<VendorOrderDetailsScreen> createState() => _VendorOrderDetailsScreenState();
+}
+
+class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScreen> {
+  final Map<String, bool> _packedItems = {};
+
   Future<void> _handleMarkCashCollected(
     BuildContext context,
-    WidgetRef ref,
     OrderModel order,
   ) async {
     // Get payment for this order
@@ -56,7 +62,7 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
     final request = await MockRequestRepository.instance.getRequestById(order.requestId);
     if (request != null && order.proposalId.isNotEmpty) {
       // Get proposal to find category
-      final proposal = await ref.read(proposalProvider.notifier).loadProposalById(order.proposalId);
+      final proposal = await ref.read(proposalProvider.notifier).loadProposalById(order.proposalId); // ignore: use_build_context_synchronously
 
       if (proposal != null && proposal.categoryNormalized != null && proposal.categoryNormalized!.isNotEmpty) {
         final category = proposal.categoryNormalized!;
@@ -118,7 +124,7 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
@@ -128,11 +134,9 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
     // Listen to order state in real-time
     final orderState = ref.watch(orderProvider);
     final activeOrder = orderState.orders.firstWhere(
-      (o) => o.id == order.id,
-      orElse: () => order,
+      (o) => o.id == widget.order.id,
+      orElse: () => widget.order,
     );
-
-    final Map<String, bool> packedItems = {};
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
@@ -173,7 +177,7 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text('Order Status:', style: AppTextStyles.bodyMedium(secondaryText)),
-                            Text(activeOrder.status.toString().split('.').last),
+                            Text(activeOrder.status.displayName, style: AppTextStyles.bodyMedium(primaryText)),
                           ],
                         ),
                       ],
@@ -533,7 +537,7 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                               ? '${item.alternativeName} (Alternative)'
                               : item.requestItemName;
 
-                          final isChecked = packedItems[item.requestItemId] ?? false;
+                          final isChecked = _packedItems[item.requestItemId] ?? false;
 
                           return Container(
                             margin: const EdgeInsets.only(bottom: 10),
@@ -555,7 +559,7 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                                   activeColor: AppColors.vendorColor,
                                   onChanged: (val) {
                                     setStateChecklist(() {
-                                      packedItems[item.requestItemId] = val ?? false;
+                                      _packedItems[item.requestItemId] = val ?? false;
                                     });
                                   },
                                 ),
@@ -578,6 +582,7 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                                                     color: isChecked ? secondaryText : primaryText,
                                                   ),
                                                 ),
+                                                Text('Product ID: ${item.id}', style: AppTextStyles.caption(AppColors.vendorColor).copyWith(fontWeight: FontWeight.w600)),
                                                 Text('Quantity to Pack: ${item.quantity}', style: AppTextStyles.caption(secondaryText)),
                                               ],
                                             ),
@@ -708,7 +713,7 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                                 'Mark Cash Collected / Delivered',
                                 style: AppTextStyles.button(Colors.white),
                               ),
-                              onPressed: () => _handleMarkCashCollected(context, ref, activeOrder),
+                              onPressed: () => _handleMarkCashCollected(context, activeOrder),
                             ),
                           ),
                         ],
@@ -744,7 +749,7 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                       if (nextStatus == OrderStatus.preparing) {
                         ref.read(notificationProvider.notifier).triggerNotification(
                           title: 'Order Preparing! 📦',
-                          body: 'Merchant is packing your items for order ${activeOrder.id}.',
+                          body: 'Shop Owner is packing your items for order ${activeOrder.id}.',
                           icon: Icons.inventory_2_rounded,
                           color: AppColors.customerColor,
                         );
@@ -758,7 +763,7 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                       } else if (nextStatus == OrderStatus.outForDelivery) {
                         ref.read(notificationProvider.notifier).triggerNotification(
                           title: 'Order Out for Delivery! 🛵',
-                          body: 'Merchant dispatched your order ${activeOrder.id}. It is on the way!',
+                          body: 'Shop Owner dispatched your order ${activeOrder.id}. It is on the way!',
                           icon: Icons.delivery_dining_rounded,
                           color: AppColors.customerColor,
                         );
@@ -772,8 +777,12 @@ class VendorOrderDetailsScreen extends ConsumerWidget {
                       }
                       
                       if (nextStatus == OrderStatus.delivered && activeOrder.paymentMethod == PaymentMethod.cashOnDelivery) {
-                        // COD Payment complete upon delivery
+                        // COD: sync both the order AND the payment record to paid
                         await MockOrderRepository.instance.updatePaymentStatus(activeOrder.id, PaymentStatus.paid);
+                        final payment = await MockPaymentRepository.instance.getPaymentByOrderId(activeOrder.id);
+                        if (payment != null) {
+                          await MockPaymentRepository.instance.updatePaymentStatus(payment.id, PaymentStatus.paid);
+                        }
                         // Refresh state
                         await ref.read(orderProvider.notifier).loadVendorOrders();
                       }
@@ -850,22 +859,6 @@ String _generateInvoiceText(OrderModel order) {
   buffer.writeln('TOTAL REVENUE:   Rs. ${order.totalPrice.toStringAsFixed(2)}');
   buffer.writeln('========================================');
   return buffer.toString();
-}
-
-String _formatOrderStatus(dynamic status) {
-  final value = status.toString().split('.').last;
-  return value
-      .replaceAllMapped(
-        RegExp(r'([A-Z])'),
-        (match) => ' ${match.group(0)}',
-      )
-      .trim()
-      .split('_')
-      .map((word) {
-        if (word.isEmpty) return word;
-        return word[0].toUpperCase() + word.substring(1);
-      })
-      .join(' ');
 }
 
 String _generateRiderShareText(OrderModel order) {

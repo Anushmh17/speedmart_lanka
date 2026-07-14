@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../theme/app_radius.dart';
+import '../safe_request_image.dart';
 
 /// A small auto-cycling image carousel for request/order thumbnails.
 ///
@@ -113,15 +114,13 @@ class _RequestImageCarouselState extends State<RequestImageCarousel> {
     final fallback = SizedBox(width: s, height: s, child: widget.fallback);
 
     if (path.startsWith('http://') || path.startsWith('https://')) {
-      return Image.network(
-        path,
+      return NetworkFallbackImage(
         key: key,
+        url: path,
         width: s,
         height: s,
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => fallback,
-        loadingBuilder: (_, child, progress) =>
-            progress == null ? child : fallback,
+        fallbackWidget: fallback,
       );
     }
 

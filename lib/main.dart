@@ -6,6 +6,7 @@ import 'core/routes/app_router.dart';
 import 'core/services/local_notification_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/global_notification_overlay.dart';
+import 'core/widgets/network_fallback_wrapper.dart';
 import 'features/auth/providers/theme_provider.dart';
 import 'features/orders/data/mock_order_repository.dart';
 import 'features/proposals/data/mock_proposal_repository.dart';
@@ -78,11 +79,13 @@ class SpeedmartApp extends ConsumerWidget {
             );
           });
 
-          return Stack(
-            children: [
-              if (child != null) SizedBox.expand(child: child),
-              const GlobalNotificationOverlay(),
-            ],
+          return NetworkFallbackWrapper(
+            child: Stack(
+              children: [
+                if (child != null) SizedBox.expand(child: child),
+                const GlobalNotificationOverlay(),
+              ],
+            ),
           );
         },
       ),

@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,7 +8,6 @@ import 'package:speedmart_lanka/core/widgets/theme3/theme3_app_bar.dart';
 import 'package:speedmart_lanka/core/widgets/theme3/theme3_app_button.dart';
 import 'package:speedmart_lanka/core/widgets/theme3/theme3_app_card.dart';
 import 'package:speedmart_lanka/core/widgets/theme3/theme3_status_chip.dart';
-import 'package:speedmart_lanka/core/providers/notification_provider.dart';
 import 'package:speedmart_lanka/features/proposals/models/proposal.dart';
 import 'package:speedmart_lanka/features/orders/models/order_model.dart';
 import 'package:speedmart_lanka/features/orders/providers/order_provider.dart';
@@ -26,105 +24,6 @@ class OrderTrackingScreen extends ConsumerStatefulWidget {
 }
 
 class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
-  double _riderProgress = 0.0;
-  Timer? _riderTimer;
-  bool _autoDelivered = false;
-
-  static const double _timerDurationSeconds = 30.0;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _syncTimerWithStatus();
-    });
-  }
-
-  @override
-  void dispose() {
-    _riderTimer?.cancel();
-    super.dispose();
-  }
-
-  void _syncTimerWithStatus() {
-    final orderState = ref.read(orderProvider);
-    final activeOrder = orderState.orders.firstWhere(
-      (o) => o.id == widget.order.id,
-      orElse: () => widget.order,
-    );
-
-    if (activeOrder.status == OrderStatus.outForDelivery &&
-        _riderTimer == null &&
-        !_autoDelivered) {
-      _startRiderSimulation();
-    }
-  }
-
-  void _startRiderSimulation() {
-    _riderTimer?.cancel();
-    const tickInterval = Duration(milliseconds: 500);
-    final incrementPerTick = 0.5 / _timerDurationSeconds;
-
-    _riderTimer = Timer.periodic(tickInterval, (timer) async {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-
-      final newProgress = (_riderProgress + incrementPerTick).clamp(0.0, 1.0);
-
-      setState(() {
-        _riderProgress = newProgress;
-      });
-
-      if (newProgress >= 1.0 && !_autoDelivered) {
-        _autoDelivered = true;
-        timer.cancel();
-        await _completeDelivery();
-      }
-    });
-  }
-
-  Future<void> _completeDelivery() async {
-    final orderState = ref.read(orderProvider);
-    final activeOrder = orderState.orders.firstWhere(
-      (o) => o.id == widget.order.id,
-      orElse: () => widget.order,
-    );
-
-    if (activeOrder.status != OrderStatus.outForDelivery) return;
-
-    await ref
-        .read(orderProvider.notifier)
-        .updateOrderStatus(activeOrder.id, OrderStatus.delivered);
-
-    ref.read(notificationProvider.notifier).triggerNotification(
-          title: '🎉 Order Delivered!',
-          body:
-              'Your order ${activeOrder.id} has arrived! Enjoy your items from ${activeOrder.vendorBusinessName}.',
-          icon: Icons.task_alt_rounded,
-          color: AppColors.customerColor,
-        );
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.check_circle_rounded, color: Colors.white, size: 20),
-              SizedBox(width: 10),
-              Text('Order delivered successfully!'),
-            ],
-          ),
-          backgroundColor: AppColors.success,
-          behavior: SnackBarBehavior.floating,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          duration: const Duration(seconds: 4),
-        ),
-      );
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -139,12 +38,6 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
       (o) => o.id == widget.order.id,
       orElse: () => widget.order,
     );
-
-    final isOutForDelivery = activeOrder.status == OrderStatus.outForDelivery;
-    if (isOutForDelivery && _riderTimer == null && !_autoDelivered) {
-      WidgetsBinding.instance
-          .addPostFrameCallback((_) => _startRiderSimulation());
-    }
 
     return Scaffold(
       backgroundColor:
@@ -265,7 +158,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                   _buildInfoRow(
                     Icons.schedule_rounded,
                     'Last Updated',
-                    _formatDateTime(activeOrder.createdAt),
+                    _formatDateTime(activeOrder.updatedAt ?? activeOrder.createdAt),
                     secondaryText,
                     primaryText,
                   ),
@@ -444,6 +337,17 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                           children: [
                             Text(itemName,
                                 style: AppTextStyles.bodyLarge(primaryText)),
+                            const SizedBox(height: 3),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.customerColor.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(5),
+                                border: Border.all(color: AppColors.customerColor.withValues(alpha: 0.2)),
+                              ),
+                              child: Text('ID: ${item.id}', style: AppTextStyles.labelSmall(AppColors.customerColor)),
+                            ),
+                            const SizedBox(height: 3),
                             Text(
                                 'Qty: ${item.quantity} | Unit: Rs. ${item.price.toStringAsFixed(0)}',
                                 style: AppTextStyles.caption(secondaryText)),
@@ -603,8 +507,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
       builder: (ctx) {
         final isDarkCtx = Theme.of(ctx).brightness == Brightness.dark;
         final txtColor = isDarkCtx ? Colors.white : Colors.black;
-        final subtotal =
-            activeOrder.totalPrice / 1.22 - activeOrder.deliveryCharge / 1.22;
+        final subtotal = activeOrder.totalPrice - activeOrder.deliveryCharge;
         final serviceCharge = subtotal * 0.015;
         final sscl = subtotal * 0.025;
         final vat = subtotal * 0.18;

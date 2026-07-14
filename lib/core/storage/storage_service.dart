@@ -289,6 +289,25 @@ class StorageService {
     await prefs.remove('vendor_remember_me');
   }
 
+  // ── Platform Settings (admin-configured defaults) ────────────────────────
+
+  static Future<void> savePlatformSettings({
+    required double standardCommissionPct,
+    required int standardRadiusKm,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('platform_commission_pct', standardCommissionPct);
+    await prefs.setInt('platform_radius_km', standardRadiusKm);
+  }
+
+  static Future<({double commissionPct, int radiusKm})> getPlatformSettings() async {
+    final prefs = await SharedPreferences.getInstance();
+    return (
+      commissionPct: prefs.getDouble('platform_commission_pct') ?? 10.0,
+      radiusKm: prefs.getInt('platform_radius_km') ?? 5,
+    );
+  }
+
   // ── Clear session / all ───────────────────────────────────────────────────
 
   /// Clears logged-in session only. Keeps registered users and app preferences.

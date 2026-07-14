@@ -164,7 +164,7 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Merchant Privacy Banner
+                  // Shop Owner Privacy Banner
                   Container(
                     width: double.infinity,
                     padding: EdgeInsets.all(AppSpacing.sm),

@@ -6,7 +6,6 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_spacing.dart';
 import '../../../../../core/theme/app_radius.dart';
 import '../../../../../core/theme/app_text_styles.dart';
-import '../../../../../core/widgets/theme3/theme3_app_card.dart';
 import '../../../../../core/widgets/theme3/theme3_empty_state.dart';
 import '../../../../proposals/providers/proposal_provider.dart';
 import '../../../../proposals/models/proposal.dart';
@@ -591,48 +590,6 @@ class _AcceptedBanner extends StatelessWidget {
             child: const Text('Pay Now',
                 style: TextStyle(fontWeight: FontWeight.w700)),
           ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.icon,
-    required this.iconColor,
-    required this.label,
-    required this.value,
-    required this.isDark,
-  });
-
-  final IconData icon;
-  final Color iconColor;
-  final String label;
-  final String value;
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    final primaryText =
-        isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final secondaryText =
-        isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
-
-    return Theme3AppCard(
-      padding: EdgeInsets.all(AppSpacing.sm),
-      child: Column(
-        children: [
-          Icon(icon, size: 20, color: iconColor),
-          SizedBox(height: AppSpacing.xs),
-          Text(label,
-              style: AppTextStyles.caption(secondaryText),
-              textAlign: TextAlign.center),
-          SizedBox(height: AppSpacing.xs),
-          Text(value,
-              style: AppTextStyles.subtitle(primaryText),
-              textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis),
         ],
       ),
     );

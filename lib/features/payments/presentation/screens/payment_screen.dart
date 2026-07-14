@@ -162,10 +162,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         final platformCommission = group.platformCommission;
         final customerAmount = group.customerAmount;
         final vendorNetAmount = group.vendorNetAmount;
-        final receiptNumber = 'RCPT-${DateTime.now().millisecondsSinceEpoch.toString().substring(7)}';
+        final ts = DateTime.now().millisecondsSinceEpoch;
+        final groupIndex = groups.indexOf(group);
+        final receiptNumber = 'RCPT-${ts.toString().substring(7)}-$groupIndex';
         final transactionReference = _selectedMethod == PaymentMethod.mockOnline
-            ? 'MOCK-${DateTime.now().millisecondsSinceEpoch}'
-            : 'COD-${DateTime.now().millisecondsSinceEpoch}';
+            ? 'MOCK-$ts-$groupIndex'
+            : 'COD-$ts-$groupIndex';
 
         debugPrint('[PaymentAudit] ===== PAYMENT CREATION (Group: ${group.proposal.vendorBusinessName}) =====');
         debugPrint('[PaymentAudit] Subtotal (items): $subtotal');
@@ -240,7 +242,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           commissionRate: group.commissionRate,
         );
 
-        final createdOrder = await ref.read(orderProvider.notifier).placeOrder(order);
+        final createdOrder = await ref.read(orderProvider.notifier).placeOrder(
+          order,
+          updateRequestStatus: groupIndex == 0,
+        );
         finalPayment = await ref.read(paymentProvider.notifier).assignOrderId(createdPayment.id, createdOrder.id) ?? finalPayment;
 
         if (firstOrder == null) {
@@ -346,13 +351,16 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         );
       }
 
-      await ref.read(notification_feature.notificationProvider.notifier).createNotification(
-        type: NotificationType.paymentFailed,
-        title: 'Payment Failed',
-        body: 'Your payment attempt for the selected proposals failed. Please try again.',
-        userId: customer.id,
-        relatedId: widget.proposal.id,
-      );
+      final failedCustomer = ref.read(currentUserProvider);
+      if (failedCustomer != null) {
+        await ref.read(notification_feature.notificationProvider.notifier).createNotification(
+          type: NotificationType.paymentFailed,
+          title: 'Payment Failed',
+          body: 'Your payment attempt for the selected proposals failed. Please try again.',
+          userId: failedCustomer.id,
+          relatedId: widget.proposal.id,
+        );
+      }
     }
   }
 

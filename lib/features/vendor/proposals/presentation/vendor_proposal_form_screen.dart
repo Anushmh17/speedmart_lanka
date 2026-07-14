@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -160,6 +161,14 @@ class _VendorProposalFormScreenState
     setState(() => _itemsSubtotal = total);
   }
 
+  /// Generates a globally unique product item ID.
+  /// Format: ITEM-<13-digit timestamp ms>-<6-digit random>
+  String _generateUniqueItemId() {
+    final ts = DateTime.now().millisecondsSinceEpoch;
+    final rand = Random().nextInt(900000) + 100000;
+    return 'ITEM-$ts-$rand';
+  }
+
   List<ProposalItem> _buildItems() {
     final items = <ProposalItem>[];
     final missing = <String>[];
@@ -168,11 +177,23 @@ class _VendorProposalFormScreenState
       final status = _itemStatuses[item.id]!;
       final price = double.tryParse(_priceControllers[item.id]?.text ?? '') ?? 0;
       final stock = int.tryParse(_stockControllers[item.id]?.text ?? '');
-
       final vendorImgs = _vendorItemImages[item.id] ?? [];
+
+      // Preserve existing ID when editing; generate a new unique one for new items.
+      ProposalItem? existing;
+      if (widget.existingProposal != null) {
+        for (final pi in widget.existingProposal!.items) {
+          if (pi.requestItemId == item.id) { existing = pi; break; }
+        }
+      }
+      final itemId = (existing != null && existing.id.isNotEmpty)
+          ? existing.id
+          : _generateUniqueItemId();
+
       if (status == ProposalItemStatus.unavailable) {
         missing.add(item.id);
         items.add(ProposalItem(
+          id: itemId,
           requestItemId: item.id,
           itemName: item.name,
           quantity: item.quantity,
@@ -181,6 +202,7 @@ class _VendorProposalFormScreenState
         ));
       } else if (status == ProposalItemStatus.available) {
         items.add(ProposalItem(
+          id: itemId,
           requestItemId: item.id,
           itemName: item.name,
           quantity: item.quantity,
@@ -193,6 +215,7 @@ class _VendorProposalFormScreenState
         ));
       } else {
         items.add(ProposalItem(
+          id: itemId,
           requestItemId: item.id,
           itemName: item.name,
           quantity: item.quantity,

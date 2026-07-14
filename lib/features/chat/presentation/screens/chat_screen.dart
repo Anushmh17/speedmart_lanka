@@ -89,8 +89,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     final messages = ref.read(chatProvider.notifier).getMessagesForProposal(widget.proposalId);
 
-    // If order is pre-payment/not unlocked, mask real name to protect merchant
-    final displayName = widget.isUnlocked ? widget.vendorName : 'Partner Merchant #A3B1';
+    // If order is pre-payment/not unlocked, mask real name to protect shop owner
+    final displayName = widget.isUnlocked ? widget.vendorName : 'Partner Shop Owner #A3B1';
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,

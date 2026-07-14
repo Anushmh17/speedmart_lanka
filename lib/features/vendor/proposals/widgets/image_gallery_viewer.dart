@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../../../../core/widgets/safe_request_image.dart';
 
 /// Fullscreen image viewer with swipe navigation and zoom support
 class ImageGalleryViewer extends StatefulWidget {
@@ -63,16 +64,10 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
             maxScale: 4.0,
             child: Center(
               child: _isNetworkImage(path)
-                  ? Image.network(
-                      path,
+                  ? NetworkFallbackImage(
+                      url: path,
                       fit: BoxFit.contain,
-                      loadingBuilder: (context, child, loadingProgress) {
-                        if (loadingProgress == null) return child;
-                        return const Center(
-                          child: CircularProgressIndicator(color: Colors.white),
-                        );
-                      },
-                      errorBuilder: (_, __, ___) => const Center(
+                      fallbackWidget: const Center(
                         child: Icon(
                           Icons.broken_image_outlined,
                           color: Colors.white54,

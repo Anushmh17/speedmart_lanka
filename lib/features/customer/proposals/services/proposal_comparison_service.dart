@@ -14,7 +14,7 @@ class ProposalComparisonService {
 
   String maskedVendorName(String vendorId) {
     final code = vendorId.hashCode.abs().toString();
-    return 'Partner Merchant #${code.length > 4 ? code.substring(0, 4) : code}';
+    return 'Partner Shop Owner #${code.length > 4 ? code.substring(0, 4) : code}';
   }
 
   /// Stable mock rating until real vendor reviews exist.
@@ -70,7 +70,7 @@ class ProposalComparisonService {
     // Helper to get delivery fee for a proposal taking into account waived fee
     double getEffectiveDeliveryFee(Proposal p) {
       final existingOrdersForVendor = orders.where((o) =>
-          o.requestId == proposal.requestId &&
+          o.requestId == p.requestId &&
           o.vendorId == p.vendorId &&
           o.status != OrderStatus.cancelled).toList();
       if (existingOrdersForVendor.isNotEmpty) {

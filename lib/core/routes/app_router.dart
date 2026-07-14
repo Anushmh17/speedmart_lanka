@@ -28,6 +28,7 @@ import 'package:speedmart_lanka/features/admin/presentation/screens/admin_home_s
 import 'package:speedmart_lanka/features/admin/presentation/screens/admin_vendor_management_screen.dart';
 import 'package:speedmart_lanka/features/admin/presentation/screens/admin_vendor_assignment_screen.dart';
 import 'package:speedmart_lanka/features/admin/presentation/screens/admin_category_management_screen.dart';
+import 'package:speedmart_lanka/features/admin/presentation/screens/admin_order_detail_screen.dart';
 import 'package:speedmart_lanka/features/requests/presentation/screens/request_list_screen.dart';
 import 'package:speedmart_lanka/shared/presentation/screens/profile_screen.dart';
 import 'package:speedmart_lanka/features/customer/delivery_address/presentation/screens/customer_delivery_address_screen.dart';
@@ -432,6 +433,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/admin/categories',
         builder: (_, __) => const AdminCategoryManagementScreen(),
+      ),
+      GoRoute(
+        path: '/admin/orders/detail',
+        parentNavigatorKey: rootNavigatorKey,
+        builder: (_, state) {
+          final order = state.extra as OrderModel;
+          return AdminOrderDetailScreen(order: order);
+        },
       ),
     ],
     errorBuilder: (context, state) => Scaffold(
