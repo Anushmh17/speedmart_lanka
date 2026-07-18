@@ -347,23 +347,36 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
 }
 
 // ── Home Tab ──────────────────────────────────────────────────────────────
-class CustomerHomeTab extends ConsumerWidget {
+class CustomerHomeTab extends ConsumerStatefulWidget {
   const CustomerHomeTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CustomerHomeTab> createState() => _CustomerHomeTabState();
+}
+
+class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
+  Future<void> _onRefresh() async {
+    await Future.wait([
+      ref.read(requestProvider.notifier).loadMyRequests(),
+      ref.read(orderProvider.notifier).loadCustomerOrders(),
+    ]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
-    
+
     final requestState = ref.watch(requestProvider);
     final orderState = ref.watch(orderProvider);
 
-
-
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
+    return RefreshIndicator(
+      onRefresh: _onRefresh,
+      color: AppColors.primary,
+      child: SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 120),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -428,6 +441,7 @@ class CustomerHomeTab extends ConsumerWidget {
           const SizedBox(height: AppSpacing.lg),
         ],
       ),
+    ),
     );
   }
 

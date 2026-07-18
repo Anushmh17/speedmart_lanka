@@ -128,7 +128,7 @@ class OrderNotifier extends StateNotifier<OrderState> {
         } else if (status == OrderStatus.delivered) {
           reqStatus = RequestStatus.delivered;
         } else if (status == OrderStatus.completed) {
-          reqStatus = RequestStatus.delivered;
+          reqStatus = RequestStatus.completed;
         } else if (status == OrderStatus.cancelled) {
           reqStatus = RequestStatus.cancelled;
         }

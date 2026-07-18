@@ -262,6 +262,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
     String? profileImageUrl,
     List<String>? vendorCategories,
     List<String>? requestedCategories,
+    String? bankName,
+    String? bankBranch,
+    String? bankAccountName,
+    String? bankAccountNumber,
   }) async {
     // Do NOT set isLoading here — it triggers the router's refreshListenable
     // and causes unwanted navigation during a simple profile update.
@@ -277,6 +281,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
         vendorCategories: vendorCategories,
         requestedCategories: requestedCategories,
         hasPendingCategoryRequest: requestedCategories?.isNotEmpty == true,
+        bankName: bankName ?? currentUser.bankName,
+        bankBranch: bankBranch ?? currentUser.bankBranch,
+        bankAccountName: bankAccountName ?? currentUser.bankAccountName,
+        bankAccountNumber: bankAccountNumber ?? currentUser.bankAccountNumber,
       );
 
       final savedUser = await _repo.updateUser(updatedUser);

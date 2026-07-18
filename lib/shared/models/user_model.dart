@@ -46,6 +46,12 @@ class UserModel {
   /// Null means the platform default (treated as 0%).
   final double? commissionRate;
 
+  /// Vendor bank/payment details for commission settlement by admin.
+  final String? bankName;
+  final String? bankBranch;
+  final String? bankAccountName;
+  final String? bankAccountNumber;
+
   /// Country override and risk fields for anti-abuse audit
   final String? detectedCountry;
   final String? selectedCountry;
@@ -111,6 +117,10 @@ class UserModel {
     this.isShopLocationAssigned,
     this.businessRegistrationNumber,
     this.commissionRate,
+    this.bankName,
+    this.bankBranch,
+    this.bankAccountName,
+    this.bankAccountNumber,
   });
 
   /// Create from JSON (API response)
@@ -177,6 +187,10 @@ class UserModel {
       isShopLocationAssigned: json['is_shop_location_assigned'] as bool?,
       businessRegistrationNumber: json['business_registration_number'] as String?,
       commissionRate: (json['commission_rate'] as num?)?.toDouble(),
+      bankName: json['bank_name'] as String?,
+      bankBranch: json['bank_branch'] as String?,
+      bankAccountName: json['bank_account_name'] as String?,
+      bankAccountNumber: json['bank_account_number'] as String?,
     );
   }
 
@@ -227,6 +241,10 @@ class UserModel {
       'is_shop_location_assigned': isShopLocationAssigned,
       'business_registration_number': businessRegistrationNumber,
       'commission_rate': commissionRate,
+      'bank_name': bankName,
+      'bank_branch': bankBranch,
+      'bank_account_name': bankAccountName,
+      'bank_account_number': bankAccountNumber,
     };
   }
 
@@ -277,6 +295,10 @@ class UserModel {
     String? businessRegistrationNumber,
     double? commissionRate,
     bool clearCommissionRate = false,
+    String? bankName,
+    String? bankBranch,
+    String? bankAccountName,
+    String? bankAccountNumber,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -324,6 +346,10 @@ class UserModel {
       isShopLocationAssigned: isShopLocationAssigned ?? this.isShopLocationAssigned,
       businessRegistrationNumber: businessRegistrationNumber ?? this.businessRegistrationNumber,
       commissionRate: clearCommissionRate ? null : (commissionRate ?? this.commissionRate),
+      bankName: bankName ?? this.bankName,
+      bankBranch: bankBranch ?? this.bankBranch,
+      bankAccountName: bankAccountName ?? this.bankAccountName,
+      bankAccountNumber: bankAccountNumber ?? this.bankAccountNumber,
     );
   }
 

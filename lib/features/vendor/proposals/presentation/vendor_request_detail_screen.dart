@@ -45,7 +45,8 @@ class _VendorRequestDetailScreenState
         .where((c) => c.isNotEmpty)
         .map(VendorCategories.normalize)
         .toSet();
-    return cats.length == 1 ? cats.first : (cats.isNotEmpty ? cats.first : null);
+    // Return null for multi-category requests so proposal lookup uses all categories.
+    return cats.length == 1 ? cats.first : null;
   }
 
   Future<void> _load() async {

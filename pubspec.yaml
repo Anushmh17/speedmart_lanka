@@ -57,6 +57,7 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/banks/
     - assets/images/figma/sri_lanka_customer_login/
     - assets/images/figma/international_customer_login/
     - assets/images/figma/international_customer_login_otp/

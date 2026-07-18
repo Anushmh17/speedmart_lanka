@@ -64,27 +64,6 @@ class VendorRequestFilterService {
     return vendorApproved == true;
   }
 
-  bool matchesVendorCategories(
-    ShoppingRequest request,
-    List<String> vendorCategories,
-  ) {
-    if (vendorCategories.isEmpty) return true;
-
-    final requestCats = _requestCategories(request);
-    if (requestCats.isEmpty) return true;
-
-    // Normalize vendor categories using VendorCategories.normalize()
-    final vendorNormalized = vendorCategories
-        .map((c) => VendorCategories.normalize(c))
-        .where((c) => c.isNotEmpty)
-        .toSet();
-
-    // Normalize request categories and check for matches
-    return requestCats.any(
-      (c) => vendorNormalized.contains(VendorCategories.normalize(c)),
-    );
-  }
-
   /// Filter items in a request to only those matching vendor categories.
   /// Returns items that match vendor's approved categories.
   /// Uses VendorCategories.normalize() to handle aliases like "Hardware items" -> "hardware"
@@ -103,22 +82,17 @@ class VendorRequestFilterService {
     debugPrint('[FeedCategoryFix] Vendor normalized categories: $vendorNormalized');
 
     final matchingItems = request.items.where((item) {
+      // Items with no category are visible to all vendors.
       if (item.category == null || item.category!.isEmpty) {
-        debugPrint('[FeedCategoryFix] Item "${item.itemName}" has no category, skipping');
-        return false;
+        debugPrint('[FeedCategoryFix] Item "${item.itemName}" has no category, including for all vendors');
+        return true;
       }
-      
-      // Use VendorCategories.normalize() to handle aliases
+
       final originalCategory = item.category!;
       final itemCategoryNormalized = VendorCategories.normalize(originalCategory);
-      
       final matches = vendorNormalized.contains(itemCategoryNormalized);
-      
-      debugPrint('[FeedCategoryFix] Item "${item.itemName}":');
-      debugPrint('[FeedCategoryFix]   original item category: $originalCategory');
-      debugPrint('[FeedCategoryFix]   normalized item category: $itemCategoryNormalized');
-      debugPrint('[FeedCategoryFix]   match: $matches');
-      
+
+      debugPrint('[FeedCategoryFix] Item "${item.itemName}": $originalCategory -> $itemCategoryNormalized, match: $matches');
       return matches;
     }).toList();
 
@@ -208,19 +182,21 @@ class VendorRequestFilterService {
       return [];
     }
 
-    // Build a set of request IDs this vendor has already bid on (active proposals only).
-    // These should only appear in "My Submitted Bids", not the feed.
-    final alreadyBidRequestIds = vendorId == null
-        ? <String>{}
-        : allProposals
-            .where((p) =>
-                p.vendorId == vendorId &&
-                p.status != ProposalStatus.withdrawn &&
-                p.status != ProposalStatus.draft)
-            .map((p) => p.requestId)
-            .toSet();
+    // Build a map of requestId -> set of bid categories for this vendor.
+    // A request is only hidden from the feed when the vendor has bid on ALL
+    // categories that match their approved categories (not just one of them).
+    final Map<String, Set<String>> bidCategoriesByRequest = {};
+    if (vendorId != null) {
+      for (final p in allProposals) {
+        if (p.vendorId != vendorId) continue;
+        if (p.status == ProposalStatus.withdrawn || p.status == ProposalStatus.draft) continue;
+        bidCategoriesByRequest
+            .putIfAbsent(p.requestId, () => {})
+            .add(p.categoryNormalized ?? '');
+      }
+    }
 
-    debugPrint('[FeedAudit] Vendor already-bid request IDs excluded from feed: $alreadyBidRequestIds');
+    debugPrint('[FeedAudit] Vendor bid categories by request: $bidCategoriesByRequest');
 
     // Normalize vendor categories using VendorCategories.normalize()
     final vendorNormalized = vendorCategories
@@ -242,9 +218,16 @@ class VendorRequestFilterService {
     final matched = active.where((request) {
       debugPrint('[FeedCategoryFix] ===== REQUEST ${request.id} =====');
 
-      // Exclude requests this vendor has already submitted a bid for.
-      if (alreadyBidRequestIds.contains(request.id)) {
-        debugPrint('[FeedCategoryFix] hidden reason: vendor_already_bid');
+      // Exclude request only if vendor has already bid on ALL matching categories.
+      final matchingCatsForRequest = filterMatchingItems(request, vendorCategories)
+          .map((i) => VendorCategories.normalize(i.category ?? ''))
+          .where((c) => c.isNotEmpty)
+          .toSet();
+      final bidCats = bidCategoriesByRequest[request.id] ?? {};
+      final allCatsBid = matchingCatsForRequest.isNotEmpty &&
+          matchingCatsForRequest.every((c) => bidCats.contains(c));
+      if (allCatsBid) {
+        debugPrint('[FeedCategoryFix] hidden reason: vendor_already_bid_all_categories');
         return false;
       }
 

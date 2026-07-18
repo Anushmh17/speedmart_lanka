@@ -96,6 +96,7 @@ class MockRequestRepository {
     String requestId, {
     String? reason,
     String cancelledBy = 'customer',
+    bool hasAcceptedProposal = false,
   }) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 300));
@@ -105,7 +106,7 @@ class MockRequestRepository {
     }
 
     final current = _requests[index];
-    if (!current.status.canBeCancelledByCustomer) {
+    if (!current.canBeCancelledByCustomer(hasAcceptedProposal: hasAcceptedProposal)) {
       throw Exception(
         'This request can no longer be cancelled. Contact support if you need help.',
       );

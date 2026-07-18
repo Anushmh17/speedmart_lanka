@@ -729,9 +729,11 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                             elevation: 0,
                           ),
                           onPressed: () async {
-                      OrderStatus nextStatus = OrderStatus.preparing;
+                      OrderStatus nextStatus = OrderStatus.accepted;
 
-                      if (activeOrder.status == OrderStatus.accepted) {
+                      if (activeOrder.status == OrderStatus.submitted) {
+                        nextStatus = OrderStatus.accepted;
+                      } else if (activeOrder.status == OrderStatus.accepted) {
                         nextStatus = OrderStatus.preparing;
                       } else if (activeOrder.status == OrderStatus.preparing) {
                         nextStatus = OrderStatus.readyForDelivery;
@@ -746,7 +748,14 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                       await ref.read(orderProvider.notifier).updateOrderStatus(activeOrder.id, nextStatus);
 
                       // Trigger simulated Customer Notifications based on status update!
-                      if (nextStatus == OrderStatus.preparing) {
+                      if (nextStatus == OrderStatus.accepted) {
+                        ref.read(notificationProvider.notifier).triggerNotification(
+                          title: 'Order Accepted! ✅',
+                          body: 'Shop Owner accepted your order ${activeOrder.id}.',
+                          icon: Icons.check_circle_rounded,
+                          color: AppColors.customerColor,
+                        );
+                      } else if (nextStatus == OrderStatus.preparing) {
                         ref.read(notificationProvider.notifier).triggerNotification(
                           title: 'Order Preparing! 📦',
                           body: 'Shop Owner is packing your items for order ${activeOrder.id}.',
@@ -775,32 +784,23 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                           color: AppColors.customerColor,
                         );
                       }
-                      
-                      if (nextStatus == OrderStatus.delivered && activeOrder.paymentMethod == PaymentMethod.cashOnDelivery) {
-                        // COD: sync both the order AND the payment record to paid
-                        await MockOrderRepository.instance.updatePaymentStatus(activeOrder.id, PaymentStatus.paid);
-                        final payment = await MockPaymentRepository.instance.getPaymentByOrderId(activeOrder.id);
-                        if (payment != null) {
-                          await MockPaymentRepository.instance.updatePaymentStatus(payment.id, PaymentStatus.paid);
-                        }
-                        // Refresh state
-                        await ref.read(orderProvider.notifier).loadVendorOrders();
-                      }
 
                       if (context.mounted) {
                         context.pop();
                       }
                     },
                     child: Text(
-                      activeOrder.status == OrderStatus.accepted
-                          ? 'Start Preparing Order'
-                          : activeOrder.status == OrderStatus.preparing
-                              ? 'Mark Ready for Delivery'
-                              : activeOrder.status == OrderStatus.readyForDelivery
-                                  ? 'Dispatch Order (Out for Delivery)'
-                                  : activeOrder.status == OrderStatus.outForDelivery
-                                      ? 'Confirm Delivery (Mark as Delivered)'
-                                      : 'Mark Complete',
+                      activeOrder.status == OrderStatus.submitted
+                          ? 'Accept Order'
+                          : activeOrder.status == OrderStatus.accepted
+                              ? 'Start Preparing Order'
+                              : activeOrder.status == OrderStatus.preparing
+                                  ? 'Mark Ready for Delivery'
+                                  : activeOrder.status == OrderStatus.readyForDelivery
+                                      ? 'Dispatch Order (Out for Delivery)'
+                                      : activeOrder.status == OrderStatus.outForDelivery
+                                          ? 'Confirm Delivery (Mark as Delivered)'
+                                          : 'Mark Complete',
                       style: AppTextStyles.button(Colors.white),
                     ),
                   ),

@@ -89,11 +89,13 @@ static gboolean my_application_local_command_line(GApplication* application,
   g_autoptr(GError) error = nullptr;
   if (!g_application_register(application, nullptr, &error)) {
     g_warning("Failed to register: %s", error->message);
+    // amazonq-ignore-next-line
     *exit_status = 1;
     return TRUE;
   }
 
   g_application_activate(application);
+  // amazonq-ignore-next-line
   *exit_status = 0;
 
   return TRUE;

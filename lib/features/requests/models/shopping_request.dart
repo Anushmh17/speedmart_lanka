@@ -7,7 +7,6 @@ enum RequestStatus {
   draft,
   submitted,
   waitingForVendor,
-  vendorAccepted,
   proposalSubmitted,
   customerAccepted,
   customerRejected,
@@ -18,6 +17,7 @@ enum RequestStatus {
   readyForDelivery,
   outForDelivery,
   delivered,
+  completed,
   cancelled,
   expired,
   accepted,
@@ -32,8 +32,8 @@ extension RequestStatusExtension on RequestStatus {
         return 'Submitted';
       case RequestStatus.waitingForVendor:
         return 'Awaiting Proposals';
-      case RequestStatus.vendorAccepted:
-        return 'Shop Owner Accepted';
+      case RequestStatus.completed:
+        return 'Completed';
       case RequestStatus.proposalSubmitted:
         return 'Proposal Submitted';
       case RequestStatus.customerAccepted:
@@ -69,6 +69,7 @@ extension RequestStatusExtension on RequestStatus {
       case RequestStatus.submitted:
       case RequestStatus.waitingForVendor:
       case RequestStatus.proposalSubmitted:
+      case RequestStatus.accepted:
         return true;
       default:
         return false;
@@ -188,7 +189,10 @@ class ShoppingRequest {
 
   /// Get pending categories count
   int get pendingCategoriesCount =>
-      getCategoryCountByStatus(RequestCategoryStatus.pending) +
+      getCategoryCountByStatus(RequestCategoryStatus.pending);
+
+  /// Get categories that have received at least one proposal but not yet accepted
+  int get proposalReceivedCategoriesCount =>
       getCategoryCountByStatus(RequestCategoryStatus.proposalReceived);
 
   /// Get accepted categories count

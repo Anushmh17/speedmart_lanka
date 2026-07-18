@@ -676,8 +676,6 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
         return 'Cancelled';
       case RequestStatus.expired:
         return 'Expired';
-      case RequestStatus.vendorAccepted:
-        return 'Vendor Accepted';
       default:
         return status.displayName;
     }

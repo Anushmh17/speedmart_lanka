@@ -76,7 +76,6 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
       case RequestStatus.submitted:
       case RequestStatus.waitingForVendor:
         return Theme3StatusType.pending;
-      case RequestStatus.vendorAccepted:
       case RequestStatus.proposalSubmitted:
         return Theme3StatusType.inProgress;
       case RequestStatus.customerAccepted:

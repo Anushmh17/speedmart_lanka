@@ -92,6 +92,7 @@ const wchar_t* WindowClassRegistrar::GetWindowClass() {
     window_class.hCursor = LoadCursor(nullptr, IDC_ARROW);
     window_class.lpszClassName = kWindowClassName;
     window_class.style = CS_HREDRAW | CS_VREDRAW;
+    // amazonq-ignore-next-line
     window_class.cbClsExtra = 0;
     window_class.cbWndExtra = 0;
     window_class.hInstance = GetModuleHandle(nullptr);
@@ -216,6 +217,9 @@ Win32Window::MessageHandler(HWND hwnd,
     case WM_DWMCOLORIZATIONCOLORCHANGED:
       UpdateTheme(hwnd);
       return 0;
+
+    default:
+      break;
   }
 
   return DefWindowProc(window_handle_, message, wparam, lparam);

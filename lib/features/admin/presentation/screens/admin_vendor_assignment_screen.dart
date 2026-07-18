@@ -789,6 +789,66 @@ class _AdminVendorAssignmentScreenState
 
                     const SizedBox(height: 32),
 
+                    // Vendor Bank Details (read-only for admin)
+                    if (((_latestVendor ?? widget.vendor).bankName ?? '').isNotEmpty ||
+                        ((_latestVendor ?? widget.vendor).bankAccountNumber ?? '').isNotEmpty) ...[
+                      Text('Bank / Payment Details', style: AppTextStyles.h3(primaryText)),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.adminColor.withOpacity(0.06),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.adminColor.withOpacity(0.2)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.account_balance_rounded,
+                                    color: AppColors.adminColor, size: 16),
+                                const SizedBox(width: 8),
+                                Text('Used for commission settlement',
+                                    style: AppTextStyles.caption(secondaryText)),
+                              ],
+                            ),
+                            const SizedBox(height: 12),
+                            _adminBankRow('Bank', (_latestVendor ?? widget.vendor).bankName, primaryText, secondaryText),
+                            _adminBankRow('Branch', (_latestVendor ?? widget.vendor).bankBranch, primaryText, secondaryText),
+                            _adminBankRow('Account Holder', (_latestVendor ?? widget.vendor).bankAccountName, primaryText, secondaryText),
+                            _adminBankRow('Account No.', (_latestVendor ?? widget.vendor).bankAccountNumber, primaryText, secondaryText),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ] else ...[
+                      Text('Bank / Payment Details', style: AppTextStyles.h3(primaryText)),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.warning.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: AppColors.warning.withOpacity(0.2)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.warning_amber_rounded,
+                                color: AppColors.warning, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Vendor has not added bank details yet.',
+                                style: AppTextStyles.bodySmall(secondaryText),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -812,6 +872,26 @@ class _AdminVendorAssignmentScreenState
                 ),
               ),
             ),
+    );
+  }
+
+  Widget _adminBankRow(String label, String? value, Color primaryText, Color secondaryText) {
+    if (value == null || value.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text('$label:', style: AppTextStyles.caption(secondaryText)),
+          ),
+          Expanded(
+            child: Text(value,
+                style: AppTextStyles.bodySmall(primaryText),
+                overflow: TextOverflow.ellipsis),
+          ),
+        ],
+      ),
     );
   }
 

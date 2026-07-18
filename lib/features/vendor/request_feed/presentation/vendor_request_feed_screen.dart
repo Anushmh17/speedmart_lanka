@@ -6,6 +6,7 @@ import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/theme3/theme3_empty_state.dart';
+import '../../../../shared/utils/category_constants.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../models/vendor_feed_enums.dart';
 import '../providers/vendor_request_feed_provider.dart';
@@ -309,7 +310,9 @@ class _VendorRequestFeedScreenState
                     padding: const EdgeInsets.only(left: 8),
                     child: _buildCategoryChip(
                       cat,
-                      feedState.categoryFilter?.toLowerCase() == cat.toLowerCase(),
+                      feedState.categoryFilter != null &&
+                          VendorCategories.normalize(feedState.categoryFilter!) ==
+                              VendorCategories.normalize(cat),
                       isDark,
                       primaryText,
                       cat,

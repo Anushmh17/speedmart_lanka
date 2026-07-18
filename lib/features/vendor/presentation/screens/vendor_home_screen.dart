@@ -186,7 +186,7 @@ class _VendorHomeScreenState extends ConsumerState<VendorHomeScreen>
                         VendorRequestFeedScreen(isDark: isDark),
                         _MyProposalsTab(isDark: isDark),
                         const _VendorWalletTab(),
-                        const ProfileScreen(),
+                        const ProfileScreen(showBackButton: false),
                       ],
                     ),
             ),

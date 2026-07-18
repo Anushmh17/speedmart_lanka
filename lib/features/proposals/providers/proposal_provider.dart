@@ -261,36 +261,44 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
 
       // Update category fulfillment
       final request = await _requestRepo.getRequestById(requestId);
-      if (request != null && acceptedCategory != null) {
-        final updatedFulfillments = Map<String, RequestCategoryFulfillment>.from(
-          request.categoryFulfillments,
-        );
-        final current = updatedFulfillments[acceptedCategory];
-        if (current != null) {
-          updatedFulfillments[acceptedCategory] = current.copyWith(
-            status: RequestCategoryStatus.accepted,
-            acceptedProposalId: proposalId,
-            acceptedVendorId: acceptedProposal.vendorId,
-            acceptedAt: DateTime.now(),
+      if (request != null) {
+        // Resolve category: use proposal's categoryNormalized, or fall back to
+        // the single category if the request has only one.
+        final resolvedCategory = acceptedCategory ??
+            (request.categoryFulfillments.length == 1
+                ? request.categoryFulfillments.keys.first
+                : null);
+
+        if (resolvedCategory != null) {
+          final updatedFulfillments = Map<String, RequestCategoryFulfillment>.from(
+            request.categoryFulfillments,
           );
-          print('[MultiCategoryFlow] Updated category fulfillment: $acceptedCategory');
+          final current = updatedFulfillments[resolvedCategory];
+          if (current != null) {
+            updatedFulfillments[resolvedCategory] = current.copyWith(
+              status: RequestCategoryStatus.accepted,
+              acceptedProposalId: proposalId,
+              acceptedVendorId: acceptedProposal.vendorId,
+              acceptedAt: DateTime.now(),
+            );
+            print('[MultiCategoryFlow] Updated category fulfillment: $resolvedCategory');
+          }
+
+          // Update request with new fulfillments
+          final updatedRequest = request.copyWith(
+            categoryFulfillments: updatedFulfillments,
+            updatedAt: DateTime.now(),
+          );
+          await _requestRepo.updateRequest(updatedRequest);
+
+          // Log summary
+          final accepted = updatedRequest.acceptedCategoriesCount;
+          final pending = updatedRequest.pendingCategoriesCount;
+          final completed = updatedRequest.completedCategoriesCount;
+          print('[MultiCategoryFlow] Request summary: $accepted accepted, $pending pending, $completed completed');
         }
 
-        // Update request with new fulfillments
-        final updatedRequest = request.copyWith(
-          categoryFulfillments: updatedFulfillments,
-          updatedAt: DateTime.now(),
-        );
-        await _requestRepo.updateRequest(updatedRequest);
-
-        // Log summary
-        final accepted = updatedRequest.acceptedCategoriesCount;
-        final pending = updatedRequest.pendingCategoriesCount;
-        final completed = updatedRequest.completedCategoriesCount;
-        print('[MultiCategoryFlow] Request summary: $accepted accepted, $pending pending, $completed completed');
-
-        // Only mark entire request as accepted if all categories are accepted/completed
-        // For now, keep as customerAccepted when first category accepted
+        // Mark request as customerAccepted once at least one category is accepted
         if (request.status != RequestStatus.customerAccepted) {
           await _requestRepo.updateRequestStatus(
             requestId,
@@ -477,26 +485,40 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
           // Update request category fulfillment
           final category = updatedWinner.categoryNormalized;
           final request = await _requestRepo.getRequestById(requestId);
-          if (request != null && category != null) {
-            final updatedFulfillments = Map<String, RequestCategoryFulfillment>.from(
-              request.categoryFulfillments,
-            );
-            final current = updatedFulfillments[category];
-            if (current != null) {
-              updatedFulfillments[category] = current.copyWith(
-                status: RequestCategoryStatus.accepted,
-                acceptedProposalId: proposalId,
-                acceptedVendorId: updatedWinner.vendorId,
-                acceptedAt: DateTime.now(),
+          if (request != null) {
+            // Resolve category with fallback for single-category requests
+            final resolvedCategory = category ??
+                (request.categoryFulfillments.length == 1
+                    ? request.categoryFulfillments.keys.first
+                    : null);
+            if (resolvedCategory != null) {
+              final updatedFulfillments = Map<String, RequestCategoryFulfillment>.from(
+                request.categoryFulfillments,
               );
+              final current = updatedFulfillments[resolvedCategory];
+              if (current != null) {
+                updatedFulfillments[resolvedCategory] = current.copyWith(
+                  status: RequestCategoryStatus.accepted,
+                  acceptedProposalId: proposalId,
+                  acceptedVendorId: updatedWinner.vendorId,
+                  acceptedAt: DateTime.now(),
+                );
+              }
+              // Only set request to customerAccepted once ALL categories are resolved
+              final tentativeRequest = request.copyWith(
+                categoryFulfillments: updatedFulfillments,
+                updatedAt: DateTime.now(),
+              );
+              final allCategoriesAccepted = tentativeRequest.categoryFulfillments.values
+                  .every((f) => !f.status.canReceiveProposals);
+              final updatedRequest = tentativeRequest.copyWith(
+                status: allCategoriesAccepted
+                    ? RequestStatus.customerAccepted
+                    : request.status,
+              );
+              await _requestRepo.updateRequest(updatedRequest);
+              ref.read(requestProvider.notifier).syncRequest(updatedRequest);
             }
-            final updatedRequest = request.copyWith(
-              categoryFulfillments: updatedFulfillments,
-              status: RequestStatus.customerAccepted,
-              updatedAt: DateTime.now(),
-            );
-            await _requestRepo.updateRequest(updatedRequest);
-            ref.read(requestProvider.notifier).syncRequest(updatedRequest);
           }
         }
       }

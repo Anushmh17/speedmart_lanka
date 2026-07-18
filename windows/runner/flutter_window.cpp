@@ -61,9 +61,13 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
     }
   }
 
+  // amazonq-ignore-next-line
   switch (message) {
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
+      break;
+
+    default:
       break;
   }
 

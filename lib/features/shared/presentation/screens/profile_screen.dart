@@ -12,15 +12,23 @@ import '../../../../core/widgets/theme3/theme3_app_card.dart';
 import '../../../../core/widgets/theme3/theme3_app_text_field.dart';
 import '../../../../core/widgets/theme3/theme3_status_chip.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
+import '../../../../features/orders/models/order_model.dart';
+import '../../../../features/orders/providers/order_provider.dart';
+import '../../../../features/requests/providers/request_provider.dart';
 import '../../../../shared/models/user_role.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/routes/route_names.dart';
 import '../../../../core/routes/app_router.dart';
 import '../../../../features/admin/providers/category_provider.dart';
 import '../../../../core/storage/storage_service.dart';
+import '../../../../shared/models/sri_lanka_banks.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
-  const ProfileScreen({super.key});
+  const ProfileScreen({super.key, this.showBackButton = true});
+
+  /// Set to false when embedded as a tab (e.g. vendor bottom nav) so the
+  /// AppBar back arrow is hidden.
+  final bool showBackButton;
 
   @override
   ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
@@ -37,12 +45,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   List<String> _requestedCategories = [];
   String? _pickedImagePath;
 
+  // Bank detail controllers (vendor only)
+  late TextEditingController _bankNameCtrl;
+  late TextEditingController _bankBranchCtrl;
+  late TextEditingController _bankAccountNameCtrl;
+  late TextEditingController _bankAccountNumberCtrl;
+  SriLankaBank? _selectedBank;
+
   @override
   void initState() {
     super.initState();
     _nameCtrl = TextEditingController();
     _phoneCtrl = TextEditingController();
     _businessNameCtrl = TextEditingController();
+    _bankNameCtrl = TextEditingController();
+    _bankBranchCtrl = TextEditingController();
+    _bankAccountNameCtrl = TextEditingController();
+    _bankAccountNumberCtrl = TextEditingController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _recoverCroppedImage();
@@ -57,6 +76,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (!_dataInitialized) {
       _dataInitialized = true;
       _initData();
+      _loadStatsData();
+    }
+  }
+
+  void _loadStatsData() {
+    final user = ref.read(currentUserProvider);
+    if (user == null) return;
+    if (user.role == UserRole.vendor) {
+      ref.read(orderProvider.notifier).loadVendorOrders();
+    } else {
+      ref.read(requestProvider.notifier).loadMyRequests();
+      ref.read(orderProvider.notifier).loadCustomerOrders();
     }
   }
 
@@ -67,6 +98,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _phoneCtrl.text = user.phone;
       _businessNameCtrl.text = user.businessName ?? '';
       _requestedCategories = List.from(user.requestedCategories ?? []);
+      _bankNameCtrl.text = user.bankName ?? '';
+      _bankBranchCtrl.text = user.bankBranch ?? '';
+      _bankAccountNameCtrl.text = user.bankAccountName ?? '';
+      _bankAccountNumberCtrl.text = user.bankAccountNumber ?? '';
+      // Restore selected bank from saved name
+      if (user.bankName != null && user.bankName!.isNotEmpty) {
+        try {
+          _selectedBank = sriLankaBanks.firstWhere(
+            (b) => b.name == user.bankName,
+          );
+        } catch (_) {
+          _selectedBank = null;
+        }
+      }
       if (_isLocalPath(user.profileImageUrl)) {
         _pickedImagePath = user.profileImageUrl;
       }
@@ -78,6 +123,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _businessNameCtrl.dispose();
+    _bankNameCtrl.dispose();
+    _bankBranchCtrl.dispose();
+    _bankAccountNameCtrl.dispose();
+    _bankAccountNumberCtrl.dispose();
     super.dispose();
   }
 
@@ -140,6 +189,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       businessName: user.role == UserRole.vendor ? _businessNameCtrl.text.trim() : null,
       profileImageUrl: _pickedImagePath ?? user.profileImageUrl,
       requestedCategories: user.role == UserRole.vendor ? _requestedCategories : null,
+      bankName: user.role == UserRole.vendor ? _bankNameCtrl.text.trim() : null,
+      bankBranch: user.role == UserRole.vendor ? _bankBranchCtrl.text.trim() : null,
+      bankAccountName: user.role == UserRole.vendor ? _bankAccountNameCtrl.text.trim() : null,
+      bankAccountNumber: user.role == UserRole.vendor ? _bankAccountNumberCtrl.text.trim() : null,
     );
     
     if (mounted && !ref.read(authLoadingProvider)) {
@@ -247,27 +300,31 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         }
       },
       child: Scaffold(
-        appBar: Theme3AppBar(
-          title: 'Profile',
-          actions: [
-            if (!_isEditing)
-              IconButton(
-                icon: const Icon(Icons.edit_rounded),
-                onPressed: () => setState(() => _isEditing = true),
+        appBar: widget.showBackButton
+            ? Theme3AppBar(
+                title: 'Profile',
+                showBackButton: true,
+                actions: [
+                  if (!_isEditing)
+                    IconButton(
+                      icon: const Icon(Icons.edit_rounded),
+                      onPressed: () => setState(() => _isEditing = true),
+                    )
+                  else
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () {
+                        _initData();
+                        setState(() {
+                          _isEditing = false;
+                          _pickedImagePath = null;
+                          _selectedBank = null;
+                        });
+                      },
+                    ),
+                ],
               )
-            else
-              IconButton(
-                icon: const Icon(Icons.close_rounded),
-                onPressed: () {
-                  _initData();
-                  setState(() {
-                    _isEditing = false;
-                    _pickedImagePath = null;
-                  });
-                },
-              ),
-          ],
-        ),
+            : null,
         body: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           child: Padding(
@@ -317,6 +374,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       padding: const EdgeInsets.all(24),
       child: Column(
         children: [
+          // Edit toggle row — only shown when there is no AppBar (embedded tab)
+          if (!widget.showBackButton)
+            Align(
+              alignment: Alignment.centerRight,
+              child: IconButton(
+                icon: Icon(isEditing ? Icons.close_rounded : Icons.edit_rounded),
+                onPressed: () {
+                  if (isEditing) {
+                    _initData();
+                    setState(() {
+                      _isEditing = false;
+                      _pickedImagePath = null;
+                      _selectedBank = null;
+                    });
+                  } else {
+                    setState(() => _isEditing = true);
+                  }
+                },
+              ),
+            ),
           Stack(
             alignment: Alignment.bottomRight,
             children: [
@@ -403,9 +480,32 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   List<Widget> _buildQuickStats(dynamic user, bool isDark) {
-    final totalRequests = 0;
-    final activeOrders = 0;
-    final completedOrders = 0;
+    final requestState = ref.watch(requestProvider);
+    final orderState = ref.watch(orderProvider);
+
+    final int totalRequests;
+    final int activeOrders;
+    final int completedOrders;
+
+    if (user.role == UserRole.vendor) {
+      totalRequests = ref.watch(orderProvider).orders.length;
+      activeOrders = orderState.orders.where((o) =>
+          o.status != OrderStatus.delivered &&
+          o.status != OrderStatus.completed &&
+          o.status != OrderStatus.cancelled).length;
+      completedOrders = orderState.orders.where((o) =>
+          o.status == OrderStatus.delivered ||
+          o.status == OrderStatus.completed).length;
+    } else {
+      totalRequests = requestState.requests.length;
+      activeOrders = orderState.orders.where((o) =>
+          o.status != OrderStatus.delivered &&
+          o.status != OrderStatus.completed &&
+          o.status != OrderStatus.cancelled).length;
+      completedOrders = orderState.orders.where((o) =>
+          o.status == OrderStatus.delivered ||
+          o.status == OrderStatus.completed).length;
+    }
     
     return [
       Text(
@@ -480,14 +580,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   List<Widget> _buildAccountMenuItems(dynamic user, bool isDark) {
     final items = [
-      ('Personal Information', Icons.person_outline_rounded, () {
+      ('Personal Information', Icons.person_outline_rounded, true, () {
         setState(() => _isEditing = true);
       }),
-      if (user.role == UserRole.customer) ('Delivery Address', Icons.location_on_outlined, () {
+      if (user.role == UserRole.customer) ('Delivery Address', Icons.location_on_outlined, true, () {
         context.push(RouteNames.customerDeliveryAddress);
       }),
-      ('Notifications', Icons.notifications_outlined, () {}),
-      ('Payment Methods', Icons.payment_outlined, () {}),
+      ('Notifications', Icons.notifications_outlined, false, () {}),
+      ('Payment Methods', Icons.payment_outlined, true, () => _showPaymentMethodsSheet(isDark)),
     ];
 
     return [
@@ -498,14 +598,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           children: List.generate(
             items.length,
             (index) {
-              final (label, icon, onTap) = items[index];
+              final (label, icon, hasAction, onTap) = items[index];
               final isLast = index == items.length - 1;
               return Column(
                 children: [
                   Material(
                     color: Colors.transparent,
                     child: InkWell(
-                      onTap: onTap,
+                      onTap: hasAction ? onTap : null,
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Row(
@@ -524,11 +624,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 ),
                               ),
                             ),
-                            Icon(
-                              Icons.chevron_right_rounded,
-                              size: 20,
-                              color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
-                            ),
+                            if (hasAction)
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                size: 20,
+                                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                              ),
                           ],
                         ),
                       ),
@@ -635,6 +736,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _buildApprovedCategories(user, isDark),
       const SizedBox(height: AppSpacing.md),
       if (isEditing) _buildRequestableCategories(isDark),
+      const SizedBox(height: AppSpacing.md),
+      _buildBankDetailsSection(user, isDark, isEditing),
     ];
   }
 
@@ -761,11 +864,328 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
+  Widget _buildBankDetailsSection(dynamic user, bool isDark, bool isEditing) {
+    final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+    final cardBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final hasBankDetails = (user.bankName ?? '').isNotEmpty ||
+        (user.bankAccountNumber ?? '').isNotEmpty;
+
+    return Theme3AppCard(
+      type: Theme3CardType.standard,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.account_balance_rounded, size: 20,
+                  color: isDark ? AppColors.primaryDark : AppColors.primary),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text('Bank / Payment Details',
+                    style: AppTextStyles.labelMedium(secondaryText)),
+              ),
+              if (!isEditing && !hasBankDetails)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text('Not set',
+                      style: AppTextStyles.caption(AppColors.warning)
+                          .copyWith(fontWeight: FontWeight.w600)),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Used by admin to settle commission charges.',
+            style: AppTextStyles.caption(secondaryText),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          if (isEditing) ...[
+            // Bank dropdown
+            DropdownButtonFormField<SriLankaBank>(
+              value: _selectedBank,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: 'Bank Name',
+                prefixIcon: const Icon(Icons.account_balance_outlined),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              ),
+              hint: Text('Select your bank', style: AppTextStyles.bodyMedium(secondaryText)),
+              items: sriLankaBanks.map((bank) => DropdownMenuItem(
+                value: bank,
+                child: Row(
+                  children: [
+                    Image.asset(
+                      bank.logoAsset,
+                      width: 32,
+                      height: 32,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Icon(Icons.account_balance_outlined, size: 28),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(child: Text(bank.name, style: AppTextStyles.bodyMedium(primaryText))),
+                  ],
+                ),
+              )).toList(),
+              onChanged: (bank) {
+                setState(() {
+                  _selectedBank = bank;
+                  _bankNameCtrl.text = bank?.name ?? '';
+                  // Clear account number when bank changes to force re-validation
+                  _bankAccountNumberCtrl.clear();
+                });
+              },
+            ),
+            if (_selectedBank != null) ...[
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: (isDark ? AppColors.primaryDark : AppColors.primary).withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.info_outline, size: 14,
+                        color: isDark ? AppColors.primaryDark : AppColors.primary),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Account number: ${_selectedBank!.digitRule}',
+                      style: AppTextStyles.caption(
+                          isDark ? AppColors.primaryDark : AppColors.primary),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: AppSpacing.sm),
+            Theme3AppTextField(
+              label: 'Branch',
+              controller: _bankBranchCtrl,
+              prefixIcon: Icons.location_city_outlined,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Theme3AppTextField(
+              label: 'Account Holder Name',
+              controller: _bankAccountNameCtrl,
+              prefixIcon: Icons.person_outline_rounded,
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            TextFormField(
+              controller: _bankAccountNumberCtrl,
+              keyboardType: TextInputType.number,
+              decoration: InputDecoration(
+                labelText: 'Account Number',
+                hintText: _selectedBank?.hint ?? 'Enter account number',
+                prefixIcon: const Icon(Icons.numbers_rounded),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              ),
+              validator: (val) {
+                if (val == null || val.trim().isEmpty) return null; // optional
+                final digits = val.trim().replaceAll(RegExp(r'\D'), '');
+                if (_selectedBank != null) {
+                  if (digits.length < _selectedBank!.minDigits ||
+                      digits.length > _selectedBank!.maxDigits) {
+                    return '${_selectedBank!.name} requires ${_selectedBank!.digitRule}';
+                  }
+                }
+                return null;
+              },
+            ),
+          ] else if (hasBankDetails) ...[
+            // View mode — show a styled card with bank info
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: borderColor),
+              ),
+              child: Column(
+                children: [
+                  _bankInfoRow(Icons.account_balance_outlined, 'Bank',
+                      user.bankName ?? '—', primaryText, secondaryText),
+                  const SizedBox(height: 8),
+                  _bankInfoRow(Icons.location_city_outlined, 'Branch',
+                      user.bankBranch ?? '—', primaryText, secondaryText),
+                  const SizedBox(height: 8),
+                  _bankInfoRow(Icons.person_outline_rounded, 'Account Holder',
+                      user.bankAccountName ?? '—', primaryText, secondaryText),
+                  const SizedBox(height: 8),
+                  _bankInfoRow(Icons.numbers_rounded, 'Account No.',
+                      user.bankAccountNumber ?? '—', primaryText, secondaryText),
+                ],
+              ),
+            ),
+          ] else
+            Text('Tap edit to add your bank details.',
+                style: AppTextStyles.bodySmall(secondaryText)),
+        ],
+      ),
+    );
+  }
+
+  Widget _bankInfoRow(IconData icon, String label, String value,
+      Color primaryText, Color secondaryText) {
+    return Row(
+      children: [
+        Icon(icon, size: 16, color: secondaryText),
+        const SizedBox(width: 8),
+        Text('$label: ', style: AppTextStyles.caption(secondaryText)),
+        Expanded(
+          child: Text(value,
+              style: AppTextStyles.bodySmall(primaryText),
+              overflow: TextOverflow.ellipsis),
+        ),
+      ],
+    );
+  }
+
+  void _showPaymentMethodsSheet(bool isDark) {
+    final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final bgColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: bgColor,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: borderColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text('Payment Methods', style: AppTextStyles.h2(primaryText)),
+            const SizedBox(height: 4),
+            Text('Manage how you pay for orders', style: AppTextStyles.bodySmall(secondaryText)),
+            const SizedBox(height: 20),
+            _paymentMethodTile(
+              icon: Icons.money_rounded,
+              label: 'Cash on Delivery',
+              sublabel: 'Pay when your order arrives',
+              color: AppColors.success,
+              isDark: isDark,
+              primaryText: primaryText,
+              secondaryText: secondaryText,
+              borderColor: borderColor,
+            ),
+            const SizedBox(height: 12),
+            _paymentMethodTile(
+              icon: Icons.credit_card_rounded,
+              label: 'Online Payment',
+              sublabel: 'Card / bank transfer at checkout',
+              color: AppColors.primary,
+              isDark: isDark,
+              primaryText: primaryText,
+              secondaryText: secondaryText,
+              borderColor: borderColor,
+            ),
+            const SizedBox(height: 20),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.warning.withValues(alpha: 0.25)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, color: AppColors.warning, size: 18),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Card saving and wallet top-up coming soon.',
+                      style: AppTextStyles.caption(secondaryText),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _paymentMethodTile({
+    required IconData icon,
+    required String label,
+    required String sublabel,
+    required Color color,
+    required bool isDark,
+    required Color primaryText,
+    required Color secondaryText,
+    required Color borderColor,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40, height: 40,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label, style: AppTextStyles.subtitle(primaryText)),
+                Text(sublabel, style: AppTextStyles.caption(secondaryText)),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text('Available', style: AppTextStyles.caption(color).copyWith(fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSupportSection(bool isDark) {
     final items = [
-      ('Help Center', Icons.help_outline_rounded, () {}),
-      ('Contact Support', Icons.support_agent_rounded, () {}),
-      ('About App', Icons.info_outlined, () {}),
+      ('Help Center', Icons.help_outline_rounded, false, () {}),
+      ('Contact Support', Icons.support_agent_rounded, false, () {}),
+      ('About App', Icons.info_outlined, false, () {}),
     ];
 
     return Column(
@@ -785,14 +1205,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             children: List.generate(
               items.length,
               (index) {
-                final (label, icon, onTap) = items[index];
+                final (label, icon, hasAction, onTap) = items[index];
                 final isLast = index == items.length - 1;
                 return Column(
                   children: [
                     Material(
                       color: Colors.transparent,
                       child: InkWell(
-                        onTap: onTap,
+                        onTap: hasAction ? onTap : null,
                         child: Padding(
                           padding: const EdgeInsets.all(16),
                           child: Row(
@@ -810,11 +1230,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 ),
                               ),
                               const Spacer(),
-                              Icon(
-                                Icons.chevron_right_rounded,
-                                size: 20,
-                                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
-                              ),
+                              if (hasAction)
+                                Icon(
+                                  Icons.chevron_right_rounded,
+                                  size: 20,
+                                  color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                                ),
                             ],
                           ),
                         ),

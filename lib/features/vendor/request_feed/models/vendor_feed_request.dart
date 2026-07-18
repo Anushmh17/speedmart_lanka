@@ -1,4 +1,5 @@
 import '../../../requests/models/shopping_request.dart';
+import '../../../../shared/utils/category_constants.dart';
 import 'vendor_feed_enums.dart';
 
 /// Enriched marketplace view of a customer request for the vendor feed.
@@ -33,9 +34,10 @@ class VendorFeedRequest {
     final cats = request.items
         .map((i) => i.category?.trim() ?? '')
         .where((c) => c.isNotEmpty)
+        .map((c) => VendorCategories.display(VendorCategories.normalize(c)))
         .toSet()
         .toList();
-    return cats.isNotEmpty ? cats : [primaryCategory];
+    return cats.isNotEmpty ? cats : [VendorCategories.display(VendorCategories.normalize(primaryCategory))];
   }
 
   Duration get age => DateTime.now().difference(request.createdAt);
