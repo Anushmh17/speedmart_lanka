@@ -310,12 +310,10 @@ class StorageService {
 
   // ── Clear session / all ───────────────────────────────────────────────────
 
-  /// Clears logged-in session only. Keeps registered users and app preferences.
+  /// Clears logged-in session only. Keeps registered users, app preferences, and last role.
   static Future<void> clearSession() async {
     await deleteToken();
     await deleteUser();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(AppConstants.roleKey);
   }
 
   /// Full wipe (e.g. uninstall simulation). Preserves registered users + theme.

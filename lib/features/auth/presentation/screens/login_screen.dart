@@ -93,7 +93,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (context.canPop()) {
       context.pop();
     } else {
-      context.go(RouteNames.roleSelection);
+      context.go(RouteNames.customerLogin);
     }
   }
 
@@ -215,7 +215,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             context.go(RouteNames.vendorHome);
           case UserRole.admin:
             debugPrint('[Auth] Admin login success → Navigating to admin dashboard');
-            context.go(RouteNames.roleSelection);
+            context.go(RouteNames.customerLogin);
         }
       }
     });

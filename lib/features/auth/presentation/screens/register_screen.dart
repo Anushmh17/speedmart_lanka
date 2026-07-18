@@ -446,7 +446,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           case UserRole.vendor:
             context.go(RouteNames.vendorHome);
           case UserRole.admin:
-            context.go(RouteNames.roleSelection);
+            context.go(RouteNames.customerLogin);
         }
         return;
       }
@@ -461,7 +461,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         if (context.canPop()) {
           context.pop();
         } else {
-          context.go(RouteNames.roleSelection);
+          context.go(RouteNames.customerLogin);
         }
       },
       child: Scaffold(

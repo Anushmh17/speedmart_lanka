@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:speedmart_lanka/features/auth/domain/auth_state.dart';
 import 'package:speedmart_lanka/features/auth/presentation/screens/splash_screen.dart';
-import 'package:speedmart_lanka/features/auth/presentation/screens/role_selection_screen.dart';
 import 'package:speedmart_lanka/features/customer/presentation/screens/customer_home_screen.dart';
 import 'package:speedmart_lanka/features/requests/presentation/screens/create_request_screen.dart';
 import 'package:speedmart_lanka/features/requests/models/shopping_request.dart';
@@ -29,18 +28,17 @@ import 'package:speedmart_lanka/features/customer/delivery_address/presentation/
 import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
 import 'package:speedmart_lanka/shared/models/user_role.dart';
 import 'package:speedmart_lanka/core/routes/route_names.dart';
+import 'package:speedmart_lanka/core/storage/storage_service.dart';
 import 'package:speedmart_lanka/figma_screens/figma_auth_flow.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 final shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
 
 /// Provider to watch the current route location
-/// This provider listens to GoRouter's route changes and returns the current matched location
 final currentRouteLocationProvider = Provider<String>((ref) {
   final router = ref.watch(appRouterProvider);
   
   try {
-    // Get the current configuration from the router delegate
     final configuration = router.routerDelegate.currentConfiguration;
     
     if (configuration.isEmpty) {
@@ -48,7 +46,6 @@ final currentRouteLocationProvider = Provider<String>((ref) {
       return '/';
     }
     
-    // Get the last route match which represents the current screen
     final lastMatch = configuration.last;
     final location = lastMatch.matchedLocation;
     
@@ -73,7 +70,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
     navigatorKey: rootNavigatorKey,
     initialLocation: RouteNames.splash,
     refreshListenable: authNotifier,
-    redirect: (context, state) {
+    redirect: (context, state) async {
       final auth = authNotifier.value;
       final location = state.matchedLocation;
 
@@ -82,7 +79,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       debugPrint('[Router] auth.isLoading: ${auth.isLoading}, auth.isAuthenticated: ${auth.isAuthenticated}, auth.hasError: ${auth.hasError}');
 
       final isOnAuthRoute = location == RouteNames.splash ||
-          location == RouteNames.roleSelection ||
           location.startsWith('/auth');
 
       debugPrint('[Router] isOnAuthRoute: $isOnAuthRoute');
@@ -100,7 +96,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return null;
       }
 
-      // *** If on auth route and NOT authenticated, stay on form (don't redirect to role selection) ***
+      // *** If on auth route and NOT authenticated, stay on form ***
       if (isOnAuthRoute && !auth.isAuthenticated) {
         debugPrint('[Router] → Action: Unauthenticated but on auth route, allow form');
         return null;
@@ -129,10 +125,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         return null;
       }
 
-      // Not authenticated and NOT on auth route → send to role selection
+      // Not authenticated and NOT on auth route → send to role-specific login
       if (!auth.isAuthenticated && !isOnAuthRoute) {
-        debugPrint('[Router] → Action: Unauthenticated on protected route, redirect to role selection');
-        return RouteNames.roleSelection;
+        debugPrint('[Router] → Action: Unauthenticated on protected route, redirect to login');
+        final savedRole = await StorageService.getRole();
+        if (savedRole == UserRole.vendor.name) {
+          return RouteNames.vendorLogin;
+        }
+        return RouteNames.customerLogin;
       }
 
       debugPrint('[Router] → Action: No redirect needed');
@@ -143,10 +143,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.splash,
         builder: (_, __) => const SplashScreen(),
-      ),
-      GoRoute(
-        path: RouteNames.roleSelection,
-        builder: (_, __) => const RoleSelectionScreen(),
       ),
 
       // ── Auth Routes (Role-Specific) ──────────────────────────────────────
@@ -421,8 +417,6 @@ String _homeForRole(UserRole role) {
   switch (role) {
     case UserRole.customer: return RouteNames.customerHome;
     case UserRole.vendor:   return RouteNames.vendorHome;
-    case UserRole.admin:    return RouteNames.roleSelection;
+    case UserRole.admin:    return RouteNames.customerLogin;
   }
 }
-
-

@@ -5,7 +5,6 @@ class RouteNames {
 
   // ── Core ──────────────────────────────────────────────────────────────────
   static const String splash = '/';
-  static const String roleSelection = '/auth/role-select';
 
   // ── Auth ──────────────────────────────────────────────────────────────────
   static const String customerLogin = '/auth/customer/login';

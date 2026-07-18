@@ -227,8 +227,8 @@ class VendorStatusScreen extends ConsumerWidget {
       return;
     }
 
-    debugPrint('[VendorStatus] Navigating to role selection');
-    context.go(RouteNames.roleSelection);
+    debugPrint('[VendorStatus] Navigating to vendor login');
+    context.go(RouteNames.vendorLogin);
   }
 }
 

@@ -248,8 +248,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   // ── Logout ─────────────────────────────────────────────────────────────────
   Future<void> logout() async {
+    // Preserve the role so the router can redirect to the correct login screen
+    final role = state.user?.role;
     await _repo.logout();
     await StorageService.clearSession();
+    if (role != null) await StorageService.saveRole(role.name);
     state = const AuthState.unauthenticated();
   }
 

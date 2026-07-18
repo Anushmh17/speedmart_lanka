@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/routes/route_names.dart';
+import '../../../../core/storage/storage_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_logo.dart';
 import '../../providers/auth_provider.dart';
@@ -137,13 +138,19 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     );
   }
 
-  void _navigate() {
+  Future<void> _navigate() async {
     if (!mounted) return;
     final authState = ref.read(authProvider);
     if (authState.isAuthenticated) {
       _goToRoleHome(authState.user!.role);
     } else {
-      context.go(RouteNames.roleSelection);
+      final savedRole = await StorageService.getRole();
+      if (!mounted) return;
+      if (savedRole == UserRole.vendor.name) {
+        context.go(RouteNames.vendorLogin);
+      } else {
+        context.go(RouteNames.customerLogin);
+      }
     }
   }
 
@@ -154,7 +161,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       case UserRole.vendor:
         context.go(RouteNames.vendorHome);
       case UserRole.admin:
-        context.go(RouteNames.roleSelection);
+        context.go(RouteNames.customerLogin);
     }
   }
 }

@@ -294,9 +294,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           context.go(
             role == UserRole.vendor
                 ? RouteNames.vendorHome
-                : role == UserRole.admin
-                    ? RouteNames.roleSelection
-                    : RouteNames.customerHome,
+                : RouteNames.customerHome,
           );
         }
       },
