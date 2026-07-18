@@ -215,7 +215,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             context.go(RouteNames.vendorHome);
           case UserRole.admin:
             debugPrint('[Auth] Admin login success → Navigating to admin dashboard');
-            context.go(RouteNames.customerLogin);
+            context.go(RouteNames.adminHome);
         }
       }
     });

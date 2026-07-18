@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:go_router/go_router.dart';
 import 'core/routes/app_router.dart';
 import 'core/services/local_notification_service.dart';
 import 'core/theme/app_theme.dart';
@@ -23,10 +25,13 @@ void main() async {
     MockOrderRepository.instance.ensureInitialized(),
   ]);
 
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+  // Lock to portrait on mobile only; web/desktop should be free.
+  if (!kIsWeb) {
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+  }
 
   await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
@@ -68,7 +73,6 @@ class SpeedmartApp extends ConsumerWidget {
         builder: (context, child) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             final isDark = Theme.of(context).brightness == Brightness.dark;
-
             SystemChrome.setSystemUIOverlayStyle(
               SystemUiOverlayStyle(
                 statusBarColor: Colors.transparent,
@@ -78,6 +82,8 @@ class SpeedmartApp extends ConsumerWidget {
               ),
             );
           });
+
+          if (child == null) return const SizedBox.shrink();
 
           return NetworkFallbackWrapper(
             child: Stack(

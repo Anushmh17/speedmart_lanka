@@ -1373,7 +1373,7 @@ class _DirectionalTween extends Animatable<Offset> {
   }
 }
 
-class _ToastOverlay extends StatelessWidget {
+class _ToastOverlay extends StatefulWidget {
   final String message;
   final bool isError;
   final VoidCallback onClose;
@@ -1383,6 +1383,37 @@ class _ToastOverlay extends StatelessWidget {
     required this.isError,
     required this.onClose,
   });
+
+  @override
+  State<_ToastOverlay> createState() => _ToastOverlayState();
+}
+
+class _ToastOverlayState extends State<_ToastOverlay>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _fade;
+  late final Animation<Offset> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 280),
+    );
+    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+    _slide = Tween<Offset>(
+      begin: const Offset(0, -0.5),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic));
+    _ctrl.forward();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   // build is below
 
@@ -1395,47 +1426,53 @@ class _ToastOverlay extends StatelessWidget {
           alignment: Alignment.topCenter,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 52, 20, 0),
-            child: Material(
-              color: Colors.transparent,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  color: isError ? const Color(0xFFB71C1C) : const Color(0xFF1B5E20),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 10,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      isError ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        message,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontFamily: 'Inter',
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w600,
-                          height: 1.3,
+            child: FadeTransition(
+              opacity: _fade,
+              child: SlideTransition(
+                position: _slide,
+                child: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: widget.isError ? const Color(0xFFB71C1C) : const Color(0xFF1B5E20),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 10,
+                          offset: Offset(0, 4),
                         ),
-                      ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                      onTap: onClose,
-                      child: const Icon(Icons.close_rounded, color: Colors.white70, size: 18),
+                    child: Row(
+                      children: [
+                        Icon(
+                          widget.isError ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            widget.message,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontFamily: 'Inter',
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w600,
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: widget.onClose,
+                          child: const Icon(Icons.close_rounded, color: Colors.white70, size: 18),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),

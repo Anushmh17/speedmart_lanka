@@ -14,6 +14,8 @@ class RouteNames {
   static const String vendorLogin = '/auth/vendor/login';
   static const String vendorRegister = '/auth/vendor/register';
 
+  static const String adminLogin = '/auth/admin/login';
+
   // ── Customer Shell (with bottom nav) ───────────────────────────────────────
   static const String customerHome = '/customer';
   static const String customerRequests = '/customer/requests';
@@ -46,6 +48,21 @@ class RouteNames {
   static const String vendorOrders = '/vendor/orders';
   static const String vendorEarnings = '/vendor/earnings';
   static const String vendorProfile = '/vendor/profile';
+
+  // ── Admin ─────────────────────────────────────────────────────────────────
+  static const String adminHome = '/admin';
+  static const String adminDashboard = '/admin';
+  static const String adminRegister = '/auth/admin/register';
+  static const String adminVendorApprovals = '/admin/vendor-approvals';
+  static const String adminVendorManagement = '/admin/vendor-management';
+  static const String adminVendorAssignment = '/admin/vendor-assignment/:id';
+  static const String adminUsers = '/admin/users';
+  static const String adminCategories = '/admin/categories';
+  static const String adminRequests = '/admin/requests';
+  static const String adminOrders = '/admin/orders';
+  static const String adminPayments = '/admin/payments';
+  static const String adminDisputes = '/admin/disputes';
+  static const String adminSettings = '/admin/settings';
 
 }
 

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:speedmart_lanka/features/auth/domain/auth_state.dart';
 import 'package:speedmart_lanka/features/auth/presentation/screens/splash_screen.dart';
+import 'package:speedmart_lanka/features/auth/presentation/screens/login_screen.dart';
 import 'package:speedmart_lanka/features/customer/presentation/screens/customer_home_screen.dart';
 import 'package:speedmart_lanka/features/requests/presentation/screens/create_request_screen.dart';
 import 'package:speedmart_lanka/features/requests/models/shopping_request.dart';
@@ -22,6 +23,12 @@ import 'package:speedmart_lanka/features/vendor/proposals/presentation/vendor_re
 import 'package:speedmart_lanka/features/vendor/proposals/presentation/vendor_proposal_form_screen.dart';
 import 'package:speedmart_lanka/features/vendor/proposals/presentation/vendor_proposal_detail_screen.dart';
 import 'package:speedmart_lanka/features/chat/presentation/screens/chat_screen.dart';
+import 'package:speedmart_lanka/features/admin/presentation/screens/admin_home_screen.dart';
+import 'package:speedmart_lanka/features/admin/presentation/screens/admin_vendor_management_screen.dart';
+import 'package:speedmart_lanka/features/admin/presentation/screens/admin_vendor_assignment_screen.dart';
+import 'package:speedmart_lanka/features/admin/presentation/screens/admin_category_management_screen.dart';
+import 'package:speedmart_lanka/features/admin/presentation/screens/admin_order_detail_screen.dart';
+import 'package:speedmart_lanka/features/admin/presentation/screens/admin_web_shell.dart';
 import 'package:speedmart_lanka/features/requests/presentation/screens/request_list_screen.dart';
 import 'package:speedmart_lanka/shared/presentation/screens/profile_screen.dart';
 import 'package:speedmart_lanka/features/customer/delivery_address/presentation/screens/customer_delivery_address_screen.dart';
@@ -34,31 +41,40 @@ import 'package:speedmart_lanka/figma_screens/figma_auth_flow.dart';
 final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 final shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
 
+/// Smooth fade + slight upward slide page transition used across all routes.
+Page<T> _buildPage<T>(BuildContext context, GoRouterState state, Widget child) {
+  return CustomTransitionPage<T>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 300),
+    reverseTransitionDuration: const Duration(milliseconds: 250),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final fade = CurvedAnimation(parent: animation, curve: Curves.easeOut);
+      final slide = Tween<Offset>(
+        begin: const Offset(0.0, 0.04),
+        end: Offset.zero,
+      ).animate(CurvedAnimation(parent: animation, curve: Curves.easeOutCubic));
+      return FadeTransition(
+        opacity: fade,
+        child: SlideTransition(position: slide, child: child),
+      );
+    },
+  );
+}
+
 /// Provider to watch the current route location
 final currentRouteLocationProvider = Provider<String>((ref) {
   final router = ref.watch(appRouterProvider);
-  
   try {
     final configuration = router.routerDelegate.currentConfiguration;
-    
-    if (configuration.isEmpty) {
-      debugPrint('[RouteProvider] currentRouteLocationProvider = / (empty configuration)');
-      return '/';
-    }
-    
-    final lastMatch = configuration.last;
-    final location = lastMatch.matchedLocation;
-    
-    debugPrint('[RouteProvider] currentRouteLocationProvider = $location');
-    return location;
+    if (configuration.isEmpty) return '/';
+    return configuration.last.matchedLocation;
   } catch (e) {
-    debugPrint('[RouteProvider] Error getting location: $e, returning /');
     return '/';
   }
 });
 
 /// GoRouter instance exposed as a Riverpod provider.
-/// Auth-based redirects are handled here — roles cannot access each other's routes.
 final appRouterProvider = Provider<GoRouter>((ref) {
   final authNotifier = ValueNotifier<AuthState>(const AuthState.initial());
 
@@ -83,55 +99,47 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       debugPrint('[Router] isOnAuthRoute: $isOnAuthRoute');
 
-      // *** WHILE LOADING: Stay on current route (don't redirect) ***
       if (auth.isLoading) {
         debugPrint('[Router] → Action: Loading, STAY ON CURRENT ROUTE');
         return null;
       }
 
-      // *** CRITICAL: If on auth form and has error, NEVER redirect ***
       if (isOnAuthRoute && auth.hasError) {
-        debugPrint('[Router] → Action: *** ERROR ON AUTH ROUTE ***: ${auth.error}');
-        debugPrint('[Router] → NO REDIRECT - Keep user on form to fix error');
+        debugPrint('[Router] → Action: ERROR ON AUTH ROUTE: ${auth.error}');
         return null;
       }
 
-      // *** If on auth route and NOT authenticated, stay on form ***
       if (isOnAuthRoute && !auth.isAuthenticated) {
         debugPrint('[Router] → Action: Unauthenticated but on auth route, allow form');
         return null;
       }
 
-      // If authenticated, redirect away from auth screens to role home
       if (auth.isAuthenticated && auth.user != null) {
         if (isOnAuthRoute) {
           debugPrint('[Router] → Action: Authenticated user on auth route, redirect to ${auth.user!.role} home');
           return _homeForRole(auth.user!.role);
         }
 
-        // Role-based access control
         final role = auth.user!.role;
         if (location.startsWith('/customer') && role != UserRole.customer) {
-          debugPrint('[Router] → Action: Role mismatch (customer route but $role user), redirect');
           return _homeForRole(role);
         }
         if (location.startsWith('/vendor') && role != UserRole.vendor) {
-          debugPrint('[Router] → Action: Role mismatch (vendor route but $role user), redirect');
+          return _homeForRole(role);
+        }
+        if (location.startsWith('/admin') && role != UserRole.admin) {
           return _homeForRole(role);
         }
 
-        // User is authenticated and on correct role route
         debugPrint('[Router] → Action: Authenticated on correct route, no redirect');
         return null;
       }
 
-      // Not authenticated and NOT on auth route → send to role-specific login
       if (!auth.isAuthenticated && !isOnAuthRoute) {
         debugPrint('[Router] → Action: Unauthenticated on protected route, redirect to login');
         final savedRole = await StorageService.getRole();
-        if (savedRole == UserRole.vendor.name) {
-          return RouteNames.vendorLogin;
-        }
+        if (savedRole == UserRole.vendor.name) return RouteNames.vendorLogin;
+        if (savedRole == UserRole.admin.name) return RouteNames.adminLogin;
         return RouteNames.customerLogin;
       }
 
@@ -142,29 +150,39 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // ── Core ─────────────────────────────────────────────────────────────
       GoRoute(
         path: RouteNames.splash,
-        builder: (_, __) => const SplashScreen(),
+        pageBuilder: (context, state) => _buildPage(context, state, const SplashScreen()),
       ),
 
-      // ── Auth Routes (Role-Specific) ──────────────────────────────────────
+      // ── Auth Routes ──────────────────────────────────────────────────────
       GoRoute(
         path: RouteNames.customerLogin,
-        builder: (_, __) =>
-            const FigmaAuthFlow(role: FigmaAuthRole.customer),
+        pageBuilder: (context, state) => _buildPage(context, state,
+            const FigmaAuthFlow(role: FigmaAuthRole.customer)),
       ),
       GoRoute(
         path: RouteNames.customerRegister,
-        builder: (_, __) =>
-            const FigmaAuthFlow(role: FigmaAuthRole.customer),
+        pageBuilder: (context, state) => _buildPage(context, state,
+            const FigmaAuthFlow(role: FigmaAuthRole.customer)),
       ),
       GoRoute(
         path: RouteNames.vendorLogin,
-        builder: (_, __) =>
-            const FigmaAuthFlow(role: FigmaAuthRole.vendor),
+        pageBuilder: (context, state) => _buildPage(context, state,
+            const FigmaAuthFlow(role: FigmaAuthRole.vendor)),
       ),
       GoRoute(
         path: RouteNames.vendorRegister,
-        builder: (_, __) =>
-            const FigmaAuthFlow(role: FigmaAuthRole.vendor),
+        pageBuilder: (context, state) => _buildPage(context, state,
+            const FigmaAuthFlow(role: FigmaAuthRole.vendor)),
+      ),
+      GoRoute(
+        path: RouteNames.adminLogin,
+        pageBuilder: (context, state) => _buildPage(context, state,
+            const LoginScreen(role: UserRole.admin)),
+      ),
+      GoRoute(
+        path: RouteNames.adminRegister,
+        pageBuilder: (context, state) => _buildPage(context, state,
+            const LoginScreen(role: UserRole.admin)),
       ),
 
       // ── Customer Shell ───────────────────────────────────────────────────
@@ -176,222 +194,242 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: RouteNames.customerHome,
-            builder: (_, __) => const CustomerHomeTab(),
+            pageBuilder: (context, state) => _buildPage(context, state, const CustomerHomeTab()),
           ),
           GoRoute(
             path: RouteNames.customerRequests,
-            builder: (_, __) => const RequestListScreen(),
+            pageBuilder: (context, state) => _buildPage(context, state, const RequestListScreen()),
           ),
           GoRoute(
             path: RouteNames.customerOrders,
-            builder: (_, __) => const CustomerOrdersTab(),
+            pageBuilder: (context, state) => _buildPage(context, state, const CustomerOrdersTab()),
           ),
           GoRoute(
             path: RouteNames.customerProfile,
-            builder: (_, __) => const ProfileScreen(),
+            pageBuilder: (context, state) => _buildPage(context, state, const ProfileScreen()),
           ),
         ],
       ),
 
-      // ── Customer Full-Screen Workflows (Outside Shell) ───────────────────
+      // ── Customer Full-Screen Workflows ───────────────────────────────────
       GoRoute(
         path: RouteNames.customerCreateRequest,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) {
+        pageBuilder: (context, state) {
           final openCategory = (state.extra as Map<String, dynamic>?)?['openCategoryPicker'] as bool? ?? false;
-          return CreateRequestScreen(openCategoryPicker: openCategory);
+          return _buildPage(context, state, CreateRequestScreen(openCategoryPicker: openCategory));
         },
       ),
       GoRoute(
         path: '/customer/proposals/detail',
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) {
+        pageBuilder: (context, state) {
           final extraMap = state.extra as Map<String, dynamic>;
           final proposal = extraMap['proposal'] as Proposal;
           final requestId = extraMap['requestId'] as String;
-          return CustomerProposalDetailsScreen(
+          return _buildPage(context, state, CustomerProposalDetailsScreen(
             proposal: proposal,
             requestId: requestId,
-          );
+          ));
         },
       ),
       GoRoute(
         path: '/customer/payment',
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) {
+        pageBuilder: (context, state) {
           final extraMap = state.extra as Map<String, dynamic>;
           final proposal = extraMap['proposal'] as Proposal;
           final requestId = extraMap['requestId'] as String;
-          return PaymentScreen(
+          return _buildPage(context, state, PaymentScreen(
             proposal: proposal,
             requestId: requestId,
-          );
+          ));
         },
       ),
       GoRoute(
         path: RouteNames.customerPaymentReceipt,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) {
+        pageBuilder: (context, state) {
           final extraMap = state.extra as Map<String, dynamic>;
           final order = extraMap['order'] as OrderModel;
           final payment = extraMap['payment'];
           if (payment is! PaymentModel) {
-            return const Scaffold(
+            return _buildPage(context, state, const Scaffold(
               body: Center(child: Text('Receipt data not found.')),
-            );
+            ));
           }
-          return PaymentReceiptScreen(order: order, payment: payment);
+          return _buildPage(context, state, PaymentReceiptScreen(order: order, payment: payment));
         },
       ),
       GoRoute(
         path: RouteNames.customerPaymentHistory,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, __) => const CustomerPaymentHistoryScreen(),
+        pageBuilder: (context, state) => _buildPage(context, state, const CustomerPaymentHistoryScreen()),
       ),
       GoRoute(
         path: RouteNames.customerDeliveryAddress,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) {
-          final fromCreateRequest = (state.extra as Map<String, dynamic>?)
-                  ?['fromCreateRequest'] as bool? ??
-              false;
-          final startWithGpsDetection = (state.extra as Map<String, dynamic>?)
-                  ?['startWithGpsDetection'] as bool? ??
-              false;
-          return CustomerDeliveryAddressScreen(
+        pageBuilder: (context, state) {
+          final fromCreateRequest = (state.extra as Map<String, dynamic>?)?['fromCreateRequest'] as bool? ?? false;
+          final startWithGpsDetection = (state.extra as Map<String, dynamic>?)?['startWithGpsDetection'] as bool? ?? false;
+          return _buildPage(context, state, CustomerDeliveryAddressScreen(
             fromCreateRequest: fromCreateRequest,
             startWithGpsDetection: startWithGpsDetection,
-          );
+          ));
         },
       ),
       GoRoute(
         path: '/customer/orders/track',
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) {
+        pageBuilder: (context, state) {
           final order = state.extra as OrderModel;
-          return OrderTrackingScreen(order: order);
+          return _buildPage(context, state, OrderTrackingScreen(order: order));
         },
       ),
       GoRoute(
         path: '/customer/vendor/shopfront',
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) {
+        pageBuilder: (context, state) {
           final extraMap = state.extra as Map<String, dynamic>;
           final vendorName = extraMap['vendorName'] as String;
           final vendorPhone = extraMap['vendorPhone'] as String;
-          return VendorShopfrontScreen(
+          return _buildPage(context, state, VendorShopfrontScreen(
             vendorName: vendorName,
             vendorPhone: vendorPhone,
-          );
+          ));
         },
       ),
       GoRoute(
         path: '/chat',
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) {
+        pageBuilder: (context, state) {
           final extraMap = state.extra as Map<String, dynamic>;
           final proposalId = extraMap['proposalId'] as String;
           final vendorName = extraMap['vendorName'] as String;
           final isUnlocked = extraMap['isUnlocked'] as bool;
           final autoMessage = extraMap['autoMessage'] as String?;
-          return ChatScreen(
+          return _buildPage(context, state, ChatScreen(
             proposalId: proposalId,
             vendorName: vendorName,
             isUnlocked: isUnlocked,
             autoMessage: autoMessage,
-          );
+          ));
         },
       ),
+
       // ── Vendor ───────────────────────────────────────────────────────────
       GoRoute(
         path: RouteNames.vendorHome,
-        builder: (_, __) => const VendorHomeScreen(),
+        pageBuilder: (context, state) => _buildPage(context, state, const VendorHomeScreen()),
       ),
       GoRoute(
         path: RouteNames.vendorRequestDetail,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) {
+        pageBuilder: (context, state) {
           final request = state.extra as ShoppingRequest?;
           if (request == null) {
-            return const Scaffold(
-              body: Center(
-                child: Text('Request not found. Please select again from your vendor dashboard.'),
-              ),
-            );
+            return _buildPage(context, state, const Scaffold(
+              body: Center(child: Text('Request not found. Please select again from your vendor dashboard.')),
+            ));
           }
-          return VendorRequestDetailScreen(request: request);
+          return _buildPage(context, state, VendorRequestDetailScreen(request: request));
         },
       ),
       GoRoute(
         path: RouteNames.vendorProposalCreate,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) {
+        pageBuilder: (context, state) {
           final request = state.extra as ShoppingRequest?;
           if (request == null) {
-            return const Scaffold(
-              body: Center(
-                child: Text('Request not found. Please select a request to create a proposal.'),
-              ),
-            );
+            return _buildPage(context, state, const Scaffold(
+              body: Center(child: Text('Request not found. Please select a request to create a proposal.')),
+            ));
           }
-          return VendorProposalFormScreen(request: request);
+          return _buildPage(context, state, VendorProposalFormScreen(request: request));
         },
       ),
       GoRoute(
         path: RouteNames.vendorProposalDetail,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) {
+        pageBuilder: (context, state) {
           final proposal = state.extra as Proposal?;
           if (proposal == null) {
-            return const Scaffold(
-              body: Center(
-                child: Text('Proposal not found. Please open it again from your proposals list.'),
-              ),
-            );
+            return _buildPage(context, state, const Scaffold(
+              body: Center(child: Text('Proposal not found. Please open it again from your proposals list.')),
+            ));
           }
-          return VendorProposalDetailScreen(proposal: proposal);
+          return _buildPage(context, state, VendorProposalDetailScreen(proposal: proposal));
         },
       ),
       GoRoute(
         path: RouteNames.vendorProposalEdit,
         parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) {
+        pageBuilder: (context, state) {
           final extraMap = state.extra as Map<String, dynamic>?;
           final proposal = extraMap?['proposal'] as Proposal?;
           final request = extraMap?['request'] as ShoppingRequest?;
-
           if (proposal == null || request == null) {
-            return const Scaffold(
-              body: Center(
-                child: Text('Proposal or request not found. Please open it again from your proposals list.'),
-              ),
-            );
+            return _buildPage(context, state, const Scaffold(
+              body: Center(child: Text('Proposal or request not found.')),
+            ));
           }
-          return VendorProposalFormScreen(
+          return _buildPage(context, state, VendorProposalFormScreen(
             request: request,
             existingProposal: proposal,
-          );
+          ));
         },
       ),
       GoRoute(
         path: '/vendor/orders',
-        builder: (_, state) {
+        pageBuilder: (context, state) {
           final extra = state.extra;
           int initialTabIndex = 0;
           if (extra is Map) {
             initialTabIndex = extra['initialTabIndex'] as int? ?? 0;
           }
-          return VendorOrdersScreen(initialTabIndex: initialTabIndex);
+          return _buildPage(context, state, VendorOrdersScreen(initialTabIndex: initialTabIndex));
         },
       ),
       GoRoute(
         path: '/vendor/orders/manage',
-        builder: (_, state) {
+        pageBuilder: (context, state) {
           final order = state.extra as OrderModel;
-          return VendorOrderDetailsScreen(order: order);
+          return _buildPage(context, state, VendorOrderDetailsScreen(order: order));
         },
       ),
 
+      // ── Admin (web shell wraps all admin routes) ──────────────────────────
+      ShellRoute(
+        builder: (context, state, child) => AdminWebShell(child: child),
+        routes: [
+          GoRoute(
+            path: RouteNames.adminDashboard,
+            pageBuilder: (context, state) => _buildPage(context, state, const AdminHomeScreen()),
+          ),
+          GoRoute(
+            path: RouteNames.adminVendorManagement,
+            pageBuilder: (context, state) => _buildPage(context, state, const AdminVendorManagementScreen()),
+          ),
+          GoRoute(
+            path: RouteNames.adminVendorAssignment,
+            pageBuilder: (context, state) {
+              final vendor = state.extra;
+              return _buildPage(context, state, AdminVendorAssignmentScreen(vendor: vendor));
+            },
+          ),
+          GoRoute(
+            path: RouteNames.adminCategories,
+            pageBuilder: (context, state) => _buildPage(context, state, const AdminCategoryManagementScreen()),
+          ),
+          GoRoute(
+            path: '/admin/orders/detail',
+            pageBuilder: (context, state) {
+              final order = state.extra as OrderModel;
+              return _buildPage(context, state, AdminOrderDetailScreen(order: order));
+            },
+          ),
+        ],
+      ),
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(
@@ -417,6 +455,6 @@ String _homeForRole(UserRole role) {
   switch (role) {
     case UserRole.customer: return RouteNames.customerHome;
     case UserRole.vendor:   return RouteNames.vendorHome;
-    case UserRole.admin:    return RouteNames.customerLogin;
+    case UserRole.admin:    return RouteNames.adminDashboard;
   }
 }

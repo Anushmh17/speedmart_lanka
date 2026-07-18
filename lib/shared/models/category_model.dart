@@ -1,10 +1,10 @@
 /// Admin-managed category model for marketplace categories.
-/// Foundation for future admin category management.
 class CategoryModel {
   final String id;
-  final String name; // Display name (e.g., "Home Appliances")
-  final String normalizedKey; // Lowercase key (e.g., "home appliances")
+  final String name;
+  final String normalizedKey;
   final bool isActive;
+  final bool isDefault;
   final int displayOrder;
   final DateTime createdAt;
   final DateTime? updatedAt;
@@ -14,16 +14,21 @@ class CategoryModel {
     required this.name,
     required this.normalizedKey,
     this.isActive = true,
-    required this.displayOrder,
+    this.isDefault = false,
+    this.displayOrder = 0,
     required this.createdAt,
     this.updatedAt,
   });
+
+  /// Alias so admin screens using displayName still work
+  String get displayName => name;
 
   CategoryModel copyWith({
     String? id,
     String? name,
     String? normalizedKey,
     bool? isActive,
+    bool? isDefault,
     int? displayOrder,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -33,6 +38,7 @@ class CategoryModel {
       name: name ?? this.name,
       normalizedKey: normalizedKey ?? this.normalizedKey,
       isActive: isActive ?? this.isActive,
+      isDefault: isDefault ?? this.isDefault,
       displayOrder: displayOrder ?? this.displayOrder,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -45,6 +51,7 @@ class CategoryModel {
       'name': name,
       'normalizedKey': normalizedKey,
       'isActive': isActive,
+      'isDefault': isDefault,
       'displayOrder': displayOrder,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
@@ -54,18 +61,18 @@ class CategoryModel {
   factory CategoryModel.fromJson(Map<String, dynamic> json) {
     return CategoryModel(
       id: json['id'] as String,
-      name: json['name'] as String,
-      normalizedKey: json['normalizedKey'] as String,
-      isActive: json['isActive'] as bool? ?? true,
-      displayOrder: json['displayOrder'] as int,
-      createdAt: DateTime.parse(json['createdAt'] as String),
-      updatedAt: json['updatedAt'] != null
-          ? DateTime.parse(json['updatedAt'] as String)
+      name: (json['name'] ?? json['display_name'] ?? '') as String,
+      normalizedKey: (json['normalizedKey'] ?? json['normalized_key'] ?? '') as String,
+      isActive: json['isActive'] as bool? ?? json['is_active'] as bool? ?? true,
+      isDefault: json['isDefault'] as bool? ?? json['is_default'] as bool? ?? false,
+      displayOrder: json['displayOrder'] as int? ?? 0,
+      createdAt: DateTime.parse((json['createdAt'] ?? json['created_at']) as String),
+      updatedAt: (json['updatedAt'] ?? json['updated_at']) != null
+          ? DateTime.parse((json['updatedAt'] ?? json['updated_at']) as String)
           : null,
     );
   }
 
-  /// Validates that normalized key is unique (case-insensitive)
   static bool isNormalizedKeyUnique(
     String normalizedKey,
     List<CategoryModel> existingCategories, {
@@ -78,9 +85,7 @@ class CategoryModel {
     );
   }
 
-  /// Generates normalized key from display name
   static String generateNormalizedKey(String displayName) {
     return displayName.trim().toLowerCase();
   }
 }
-

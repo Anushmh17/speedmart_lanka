@@ -45,11 +45,15 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Listen to auth state and navigate when loading completes
-    ref.listen<bool>(authLoadingProvider, (_, isLoading) {
-      if (!isLoading) {
-        _navigate();
-      }
+    // Navigate immediately if auth already finished loading
+    final isLoading = ref.watch(authLoadingProvider);
+    if (!isLoading) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _navigate());
+    }
+
+    // Also listen for when auth finishes loading after widget builds
+    ref.listen<bool>(authLoadingProvider, (_, nowLoading) {
+      if (!nowLoading) _navigate();
     });
 
     return Scaffold(
@@ -161,7 +165,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       case UserRole.vendor:
         context.go(RouteNames.vendorHome);
       case UserRole.admin:
-        context.go(RouteNames.customerLogin);
+        context.go(RouteNames.adminHome);
     }
   }
 }

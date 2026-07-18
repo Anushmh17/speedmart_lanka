@@ -175,7 +175,7 @@ class _VendorHomeScreenState extends ConsumerState<VendorHomeScreen>
                   ? (user != null
                       ? VendorStatusScreen(user: user)
                       : _PendingApprovalView(isDark: isDark))
-                  : IndexedStack(
+                  : _AnimatedIndexedStack(
                       index: _currentIndex,
                       children: [
                         _DashboardTab(
@@ -2318,8 +2318,67 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
 }
 
 
-extension _VendorHomeScreenStateExtension on _VendorHomeScreenState {
-  Widget _buildVendorHeader(BuildContext context, bool isDark) {
+/// Animated tab switcher that fades between tabs while keeping all alive.
+class _AnimatedIndexedStack extends StatefulWidget {
+  const _AnimatedIndexedStack({
+    required this.index,
+    required this.children,
+  });
+  final int index;
+  final List<Widget> children;
+
+  @override
+  State<_AnimatedIndexedStack> createState() => _AnimatedIndexedStackState();
+}
+
+class _AnimatedIndexedStackState extends State<_AnimatedIndexedStack>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+  late final Animation<double> _fade;
+  int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentIndex = widget.index;
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+      value: 1.0,
+    );
+    _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
+  }
+
+  @override
+  void didUpdateWidget(_AnimatedIndexedStack oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.index != widget.index) {
+      _ctrl.forward(from: 0.0).then((_) {
+        if (mounted) setState(() => _currentIndex = widget.index);
+      });
+      setState(() => _currentIndex = widget.index);
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fade,
+      child: IndexedStack(
+        index: _currentIndex,
+        children: widget.children,
+      ),
+    );
+  }
+}
+
+extension _VendorHomeScreenStateExtension on _VendorHomeScreenState {  Widget _buildVendorHeader(BuildContext context, bool isDark) {
     final secondaryText =
         isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
 
