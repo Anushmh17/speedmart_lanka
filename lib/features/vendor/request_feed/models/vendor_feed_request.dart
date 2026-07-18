@@ -49,3 +49,4 @@ class VendorFeedRequest {
     return '${d.inDays}d ago';
   }
 }
+

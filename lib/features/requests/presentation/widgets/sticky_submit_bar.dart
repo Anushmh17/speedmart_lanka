@@ -115,3 +115,4 @@ class StickySubmitBar extends StatelessWidget {
     );
   }
 }
+

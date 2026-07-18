@@ -1851,3 +1851,4 @@ class _ProposalCardWithBadge extends StatelessWidget {
 }
 
 
+

@@ -56,3 +56,4 @@ class Haversine {
 
   static double _toRad(double degrees) => degrees * pi / 180;
 }
+

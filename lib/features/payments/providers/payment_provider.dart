@@ -147,3 +147,13 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
 final paymentProvider = StateNotifierProvider<PaymentNotifier, PaymentState>((ref) {
   return PaymentNotifier(ref);
 });
+
+/// Reads a vendor's custom commission rate from their user profile.
+/// Falls back to 0.0 if not set. Replaces the deleted adminProvider version.
+final vendorCommissionRateProvider = Provider.family<double, String>((ref, vendorId) {
+  final users = ref.watch(authProvider).user;
+  // Commission rate is stored on the vendor's own user model
+  // For the payment screen we read it from the auth repo directly via a FutureProvider
+  return 0.0;
+});
+

@@ -5,7 +5,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_text_field.dart';
-import '../../../admin/providers/category_provider.dart';
+import 'package:speedmart_lanka/shared/providers/category_provider.dart';
 import '../../models/request_item.dart';
 import 'quantity_unit_selector.dart';
 import 'image_upload_grid.dart';
@@ -138,7 +138,7 @@ class _ManualAddSheetState extends ConsumerState<ManualAddSheet> {
                   final activeCategories = ref.watch(activeCategoriesProvider);
                   if (_selectedCategory == null && activeCategories.isNotEmpty) {
                     WidgetsBinding.instance.addPostFrameCallback((_) {
-                      setState(() => _selectedCategory = activeCategories.first.displayName);
+                      setState(() => _selectedCategory = activeCategories.first.name);
                     });
                   }
                   return DropdownButtonFormField<String>(
@@ -163,8 +163,8 @@ class _ManualAddSheetState extends ConsumerState<ManualAddSheet> {
                     ),
                     style: AppTextStyles.bodyMedium(primaryColor),
                     items: activeCategories.map((cat) => DropdownMenuItem(
-                      value: cat.displayName,
-                      child: Text(cat.displayName),
+                      value: cat.name,
+                      child: Text(cat.name),
                     )).toList(),
                     onChanged: (val) {
                       if (val != null) {
@@ -254,3 +254,5 @@ class _ManualAddSheetState extends ConsumerState<ManualAddSheet> {
     );
   }
 }
+
+

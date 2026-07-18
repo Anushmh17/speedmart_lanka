@@ -141,3 +141,4 @@ class LocationException implements Exception {
   bool get isServiceDisabled =>
       code == LocationExceptionCode.serviceDisabled;
 }
+

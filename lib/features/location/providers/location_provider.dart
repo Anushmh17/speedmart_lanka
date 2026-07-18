@@ -560,3 +560,4 @@ final locationErrorProvider = Provider<String?>((ref) {
 /// Legacy alias kept for backward compatibility with existing screens
 /// that imported [deliveryLocationProvider].
 final deliveryLocationProvider = locationProvider;
+

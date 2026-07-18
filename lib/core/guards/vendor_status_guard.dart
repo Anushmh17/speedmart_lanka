@@ -86,3 +86,4 @@ class VendorStatusGuard {
     return !canAccessMarketplace(user) && user?.role == UserRole.vendor;
   }
 }
+

@@ -312,3 +312,4 @@ class MockProposalRepository {
     await _persistProposals();
   }
 }
+

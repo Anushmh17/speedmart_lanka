@@ -104,3 +104,4 @@ class RegistrationSectionCard extends StatelessWidget {
     );
   }
 }
+

@@ -216,3 +216,4 @@ class _NetworkBanner extends StatelessWidget {
     );
   }
 }
+

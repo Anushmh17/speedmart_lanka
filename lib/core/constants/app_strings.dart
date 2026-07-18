@@ -92,3 +92,4 @@ class AppStrings {
   static const String invalidPhone = 'Enter a valid Sri Lankan phone number';
   static const String nameTooShort = 'Name must be at least 2 characters';
 }
+

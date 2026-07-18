@@ -41,3 +41,4 @@ final nearbyActiveVendorCountProvider = FutureProvider<int>((ref) async {
   // No location set — cannot determine proximity
   return 0;
 });
+

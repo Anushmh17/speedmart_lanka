@@ -29,3 +29,4 @@ abstract class LocationRepository {
   /// Load the previously saved delivery location. Returns null if none saved.
   Future<DeliveryLocation?> loadDeliveryLocation();
 }
+

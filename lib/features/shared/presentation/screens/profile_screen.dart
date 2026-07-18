@@ -19,7 +19,7 @@ import '../../../../shared/models/user_role.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/routes/route_names.dart';
 import '../../../../core/routes/app_router.dart';
-import '../../../../features/admin/providers/category_provider.dart';
+import 'package:speedmart_lanka/shared/providers/category_provider.dart';
 import '../../../../core/storage/storage_service.dart';
 import 'package:flutter/services.dart';
 import '../../../../shared/models/sri_lanka_banks.dart';
@@ -295,7 +295,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             role == UserRole.vendor
                 ? RouteNames.vendorHome
                 : role == UserRole.admin
-                    ? RouteNames.adminDashboard
+                    ? RouteNames.roleSelection
                     : RouteNames.customerHome,
           );
         }
@@ -842,7 +842,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   children: requestableCategories.map<Widget>((cat) {
                     final isSelected = _requestedCategories.contains(cat.normalizedKey);
                     return FilterChip(
-                      label: Text(cat.displayName),
+                      label: Text(cat.name),
                       selected: isSelected,
                       onSelected: (selected) {
                         setState(() {
@@ -1382,3 +1382,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     ];
   }
 }
+
+
+

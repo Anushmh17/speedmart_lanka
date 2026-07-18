@@ -88,3 +88,4 @@ class CountryOverrideInfo {
       'CountryOverrideInfo(detected: $detectedCountry, selected: $selectedCountry, '
       'override: $isCountryOverride, risk: $riskFlag)';
 }
+

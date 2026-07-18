@@ -87,3 +87,4 @@ final customerProposalComparisonProvider = StateNotifierProvider.autoDispose
   ref.watch(orderProvider);
   return CustomerProposalComparisonNotifier(ref);
 });
+

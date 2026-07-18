@@ -43,3 +43,4 @@ extension ProposalComparisonModeExtension on ProposalComparisonMode {
     }
   }
 }
+

@@ -154,7 +154,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       case UserRole.vendor:
         context.go(RouteNames.vendorHome);
       case UserRole.admin:
-        context.go(RouteNames.adminDashboard);
+        context.go(RouteNames.roleSelection);
     }
   }
 }
+
+

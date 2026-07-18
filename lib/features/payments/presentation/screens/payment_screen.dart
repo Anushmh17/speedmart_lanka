@@ -17,7 +17,6 @@ import 'package:speedmart_lanka/features/notifications/models/notification_type.
 import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart' as notification_feature;
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
 import 'package:speedmart_lanka/features/payments/providers/payment_provider.dart';
-import 'package:speedmart_lanka/features/admin/providers/admin_provider.dart';
 
 class AcceptedVendorGroup {
   final Proposal proposal;
@@ -905,3 +904,4 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     );
   }
 }
+

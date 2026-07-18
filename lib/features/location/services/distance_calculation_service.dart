@@ -105,3 +105,4 @@ class DistanceCalculationService {
     return '${km.toStringAsFixed(1)} km';
   }
 }
+

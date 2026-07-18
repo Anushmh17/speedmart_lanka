@@ -18,7 +18,7 @@ import '../../../features/auth/customer_registration/providers/customer_registra
 import '../../../features/location/providers/location_provider.dart';
 import '../../../core/navigation/bottom_nav_visibility.dart';
 import '../../../shared/models/user_model.dart';
-import '../../../features/admin/providers/category_provider.dart';
+import '../../../shared/providers/category_provider.dart';
 import '../../../shared/utils/category_sync_helper.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -669,7 +669,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       children: requestable.map((cat) {
                         final isSelected = _selectedCategories.contains(cat.normalizedKey);
                         return FilterChip(
-                          label: Text(cat.displayName),
+                          label: Text(cat.name),
                           selected: isSelected,
                           onSelected: (selected) {
                             setState(() {
@@ -814,3 +814,5 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 }
+
+

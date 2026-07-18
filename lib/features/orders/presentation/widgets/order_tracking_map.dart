@@ -263,3 +263,4 @@ class _AnimatedRiderPinState extends State<_AnimatedRiderPin>
     );
   }
 }
+

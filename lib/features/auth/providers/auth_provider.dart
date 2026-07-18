@@ -5,7 +5,6 @@ import '../../../shared/models/user_model.dart';
 import '../../../shared/models/user_role.dart';
 import '../data/mock_auth_repository.dart';
 import '../domain/auth_state.dart';
-import '../../admin/providers/category_provider.dart';
 
 /// Riverpod [StateNotifier] that drives all authentication logic.
 /// UI listens to [authProvider]; screens call methods on [authNotifier].
@@ -399,103 +398,9 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   // ── Category Cleanup Helper ────────────────────────────────────────────────
-  /// Automatically cleans stale category keys from user during login/restore
-  /// Removes invalid keys from allowedCategories, vendorCategories, requestedCategories
   Future<UserModel> _cleanUserCategoriesOnLogin(UserModel user) async {
-    // Only clean categories for vendor users
-    if (user.role != UserRole.vendor) {
-      return user;
-    }
-    
-    try {
-      // FORCE load categories before cleanup validation
-      final categoryNotifier = _ref.read(categoryProvider.notifier);
-      await categoryNotifier.loadCategories();
-      final allCategories = categoryNotifier.getAllCategories();
-      final validKeys = allCategories.map((c) => c.normalizedKey).toSet();
-      
-      debugPrint('[CategoryCleanup] Valid keys in repository: $validKeys');
-      
-      // If no categories loaded, DO NOT cleanup - return user unchanged
-      if (validKeys.isEmpty) {
-        debugPrint('[CategoryCleanup] WARNING: Category repository empty, skipping cleanup');
-        return user;
-      }
-      
-      // Clean each category list
-      final cleanedAllowed = _cleanCategoryList(
-        user.allowedCategories,
-        validKeys,
-        'allowedCategories',
-        user.id,
-      );
-      final cleanedVendor = _cleanCategoryList(
-        user.vendorCategories,
-        validKeys,
-        'vendorCategories',
-        user.id,
-      );
-      final cleanedRequested = _cleanCategoryList(
-        user.requestedCategories,
-        validKeys,
-        'requestedCategories',
-        user.id,
-      );
-      
-      // Check if anything changed
-      if (cleanedAllowed != user.allowedCategories ||
-          cleanedVendor != user.vendorCategories ||
-          cleanedRequested != user.requestedCategories) {
-        debugPrint('[CategoryCleanup] Categories cleaned for user ${user.id} during login');
-        debugPrint('[CategoryCleanup] user.allowedCategories being saved: $cleanedAllowed');
-        
-        final cleanedUser = user.copyWith(
-          allowedCategories: cleanedAllowed ?? [],
-          vendorCategories: cleanedVendor ?? [],
-          requestedCategories: cleanedRequested ?? [],
-          hasPendingCategoryRequest: (cleanedRequested?.isNotEmpty ?? false),
-        );
-        
-        // Persist cleaned user back to repository
-        await _repo.updateUser(cleanedUser);
-        return cleanedUser;
-      }
-      
-      return user;
-    } catch (e) {
-      debugPrint('[CategoryCleanup] Error during login cleanup: $e');
-      return user; // Return original user on error
-    }
+    return user;
   }
-  
-  /// Helper: Clean a category list by removing invalid keys
-  List<String>? _cleanCategoryList(
-    List<String>? original,
-    Set<String> validKeys,
-    String fieldName,
-    String userId,
-  ) {
-    if (original == null || original.isEmpty) return null;
-    
-    debugPrint('[CategoryCleanup] $fieldName BEFORE cleanup: $original');
-    
-    // Normalize and filter
-    final cleaned = original
-        .map((k) => k.toLowerCase().trim())
-        .where((k) => k.isNotEmpty && validKeys.contains(k))
-        .toSet()
-        .toList();
-    
-    debugPrint('[CategoryCleanup] $fieldName AFTER cleanup: $cleaned');
-    
-    final removed = original.length - cleaned.length;
-    if (removed > 0) {
-      debugPrint('[CategoryCleanup] Removed $removed invalid keys from $fieldName for user $userId');
-    }
-    
-    return cleaned.isEmpty ? null : cleaned;
-  }
-
   // ── Password Reset ──────────────────────────────────────────────────────
 
   /// Returns the current stored password for a vendor email (for same-password check).
@@ -547,3 +452,4 @@ final currentUserProvider = Provider<UserModel?>(
 final authLoadingProvider = Provider<bool>(
   (ref) => ref.watch(authProvider).isLoading,
 );
+

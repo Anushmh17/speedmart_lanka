@@ -63,3 +63,4 @@ class AuthState {
   String toString() =>
       'AuthState(user: ${user?.email}, loading: $isLoading, error: $error)';
 }
+

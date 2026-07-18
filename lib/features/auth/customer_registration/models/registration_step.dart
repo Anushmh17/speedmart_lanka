@@ -12,3 +12,4 @@ enum RegistrationStep {
   /// Step 3 — Registration complete; showing success state.
   success,
 }
+

@@ -390,3 +390,4 @@ class _DetailChip extends StatelessWidget {
     );
   }
 }
+

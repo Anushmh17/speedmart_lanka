@@ -151,3 +151,4 @@ class _AnimatedBottomNavWrapperState extends State<AnimatedBottomNavWrapper>
     );
   }
 }
+

@@ -871,3 +871,4 @@ Address: ${order.deliveryAddress}
 Navigate: https://www.google.com/maps/search/?api=1&query=${order.customerLatitude},${order.customerLongitude}
 ''';
 }
+

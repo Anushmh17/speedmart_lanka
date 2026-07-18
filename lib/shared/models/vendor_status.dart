@@ -26,3 +26,4 @@ extension VendorStatusExtension on VendorStatus {
   bool get isActive => this == VendorStatus.approved;
   bool get isInactive => this != VendorStatus.approved;
 }
+

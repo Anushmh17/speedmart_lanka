@@ -2397,3 +2397,4 @@ extension _VendorHomeScreenStateExtension on _VendorHomeScreenState {
     );
   }
 }
+

@@ -8,7 +8,7 @@ import '../../../../shared/models/vendor_status.dart';
 import '../models/vendor_feed_enums.dart';
 import '../models/vendor_feed_request.dart';
 import '../services/vendor_request_filter_service.dart';
-import '../../../admin/providers/category_provider.dart';
+import 'package:speedmart_lanka/shared/providers/category_provider.dart';
 
 class VendorRequestFeedState {
   const VendorRequestFeedState({
@@ -104,9 +104,9 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
     debugPrint('[CategoryAudit] rawCategories BEFORE sanitization: $rawCategories');
     
     // FORCE load categories before validation
-    final categoryNotifier = ref.read(categoryProvider.notifier);
-    await categoryNotifier.loadCategories();
-    final allCategories = categoryNotifier.getAllCategories();
+    // categoryProvider removed - use static activeCategoriesProvider
+    
+    final allCategories = ref.read(activeCategoriesProvider);
     final validKeys = allCategories.map((c) => c.normalizedKey).toSet();
     
     debugPrint('[CategoryAudit] Valid keys loaded from repository: $validKeys');
@@ -236,3 +236,5 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
     await loadFeed();
   }
 }
+
+

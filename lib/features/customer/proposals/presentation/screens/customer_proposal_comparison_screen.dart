@@ -595,3 +595,4 @@ class _AcceptedBanner extends StatelessWidget {
     );
   }
 }
+

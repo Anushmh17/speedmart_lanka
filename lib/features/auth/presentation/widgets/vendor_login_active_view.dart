@@ -366,3 +366,4 @@ class VendorLoginActiveView extends StatelessWidget {
     );
   }
 }
+

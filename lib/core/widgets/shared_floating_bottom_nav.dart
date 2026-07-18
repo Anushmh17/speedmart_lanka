@@ -125,3 +125,4 @@ class SharedFloatingBottomNav extends StatelessWidget {
     );
   }
 }
+

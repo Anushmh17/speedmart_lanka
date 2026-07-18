@@ -205,3 +205,4 @@ class _TimelineLine extends StatelessWidget {
     );
   }
 }
+

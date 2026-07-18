@@ -249,3 +249,4 @@ class _VendorLocationMapPickerState extends State<VendorLocationMapPicker> {
     );
   }
 }
+

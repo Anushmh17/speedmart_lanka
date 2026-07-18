@@ -563,3 +563,4 @@ final proposalProvider =
 
 final proposalValidationServiceProvider =
     Provider((ref) => const ProposalValidationService());
+

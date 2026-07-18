@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
-import '../../../admin/providers/category_provider.dart';
+import 'package:speedmart_lanka/shared/providers/category_provider.dart';
 
 // ── Category color & icon config ──────────────────────────────────────────────
 
@@ -341,7 +341,7 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
 
     final activeCategories = ref.watch(activeCategoriesProvider);
-    final allNames = activeCategories.map((cat) => cat.displayName).toList();
+    final allNames = activeCategories.map((cat) => cat.name).toList();
 
     final filtered = _query.isEmpty
         ? allNames
@@ -598,3 +598,5 @@ class _CategoryPickerSheetState extends ConsumerState<CategoryPickerSheet> {
     );
   }
 }
+
+

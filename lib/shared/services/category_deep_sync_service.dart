@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import '../../features/admin/models/category_model.dart';
+import '../models/category_model.dart';
 import '../models/user_model.dart';
 
 /// Deep category synchronization service
@@ -110,7 +110,7 @@ class CategoryDeepSyncService {
           try {
             final cat =
                 allCategories.firstWhere((c) => c.normalizedKey == key);
-            return cat.displayName;
+            return cat.name;
           } catch (_) {
             return null;
           }
@@ -139,3 +139,5 @@ class CategoryDeepSyncService {
     );
   }
 }
+
+

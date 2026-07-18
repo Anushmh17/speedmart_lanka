@@ -6,7 +6,7 @@ import '../../../../core/widgets/app_text_field.dart';
 import '../../models/request_item.dart';
 import 'quantity_unit_selector.dart';
 import 'image_upload_grid.dart';
-import '../../../admin/providers/category_provider.dart';
+import 'package:speedmart_lanka/shared/providers/category_provider.dart';
 
 class RequestItemCard extends ConsumerStatefulWidget {
   final RequestItem item;
@@ -276,7 +276,7 @@ class _RequestItemCardState extends ConsumerState<RequestItemCard> {
                         onTap: () {
                           final categories = ref.read(activeCategoriesProvider)
                               .where((c) => c.isActive)
-                              .map((c) => c.displayName)
+                              .map((c) => c.name)
                               .toList();
                           _openCategoryOverlay(fieldCtx, categories, cardColor,
                               primaryText, secondaryText, borderColor, isDark);
@@ -383,3 +383,5 @@ class _RequestItemCardState extends ConsumerState<RequestItemCard> {
     );
   }
 }
+
+

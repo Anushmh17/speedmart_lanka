@@ -302,3 +302,4 @@ class SriLankaLocationResult {
     required this.geocodingSucceeded,
   });
 }
+

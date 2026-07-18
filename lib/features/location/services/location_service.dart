@@ -424,3 +424,4 @@ class LocationService {
     throw Exception('Could not open maps - no suitable app or browser available');
   }
 }
+

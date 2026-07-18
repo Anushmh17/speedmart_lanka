@@ -728,3 +728,4 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
     );
   }
 }
+

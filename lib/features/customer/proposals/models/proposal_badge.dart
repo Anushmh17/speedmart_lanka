@@ -49,3 +49,4 @@ extension ProposalBadgeExtension on ProposalBadge {
     }
   }
 }
+

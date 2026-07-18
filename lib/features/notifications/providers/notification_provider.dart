@@ -144,3 +144,4 @@ final notificationProvider =
     StateNotifierProvider<NotificationNotifier, NotificationState>((ref) {
   return NotificationNotifier(ref);
 });
+

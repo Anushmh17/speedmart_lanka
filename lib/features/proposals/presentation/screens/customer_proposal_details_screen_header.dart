@@ -60,3 +60,4 @@ Widget buildProposalDetailsHeader(
     ),
   );
 }
+

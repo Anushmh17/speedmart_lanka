@@ -83,3 +83,4 @@ class CategoryModel {
     return displayName.trim().toLowerCase();
   }
 }
+

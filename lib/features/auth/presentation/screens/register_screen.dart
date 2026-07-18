@@ -17,7 +17,7 @@ import '../../../location/services/sri_lanka_location_service.dart';
 import '../../../location/services/gps_location_service.dart';
 import '../../../auth/customer_registration/services/country_detection_service.dart';
 import '../../../vendor/registration/widgets/vendor_location_map_picker.dart';
-import '../../../admin/providers/category_provider.dart';
+import 'package:speedmart_lanka/shared/providers/category_provider.dart';
 import '../../providers/auth_provider.dart';
 
 /// Registration screen for all roles.
@@ -446,7 +446,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           case UserRole.vendor:
             context.go(RouteNames.vendorHome);
           case UserRole.admin:
-            context.go(RouteNames.adminDashboard);
+            context.go(RouteNames.roleSelection);
         }
         return;
       }
@@ -687,16 +687,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               spacing: 8,
                               runSpacing: 8,
                               children: activeCategories.map((cat) {
-                                final selected = _selectedCategories.contains(cat.displayName);
+                                final selected = _selectedCategories.contains(cat.name);
                                 return FilterChip(
-                                  label: Text(cat.displayName),
+                                  label: Text(cat.name),
                                   selected: selected,
                                   onSelected: (val) {
                                     setState(() {
                                       if (val) {
-                                        _selectedCategories.add(cat.displayName);
+                                        _selectedCategories.add(cat.name);
                                       } else {
-                                        _selectedCategories.remove(cat.displayName);
+                                        _selectedCategories.remove(cat.name);
                                       }
                                     });
                                   },
@@ -1033,3 +1033,6 @@ class _VendorPosition {
     required this.accuracy,
   });
 }
+
+
+

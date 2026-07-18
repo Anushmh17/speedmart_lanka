@@ -314,3 +314,4 @@ class _SuburbEntry {
     required this.lon,
   });
 }
+

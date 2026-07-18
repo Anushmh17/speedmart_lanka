@@ -439,3 +439,4 @@ final customerRegistrationProvider = StateNotifierProvider<
     ref.watch(otpServiceProvider),
   ),
 );
+

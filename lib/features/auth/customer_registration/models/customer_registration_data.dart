@@ -104,3 +104,4 @@ class CustomerRegistrationData {
       'district: ${district?.name}, province: ${province?.name}, '
       'overrideInfo: $overrideInfo)';
 }
+

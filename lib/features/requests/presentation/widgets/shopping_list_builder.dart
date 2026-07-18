@@ -475,3 +475,4 @@ class _CategoryModeCardState extends State<_CategoryModeCard> {
     );
   }
 }
+

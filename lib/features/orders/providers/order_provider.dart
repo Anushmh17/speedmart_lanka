@@ -157,3 +157,4 @@ class OrderNotifier extends StateNotifier<OrderState> {
 final orderProvider = StateNotifierProvider<OrderNotifier, OrderState>((ref) {
   return OrderNotifier(ref);
 });
+

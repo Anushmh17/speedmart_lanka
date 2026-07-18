@@ -86,3 +86,4 @@ class CustomerItemProposalView {
   bool get isAccepted =>
       vendorOffers.any((o) => o.isAccepted);
 }
+

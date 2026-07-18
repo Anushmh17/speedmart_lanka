@@ -47,3 +47,4 @@ final isOnlineProvider = Provider<bool>((ref) {
         orElse: () => true,
       );
 });
+

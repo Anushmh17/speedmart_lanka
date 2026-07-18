@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:speedmart_lanka/features/auth/domain/auth_state.dart';
 import 'package:speedmart_lanka/features/auth/presentation/screens/splash_screen.dart';
 import 'package:speedmart_lanka/features/auth/presentation/screens/role_selection_screen.dart';
-import 'package:speedmart_lanka/features/auth/presentation/screens/login_screen.dart';
 import 'package:speedmart_lanka/features/customer/presentation/screens/customer_home_screen.dart';
 import 'package:speedmart_lanka/features/requests/presentation/screens/create_request_screen.dart';
 import 'package:speedmart_lanka/features/requests/models/shopping_request.dart';
@@ -24,11 +23,6 @@ import 'package:speedmart_lanka/features/vendor/proposals/presentation/vendor_re
 import 'package:speedmart_lanka/features/vendor/proposals/presentation/vendor_proposal_form_screen.dart';
 import 'package:speedmart_lanka/features/vendor/proposals/presentation/vendor_proposal_detail_screen.dart';
 import 'package:speedmart_lanka/features/chat/presentation/screens/chat_screen.dart';
-import 'package:speedmart_lanka/features/admin/presentation/screens/admin_home_screen.dart';
-import 'package:speedmart_lanka/features/admin/presentation/screens/admin_vendor_management_screen.dart';
-import 'package:speedmart_lanka/features/admin/presentation/screens/admin_vendor_assignment_screen.dart';
-import 'package:speedmart_lanka/features/admin/presentation/screens/admin_category_management_screen.dart';
-import 'package:speedmart_lanka/features/admin/presentation/screens/admin_order_detail_screen.dart';
 import 'package:speedmart_lanka/features/requests/presentation/screens/request_list_screen.dart';
 import 'package:speedmart_lanka/shared/presentation/screens/profile_screen.dart';
 import 'package:speedmart_lanka/features/customer/delivery_address/presentation/screens/customer_delivery_address_screen.dart';
@@ -129,10 +123,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           debugPrint('[Router] → Action: Role mismatch (vendor route but $role user), redirect');
           return _homeForRole(role);
         }
-        if (location.startsWith('/admin') && role != UserRole.admin) {
-          debugPrint('[Router] → Action: Role mismatch (admin route but $role user), redirect');
-          return _homeForRole(role);
-        }
 
         // User is authenticated and on correct role route
         debugPrint('[Router] → Action: Authenticated on correct route, no redirect');
@@ -179,14 +169,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: RouteNames.vendorRegister,
         builder: (_, __) =>
             const FigmaAuthFlow(role: FigmaAuthRole.vendor),
-      ),
-      GoRoute(
-        path: RouteNames.adminLogin,
-        builder: (_, __) => const LoginScreen(role: UserRole.admin),
-      ),
-      GoRoute(
-        path: RouteNames.adminRegister,
-        builder: (_, __) => const LoginScreen(role: UserRole.admin),
       ),
 
       // ── Customer Shell ───────────────────────────────────────────────────
@@ -414,34 +396,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
 
-      // ── Admin ─────────────────────────────────────────────────────────────
-      GoRoute(
-        path: RouteNames.adminDashboard,
-        builder: (_, __) => const AdminHomeScreen(),
-      ),
-      GoRoute(
-        path: RouteNames.adminVendorManagement,
-        builder: (_, __) => const AdminVendorManagementScreen(),
-      ),
-      GoRoute(
-        path: RouteNames.adminVendorAssignment,
-        builder: (context, state) {
-          final vendor = state.extra;
-          return AdminVendorAssignmentScreen(vendor: vendor);
-        },
-      ),
-      GoRoute(
-        path: '/admin/categories',
-        builder: (_, __) => const AdminCategoryManagementScreen(),
-      ),
-      GoRoute(
-        path: '/admin/orders/detail',
-        parentNavigatorKey: rootNavigatorKey,
-        builder: (_, state) {
-          final order = state.extra as OrderModel;
-          return AdminOrderDetailScreen(order: order);
-        },
-      ),
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(
@@ -467,6 +421,8 @@ String _homeForRole(UserRole role) {
   switch (role) {
     case UserRole.customer: return RouteNames.customerHome;
     case UserRole.vendor:   return RouteNames.vendorHome;
-    case UserRole.admin:    return RouteNames.adminDashboard;
+    case UserRole.admin:    return RouteNames.roleSelection;
   }
 }
+
+

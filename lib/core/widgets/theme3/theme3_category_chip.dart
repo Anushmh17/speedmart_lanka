@@ -82,3 +82,4 @@ class Theme3CategoryChip extends StatelessWidget {
     );
   }
 }
+

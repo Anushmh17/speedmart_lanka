@@ -59,3 +59,4 @@ class GpsLocationResult {
   String toString() =>
       'GpsLocationResult(lat=$latitude, lng=$longitude, accuracy=${accuracy}m, geocoded=$geocodingSucceeded)';
 }
+

@@ -111,3 +111,4 @@ class MockNotificationRepository {
         .length;
   }
 }
+

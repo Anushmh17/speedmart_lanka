@@ -1,4 +1,4 @@
-import '../../features/admin/models/category_model.dart';
+import '../models/category_model.dart';
 import '../models/user_model.dart';
 
 /// Centralized category synchronization helper
@@ -30,7 +30,7 @@ class CategorySyncHelper {
       final category = allCategories.firstWhere(
         (c) => c.normalizedKey == normalizedKey.toLowerCase(),
       );
-      return category.displayName;
+      return category.name;
     } catch (_) {
       return 'Unknown category';
     }
@@ -104,3 +104,5 @@ class CategorySyncHelper {
     }
   }
 }
+
+

@@ -270,3 +270,4 @@ class _VendorOtpBox extends StatelessWidget {
     );
   }
 }
+

@@ -76,3 +76,4 @@ class ProposalComparisonBar extends StatelessWidget {
     );
   }
 }
+

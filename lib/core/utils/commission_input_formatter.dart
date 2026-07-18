@@ -33,3 +33,4 @@ class CommissionInputFormatter extends TextInputFormatter {
     return newValue;
   }
 }
+

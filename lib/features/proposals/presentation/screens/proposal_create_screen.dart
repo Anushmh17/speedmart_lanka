@@ -7,3 +7,4 @@ class ProposalCreateScreen extends VendorProposalFormScreen {
   const ProposalCreateScreen({super.key, required ShoppingRequest request})
       : super(request: request);
 }
+

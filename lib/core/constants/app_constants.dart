@@ -69,3 +69,4 @@ class AppConstants {
   /// Pagination
   static const int pageSize = 20;
 }
+

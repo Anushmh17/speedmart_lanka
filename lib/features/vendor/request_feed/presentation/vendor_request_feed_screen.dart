@@ -358,3 +358,4 @@ class _VendorRequestFeedScreenState
     );
   }
 }
+

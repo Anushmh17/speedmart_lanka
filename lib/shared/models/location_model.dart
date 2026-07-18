@@ -72,3 +72,4 @@ class LocationModel {
     return nearest;
   }
 }
+

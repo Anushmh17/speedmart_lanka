@@ -20,3 +20,4 @@ class SriLankaDistrict {
   @override
   String toString() => name;
 }
+

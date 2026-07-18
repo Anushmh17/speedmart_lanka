@@ -8,3 +8,4 @@ List<String> normalizeCategories(List<dynamic>? input) {
       .toSet()
       .toList();
 }
+

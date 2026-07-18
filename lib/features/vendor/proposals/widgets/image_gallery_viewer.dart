@@ -93,3 +93,4 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
     );
   }
 }
+

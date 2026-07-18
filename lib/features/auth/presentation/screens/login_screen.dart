@@ -215,7 +215,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             context.go(RouteNames.vendorHome);
           case UserRole.admin:
             debugPrint('[Auth] Admin login success → Navigating to admin dashboard');
-            context.go(RouteNames.adminDashboard);
+            context.go(RouteNames.roleSelection);
         }
       }
     });
@@ -807,7 +807,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 context.push(
                   widget.role == UserRole.vendor
                       ? RouteNames.vendorRegister
-                      : RouteNames.adminRegister,
+                      : RouteNames.vendorRegister,
                 );
               }
             },
@@ -869,3 +869,5 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 }
+
+

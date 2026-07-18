@@ -51,3 +51,4 @@ const List<SriLankaBank> sriLankaBanks = [
   SriLankaBank(name: 'MCB Bank',                        code: 'MCB',  minDigits: 12, maxDigits: 12, hint: '12-digit account number',    color: Color(0xFF006633), logoAsset: 'assets/images/banks/mcb.png'),
   SriLankaBank(name: 'Habib Bank',                      code: 'HBL',  minDigits: 11, maxDigits: 11, hint: '11-digit account number',    color: Color(0xFF004225), logoAsset: 'assets/images/banks/hbl.png'),
 ];
+

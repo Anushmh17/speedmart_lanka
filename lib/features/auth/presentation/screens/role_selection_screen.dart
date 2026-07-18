@@ -63,7 +63,7 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen>
   void _handleAdminLogin() {
     ref.read(authProvider.notifier).clearError();
     ref.read(customerRegistrationProvider.notifier).reset();
-    context.push(RouteNames.adminLogin);
+    context.push(RouteNames.roleSelection);
   }
 
   @override
@@ -456,3 +456,5 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen>
     );
   }
 }
+
+

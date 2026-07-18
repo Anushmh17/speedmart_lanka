@@ -22,3 +22,4 @@ class AppRadius {
   static BorderRadius get xxlRadius => BorderRadius.circular(xxl);
   static BorderRadius get fullRadius => BorderRadius.circular(full);
 }
+

@@ -578,3 +578,4 @@ class _SuggestionTile extends StatelessWidget {
     );
   }
 }
+

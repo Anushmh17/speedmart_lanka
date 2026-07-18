@@ -376,3 +376,4 @@ class _VendorShopfrontScreenState extends State<VendorShopfrontScreen> with Sing
     );
   }
 }
+

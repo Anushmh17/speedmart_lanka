@@ -16,3 +16,4 @@ class VendorDeliveryAccessService {
     return canViewFullAddress(order);
   }
 }
+

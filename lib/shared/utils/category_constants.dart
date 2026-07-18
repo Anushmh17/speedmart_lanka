@@ -188,3 +188,4 @@ class VendorCategories {
     return categories.where((cat) => !isValid(cat)).toList();
   }
 }
+

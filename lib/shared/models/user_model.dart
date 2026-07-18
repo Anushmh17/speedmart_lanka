@@ -376,3 +376,4 @@ class UserModel {
   @override
   String toString() => 'UserModel(id: $id, name: $fullName, role: ${role.name}, riskFlag: $riskFlag)';
 }
+

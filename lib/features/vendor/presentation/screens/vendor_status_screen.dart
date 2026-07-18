@@ -231,3 +231,4 @@ class VendorStatusScreen extends ConsumerWidget {
     context.go(RouteNames.roleSelection);
   }
 }
+
