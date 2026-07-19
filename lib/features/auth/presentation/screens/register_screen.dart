@@ -15,7 +15,6 @@ import '../../../../core/widgets/app_text_field.dart';
 import '../../../../shared/models/user_role.dart';
 import '../../../location/services/sri_lanka_location_service.dart';
 import '../../../location/services/gps_location_service.dart';
-import '../../../auth/customer_registration/services/country_detection_service.dart';
 import '../../../vendor/registration/widgets/vendor_location_map_picker.dart';
 import 'package:speedmart_lanka/shared/providers/category_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -30,7 +29,8 @@ class RegisterScreen extends ConsumerStatefulWidget {
   ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends ConsumerState<RegisterScreen> {
+class _RegisterScreenState extends ConsumerState<RegisterScreen>
+  with WidgetsBindingObserver {
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
@@ -73,9 +73,34 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
   }
 
+  String get _loginRoute {
+    switch (widget.role) {
+      case UserRole.customer:
+        return RouteNames.customerLogin;
+      case UserRole.vendor:
+        return RouteNames.vendorLogin;
+      case UserRole.admin:
+        return RouteNames.adminLogin;
+    }
+  }
+
+  void _handleBack() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.go(_loginRoute);
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     if (widget.role == UserRole.vendor) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _detectVendorCountry();
@@ -85,6 +110,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
@@ -102,37 +128,22 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     super.dispose();
   }
 
+  @override
+  Future<bool> didPopRoute() async {
+    _handleBack();
+    return true;
+  }
+
   Future<void> _detectVendorCountry() async {
     if (widget.role != UserRole.vendor) return;
-    
-    setState(() => _isDetectingCountry = true);
-    
-    debugPrint('[VendorCountry] Starting country detection');
-    
-    try {
-      final service = CountryDetectionService();
-      final result = await service.detect();
-      
-      setState(() {
-        _detectedCountry = result.countryCode ?? (result.isLkUser ? 'LK' : 'OTHER');
-        _selectedCountry = _detectedCountry;
-        _detectionSource = result.method.name;
-        _isSriLanka = result.isLkUser;
-        _usePhoneVerification = result.isLkUser;
-        _isDetectingCountry = false;
-      });
-      
-      debugPrint('[VendorCountry] detected country: $_detectedCountry');
-      debugPrint('[VendorCountry] detection source: $_detectionSource');
-      debugPrint('[VendorCountry] isSriLanka: $_isSriLanka');
-      debugPrint('[VendorCountry] verification method: ${_usePhoneVerification ? "phone" : "email"}');
-    } catch (e) {
-      debugPrint('[VendorCountry] Detection failed: $e');
-      setState(() => _isDetectingCountry = false);
+
+    if (!mounted) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _showCountrySelectionDialog();
       }
-    }
+    });
   }
 
   void _showCountrySelectionDialog() {
@@ -454,20 +465,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       debugPrint('[AuthUI] No action: auth=${next.isAuthenticated}, loading=${next.isLoading}, user=${next.user?.email}');
     });
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        if (context.canPop()) {
-          context.pop();
-        } else {
-          context.go(RouteNames.customerLogin);
-        }
-      },
-      child: Scaffold(
-        backgroundColor:
-            isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-        body: SafeArea(
+    return Scaffold(
+      backgroundColor:
+          isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+      body: SafeArea(
         child: SingleChildScrollView(
           child: Column(
             children: [
@@ -490,7 +491,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     GestureDetector(
-                      onTap: () => context.pop(),
+                      onTap: _handleBack,
                       child: Container(
                         width: 38,
                         height: 38,
@@ -955,8 +956,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             ],
           ),
         ),
-      ),
-      ),
+        ),
     );
   }
 }

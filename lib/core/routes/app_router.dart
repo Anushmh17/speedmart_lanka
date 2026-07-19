@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:speedmart_lanka/features/auth/domain/auth_state.dart';
 import 'package:speedmart_lanka/features/auth/presentation/screens/splash_screen.dart';
 import 'package:speedmart_lanka/features/auth/presentation/screens/login_screen.dart';
+import 'package:speedmart_lanka/features/auth/presentation/screens/register_screen.dart';
 import 'package:speedmart_lanka/features/customer/presentation/screens/customer_home_screen.dart';
 import 'package:speedmart_lanka/features/requests/presentation/screens/create_request_screen.dart';
 import 'package:speedmart_lanka/features/requests/models/shopping_request.dart';
@@ -182,7 +183,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.adminRegister,
         pageBuilder: (context, state) => _buildPage(context, state,
-            const LoginScreen(role: UserRole.admin)),
+        const RegisterScreen(role: UserRole.admin)),
       ),
 
       // ── Customer Shell ───────────────────────────────────────────────────

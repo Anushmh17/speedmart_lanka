@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/routes/route_names.dart';
@@ -11,7 +12,6 @@ import '../../../../shared/models/user_role.dart';
 import '../../domain/auth_state.dart';
 import '../../providers/auth_provider.dart';
 import '../../customer_registration/providers/customer_registration_provider.dart';
-import '../../customer_registration/widgets/country_mismatch_dialog.dart';
 import '../../customer_registration/widgets/phone_field_lk.dart';
 import '../../customer_registration/models/registration_step.dart';
 
@@ -43,7 +43,8 @@ class LoginScreen extends ConsumerStatefulWidget {
   ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends ConsumerState<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen>
+  with WidgetsBindingObserver {
   static const _hPad = 24.0;
   bool _rememberMe = false;
 
@@ -71,16 +72,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     if (widget.role == UserRole.customer) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         ref.read(customerRegistrationProvider.notifier).setMode(isLogin: true);
-        ref.read(customerRegistrationProvider.notifier).detectCountry();
       });
     }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     _phoneCtrl.dispose();
@@ -89,50 +91,42 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
+  @override
+  Future<bool> didPopRoute() async {
+    _handleBack();
+    return true;
+  }
+
   void _handleBack() {
     if (context.canPop()) {
       context.pop();
-    } else {
-      context.go(RouteNames.customerLogin);
+      return;
     }
-  }
 
-  void _showCountrySelectionDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Select your country'),
-        content: const Text(
-          'We could not confidently determine your country. Please select it manually.',
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Exit App?'),
+          content: const Text('Are you sure you want to exit?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Exit'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              ref.read(customerRegistrationProvider.notifier).setLkUser(true);
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('Sri Lanka'),
-          ),
-          TextButton(
-            onPressed: () {
-              ref.read(customerRegistrationProvider.notifier).setLkUser(false);
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('Other Country'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showCountryOverrideDialog() {
-    final notifier = ref.read(customerRegistrationProvider.notifier);
-    CountryMismatchDialog.show(
-      context,
-      onContinueInternational: notifier.confirmCountryOverride,
-      onUseSriLankaOtp: notifier.cancelCountryOverride,
-    );
+      ).then((shouldExit) {
+        if (shouldExit == true && mounted) {
+          SystemNavigator.pop();
+        }
+      });
+    });
   }
 
   Future<void> _loginCustomerOtp() async {
@@ -224,12 +218,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       ref.listen<CustomerRegistrationState>(customerRegistrationProvider, (prev, next) {
         if (next.step == RegistrationStep.verifyOtp && prev?.step != RegistrationStep.verifyOtp) {
           context.push(RouteNames.customerOtp);
-        }
-        if (next.shouldShowCountryDialog && !(prev?.shouldShowCountryDialog ?? false)) {
-          _showCountrySelectionDialog();
-        }
-        if (next.pendingOverrideConfirmation && !(prev?.pendingOverrideConfirmation ?? false)) {
-          _showCountryOverrideDialog();
         }
         if (next.data.isLkUser != prev?.data.isLkUser) {
           _phoneCtrl.clear();
@@ -364,31 +352,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           : _buildVendorForm(isDark: isDark, authState: authState),
     );
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        _handleBack();
-      },
-      child: Scaffold(
-        resizeToAvoidBottomInset: true,
-        backgroundColor: isDark ? const Color(0xFF0F1115) : const Color(0xFFFFFDF8),
-        body: SafeArea(
-          top: false,
-          child: SingleChildScrollView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minHeight: screenHeight),
-              child: Column(
-                children: [
-                  curvedHero,
-                  const SizedBox(height: 22),
-                  centeredTitle,
-                  const SizedBox(height: 26),
-                  formFields,
-                  const SizedBox(height: 40), // spacer bottom padding
-                ],
-              ),
+    return Scaffold(
+      resizeToAvoidBottomInset: true,
+      backgroundColor: isDark ? const Color(0xFF0F1115) : const Color(0xFFFFFDF8),
+      body: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: screenHeight),
+            child: Column(
+              children: [
+                curvedHero,
+                const SizedBox(height: 22),
+                centeredTitle,
+                const SizedBox(height: 26),
+                formFields,
+                const SizedBox(height: 40), // spacer bottom padding
+              ],
             ),
           ),
         ),
@@ -410,20 +391,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         if (authState.hasError) ...[
           _buildErrorBanner(authState.error!),
           const SizedBox(height: 14),
-        ],
-        if (custState.isDetectingCountry) ...[
-          _buildDetectingBanner(),
-          const SizedBox(height: 12),
-        ],
-        if (custState.countryDetected) ...[
-          _buildCountryModeRow(
-            isDark: isDark,
-            isLkUser: custState.isLkUser,
-            onChange: () {
-              ref.read(customerRegistrationProvider.notifier).toggleCountry();
-            },
-          ),
-          const SizedBox(height: 16),
         ],
         Row(
           children: [
@@ -627,81 +594,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             child: Text(
               error,
               style: AppTextStyles.bodySmall(AppColors.error),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetectingBanner() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.infoContainer,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          const SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.info),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            'Detecting your region…',
-            style: AppTextStyles.bodySmall(AppColors.info),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCountryModeRow({
-    required bool isDark,
-    required bool isLkUser,
-    required VoidCallback onChange,
-  }) {
-    final fieldBg = isDark ? const Color(0xFF171A21) : const Color(0xFFFFFDF8);
-    final borderCol = isDark ? const Color(0xFF2D3340) : const Color(0xFFE5E7EB);
-
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: fieldBg,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: borderCol, width: 1.2),
-      ),
-      child: Row(
-        children: [
-          Text(isLkUser ? '🇱🇰' : '🌍', style: const TextStyle(fontSize: 18)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              isLkUser ? 'Sri Lanka Mode' : 'International Mode',
-              style: AppTextStyles.bodyMedium(isDark ? Colors.white : const Color(0xFF1F2937)).copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: onChange,
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: Text(
-              'Change',
-              style: TextStyle(
-                color: _roleColor,
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
-                decoration: TextDecoration.underline,
-                decorationColor: _roleColor,
-              ),
             ),
           ),
         ],

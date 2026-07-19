@@ -1,12 +1,12 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../features/auth/providers/auth_provider.dart';
 import '../features/auth/customer_registration/providers/customer_registration_provider.dart';
 import '../features/auth/customer_registration/services/otp_service.dart';
-import '../features/auth/customer_registration/services/country_detection_service.dart';
 import '../features/customer/delivery_address/models/customer_delivery_address.dart';
 import '../features/customer/delivery_address/providers/customer_delivery_address_provider.dart';
 import '../features/location/data/sri_lanka_data.dart';
@@ -17,17 +17,11 @@ import '../features/location/services/reverse_geocoding_service.dart';
 import '../shared/models/user_role.dart';
 import '../core/routes/route_names.dart';
 import '../core/storage/storage_service.dart';
-import '../widgets/auth/speedmart_country_switch_popup.dart';
 
 import 'sri_lanka_customer_login_figma.dart';
 import 'sri_lanka_customer_login_otp_figma.dart';
 import 'sri_lanka_customer_register_figma.dart';
 import 'sri_lanka_customer_register_otp_figma.dart';
-
-import 'international_customer_login_figma.dart';
-import 'international_customer_login_otp_figma.dart';
-import 'international_customer_register_figma.dart';
-import 'international_customer_register_otp_figma.dart';
 
 import 'sri_lanka_vendor_login_figma.dart';
 import 'sri_lanka_vendor_login_otp_figma.dart';
@@ -38,40 +32,21 @@ import 'sri_lanka_vendor_forget_password_figma.dart';
 import 'sri_lanka_vendor_forget_password_otp_figma.dart';
 import 'new_password_update_sri_lanka_vendor_figma.dart';
 
-import 'international_vendor_login_figma.dart';
-import 'international_vendor_login_otp_figma.dart';
-import 'international_vendor_register_figma.dart';
-import 'international_vendor_register_otp_figma.dart';
-
-import 'international_vendor_forget_password_figma.dart';
-import 'international_vendor_forget_password_otp_figma.dart';
-import 'new_password_update_international_vendor_figma.dart';
 
 enum FigmaAuthRole { customer, vendor }
 
 enum _FigmaAuthPage {
-  sriLankaCustomerLogin,
-  internationalCustomerLogin,
-  sriLankaCustomerRegister,
-  internationalCustomerRegister,
-  sriLankaCustomerLoginOtp,
-  internationalCustomerLoginOtp,
-  sriLankaCustomerRegisterOtp,
-  internationalCustomerRegisterOtp,
-  sriLankaVendorLogin,
-  internationalVendorLogin,
-  sriLankaVendorRegister,
-  internationalVendorRegister,
-  sriLankaVendorLoginOtp,
-  internationalVendorLoginOtp,
-  sriLankaVendorRegisterOtp,
-  internationalVendorRegisterOtp,
-  sriLankaVendorForgotPassword,
-  internationalVendorForgotPassword,
-  sriLankaVendorForgotPasswordOtp,
-  internationalVendorForgotPasswordOtp,
-  sriLankaVendorNewPassword,
-  internationalVendorNewPassword,
+  customerLogin,
+  customerLoginOtp,
+  customerRegister,
+  customerRegisterOtp,
+  vendorLogin,
+  vendorLoginOtp,
+  vendorRegister,
+  vendorRegisterOtp,
+  vendorForgotPassword,
+  vendorForgotPasswordOtp,
+  vendorNewPassword,
 }
 
 class FigmaAuthFlow extends ConsumerStatefulWidget {
@@ -83,15 +58,9 @@ class FigmaAuthFlow extends ConsumerStatefulWidget {
 }
 
 class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
-    with SingleTickerProviderStateMixin {
-  bool _detecting = true;
-  _FigmaAuthPage _page = _FigmaAuthPage.sriLankaCustomerLogin;
+  with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  _FigmaAuthPage _page = _FigmaAuthPage.customerLogin;
   _FigmaAuthPage? _prevPage;
-  bool _detectedIsLk = true; // result from CountryDetectionService
-  // Once user confirms a switch away from detected country, remember it so
-  // subsequent taps in that same direction skip the popup.
-  bool _hasConfirmedAwayFromDetected = false;
-  bool _switchInProgress = false;
 
   late final AnimationController _animCtrl;
   late final Animation<Offset> _inSlide;
@@ -99,16 +68,11 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
   // direction multiplier: +1 = forward, -1 = back
   final _dirNotifier = ValueNotifier<double>(1.0);
 
-  // ── Registration form state ───────────────────────────────────────────────
-  // Controllers are held here so they survive page transitions within the flow
-  final _regPhoneCtrl = TextEditingController();
-  final _regEmailCtrl = TextEditingController();
-
-  // Login contact (phone for LK, email for intl)
+  // â”€â”€ Registration form state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // Login phone
   final _loginPhoneCtrl = TextEditingController();
-  final _loginEmailCtrl = TextEditingController();
 
-  // Vendor login controllers — passed into figma login widgets
+  // Vendor login controllers â€” passed into figma login widgets
   final _vendorLoginEmailCtrl = TextEditingController();
   final _vendorLoginPasswordCtrl = TextEditingController();
 
@@ -121,7 +85,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
   String? _vendorLoginOtpEmail; // masked email shown on vendor login OTP screen
   String? _previousPassword;  // current password before reset (for same-password check)
 
-  // Vendor register data — collected from onCreateAccountWithData
+  // Vendor register data â€” collected from onCreateAccountWithData
   Map<String, String>? _pendingVendorRegData;
 
   bool _isVendorLoading = false;
@@ -131,131 +95,30 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
   bool _isDetectingGps = false;
   double? _detectedLatitude;
   double? _detectedLongitude;
-  // Vendor register pin — lifted so it survives SL ↔ Intl page switches
+  // Vendor register pin â€” lifted so it survives SL â†” Intl page switches
   LatLng? _vendorPinPoint;
+  bool _isHandlingBack = false;
 
-
-  Future<void> _detectCountry() async {
-    try {
-      final result = await CountryDetectionService().detect();
-      if (!mounted) return;
-      setState(() {
-        _detecting = false;
-        _detectedIsLk = result.isLkUser;
-        _page = _initialPage(isLk: result.isLkUser);
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _detecting = false;
-        _detectedIsLk = true;
-        _page = _initialPage(isLk: true);
-      });
-    }
-  }
-
-  _FigmaAuthPage _initialPage({required bool isLk}) {
-    if (widget.role == FigmaAuthRole.customer) {
-      return isLk
-          ? _FigmaAuthPage.sriLankaCustomerLogin
-          : _FigmaAuthPage.internationalCustomerLogin;
-    } else {
-      return isLk
-          ? _FigmaAuthPage.sriLankaVendorLogin
-          : _FigmaAuthPage.internationalVendorLogin;
-    }
-  }
-
-  /// Returns true if the current page is in the Sri Lanka flow.
-  bool get _isCurrentlyLk {
-    const lkPages = {
-      _FigmaAuthPage.sriLankaCustomerLogin,
-      _FigmaAuthPage.sriLankaCustomerRegister,
-      _FigmaAuthPage.sriLankaCustomerLoginOtp,
-      _FigmaAuthPage.sriLankaCustomerRegisterOtp,
-      _FigmaAuthPage.sriLankaVendorLogin,
-      _FigmaAuthPage.sriLankaVendorRegister,
-      _FigmaAuthPage.sriLankaVendorLoginOtp,
-      _FigmaAuthPage.sriLankaVendorRegisterOtp,
-      _FigmaAuthPage.sriLankaVendorForgotPassword,
-      _FigmaAuthPage.sriLankaVendorForgotPasswordOtp,
-      _FigmaAuthPage.sriLankaVendorNewPassword,
-    };
-    return lkPages.contains(_page);
-  }
-
-  /// Handles country switch tap with popup logic:
-  /// - Switching back to detected country → switch directly, reset confirmation
-  /// - Switching away from detected country for the first time → show popup
-  /// - Switching away from detected country again (already confirmed) → switch directly
-  Future<void> _onCountrySwitch(_FigmaAuthPage targetPage) async {
-    if (_switchInProgress) return;
-    _switchInProgress = true;
-    try {
-      final targetIsLk = !_isCurrentlyLk;
-      final isGoingBackToDetected = targetIsLk == _detectedIsLk;
-
-      if (isGoingBackToDetected || _hasConfirmedAwayFromDetected) {
-        if (isGoingBackToDetected) _hasConfirmedAwayFromDetected = false;
-        _go(targetPage);
-        return;
-      }
-
-      final isLoginPage = _page == _FigmaAuthPage.sriLankaCustomerLogin ||
-          _page == _FigmaAuthPage.internationalCustomerLogin ||
-          _page == _FigmaAuthPage.sriLankaVendorLogin ||
-          _page == _FigmaAuthPage.internationalVendorLogin;
-      final flow = isLoginPage ? SpeedmartAuthFlow.login : SpeedmartAuthFlow.register;
-      final role = widget.role == FigmaAuthRole.customer
-          ? SpeedmartUserRole.customer
-          : SpeedmartUserRole.vendor;
-
-      final confirmed = await showSpeedmartCountrySwitchPopup(
-        context: context,
-        targetMode: targetIsLk
-            ? SpeedmartCountryMode.sriLanka
-            : SpeedmartCountryMode.international,
-        flow: flow,
-        role: role,
-      );
-      if (confirmed == true && mounted) {
-        _hasConfirmedAwayFromDetected = true;
-        _go(targetPage);
-      }
-    } finally {
-      _switchInProgress = false;
-    }
-  }
 
   // Page order defines forward/back direction
   static const _pageOrder = [
-    _FigmaAuthPage.sriLankaCustomerLogin,
-    _FigmaAuthPage.internationalCustomerLogin,
-    _FigmaAuthPage.sriLankaCustomerRegister,
-    _FigmaAuthPage.internationalCustomerRegister,
-    _FigmaAuthPage.sriLankaCustomerLoginOtp,
-    _FigmaAuthPage.internationalCustomerLoginOtp,
-    _FigmaAuthPage.sriLankaCustomerRegisterOtp,
-    _FigmaAuthPage.internationalCustomerRegisterOtp,
-    _FigmaAuthPage.sriLankaVendorLogin,
-    _FigmaAuthPage.internationalVendorLogin,
-    _FigmaAuthPage.sriLankaVendorRegister,
-    _FigmaAuthPage.internationalVendorRegister,
-    _FigmaAuthPage.sriLankaVendorLoginOtp,
-    _FigmaAuthPage.internationalVendorLoginOtp,
-    _FigmaAuthPage.sriLankaVendorRegisterOtp,
-    _FigmaAuthPage.internationalVendorRegisterOtp,
-    _FigmaAuthPage.sriLankaVendorForgotPassword,
-    _FigmaAuthPage.internationalVendorForgotPassword,
-    _FigmaAuthPage.sriLankaVendorForgotPasswordOtp,
-    _FigmaAuthPage.internationalVendorForgotPasswordOtp,
-    _FigmaAuthPage.sriLankaVendorNewPassword,
-    _FigmaAuthPage.internationalVendorNewPassword,
+    _FigmaAuthPage.customerLogin,
+    _FigmaAuthPage.customerLoginOtp,
+    _FigmaAuthPage.customerRegister,
+    _FigmaAuthPage.customerRegisterOtp,
+    _FigmaAuthPage.vendorLogin,
+    _FigmaAuthPage.vendorLoginOtp,
+    _FigmaAuthPage.vendorRegister,
+    _FigmaAuthPage.vendorRegisterOtp,
+    _FigmaAuthPage.vendorForgotPassword,
+    _FigmaAuthPage.vendorForgotPasswordOtp,
+    _FigmaAuthPage.vendorNewPassword,
   ];
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _animCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 340),
@@ -271,22 +134,37 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       inbound: false,
     ).animate(curved);
     _animCtrl.value = 1.0;
-    _detectCountry();
+    _page = widget.role == FigmaAuthRole.customer
+        ? _FigmaAuthPage.customerLogin
+        : _FigmaAuthPage.vendorLogin;
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _animCtrl.dispose();
-    _regPhoneCtrl.dispose();
-    _regEmailCtrl.dispose();
     _loginPhoneCtrl.dispose();
-    _loginEmailCtrl.dispose();
     _vendorLoginEmailCtrl.dispose();
     _vendorLoginPasswordCtrl.dispose();
     _forgotPasswordEmailCtrl.dispose();
     _newPasswordCtrl.dispose();
     _confirmNewPasswordCtrl.dispose();
     super.dispose();
+  }
+
+  @override
+  Future<bool> didPopRoute() async {
+    if (_isHandlingBack) return true;
+    _isHandlingBack = true;
+    try {
+      final allow = await _onWillPop();
+      if (allow && mounted) {
+        SystemNavigator.pop();
+      }
+    } finally {
+      _isHandlingBack = false;
+    }
+    return true;
   }
 
 
@@ -309,7 +187,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     _animCtrl.forward(from: 0.0);
   }
 
-  // ── Province picker ───────────────────────────────────────────────────────
+  // â”€â”€ Province picker â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   void _showProvincePicker() {
     showModalBottomSheet<SriLankaProvince>(
@@ -357,7 +235,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text('Select District — ${_selectedProvince!.name}',
+            child: Text('Select District â€” ${_selectedProvince!.name}',
                 style:
                     const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           ),
@@ -375,7 +253,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     );
   }
 
-  // ── GPS auto-detect ───────────────────────────────────────────────────────
+  // â”€â”€ GPS auto-detect â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _autoDetectLocation() async {
     setState(() => _isDetectingGps = true);
@@ -419,26 +297,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     }
   }
 
-  Future<void> _autoDetectLocationInternational() async {
-    setState(() => _isDetectingGps = true);
-    try {
-      final position = await GpsLocationService().getCurrentPosition();
-      if (!mounted) return;
-      setState(() {
-        _detectedLatitude = position.latitude;
-        _detectedLongitude = position.longitude;
-      });
-      _showToast('Location detected');
-    } on LocationException catch (e) {
-      if (mounted) _showToast(e.message, isError: true);
-    } catch (_) {
-      if (mounted) _showToast('GPS unavailable. Please try again.', isError: true);
-    } finally {
-      if (mounted) setState(() => _isDetectingGps = false);
-    }
-  }
-
-  // ── Customer register: validate & send OTP ────────────────────────────────
+  // â”€â”€ Customer register: validate & send OTP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _onSriLankaCustomerCreateAccount(
       Map<String, String> data) async {
@@ -483,43 +342,10 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       _showError(state.error!);
       return;
     }
-    _go(_FigmaAuthPage.sriLankaCustomerRegisterOtp);
+    _go(_FigmaAuthPage.customerRegisterOtp);
   }
 
-  Future<void> _onInternationalCustomerCreateAccount(
-      Map<String, String> data) async {
-    final email = data['email'] ?? '';
-    final fullName = data['fullName'] ?? '';
-
-    if (fullName.trim().isEmpty) {
-      _showError('Please enter your full name.');
-      return;
-    }
-    if (email.trim().isEmpty || !email.contains('@')) {
-      _showError('Please enter a valid email address.');
-      return;
-    }
-
-    final reg = ref.read(customerRegistrationProvider.notifier);
-    reg.setMode(isLogin: false);
-    reg.updateFullName(fullName.trim());
-    reg.updateEmail(email.trim());
-    reg.updatePhone(data['phone'] ?? '');
-    reg.updatePreciseAddress(data['preciseAddress'] ?? '');
-    reg.updateDeliveryNote(data['deliveryNote'] ?? '');
-
-    await reg.sendOtp();
-
-    if (!mounted) return;
-    final state = ref.read(customerRegistrationProvider);
-    if (state.hasError) {
-      _showError(state.error!);
-      return;
-    }
-    _go(_FigmaAuthPage.internationalCustomerRegisterOtp);
-  }
-
-  // ── Customer login: send OTP ──────────────────────────────────────────────
+  // â”€â”€ Customer login: send OTP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _onSriLankaCustomerSendOtp(bool rememberMe) async {
     final phone = _loginPhoneCtrl.text.trim();
@@ -562,54 +388,10 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       _showError(state.error!);
       return;
     }
-    _go(_FigmaAuthPage.sriLankaCustomerLoginOtp);
+    _go(_FigmaAuthPage.customerLoginOtp);
   }
 
-  Future<void> _onInternationalCustomerSendOtp(bool rememberMe) async {
-    final email = _loginEmailCtrl.text.trim();
-    if (email.isEmpty || !email.contains('@')) {
-      _showError('Please enter a valid email address.');
-      return;
-    }
-
-    final exists =
-        await ref.read(authProvider.notifier).checkCustomerExists(email);
-    if (!mounted) return;
-    if (!exists) {
-      _showError('No account found for this email. Please register.');
-      return;
-    }
-
-    // Read previous flag BEFORE overwriting it
-    final wasRemembered = await StorageService.getCustomerRememberMe();
-    await StorageService.saveCustomerRememberMe(rememberMe);
-
-    final reg = ref.read(customerRegistrationProvider.notifier);
-    reg.setMode(isLogin: true);
-    reg.updateEmail(email);
-
-    // Skip OTP only if user checks remember me AND previously opted to stay signed in
-    if (rememberMe && wasRemembered) {
-      await _onCustomerLoginOtpSuccess('');
-      return;
-    }
-
-    // Reset OTP rate-limit for this destination so retries always work
-    final otpService = ref.read(otpServiceProvider);
-    if (otpService is MockOtpService) otpService.resetLimits();
-
-    await reg.sendOtp();
-
-    if (!mounted) return;
-    final state = ref.read(customerRegistrationProvider);
-    if (state.hasError) {
-      _showError(state.error!);
-      return;
-    }
-    _go(_FigmaAuthPage.internationalCustomerLoginOtp);
-  }
-
-  // ── OTP success handlers ──────────────────────────────────────────────────
+  // â”€â”€ OTP success handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _onCustomerLoginOtpSuccess(String otp) async {
     // Empty otp = remember-me skip path, bypass verification
@@ -650,14 +432,11 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
             password: '',
             role: UserRole.customer,
             nic: regState.data.nic,
-            detectedCountry: regState.data.overrideInfo.detectedCountry,
-            selectedCountry: regState.data.overrideInfo.selectedCountry,
-            countryOverride: regState.data.overrideInfo.isCountryOverride,
-            detectionSource: regState.data.overrideInfo.detectionSource,
-            riskFlag: regState.data.overrideInfo.riskFlag,
-            verifiedPhone: regState.data.overrideInfo.verifiedPhone || regState.data.isLkUser,
-            verifiedEmail: regState.data.overrideInfo.verifiedEmail || !regState.data.isLkUser,
-            deliveryCountry: regState.data.country,
+            detectedCountry: 'LK',
+            selectedCountry: 'LK',
+            verifiedPhone: true,
+            verifiedEmail: false,
+            deliveryCountry: 'Sri Lanka',
             deliveryProvince: _selectedProvince?.name ?? regState.data.province?.name,
             deliveryDistrict: _selectedDistrict?.name ?? regState.data.district?.name,
             deliveryApproxArea: regState.data.approxArea,
@@ -688,7 +467,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     }
   }
 
-  // ── OTP resend handlers ─────────────────────────────────────────────────
+  // â”€â”€ OTP resend handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _onCustomerResendOtp() async {
     await ref.read(customerRegistrationProvider.notifier).sendOtp();
@@ -708,18 +487,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     if (state.hasError) _showError(state.error!);
   }
 
-  Future<void> _onInternationalCustomerResendOtp() async {
-    final email = _loginEmailCtrl.text.trim();
-    if (email.isEmpty) return;
-    final reg = ref.read(customerRegistrationProvider.notifier);
-    reg.updateEmail(email);
-    await reg.sendOtp();
-    if (!mounted) return;
-    final state = ref.read(customerRegistrationProvider);
-    if (state.hasError) _showError(state.error!);
-  }
-
-  // ── Vendor login ─────────────────────────────────────────────────────────
+  // â”€â”€ Vendor login â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _onVendorSignIn(bool rememberMe) async {
     final email = _vendorLoginEmailCtrl.text.trim();
@@ -742,12 +510,6 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
         _showError(authState.error ?? 'Login failed.');
         return;
       }
-      // Block SL-registered vendors from logging in via international mode
-      final isInternationalPage = _page == _FigmaAuthPage.internationalVendorLogin;
-      if (isInternationalPage && verifiedUser.selectedCountry == 'LK') {
-        _showError('This account is registered for Sri Lanka. Please use the Sri Lanka login.');
-        return;
-      }
       // Save the new checkbox state for future logins / logout popup
       await StorageService.saveVendorRememberMe(rememberMe);
       // Skip OTP only if vendor had Remember Me from a PREVIOUS session
@@ -755,10 +517,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
         await _onVendorOtpSuccess('');
       } else {
         _vendorLoginOtpEmail = _maskEmail(email);
-        final isLk = _page == _FigmaAuthPage.sriLankaVendorLogin;
-        _go(isLk
-            ? _FigmaAuthPage.sriLankaVendorLoginOtp
-            : _FigmaAuthPage.internationalVendorLoginOtp);
+        _go(_FigmaAuthPage.vendorLoginOtp);
       }
     } catch (e) {
       if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
@@ -776,7 +535,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     return '$visible***$domain';
   }
 
-  // ── Vendor register ───────────────────────────────────────────────────────
+  // â”€â”€ Vendor register â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _onVendorCreateAccount(Map<String, String> data) async {
     final email = data['email'] ?? '';
@@ -797,7 +556,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     final lng = double.tryParse(data['longitude'] ?? '');
     if (lat == null || lng == null) { _showError('Please pin your shop location on the map.'); return; }
 
-    // Store form data and send OTP — registration happens after OTP verified
+    // Store form data and send OTP â€” registration happens after OTP verified
     _pendingVendorRegData = data;
 
     setState(() => _isVendorLoading = true);
@@ -815,10 +574,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
         return;
       }
 
-      final isLk = data['country'] == 'Sri Lanka';
-      _go(isLk
-          ? _FigmaAuthPage.sriLankaVendorRegisterOtp
-          : _FigmaAuthPage.internationalVendorRegisterOtp);
+      _go(_FigmaAuthPage.vendorRegisterOtp);
     } catch (e) {
       if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
     } finally {
@@ -844,7 +600,6 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       final categories = data['categories'] ?? '';
       final lat = double.tryParse(data['latitude'] ?? '')!;
       final lng = double.tryParse(data['longitude'] ?? '')!;
-      final isSriLanka = data['country'] == 'Sri Lanka';
 
       await ref.read(authProvider.notifier).register(
         fullName: data['fullName']!.trim(),
@@ -862,8 +617,8 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
         shopLongitude: lng,
         shopLocationSource: 'map_pin',
         businessRegistrationNumber: data['businessRegNo']?.isNotEmpty == true ? data['businessRegNo'] : null,
-        detectedCountry: isSriLanka ? 'LK' : 'OTHER',
-        selectedCountry: isSriLanka ? 'LK' : 'OTHER',
+        detectedCountry: 'LK',
+        selectedCountry: 'LK',
         verifiedEmail: true,
       );
       if (!mounted) return;
@@ -892,7 +647,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     if (state.hasError) _showError(state.error!);
   }
 
-  // ── Vendor forgot-password handlers ────────────────────────────────────────────
+  // â”€â”€ Vendor forgot-password handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _onVendorForgotPasswordSendCode(_FigmaAuthPage otpPage) async {
     final email = _forgotPasswordEmailCtrl.text.trim();
@@ -1012,88 +767,135 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
 
   void _showError(String message) => _showToast(message, isError: true);
 
-  // ── Build ─────────────────────────────────────────────────────────────────
+  // â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  // Pages that contain heavy maps — kept permanently mounted via Offstage
-  static const _persistentPages = {
-    _FigmaAuthPage.sriLankaVendorRegister,
-    _FigmaAuthPage.internationalVendorRegister,
-  };
+  // Pages that contain heavy maps â€” kept permanently mounted via Offstage
+  static const _persistentPages = {_FigmaAuthPage.vendorRegister};
+
+  // Returns the page to go back to, or null if this is a root login page
+  _FigmaAuthPage? _backTarget() {
+    switch (_page) {
+      case _FigmaAuthPage.customerRegister:
+      case _FigmaAuthPage.customerLoginOtp:
+        return _FigmaAuthPage.customerLogin;
+      case _FigmaAuthPage.customerRegisterOtp:
+        return _FigmaAuthPage.customerRegister;
+      case _FigmaAuthPage.vendorRegister:
+      case _FigmaAuthPage.vendorLoginOtp:
+      case _FigmaAuthPage.vendorForgotPassword:
+        return _FigmaAuthPage.vendorLogin;
+      case _FigmaAuthPage.vendorRegisterOtp:
+        return _FigmaAuthPage.vendorRegister;
+      case _FigmaAuthPage.vendorForgotPasswordOtp:
+        return _FigmaAuthPage.vendorForgotPassword;
+      case _FigmaAuthPage.vendorNewPassword:
+        return _FigmaAuthPage.vendorForgotPasswordOtp;
+      // Root login pages — no internal back target
+      case _FigmaAuthPage.customerLogin:
+      case _FigmaAuthPage.vendorLogin:
+        return null;
+    }
+  }
+
+  Future<bool> _onWillPop() async {
+    final target = _backTarget();
+    if (target != null) {
+      _go(target, back: true);
+      return false;
+    }
+    // Root login page — show exit confirmation
+    final shouldExit = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Exit App?'),
+        content: const Text('Are you sure you want to exit?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Exit'),
+          ),
+        ],
+      ),
+    );
+    return shouldExit ?? false;
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (_detecting) {
-      return const Scaffold(
-        backgroundColor: Color(0xFF040504),
-        body: Center(
-          child: CircularProgressIndicator(color: Color(0xFFFF8213)),
-        ),
-      );
-    }
+    final slvReg = _buildPageFor(_FigmaAuthPage.vendorRegister);
 
-    final slvReg = _buildPageFor(_FigmaAuthPage.sriLankaVendorRegister);
-    final intlReg = _buildPageFor(_FigmaAuthPage.internationalVendorRegister);
-
-    return AnimatedBuilder(
-      animation: _animCtrl,
-      builder: (context, _) {
-        final showPrev = _prevPage != null && _animCtrl.value < 1.0;
-
-        Widget buildSlide(_FigmaAuthPage page, bool isInbound) {
-          final isPersistent = _persistentPages.contains(page);
-          final child = isPersistent
-              ? (page == _FigmaAuthPage.sriLankaVendorRegister ? slvReg : intlReg)
-              : _buildPageFor(page);
-          return SlideTransition(
-            position: isInbound ? _inSlide : _outSlide,
-            child: RepaintBoundary(child: child),
-          );
-        }
-
-        return Stack(
-          children: [
-            // Keep persistent pages alive but hidden when not active/transitioning
-            if (_page != _FigmaAuthPage.sriLankaVendorRegister &&
-                !(_prevPage == _FigmaAuthPage.sriLankaVendorRegister && showPrev))
-              Offstage(child: TickerMode(enabled: false, child: slvReg)),
-            if (_page != _FigmaAuthPage.internationalVendorRegister &&
-                !(_prevPage == _FigmaAuthPage.internationalVendorRegister && showPrev))
-              Offstage(child: TickerMode(enabled: false, child: intlReg)),
-            // Outgoing page
-            if (showPrev) buildSlide(_prevPage!, false),
-            // Incoming / current page
-            buildSlide(_page, true),
-          ],
-        );
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop || _isHandlingBack) return;
+        _isHandlingBack = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          try {
+            if (!mounted) return;
+            final allow = await _onWillPop();
+            if (allow && mounted) {
+              SystemNavigator.pop();
+            }
+          } finally {
+            _isHandlingBack = false;
+          }
+        });
       },
+      child: AnimatedBuilder(
+        animation: _animCtrl,
+        builder: (context, _) {
+          final showPrev = _prevPage != null && _animCtrl.value < 1.0;
+
+          Widget buildSlide(_FigmaAuthPage page, bool isInbound) {
+            final child = page == _FigmaAuthPage.vendorRegister
+                ? slvReg
+                : _buildPageFor(page);
+            return SlideTransition(
+              position: isInbound ? _inSlide : _outSlide,
+              child: RepaintBoundary(child: child),
+            );
+          }
+
+          return Stack(
+            children: [
+              if (_page != _FigmaAuthPage.vendorRegister &&
+                  !(_prevPage == _FigmaAuthPage.vendorRegister && showPrev))
+                Offstage(child: TickerMode(enabled: false, child: slvReg)),
+              if (showPrev) buildSlide(_prevPage!, false),
+              buildSlide(_page, true),
+            ],
+          );
+        },
+      ),
     );
   }
 
   Widget _buildPageFor(_FigmaAuthPage page) {
     switch (page) {
-      // ── Customer: Sri Lanka ───────────────────────────────────────────────
-      case _FigmaAuthPage.sriLankaCustomerLogin:
+      case _FigmaAuthPage.customerLogin:
         return SrilankacustomerloginWidget(
           phoneController: _loginPhoneCtrl,
           onSendOtp: _onSriLankaCustomerSendOtp,
-          onRegister: () => _go(_FigmaAuthPage.sriLankaCustomerRegister),
-          onVendorLogin: () => _go(_FigmaAuthPage.sriLankaVendorLogin),
-          onCountryTap: () => _onCountrySwitch(_FigmaAuthPage.internationalCustomerLogin),
+          onRegister: () => _go(_FigmaAuthPage.customerRegister),
+          onVendorLogin: () => _go(_FigmaAuthPage.vendorLogin),
         );
 
-      case _FigmaAuthPage.sriLankaCustomerLoginOtp:
+      case _FigmaAuthPage.customerLoginOtp:
         return SrilankacustomerloginotpWidget(
           onVerifyOtp: _onCustomerLoginOtpSuccess,
-          onBack: () => _go(_FigmaAuthPage.sriLankaCustomerLogin, back: true),
+          onBack: () => _go(_FigmaAuthPage.customerLogin, back: true),
           maskedPhone: ref.read(customerRegistrationProvider).maskedContact ?? '',
           onResend: _onSriLankaCustomerResendOtp,
         );
 
-      case _FigmaAuthPage.sriLankaCustomerRegister:
+      case _FigmaAuthPage.customerRegister:
         return SrilankacustomerregisteraccountWidget(
-          onBack: () => _go(_FigmaAuthPage.sriLankaCustomerLogin, back: true),
-          onSignIn: () => _go(_FigmaAuthPage.sriLankaCustomerLogin, back: true),
-          onCountryTap: () => _onCountrySwitch(_FigmaAuthPage.internationalCustomerRegister),
+          onBack: () => _go(_FigmaAuthPage.customerLogin, back: true),
+          onSignIn: () => _go(_FigmaAuthPage.customerLogin, back: true),
           onProvinceTap: _showProvincePicker,
           onDistrictTap: _showDistrictPicker,
           onUseCurrentLocation: _isDetectingGps ? null : _autoDetectLocation,
@@ -1109,86 +911,36 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
           }),
         );
 
-      case _FigmaAuthPage.sriLankaCustomerRegisterOtp:
+      case _FigmaAuthPage.customerRegisterOtp:
         return SrilankacustomerregistrationotpWidget(
           onVerifyOtp: _onCustomerRegisterOtpSuccess,
-          onBack: () => _go(_FigmaAuthPage.sriLankaCustomerRegister, back: true),
+          onBack: () => _go(_FigmaAuthPage.customerRegister, back: true),
           maskedPhone: ref.read(customerRegistrationProvider).maskedContact ?? '',
           onResend: _onCustomerResendOtp,
         );
 
-      // ── Customer: International ───────────────────────────────────────────
-      case _FigmaAuthPage.internationalCustomerLogin:
-        return InternationalcustomerloginWidget(
-          emailController: _loginEmailCtrl,
-          onSendOtp: _onInternationalCustomerSendOtp,
-          onRegister: () => _go(_FigmaAuthPage.internationalCustomerRegister),
-          onVendorLogin: () => _go(_FigmaAuthPage.internationalVendorLogin),
-          onCountryTap: () => _onCountrySwitch(_FigmaAuthPage.sriLankaCustomerLogin),
-        );
-
-      case _FigmaAuthPage.internationalCustomerLoginOtp:
-        return InternationalcustomerloginotpWidget(
-          onVerifyOtp: _onCustomerLoginOtpSuccess,
-          onBack: () => _go(_FigmaAuthPage.internationalCustomerLogin, back: true),
-          maskedEmail: ref.read(customerRegistrationProvider).maskedContact ?? '',
-          onResend: _onInternationalCustomerResendOtp,
-        );
-
-      case _FigmaAuthPage.internationalCustomerRegister:
-        return InternationalcustomerregisteraccountWidget(
-          onBack: () => _go(_FigmaAuthPage.internationalCustomerLogin, back: true),
-          onSignIn: () => _go(_FigmaAuthPage.internationalCustomerLogin, back: true),
-          onCountryTap: () => _onCountrySwitch(_FigmaAuthPage.sriLankaCustomerRegister),
-          onProvinceTap: _showProvincePicker,
-          onDistrictTap: _showDistrictPicker,
-          onUseCurrentLocation: _isDetectingGps ? null : _autoDetectLocation,
-          isDetectingLocation: _isDetectingGps,
-          onCreateAccountWithData: _onInternationalCustomerCreateAccount,
-          selectedProvince: _selectedProvince?.name,
-          selectedDistrict: _selectedDistrict?.name,
-          initialLatitude: _detectedLatitude,
-          initialLongitude: _detectedLongitude,
-          onLocationPinChanged: (lat, lng) => setState(() {
-            _detectedLatitude = lat;
-            _detectedLongitude = lng;
-          }),
-        );
-
-      case _FigmaAuthPage.internationalCustomerRegisterOtp:
-        return InternationalcustomerregistrationotpWidget(
-          onVerifyOtp: _onCustomerRegisterOtpSuccess,
-          onBack: () => _go(_FigmaAuthPage.internationalCustomerRegister, back: true),
-          maskedEmail: ref.read(customerRegistrationProvider).maskedContact ?? '',
-          onResend: _onCustomerResendOtp,
-        );
-
-      // ── Vendor: Sri Lanka ─────────────────────────────────────────────────
-      case _FigmaAuthPage.sriLankaVendorLogin:
+      case _FigmaAuthPage.vendorLogin:
         return SrilankavendorloginWidget(
           emailController: _vendorLoginEmailCtrl,
           passwordController: _vendorLoginPasswordCtrl,
           onSignIn: _isVendorLoading ? null : _onVendorSignIn,
           isLoading: _isVendorLoading,
-          onRegister: () => _go(_FigmaAuthPage.sriLankaVendorRegister),
-          onCustomerLogin: () => _go(_FigmaAuthPage.sriLankaCustomerLogin),
-          onForgotPassword: () =>
-              _go(_FigmaAuthPage.sriLankaVendorForgotPassword),
-          onCountryTap: () => _onCountrySwitch(_FigmaAuthPage.internationalVendorLogin),
+          onRegister: () => _go(_FigmaAuthPage.vendorRegister),
+          onCustomerLogin: () => _go(_FigmaAuthPage.customerLogin),
+          onForgotPassword: () => _go(_FigmaAuthPage.vendorForgotPassword),
         );
 
-      case _FigmaAuthPage.sriLankaVendorLoginOtp:
+      case _FigmaAuthPage.vendorLoginOtp:
         return SrilankavendorloginotpWidget(
           onVerifyOtp: _onVendorOtpSuccess,
           maskedEmail: _vendorLoginOtpEmail ?? '',
-          onBack: () => _go(_FigmaAuthPage.sriLankaVendorLogin, back: true),
+          onBack: () => _go(_FigmaAuthPage.vendorLogin, back: true),
         );
 
-      case _FigmaAuthPage.sriLankaVendorRegister:
+      case _FigmaAuthPage.vendorRegister:
         return SrilankavendorregistrationWidget(
-          onBack: () => _go(_FigmaAuthPage.sriLankaVendorLogin, back: true),
-          onSignIn: () => _go(_FigmaAuthPage.sriLankaVendorLogin, back: true),
-          onCountryTap: () => _onCountrySwitch(_FigmaAuthPage.internationalVendorRegister),
+          onBack: () => _go(_FigmaAuthPage.vendorLogin, back: true),
+          onSignIn: () => _go(_FigmaAuthPage.vendorLogin, back: true),
           onCreateAccountWithData: _isVendorLoading ? null : _onVendorCreateAccount,
           onProvinceTap: _showProvincePicker,
           onDistrictTap: _showDistrictPicker,
@@ -1207,148 +959,46 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
           }),
         );
 
-      case _FigmaAuthPage.sriLankaVendorRegisterOtp:
+      case _FigmaAuthPage.vendorRegisterOtp:
         return SrilankavendorregistrationotpWidget(
           onVerifyOtp: _onVendorRegisterOtpSuccess,
           onResend: _onVendorRegisterResendOtp,
           maskedEmail: ref.read(customerRegistrationProvider).maskedContact ?? '',
-          onBack: () => _go(_FigmaAuthPage.sriLankaVendorRegister, back: true),
+          onBack: () => _go(_FigmaAuthPage.vendorRegister, back: true),
         );
 
-      case _FigmaAuthPage.sriLankaVendorForgotPassword:
+      case _FigmaAuthPage.vendorForgotPassword:
         return SrilankavendorforgetpasswordWidget(
           emailController: _forgotPasswordEmailCtrl,
           isLoading: _isVendorLoading,
-          onBack: () => _go(_FigmaAuthPage.sriLankaVendorLogin, back: true),
-          onSignIn: () => _go(_FigmaAuthPage.sriLankaVendorLogin, back: true),
+          onBack: () => _go(_FigmaAuthPage.vendorLogin, back: true),
+          onSignIn: () => _go(_FigmaAuthPage.vendorLogin, back: true),
           onSendResetCode: _isVendorLoading
               ? null
-              : () => _onVendorForgotPasswordSendCode(
-                    _FigmaAuthPage.sriLankaVendorForgotPasswordOtp,
-                  ),
+              : () => _onVendorForgotPasswordSendCode(_FigmaAuthPage.vendorForgotPasswordOtp),
         );
 
-      case _FigmaAuthPage.sriLankaVendorForgotPasswordOtp:
+      case _FigmaAuthPage.vendorForgotPasswordOtp:
         return SrilankavendorforgetpasswordotpWidget(
-          onSignIn: () => _go(_FigmaAuthPage.sriLankaVendorLogin, back: true),
-          onBack: () => _go(_FigmaAuthPage.sriLankaVendorForgotPassword, back: true),
-          onResendCode: () => _onVendorForgotPasswordSendCode(
-            _FigmaAuthPage.sriLankaVendorForgotPasswordOtp,
-          ),
-          onVerifyCode: (otp) => _onVendorForgotPasswordVerifyOtp(
-            otp,
-            _FigmaAuthPage.sriLankaVendorNewPassword,
-          ),
+          onSignIn: () => _go(_FigmaAuthPage.vendorLogin, back: true),
+          onBack: () => _go(_FigmaAuthPage.vendorForgotPassword, back: true),
+          onResendCode: () => _onVendorForgotPasswordSendCode(_FigmaAuthPage.vendorForgotPasswordOtp),
+          onVerifyCode: (otp) => _onVendorForgotPasswordVerifyOtp(otp, _FigmaAuthPage.vendorNewPassword),
         );
 
-      case _FigmaAuthPage.sriLankaVendorNewPassword:
+      case _FigmaAuthPage.vendorNewPassword:
         return NewpasswordupdatesrilankavendorWidget(
           passwordController: _newPasswordCtrl,
           confirmPasswordController: _confirmNewPasswordCtrl,
           isLoading: _isVendorLoading,
           previousPassword: _previousPassword,
-          onBack: () => _go(_FigmaAuthPage.sriLankaVendorForgotPasswordOtp, back: true),
+          onBack: () => _go(_FigmaAuthPage.vendorForgotPasswordOtp, back: true),
           onUpdatePassword: _isVendorLoading
               ? null
               : () => _onVendorUpdatePassword(
                     _newPasswordCtrl,
                     _confirmNewPasswordCtrl,
-                    _FigmaAuthPage.sriLankaVendorLogin,
-                  ),
-        );
-
-      // ── Vendor: International ─────────────────────────────────────────────
-      case _FigmaAuthPage.internationalVendorLogin:
-        return InternationalvendorloginWidget(
-          emailController: _vendorLoginEmailCtrl,
-          passwordController: _vendorLoginPasswordCtrl,
-          onSignIn: _isVendorLoading ? null : _onVendorSignIn,
-          isLoading: _isVendorLoading,
-          onRegister: () => _go(_FigmaAuthPage.internationalVendorRegister),
-          onCustomerLogin: () => _go(_FigmaAuthPage.internationalCustomerLogin),
-          onForgotPassword: () =>
-              _go(_FigmaAuthPage.internationalVendorForgotPassword),
-          onCountryTap: () => _onCountrySwitch(_FigmaAuthPage.sriLankaVendorLogin),
-        );
-
-      case _FigmaAuthPage.internationalVendorLoginOtp:
-        return InternationalvendorloginotpWidget(
-          onVerifyOtp: _onVendorOtpSuccess,
-          maskedEmail: _vendorLoginOtpEmail ?? '',
-          onBack: () => _go(_FigmaAuthPage.internationalVendorLogin, back: true),
-        );
-
-      case _FigmaAuthPage.internationalVendorRegister:
-        return InternationalvendorregistrationWidget(
-          onBack: () => _go(_FigmaAuthPage.internationalVendorLogin, back: true),
-          onSignIn: () => _go(_FigmaAuthPage.internationalVendorLogin, back: true),
-          onCountryTap: () => _onCountrySwitch(_FigmaAuthPage.sriLankaVendorRegister),
-          onCreateAccountWithData: _isVendorLoading ? null : _onVendorCreateAccount,
-          onProvinceTap: _showProvincePicker,
-          onDistrictTap: _showDistrictPicker,
-          onUseCurrentLocation: _isDetectingGps ? null : _autoDetectLocationInternational,
-          isDetectingLocation: _isDetectingGps,
-          selectedProvince: _selectedProvince?.name,
-          selectedDistrict: _selectedDistrict?.name,
-          initialLatitude: _detectedLatitude,
-          initialLongitude: _detectedLongitude,
-          externalPinPoint: _vendorPinPoint,
-          isLoading: _isVendorLoading,
-          onLocationPinChanged: (lat, lng) => setState(() {
-            _detectedLatitude = lat;
-            _detectedLongitude = lng;
-            _vendorPinPoint = LatLng(lat, lng);
-          }),
-        );
-
-      case _FigmaAuthPage.internationalVendorRegisterOtp:
-        return InternationalvendorregistrationotpWidget(
-          onVerifyOtp: _onVendorRegisterOtpSuccess,
-          onResend: _onVendorRegisterResendOtp,
-          maskedEmail: ref.read(customerRegistrationProvider).maskedContact ?? '',
-          onBack: () => _go(_FigmaAuthPage.internationalVendorRegister, back: true),
-        );
-
-      case _FigmaAuthPage.internationalVendorForgotPassword:
-        return InternationalvendorforgetpasswordWidget(
-          emailController: _forgotPasswordEmailCtrl,
-          isLoading: _isVendorLoading,
-          onBack: () => _go(_FigmaAuthPage.internationalVendorLogin, back: true),
-          onSignIn: () => _go(_FigmaAuthPage.internationalVendorLogin, back: true),
-          onSendResetCode: _isVendorLoading
-              ? null
-              : () => _onVendorForgotPasswordSendCode(
-                    _FigmaAuthPage.internationalVendorForgotPasswordOtp,
-                  ),
-        );
-
-      case _FigmaAuthPage.internationalVendorForgotPasswordOtp:
-        return InternationalvendorforgetpasswordotpWidget(
-          onSignIn: () => _go(_FigmaAuthPage.internationalVendorLogin, back: true),
-          onBack: () => _go(_FigmaAuthPage.internationalVendorForgotPassword, back: true),
-          onResendCode: () => _onVendorForgotPasswordSendCode(
-            _FigmaAuthPage.internationalVendorForgotPasswordOtp,
-          ),
-          onVerifyCode: (otp) => _onVendorForgotPasswordVerifyOtp(
-            otp,
-            _FigmaAuthPage.internationalVendorNewPassword,
-          ),
-        );
-
-      case _FigmaAuthPage.internationalVendorNewPassword:
-        return NewpasswordupdateforinternationalvendorWidget(
-          passwordController: _newPasswordCtrl,
-          confirmPasswordController: _confirmNewPasswordCtrl,
-          isLoading: _isVendorLoading,
-          previousPassword: _previousPassword,
-          onBack: () =>
-              _go(_FigmaAuthPage.internationalVendorForgotPasswordOtp, back: true),
-          onUpdatePassword: _isVendorLoading
-              ? null
-              : () => _onVendorUpdatePassword(
-                    _newPasswordCtrl,
-                    _confirmNewPasswordCtrl,
-                    _FigmaAuthPage.internationalVendorLogin,
+                    _FigmaAuthPage.vendorLogin,
                   ),
         );
     }
