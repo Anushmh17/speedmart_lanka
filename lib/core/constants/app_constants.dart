@@ -51,12 +51,6 @@ class AppConstants {
   /// Local mock notifications (until backend API / Firebase is ready).
   static const String notificationsKey = 'mock_notifications';
 
-  /// UI country mode only (LK or OTHER). Does not replace GPS-detected country.
-  static const String selectedCountryKey = 'speedmart_selected_country';
-
-  /// Legacy key — migrated to [selectedCountryKey] on read.
-  static const String legacyCountryPreferenceKey = 'speedmart_country_preference';
-
   /// Per-customer saved delivery address: `customer_delivery_address_{customerId}`.
   static const String customerDeliveryAddressPrefix = 'customer_delivery_address_';
 

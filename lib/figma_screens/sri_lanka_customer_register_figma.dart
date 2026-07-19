@@ -351,15 +351,7 @@ class _SrilankacustomerregisteraccountWidgetState
                     ),
                   ),
                 ),
-                Positioned(
-                  top: y(34),
-                  right: x(11),
-                  child: Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    color: Colors.black,
-                    size: x(22),
-                  ),
-                ),
+
               ],
             ),
           ),

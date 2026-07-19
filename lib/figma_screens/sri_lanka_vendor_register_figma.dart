@@ -333,6 +333,7 @@ class _SrilankavendorregistrationWidgetState
       required String title,
       required VoidCallback? onTap,
       bool isSriLanka = false,
+      bool showArrow = true,
     }) {
       return Positioned(
         top: y(top),
@@ -375,11 +376,12 @@ class _SrilankavendorregistrationWidgetState
                     ),
                   ),
                 ),
-                Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  color: Colors.white,
-                  size: x(22),
-                ),
+                if (showArrow)
+                  Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: Colors.white,
+                    size: x(22),
+                  ),
                 SizedBox(width: x(9)),
               ],
             ),
@@ -704,6 +706,7 @@ class _SrilankavendorregistrationWidgetState
                               title: 'Sri Lanka',
                               onTap: _handleCountryTap,
                               isSriLanka: true,
+                              showArrow: false,
                             ),
                             darkField(
                               top: 83,

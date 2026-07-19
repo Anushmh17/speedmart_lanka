@@ -299,12 +299,7 @@ class _SrilankacustomerloginWidgetState
                                           height: 1,
                                         ),
                                       ),
-                                      SizedBox(width: x(8)),
-                                      Icon(
-                                        Icons.keyboard_arrow_down_rounded,
-                                        color: Colors.black,
-                                        size: x(22),
-                                      ),
+
                                     ],
                                   ),
                                 ),

@@ -233,12 +233,7 @@ class _SrilankavendorloginWidgetState extends State<SrilankavendorloginWidget> {
                                   height: 1,
                                 ),
                               ),
-                              SizedBox(width: x(8)),
-                              Icon(
-                                Icons.keyboard_arrow_down_rounded,
-                                color: const Color(0xFFCACACA),
-                                size: x(22),
-                              ),
+
                             ],
                           ),
                         ),

@@ -16,7 +16,6 @@ import 'package:speedmart_lanka/features/location/widgets/province_dropdown.dart
 import 'package:speedmart_lanka/features/location/widgets/district_dropdown.dart';
 import '../models/registration_step.dart';
 import '../providers/customer_registration_provider.dart';
-import '../widgets/country_mismatch_dialog.dart';
 import '../widgets/registration_header.dart';
 import '../widgets/registration_section_card.dart';
 import '../widgets/nic_input_field.dart';
@@ -68,7 +67,6 @@ class _CustomerRegistrationScreenState
     // Trigger country detection after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(customerRegistrationProvider.notifier).setMode(isLogin: false);
-      ref.read(customerRegistrationProvider.notifier).detectCountry();
     });
   }
 
@@ -144,57 +142,11 @@ class _CustomerRegistrationScreenState
     }
   }
 
-  void _showCountrySelectionDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Select your country'),
-        content: const Text(
-          'We could not confidently determine your country. Please select it manually.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              ref.read(customerRegistrationProvider.notifier).setLkUser(true);
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('Sri Lanka'),
-          ),
-          TextButton(
-            onPressed: () {
-              ref.read(customerRegistrationProvider.notifier).setLkUser(false);
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('Other Country'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showCountryOverrideDialog() {
-    final notifier = ref.read(customerRegistrationProvider.notifier);
-    CountryMismatchDialog.show(
-      context,
-      onContinueInternational: notifier.confirmCountryOverride,
-      onUseSriLankaOtp: notifier.cancelCountryOverride,
-    );
-  }
-
   // ── Submit ────────────────────────────────────────────────────────────────
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
-
-    final regState = ref.read(customerRegistrationProvider);
-    if (regState.hasCountryMismatchBlockingSubmit) {
-      ref
-          .read(customerRegistrationProvider.notifier)
-          .requestMismatchConfirmationBeforeSubmit();
-      return;
-    }
 
     final reg = ref.read(customerRegistrationProvider.notifier);
     reg.updateFullName(_nameCtrl.text.trim());
@@ -222,13 +174,6 @@ class _CustomerRegistrationScreenState
   @override
   Widget build(BuildContext context) {
     ref.listen<CustomerRegistrationState>(customerRegistrationProvider, (prev, next) {
-      if (next.shouldShowCountryDialog && !(prev?.shouldShowCountryDialog ?? false)) {
-        _showCountrySelectionDialog();
-      }
-      if (next.pendingOverrideConfirmation && !(prev?.pendingOverrideConfirmation ?? false)) {
-        _showCountryOverrideDialog();
-      }
-
       // Sync controllers and state on change
       if (next.data.isLkUser != prev?.data.isLkUser) {
         if (next.data.isLkUser) {
@@ -272,12 +217,6 @@ class _CustomerRegistrationScreenState
                 padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    // ── Country detection banner ────────────────────
-                    if (state.isDetectingCountry)
-                      _DetectionBanner(isDark: isDark),
-
-                    if (state.isDetectingCountry) const SizedBox(height: 16),
-
                     // ── Error banner ────────────────────────────────
                     if (state.hasError) ...[
                       _ErrorBanner(
@@ -288,21 +227,6 @@ class _CustomerRegistrationScreenState
                       ),
                       const SizedBox(height: 16),
                     ],
-
-                    // ── Country toggle hint ─────────────────────────
-                    if (state.countryDetected)
-                      _CountryBadge(
-                        isLk: isLk,
-                        isDark: isDark,
-                        onToggle: () {
-                          ref.read(customerRegistrationProvider.notifier).toggleCountry();
-                          if (isLk) {
-                            _countryCtrl.text = '';
-                          } else {
-                            _countryCtrl.text = 'Sri Lanka';
-                          }
-                        },
-                      ),
 
                     const SizedBox(height: 16),
 
@@ -594,90 +518,6 @@ class _CustomerRegistrationScreenState
 }
 
 // ── Supporting widgets ─────────────────────────────────────────────────────
-
-class _DetectionBanner extends StatelessWidget {
-  const _DetectionBanner({required this.isDark});
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: AppColors.infoContainer,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          const SizedBox(
-            width: 16,
-            height: 16,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: AppColors.info,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Text(
-            'Detecting your region…',
-            style: AppTextStyles.bodySmall(AppColors.info),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CountryBadge extends StatelessWidget {
-  const _CountryBadge({required this.isLk, required this.isDark, required this.onToggle});
-  final bool isLk;
-  final bool isDark;
-  final VoidCallback onToggle;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isLk ? AppColors.primary : AppColors.secondary;
-    final label = isLk ? '🇱🇰  Sri Lanka Registration' : '🌍  International Registration';
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            isLk ? Icons.phone_android_rounded : Icons.email_outlined,
-            size: 16,
-            color: color,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              style: AppTextStyles.bodySmall(color)
-                  .copyWith(fontWeight: FontWeight.w600),
-            ),
-          ),
-          TextButton(
-            onPressed: onToggle,
-            style: TextButton.styleFrom(
-              padding: EdgeInsets.zero,
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-            child: Text(
-              'Change',
-              style: AppTextStyles.labelSmall(AppColors.primary)
-                  .copyWith(decoration: TextDecoration.underline),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 class _ErrorBanner extends StatelessWidget {
   const _ErrorBanner({required this.message, required this.onDismiss});
