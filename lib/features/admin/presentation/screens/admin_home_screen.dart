@@ -14,6 +14,7 @@ import '../../../orders/models/order_model.dart';
 import '../../../orders/providers/order_provider.dart';
 import '../../providers/admin_provider.dart';
 import 'admin_web_shell.dart';
+import '../widgets/admin_web_content.dart';
 
 class AdminHomeScreen extends ConsumerStatefulWidget {
   const AdminHomeScreen({super.key});
@@ -253,7 +254,7 @@ class _AdminDashboardTab extends ConsumerWidget {
                         physics: const NeverScrollableScrollPhysics(),
                         crossAxisSpacing: 12,
                         mainAxisSpacing: 12,
-                        childAspectRatio: 3.5,
+                        childAspectRatio: 5.0,
                         children: actions,
                       );
                     }
@@ -270,12 +271,12 @@ class _AdminDashboardTab extends ConsumerWidget {
 
   Widget _quickActionCard(IconData icon, String title, String subtitle, Color color, VoidCallback onTap) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 6),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
             color: isDark ? AppColors.cardDark : AppColors.cardLight,
             borderRadius: BorderRadius.circular(14),
@@ -284,13 +285,13 @@ class _AdminDashboardTab extends ConsumerWidget {
           child: Row(
             children: [
               Container(
-                width: 42,
-                height: 42,
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: color, size: 20),
+                child: Icon(icon, color: color, size: 16),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -371,29 +372,24 @@ class _VendorApprovalsTab extends ConsumerWidget {
       backgroundColor: Colors.transparent,
       body: RefreshIndicator(
         onRefresh: () => ref.read(adminProvider.notifier).loadAllUsers(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-              child: Text('Shop Owner Account Registrations', style: AppTextStyles.h2(primaryText)),
-            ),
-            Expanded(
-              child: adminState.isLoading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.adminColor))
-                  : vendors.isEmpty
-                      ? const AppEmptyState(
-                          icon: Icons.storefront_rounded,
-                          title: 'No Registered Shop Owners',
-                          subtitle: 'New shop owner applications will show up here.',
-                        )
-                      : ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
-                          itemCount: vendors.length,
-                          itemBuilder: (context, index) {
-                            final vendor = vendors[index];
+        child: adminState.isLoading
+            ? const Center(child: CircularProgressIndicator(color: AppColors.adminColor))
+            : vendors.isEmpty
+                ? const AppEmptyState(
+                    icon: Icons.storefront_rounded,
+                    title: 'No Registered Shop Owners',
+                    subtitle: 'New shop owner applications will show up here.',
+                  )
+                : SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    child: AdminWebContent(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Shop Owner Account Registrations', style: AppTextStyles.h2(primaryText)),
+                          const SizedBox(height: 16),
+                          ...vendors.map((vendor) {
                             final isApproved = vendor.vendorApproved == true;
-
                             return Container(
                               margin: const EdgeInsets.only(bottom: 12),
                               padding: const EdgeInsets.all(16),
@@ -433,18 +429,14 @@ class _VendorApprovalsTab extends ConsumerWidget {
                                             backgroundColor: AppColors.adminColor,
                                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                            minimumSize: const Size(0, 44),
+                                            minimumSize: const Size(0, 36),
                                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                           ),
                                           onPressed: () async {
                                             await ref.read(adminProvider.notifier).approveVendor(vendorId: vendor.id);
                                             if (context.mounted) {
                                               ScaffoldMessenger.of(context).showSnackBar(
-                                                SnackBar(
-                                                  content: Text('Approved shop owner ${vendor.businessName}!'),
-                                                  backgroundColor: AppColors.success,
-                                                  behavior: SnackBarBehavior.floating,
-                                                ),
+                                                SnackBar(content: Text('Approved ${vendor.businessName}!'), backgroundColor: AppColors.success, behavior: SnackBarBehavior.floating),
                                               );
                                             }
                                           },
@@ -452,24 +444,21 @@ class _VendorApprovalsTab extends ConsumerWidget {
                                           label: const Text('Approve Access', style: TextStyle(color: Colors.white, fontSize: 12)),
                                         )
                                       else
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(Icons.verified_outlined, color: AppColors.success, size: 14),
-                                            const SizedBox(width: 6),
-                                            const Text('Verified shop owner partner', style: TextStyle(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.bold)),
-                                          ],
-                                        ),
+                                        Row(mainAxisSize: MainAxisSize.min, children: [
+                                          Icon(Icons.verified_outlined, color: AppColors.success, size: 14),
+                                          const SizedBox(width: 6),
+                                          const Text('Verified', style: TextStyle(color: AppColors.success, fontSize: 12, fontWeight: FontWeight.bold)),
+                                        ]),
                                     ],
-                                  )
+                                  ),
                                 ],
                               ),
                             );
-                          },
-                        ),
-            ),
-          ],
-        ),
+                          }),
+                        ],
+                      ),
+                    ),
+                  ),
       ),
     );
   }
@@ -492,23 +481,18 @@ class _UsersManagementTab extends ConsumerWidget {
       backgroundColor: Colors.transparent,
       body: RefreshIndicator(
         onRefresh: () => ref.read(adminProvider.notifier).loadAllUsers(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-              child: Text('User Management Center', style: AppTextStyles.h2(primaryText)),
-            ),
-            Expanded(
-              child: adminState.isLoading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.adminColor))
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
-                      itemCount: adminState.users.length,
-                      itemBuilder: (context, index) {
-                        final user = adminState.users[index];
+        child: adminState.isLoading
+            ? const Center(child: CircularProgressIndicator(color: AppColors.adminColor))
+            : SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: AdminWebContent(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('User Management Center', style: AppTextStyles.h2(primaryText)),
+                      const SizedBox(height: 16),
+                      ...adminState.users.map((user) {
                         final isSuspended = !user.isActive;
-
                         return Container(
                           margin: const EdgeInsets.only(bottom: 12),
                           padding: const EdgeInsets.all(16),
@@ -520,46 +504,35 @@ class _UsersManagementTab extends ConsumerWidget {
                           child: Row(
                             children: [
                               CircleAvatar(
-                                radius: 24,
+                                radius: 22,
                                 backgroundColor: user.role == UserRole.admin
                                     ? AppColors.adminColor.withOpacity(0.15)
                                     : (user.role == UserRole.vendor
                                         ? AppColors.vendorColor.withOpacity(0.15)
                                         : AppColors.customerColor.withOpacity(0.15)),
-                                child: Text(
-                                  user.initials,
-                                  style: TextStyle(
-                                    color: user.role == UserRole.admin
-                                        ? AppColors.adminColor
-                                        : (user.role == UserRole.vendor
-                                            ? AppColors.vendorColor
-                                            : AppColors.customerColor),
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
+                                child: Text(user.initials, style: TextStyle(
+                                  color: user.role == UserRole.admin ? AppColors.adminColor
+                                      : (user.role == UserRole.vendor ? AppColors.vendorColor : AppColors.customerColor),
+                                  fontWeight: FontWeight.bold, fontSize: 13,
+                                )),
                               ),
                               const SizedBox(width: 14),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Row(
-                                      children: [
-                                        Text(user.fullName, style: AppTextStyles.subtitle(primaryText)),
-                                        const SizedBox(width: 6),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey.withOpacity(0.12),
-                                            borderRadius: BorderRadius.circular(6),
-                                          ),
-                                          child: Text(user.role.name.toUpperCase(), style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold)),
-                                        ),
-                                      ],
-                                    ),
+                                    Row(children: [
+                                      Text(user.fullName, style: AppTextStyles.subtitle(primaryText)),
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(color: Colors.grey.withOpacity(0.12), borderRadius: BorderRadius.circular(6)),
+                                        child: Text(user.role.name.toUpperCase(), style: const TextStyle(fontSize: 8, fontWeight: FontWeight.bold)),
+                                      ),
+                                    ]),
                                     const SizedBox(height: 2),
-                                    Text('Email: ${user.email}', style: AppTextStyles.caption(secondaryText)),
-                                    Text('Status: ${isSuspended ? "Suspended" : "Active"}', style: TextStyle(color: isSuspended ? AppColors.error : AppColors.success, fontSize: 10)),
+                                    Text(user.email, style: AppTextStyles.caption(secondaryText)),
+                                    Text(isSuspended ? 'Suspended' : 'Active', style: TextStyle(color: isSuspended ? AppColors.error : AppColors.success, fontSize: 11, fontWeight: FontWeight.w600)),
                                   ],
                                 ),
                               ),
@@ -567,35 +540,31 @@ class _UsersManagementTab extends ConsumerWidget {
                                 OutlinedButton(
                                   style: OutlinedButton.styleFrom(
                                     side: BorderSide(color: isSuspended ? AppColors.success : AppColors.error),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                                    minimumSize: const Size(0, 44),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                    minimumSize: const Size(0, 36),
                                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                   ),
                                   onPressed: () async {
                                     await ref.read(adminProvider.notifier).toggleUserActive(user.id);
                                     if (context.mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(
-                                          content: Text('${isSuspended ? "Activated" : "Suspended"} user ${user.fullName}!'),
-                                          behavior: SnackBarBehavior.floating,
-                                        ),
-                                      );
+                                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                        content: Text('${isSuspended ? "Activated" : "Suspended"} ${user.fullName}'),
+                                        behavior: SnackBarBehavior.floating,
+                                      ));
                                     }
                                   },
-                                  child: Text(
-                                    isSuspended ? 'Activate' : 'Suspend',
-                                    style: TextStyle(color: isSuspended ? AppColors.success : AppColors.error, fontSize: 11),
-                                  ),
-                                )
+                                  child: Text(isSuspended ? 'Activate' : 'Suspend',
+                                    style: TextStyle(color: isSuspended ? AppColors.success : AppColors.error, fontSize: 12)),
+                                ),
                             ],
                           ),
                         );
-                      },
-                    ),
-            ),
-          ],
-        ),
+                      }),
+                    ],
+                  ),
+                ),
+              ),
       ),
     );
   }

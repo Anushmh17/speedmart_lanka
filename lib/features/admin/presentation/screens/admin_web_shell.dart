@@ -78,7 +78,7 @@ class _WideLayout extends ConsumerWidget {
             child: Column(
               children: [
                 _WebTopBar(isDark: isDark, showMenuButton: false),
-                Expanded(child: child),
+                Expanded(child: _ContentArea(child: child, isDark: isDark)),
               ],
             ),
           ),
@@ -115,7 +115,7 @@ class _MediumLayout extends ConsumerWidget {
             child: Column(
               children: [
                 _WebTopBar(isDark: isDark, showMenuButton: false),
-                Expanded(child: child),
+                Expanded(child: _ContentArea(child: child, isDark: isDark)),
               ],
             ),
           ),
@@ -165,9 +165,25 @@ class _NarrowLayoutState extends ConsumerState<_NarrowLayout> {
             showMenuButton: true,
             onMenuTap: () => _scaffoldKey.currentState?.openDrawer(),
           ),
-          Expanded(child: widget.child),
+          Expanded(child: _ContentArea(child: widget.child, isDark: widget.isDark)),
         ],
       ),
+    );
+  }
+}
+
+// ── Content Area: centers & constrains all screen content ────────────────────
+
+class _ContentArea extends StatelessWidget {
+  const _ContentArea({required this.child, required this.isDark});
+  final Widget child;
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: isDark ? AppColors.backgroundDark : const Color(0xFFF3F4F6),
+      child: child,
     );
   }
 }
