@@ -155,6 +155,7 @@ class CustomerOtpLoginView extends StatelessWidget {
                             Text(
                               'Welcome back!',
                               style: TextStyle(
+                                fontFamily: 'Inter',
                                 fontSize: 27,
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,

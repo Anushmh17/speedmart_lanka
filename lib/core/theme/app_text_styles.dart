@@ -1,21 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// Theme 3: Typography system
 /// Uses Inter font for modern, clean aesthetics.
 class AppTextStyles {
   AppTextStyles._();
 
-  // Safe Inter font loading with system fallback
-  static TextStyle _getBaseFont() {
-    try {
-      return GoogleFonts.inter();
-    } catch (e) {
-      return const TextStyle(fontFamily: 'System');
-    }
-  }
-
-  static TextStyle get _base => _getBaseFont();
+  static const String _fontFamily = 'Inter';
+  static const TextStyle _base = TextStyle(fontFamily: _fontFamily);
 
   // ── Display ───────────────────────────────────────────────────────────────
   static TextStyle display1(Color color) => _base.copyWith(
@@ -126,19 +117,11 @@ class AppTextStyles {
 
   // ── TextTheme for Material ───────────────────────────────────────────────
   static TextTheme get textTheme {
-    try {
-      return GoogleFonts.interTextTheme();
-    } catch (e) {
-      return ThemeData.light().textTheme;
-    }
+    return ThemeData.light().textTheme.apply(fontFamily: _fontFamily);
   }
 
   static TextTheme get darkTextTheme {
-    try {
-      return GoogleFonts.interTextTheme(ThemeData.dark().textTheme);
-    } catch (e) {
-      return ThemeData.dark().textTheme;
-    }
+    return ThemeData.dark().textTheme.apply(fontFamily: _fontFamily);
   }
 }
 

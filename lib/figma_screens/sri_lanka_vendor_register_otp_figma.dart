@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class SrilankavendorregistrationotpWidget extends StatefulWidget {
   final VoidCallback? onBack;
@@ -149,7 +148,8 @@ class _SrilankavendorregistrationotpWidgetState
                         children: [
                           Text('Verify OTP',
                             textAlign: TextAlign.center,
-                            style: GoogleFonts.montserrat(
+                            style: TextStyle(
+                              fontFamily: 'Inter',
                               color: const Color(0xFFFFEBFF), fontSize: fs(33),
                               fontWeight: FontWeight.w800, letterSpacing: -0.4, height: 1,
                             ),
@@ -157,7 +157,8 @@ class _SrilankavendorregistrationotpWidgetState
                           SizedBox(height: y(20)),
                           Text('Enter the code sent to your email',
                             textAlign: TextAlign.center,
-                            style: GoogleFonts.montserrat(
+                            style: TextStyle(
+                              fontFamily: 'Inter',
                               color: const Color(0xFFEEB556), fontSize: fs(18),
                               fontWeight: FontWeight.w700, height: 1,
                             ),
@@ -320,25 +321,40 @@ class _VendorOtpBox extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: () => focusNode.requestFocus(),
       child: Container(
-        width: width, height: height, alignment: Alignment.center,
+        width: width,
+        height: height,
+        alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: Colors.transparent,
+          color: const Color.fromRGBO(224, 105, 0, 0.05),
           borderRadius: BorderRadius.circular(radius),
-          border: Border.all(color: const Color(0xFFBBBABB), width: 1),
+          border: Border.all(color: const Color(0xFFFF8D28), width: 1),
         ),
         child: TextField(
-          controller: controller, focusNode: focusNode,
+          controller: controller,
+          focusNode: focusNode,
           keyboardType: TextInputType.number,
           textInputAction: TextInputAction.next,
-          textAlign: TextAlign.center, maxLength: 1,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly, LengthLimitingTextInputFormatter(1)],
-          cursorColor: const Color(0xFFFF8213),
-          style: TextStyle(color: Colors.white, fontFamily: 'Inter',
-              fontSize: fontSize, fontWeight: FontWeight.w700, height: 1),
+          textAlign: TextAlign.center,
+          maxLength: 1,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            LengthLimitingTextInputFormatter(1),
+          ],
+          cursorColor: const Color(0xFFEEB556),
+          style: TextStyle(
+            color: Colors.white,
+            fontFamily: 'Inter',
+            fontSize: fontSize,
+            fontWeight: FontWeight.w700,
+            height: 1,
+          ),
           decoration: const InputDecoration(
-            counterText: '', border: InputBorder.none,
-            enabledBorder: InputBorder.none, focusedBorder: InputBorder.none,
-            isCollapsed: true, contentPadding: EdgeInsets.zero,
+            counterText: '',
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            isCollapsed: true,
+            contentPadding: EdgeInsets.zero,
           ),
           onChanged: onChanged,
         ),
