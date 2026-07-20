@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class SrilankacustomerloginotpWidget extends StatefulWidget {
   final VoidCallback? onBack;
@@ -208,7 +207,8 @@ class _SrilankacustomerloginotpWidgetState
                           Text(
                             'Verify OTP',
                             textAlign: TextAlign.center,
-                            style: GoogleFonts.montserrat(
+                            style: TextStyle(
+                              fontFamily: 'Inter',
                               color: Colors.black, fontSize: fs(33),
                               fontWeight: FontWeight.w800, letterSpacing: -0.4, height: 1,
                             ),
@@ -217,7 +217,8 @@ class _SrilankacustomerloginotpWidgetState
                           Text(
                             'Enter the code sent to your mobile number',
                             textAlign: TextAlign.center,
-                            style: GoogleFonts.montserrat(
+                            style: TextStyle(
+                              fontFamily: 'Inter',
                               color: const Color(0xFFFF8213), fontSize: fs(18),
                               fontWeight: FontWeight.w700, height: 1,
                             ),
