@@ -33,7 +33,6 @@ class BottomNavVisibilityNotifier extends AutoDisposeNotifier<bool> {
       '/customer/orders',
       '/customer/profile',
       '/vendor',
-      '/admin',
     };
 
     final routeVisible = mainDashboardRoutes.contains(cleanPath);

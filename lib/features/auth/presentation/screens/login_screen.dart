@@ -208,8 +208,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             debugPrint('[Auth] Vendor login success → Navigating to vendor home');
             context.go(RouteNames.vendorHome);
           case UserRole.admin:
-            debugPrint('[Auth] Admin login success → Navigating to admin dashboard');
-            context.go(RouteNames.adminHome);
+            debugPrint('[Auth] Admin access is no longer available in the mobile app');
+            context.go(RouteNames.customerHome);
         }
       }
     });

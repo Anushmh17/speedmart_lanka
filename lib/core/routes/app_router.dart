@@ -24,12 +24,6 @@ import 'package:speedmart_lanka/features/vendor/proposals/presentation/vendor_re
 import 'package:speedmart_lanka/features/vendor/proposals/presentation/vendor_proposal_form_screen.dart';
 import 'package:speedmart_lanka/features/vendor/proposals/presentation/vendor_proposal_detail_screen.dart';
 import 'package:speedmart_lanka/features/chat/presentation/screens/chat_screen.dart';
-import 'package:speedmart_lanka/features/admin/presentation/screens/admin_home_screen.dart';
-import 'package:speedmart_lanka/features/admin/presentation/screens/admin_vendor_management_screen.dart';
-import 'package:speedmart_lanka/features/admin/presentation/screens/admin_vendor_assignment_screen.dart';
-import 'package:speedmart_lanka/features/admin/presentation/screens/admin_category_management_screen.dart';
-import 'package:speedmart_lanka/features/admin/presentation/screens/admin_order_detail_screen.dart';
-import 'package:speedmart_lanka/features/admin/presentation/screens/admin_web_shell.dart';
 import 'package:speedmart_lanka/features/requests/presentation/screens/request_list_screen.dart';
 import 'package:speedmart_lanka/shared/presentation/screens/profile_screen.dart';
 import 'package:speedmart_lanka/features/customer/delivery_address/presentation/screens/customer_delivery_address_screen.dart';
@@ -140,7 +134,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         debugPrint('[Router] → Action: Unauthenticated on protected route, redirect to login');
         final savedRole = await StorageService.getRole();
         if (savedRole == UserRole.vendor.name) return RouteNames.vendorLogin;
-        if (savedRole == UserRole.admin.name) return RouteNames.adminLogin;
         return RouteNames.customerLogin;
       }
 
@@ -175,17 +168,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _buildPage(context, state,
             const FigmaAuthFlow(role: FigmaAuthRole.vendor)),
       ),
-      GoRoute(
-        path: RouteNames.adminLogin,
-        pageBuilder: (context, state) => _buildPage(context, state,
-            const LoginScreen(role: UserRole.admin)),
-      ),
-      GoRoute(
-        path: RouteNames.adminRegister,
-        pageBuilder: (context, state) => _buildPage(context, state,
-        const RegisterScreen(role: UserRole.admin)),
-      ),
-
       // ── Customer Shell ───────────────────────────────────────────────────
       ShellRoute(
         navigatorKey: shellNavigatorKey,
@@ -399,38 +381,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
 
-      // ── Admin (web shell wraps all admin routes) ──────────────────────────
-      ShellRoute(
-        builder: (context, state, child) => AdminWebShell(child: child),
-        routes: [
-          GoRoute(
-            path: RouteNames.adminDashboard,
-            pageBuilder: (context, state) => _buildPage(context, state, const AdminHomeScreen()),
-          ),
-          GoRoute(
-            path: RouteNames.adminVendorManagement,
-            pageBuilder: (context, state) => _buildPage(context, state, const AdminVendorManagementScreen()),
-          ),
-          GoRoute(
-            path: RouteNames.adminVendorAssignment,
-            pageBuilder: (context, state) {
-              final vendor = state.extra;
-              return _buildPage(context, state, AdminVendorAssignmentScreen(vendor: vendor));
-            },
-          ),
-          GoRoute(
-            path: RouteNames.adminCategories,
-            pageBuilder: (context, state) => _buildPage(context, state, const AdminCategoryManagementScreen()),
-          ),
-          GoRoute(
-            path: '/admin/orders/detail',
-            pageBuilder: (context, state) {
-              final order = state.extra as OrderModel;
-              return _buildPage(context, state, AdminOrderDetailScreen(order: order));
-            },
-          ),
-        ],
-      ),
     ],
     errorBuilder: (context, state) => Scaffold(
       body: Center(
@@ -456,6 +406,6 @@ String _homeForRole(UserRole role) {
   switch (role) {
     case UserRole.customer: return RouteNames.customerHome;
     case UserRole.vendor:   return RouteNames.vendorHome;
-    case UserRole.admin:    return RouteNames.adminDashboard;
+    case UserRole.admin:    return RouteNames.customerHome;
   }
 }

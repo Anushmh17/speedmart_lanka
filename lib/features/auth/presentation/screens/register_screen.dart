@@ -80,7 +80,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen>
       case UserRole.vendor:
         return RouteNames.vendorLogin;
       case UserRole.admin:
-        return RouteNames.adminLogin;
+        return RouteNames.customerLogin;
     }
   }
 
