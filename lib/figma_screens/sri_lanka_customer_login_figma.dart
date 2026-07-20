@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../core/storage/storage_service.dart';
 
 class SrilankacustomerloginWidget extends StatefulWidget {
@@ -167,7 +166,8 @@ class _SrilankacustomerloginWidgetState
                           Text(
                             'Welcome back',
                             textAlign: TextAlign.center,
-                            style: GoogleFonts.montserrat(
+                            style: TextStyle(
+                              fontFamily: 'Montserrat',
                               color: Colors.black,
                               fontSize: fs(33),
                               fontWeight: FontWeight.w800,
@@ -179,7 +179,8 @@ class _SrilankacustomerloginWidgetState
                           Text(
                             'Sign in as Customer',
                             textAlign: TextAlign.center,
-                            style: GoogleFonts.montserrat(
+                            style: TextStyle(
+                              fontFamily: 'Montserrat',
                               color: const Color(0xFFFF8213),
                               fontSize: fs(18),
                               fontWeight: FontWeight.w700,
