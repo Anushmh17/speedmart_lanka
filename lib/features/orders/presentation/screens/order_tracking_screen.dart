@@ -1,6 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'package:speedmart_lanka/core/theme/app_colors.dart';
 import 'package:speedmart_lanka/core/theme/app_text_styles.dart';
 import 'package:speedmart_lanka/core/theme/app_radius.dart';
@@ -515,30 +521,22 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
               label: 'Share Receipt',
               onPressed: () async {
                 Navigator.pop(ctx);
-                final receiptText = StringBuffer()
-                  ..writeln('OFFICIAL RECEIPT')
-                  ..writeln('Invoice: ${activeOrder.id}')
-                  ..writeln('Date: ${activeOrder.createdAt.day}/${activeOrder.createdAt.month}/${activeOrder.createdAt.year}')
-                  ..writeln('')
-                  ..writeln('Items Subtotal: Rs. ${subtotal.toStringAsFixed(2)}')
-                  ..writeln('Delivery Charge: Rs. ${activeOrder.deliveryCharge.toStringAsFixed(2)}')
-                  ..writeln('')
-                  ..writeln('Total: Rs. ${activeOrder.totalPrice.toStringAsFixed(2)}')
-                  ..writeln('')
-                  ..writeln('Thank you for ordering with Speedmart Lanka.');
-
                 try {
-                  await Share.share(receiptText.toString());
+                  final pdfFile = await _generateReceiptPdf(activeOrder, subtotal);
+                  await Share.shareXFiles(
+                    [XFile(pdfFile.path)],
+                    text: 'Receipt for order ${activeOrder.id}',
+                  );
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Receipt shared.'),
+                      content: Text('Receipt ready to share.'),
                       behavior: SnackBarBehavior.floating,
                     ),
                   );
-                } catch (_) {
+                } catch (error) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Could not open share dialog.'),
+                    SnackBar(
+                      content: Text('Could not generate or share receipt: $error'),
                       behavior: SnackBarBehavior.floating,
                     ),
                   );
@@ -549,6 +547,283 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
             ),
           ],
         );
+      },
+    );
+  }
+
+  Future<File> _generateReceiptPdf(OrderModel activeOrder, double subtotal) async {
+    final fontData = await rootBundle.load('assets/fonts/Inter_28pt-Regular.ttf');
+    final font = pw.Font.ttf(fontData.buffer.asByteData());
+    final boldFontData = await rootBundle.load('assets/fonts/Inter_28pt-Bold.ttf');
+    final boldFont = pw.Font.ttf(boldFontData.buffer.asByteData());
+
+    final pdf = pw.Document(
+      theme: pw.ThemeData.withFont(base: font, bold: boldFont),
+    );
+
+    pdf.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(24),
+        build: (pw.Context context) {
+          return [
+            pw.Container(
+              padding: const pw.EdgeInsets.all(14),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.blue900,
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(12)),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Expanded(
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('OFFICIAL RECEIPT',
+                            style: pw.TextStyle(
+                                font: boldFont,
+                                fontSize: 24,
+                                fontWeight: pw.FontWeight.bold,
+                                color: PdfColors.white)),
+                        pw.SizedBox(height: 6),
+                        pw.Text('Speedmart Lanka (Pvt) Ltd.',
+                            style: pw.TextStyle(font: font, fontSize: 12, color: PdfColor(1, 1, 1, 0.8))),
+                        pw.Text('Reg No: PV 00259871 | Colombo 03',
+                            style: pw.TextStyle(font: font, fontSize: 10, color: PdfColor(1, 1, 1, 0.8))),
+                      ],
+                    ),
+                  ),
+                  pw.Container(
+                    width: 70,
+                    height: 70,
+                    decoration: pw.BoxDecoration(
+                      color: PdfColors.white,
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(14)),
+                    ),
+                    child: pw.Center(
+                      child: pw.Text('LOGO',
+                          style: pw.TextStyle(
+                              fontSize: 10,
+                              fontWeight: pw.FontWeight.bold,
+                              color: PdfColors.blue900)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 18),
+            pw.Container(
+              padding: const pw.EdgeInsets.all(14),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey100,
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(12)),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text('Invoice Number', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+                          pw.Text(activeOrder.id, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                        ],
+                      ),
+                      pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text('Payment Date', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+                          pw.Text('${activeOrder.createdAt.day}/${activeOrder.createdAt.month}/${activeOrder.createdAt.year}', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                        ],
+                      ),
+                    ],
+                  ),
+                  pw.SizedBox(height: 12),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text('Status', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+                          pw.Text(activeOrder.paymentStatus.name.toUpperCase(), style: pw.TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                      pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text('Payment Method', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+                          pw.Text(activeOrder.paymentMethod.displayName, style: pw.TextStyle(fontSize: 12)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 18),
+            pw.Container(
+              padding: const pw.EdgeInsets.all(14),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey100,
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(12)),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Expanded(
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('Customer', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+                        pw.Text(activeOrder.customerName, style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                        pw.SizedBox(height: 4),
+                        pw.Text('Phone', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+                        pw.Text(activeOrder.customerPhone, style: pw.TextStyle(fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                  pw.Expanded(
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('Delivery Address', style: pw.TextStyle(fontSize: 10, color: PdfColors.grey600)),
+                        pw.Text(activeOrder.deliveryAddress, style: pw.TextStyle(fontSize: 12), maxLines: 4),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 18),
+            _buildReceiptItemsTable(activeOrder),
+            pw.SizedBox(height: 18),
+            pw.Container(
+              padding: const pw.EdgeInsets.all(14),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey100,
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(12)),
+              ),
+              child: pw.Column(
+                children: [
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('Items Subtotal', style: pw.TextStyle(fontSize: 12, color: PdfColors.grey800)),
+                      pw.Text('Rs. ${subtotal.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                    ],
+                  ),
+                  pw.Divider(height: 14, color: PdfColors.grey400),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('Delivery Charge', style: pw.TextStyle(fontSize: 12, color: PdfColors.grey800)),
+                      pw.Text('Rs. ${activeOrder.deliveryCharge.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
+                    ],
+                  ),
+                  pw.Divider(height: 14, color: PdfColors.grey400),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('Total Amount Paid', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+                      pw.Text('Rs. ${activeOrder.totalPrice.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 20),
+            pw.Container(
+              padding: const pw.EdgeInsets.all(14),
+              decoration: pw.BoxDecoration(
+                color: PdfColors.grey100,
+                borderRadius: const pw.BorderRadius.all(pw.Radius.circular(12)),
+              ),
+              child: pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Expanded(
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('Verified Receipt',
+                            style: pw.TextStyle(
+                                fontSize: 12,
+                                fontWeight: pw.FontWeight.bold,
+                                color: PdfColors.grey800)),
+                        pw.SizedBox(height: 6),
+                        pw.Text('Scan to verify this receipt and order details.',
+                            style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
+                      ],
+                    ),
+                  ),
+                  pw.Container(
+                    width: 80,
+                    height: 80,
+                    decoration: pw.BoxDecoration(
+                      color: PdfColors.white,
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(10)),
+                      border: pw.Border.all(color: PdfColors.grey400, width: 0.8),
+                    ),
+                    child: pw.BarcodeWidget(
+                      barcode: pw.Barcode.qrCode(),
+                      data: 'https://speedmart.lk/verify/${activeOrder.id}',
+                      width: 70,
+                      height: 70,
+                      drawText: false,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 14),
+            pw.Text('Thank you for ordering with Speedmart Lanka.', style: pw.TextStyle(fontSize: 11, color: PdfColors.grey700)),
+          ];
+        },
+      ),
+    );
+
+    final dir = await getTemporaryDirectory();
+    final file = File('${dir.path}/speedmart_receipt_${activeOrder.id}.pdf');
+    await file.writeAsBytes(await pdf.save());
+    return file;
+  }
+
+  pw.Widget _buildReceiptItemsTable(OrderModel activeOrder) {
+    final headers = ['Item', 'Qty', 'Unit Price', 'Total'];
+    final rows = activeOrder.items
+        .where((item) => item.status != ProposalItemStatus.unavailable)
+        .map((item) => [
+              item.itemName,
+              item.quantity.toString(),
+              'Rs. ${item.price.toStringAsFixed(2)}',
+              'Rs. ${item.totalPrice.toStringAsFixed(2)}',
+            ])
+        .toList();
+
+    return pw.Table.fromTextArray(
+      headers: headers,
+      data: rows,
+      headerStyle: pw.TextStyle(
+        fontSize: 11,
+        fontWeight: pw.FontWeight.bold,
+        color: PdfColors.white,
+      ),
+      headerDecoration: const pw.BoxDecoration(color: PdfColors.blue900),
+      cellStyle: const pw.TextStyle(fontSize: 10),
+      cellAlignment: pw.Alignment.centerLeft,
+      headerAlignment: pw.Alignment.centerLeft,
+      border: pw.TableBorder.all(color: PdfColors.grey300, width: 0.5),
+      cellPadding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 8),
+      columnWidths: {
+        0: const pw.FlexColumnWidth(4),
+        1: const pw.FlexColumnWidth(1.5),
+        2: const pw.FlexColumnWidth(2),
+        3: const pw.FlexColumnWidth(2),
       },
     );
   }

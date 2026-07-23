@@ -218,6 +218,7 @@ void main() {
         singleDesc: '',
         singleImageUrls: [],
         multipleItems: [],
+        requestStarted: false,
       ), isFalse);
 
       // Dirty with suburb search text
@@ -233,6 +234,7 @@ void main() {
         singleDesc: '',
         singleImageUrls: [],
         multipleItems: [],
+        requestStarted: true,
       ), isTrue);
 
       // Dirty with singleName
@@ -248,6 +250,7 @@ void main() {
         singleDesc: '',
         singleImageUrls: [],
         multipleItems: [],
+        requestStarted: true,
       ), isTrue);
 
       // Dirty with multiple items list
@@ -263,6 +266,7 @@ void main() {
         singleDesc: '',
         singleImageUrls: [],
         multipleItems: ['some_item'],
+        requestStarted: true,
       ), isTrue);
     });
   });
