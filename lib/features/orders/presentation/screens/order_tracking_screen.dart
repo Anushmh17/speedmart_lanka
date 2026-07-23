@@ -13,6 +13,7 @@ import 'package:speedmart_lanka/features/orders/models/order_model.dart';
 import 'package:speedmart_lanka/features/orders/providers/order_provider.dart';
 import 'package:speedmart_lanka/features/orders/presentation/widgets/order_timeline_widget.dart';
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
+import 'package:share_plus/share_plus.dart';
 
 class OrderTrackingScreen extends ConsumerStatefulWidget {
   const OrderTrackingScreen({super.key, required this.order});
@@ -512,15 +513,36 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
             ),
             Theme3AppButton(
               label: 'Share Receipt',
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                        'Receipt successfully downloaded and shared!'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
+                final receiptText = StringBuffer()
+                  ..writeln('OFFICIAL RECEIPT')
+                  ..writeln('Invoice: ${activeOrder.id}')
+                  ..writeln('Date: ${activeOrder.createdAt.day}/${activeOrder.createdAt.month}/${activeOrder.createdAt.year}')
+                  ..writeln('')
+                  ..writeln('Items Subtotal: Rs. ${subtotal.toStringAsFixed(2)}')
+                  ..writeln('Delivery Charge: Rs. ${activeOrder.deliveryCharge.toStringAsFixed(2)}')
+                  ..writeln('')
+                  ..writeln('Total: Rs. ${activeOrder.totalPrice.toStringAsFixed(2)}')
+                  ..writeln('')
+                  ..writeln('Thank you for ordering with Speedmart Lanka.');
+
+                try {
+                  await Share.share(receiptText.toString());
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Receipt shared.'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                } catch (_) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Could not open share dialog.'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
+                }
               },
               icon: Icons.share_rounded,
               width: 150,

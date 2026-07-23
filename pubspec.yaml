@@ -45,6 +45,8 @@ dependencies:
 
   # Local notifications
   flutter_local_notifications: ^17.2.4
+  # Share via platform share sheet
+  share_plus: ^6.3.0
 
 dev_dependencies:
   flutter_test:
