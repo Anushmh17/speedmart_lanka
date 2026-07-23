@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_radius.dart';
@@ -8,6 +9,7 @@ import '../../../../core/widgets/theme3/theme3_app_card.dart';
 import '../../../../core/widgets/theme3/theme3_empty_state.dart';
 import '../../../../core/widgets/theme3/theme3_status_chip.dart';
 import '../../../../core/widgets/theme3/request_image_carousel.dart';
+import '../../../../core/routes/route_names.dart';
 import '../../../../shared/utils/category_constants.dart';
 import '../../models/shopping_request.dart';
 import '../../providers/request_provider.dart';
@@ -208,7 +210,7 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
                 subtitle: 'Create your first shopping request and get proposals from vendors',
                 actionLabel: 'Create New Request',
                 onActionPressed: () {
-                  Navigator.of(context).pop();
+                  context.push(RouteNames.customerCreateRequest);
                 },
               ),
             ),

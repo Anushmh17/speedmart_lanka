@@ -141,8 +141,8 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     final isDefaultLoc = _defaultLoadedLocation != null &&
         currentLoc != null &&
         currentLoc.formattedAddress == _defaultLoadedLocation!.formattedAddress;
-    // A preselected category with no request type chosen yet is not considered dirty
     final effectiveCategory = _requestType != null ? _singleCategory : null;
+    final hasRequestStarted = _requestType != null || _preselectedCategory != null;
     return DraftService.isFormDirty(
       deliveryLocation: isDefaultLoc ? null : currentLoc,
       suburbText: isDefaultLoc ? '' : _suburbSearchController.text.trim(),
@@ -155,6 +155,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
       singleDesc: _singleDescController.text.trim(),
       singleImageUrls: _singleImageUrls,
       multipleItems: _multipleItemsList,
+      requestStarted: hasRequestStarted,
     );
   }
 

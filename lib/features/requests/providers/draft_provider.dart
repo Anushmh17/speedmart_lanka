@@ -74,7 +74,12 @@ class DraftService {
     required String singleDesc,
     required List<String> singleImageUrls,
     required List<dynamic> multipleItems,
+    required bool requestStarted,
   }) {
+    if (!requestStarted) {
+      return false;
+    }
+
     // 1. Delivery Location Entered
     final hasLoc = deliveryLocation != null &&
         (deliveryLocation.suburb.isNotEmpty ||
@@ -97,7 +102,7 @@ class DraftService {
       if (singleBrand.isNotEmpty) return true;
     }
 
-    return false;
+    return true;
   }
 }
 
