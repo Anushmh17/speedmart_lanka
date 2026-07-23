@@ -179,11 +179,54 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  bool get _hasProfileChanges {
+    final user = ref.read(currentUserProvider);
+    if (user == null) return false;
+
+    final currentRequested = List<String>.from(user.requestedCategories ?? [])
+        .map((c) => VendorCategories.normalize(c).toLowerCase())
+        .toSet();
+    final editedRequested = _requestedCategories
+        .map((c) => VendorCategories.normalize(c).toLowerCase())
+        .toSet();
+
+    final sameName = _nameCtrl.text.trim() == user.fullName;
+    final samePhone = _phoneCtrl.text.trim() == user.phone;
+    final sameBusinessName = (user.businessName ?? '') == _businessNameCtrl.text.trim();
+    final samePickedImage = (_pickedImagePath ?? user.profileImageUrl) == user.profileImageUrl;
+    final sameBankName = (user.bankName ?? '') == _bankNameCtrl.text.trim();
+    final sameBankBranch = (user.bankBranch ?? '') == _bankBranchCtrl.text.trim();
+    final sameBankAccountName = (user.bankAccountName ?? '') == _bankAccountNameCtrl.text.trim();
+    final sameBankAccountNumber = (user.bankAccountNumber ?? '') == _bankAccountNumberCtrl.text.trim();
+    final sameRequestedCategories = currentRequested.containsAll(editedRequested) && editedRequested.containsAll(currentRequested);
+
+    if (user.role == UserRole.vendor) {
+      return !sameName ||
+          !samePhone ||
+          !sameBusinessName ||
+          !samePickedImage ||
+          !sameBankName ||
+          !sameBankBranch ||
+          !sameBankAccountName ||
+          !sameBankAccountNumber ||
+          !sameRequestedCategories;
+    }
+
+    return !sameName || !samePhone || !samePickedImage;
+  }
+
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     final user = ref.read(currentUserProvider);
     if (user == null) return;
+
+    if (!_hasProfileChanges) {
+      if (mounted) {
+        setState(() => _isEditing = false);
+      }
+      return;
+    }
 
     await ref.read(authProvider.notifier).updateProfile(
       fullName: _nameCtrl.text.trim(),
@@ -196,7 +239,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       bankAccountName: user.role == UserRole.vendor ? _bankAccountNameCtrl.text.trim() : null,
       bankAccountNumber: user.role == UserRole.vendor ? _bankAccountNumberCtrl.text.trim() : null,
     );
-    
+
     if (mounted && !ref.read(authLoadingProvider)) {
       setState(() => _isEditing = false);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -1380,7 +1423,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       const SizedBox(height: AppSpacing.xl),
       Theme3AppButton(
         label: 'Save Changes',
-        onPressed: _handleSave,
+        onPressed: _hasProfileChanges ? _handleSave : null,
         isLoading: isLoading,
       ),
     ];

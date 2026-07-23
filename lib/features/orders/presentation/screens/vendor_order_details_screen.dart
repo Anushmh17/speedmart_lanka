@@ -510,6 +510,25 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                             ),
                           ],
                         ),
+                        if (activeOrder.customerFormattedAddress.isNotEmpty) ...[
+                          const SizedBox(height: 16),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Icon(Icons.map_outlined, color: AppColors.vendorColor, size: 20),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('Delivery Area', style: AppTextStyles.caption(secondaryText)),
+                                    Text(activeOrder.customerFormattedAddress, style: AppTextStyles.bodyMedium(primaryText)),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                         if (VendorDeliveryAccessService.canViewLocationAccuracy(activeOrder) && activeOrder.accuracy != null) ...[
                           const SizedBox(height: 16),
                           Row(

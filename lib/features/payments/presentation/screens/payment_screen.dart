@@ -222,6 +222,14 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           customerName: customer.fullName,
           customerPhone: _phoneController.text,
           deliveryAddress: deliveryAddress,
+          customerProvince: _request!.deliveryLocation?.province ?? '',
+          customerDistrict: _request!.deliveryLocation?.district ?? '',
+          customerCity: _request!.deliveryLocation?.city ?? '',
+          customerSuburb: _request!.deliveryLocation?.suburb ?? _request!.customerArea,
+          customerFormattedAddress:
+              _request!.deliveryLocation?.formattedAddress.isNotEmpty == true
+                  ? _request!.deliveryLocation!.formattedAddress
+                  : _request!.customerArea,
           items: group.acceptedItems,
           deliveryCharge: deliveryFee,
           totalPrice: customerAmount,

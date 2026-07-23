@@ -70,6 +70,13 @@ class OrderModel {
   final String customerPhone;
   final String deliveryAddress;
 
+  // Snapshot of the customer's structured delivery location at order creation time.
+  final String customerProvince;
+  final String customerDistrict;
+  final String customerCity;
+  final String customerSuburb;
+  final String customerFormattedAddress;
+
   final List<ProposalItem> items;
   final double deliveryCharge;
   final double totalPrice;
@@ -102,6 +109,11 @@ class OrderModel {
     required this.customerName,
     required this.customerPhone,
     required this.deliveryAddress,
+    this.customerProvince = '',
+    this.customerDistrict = '',
+    this.customerCity = '',
+    this.customerSuburb = '',
+    this.customerFormattedAddress = '',
     required this.items,
     required this.deliveryCharge,
     required this.totalPrice,
@@ -133,6 +145,11 @@ class OrderModel {
     String? customerName,
     String? customerPhone,
     String? deliveryAddress,
+    String? customerProvince,
+    String? customerDistrict,
+    String? customerCity,
+    String? customerSuburb,
+    String? customerFormattedAddress,
     List<ProposalItem>? items,
     double? deliveryCharge,
     double? totalPrice,
@@ -163,6 +180,12 @@ class OrderModel {
       customerName: customerName ?? this.customerName,
       customerPhone: customerPhone ?? this.customerPhone,
       deliveryAddress: deliveryAddress ?? this.deliveryAddress,
+      customerProvince: customerProvince ?? this.customerProvince,
+      customerDistrict: customerDistrict ?? this.customerDistrict,
+      customerCity: customerCity ?? this.customerCity,
+      customerSuburb: customerSuburb ?? this.customerSuburb,
+      customerFormattedAddress:
+          customerFormattedAddress ?? this.customerFormattedAddress,
       items: items ?? this.items,
       deliveryCharge: deliveryCharge ?? this.deliveryCharge,
       totalPrice: totalPrice ?? this.totalPrice,
@@ -197,6 +220,11 @@ class OrderModel {
       'customerName': customerName,
       'customerPhone': customerPhone,
       'deliveryAddress': deliveryAddress,
+      'customerProvince': customerProvince,
+      'customerDistrict': customerDistrict,
+      'customerCity': customerCity,
+      'customerSuburb': customerSuburb,
+      'customerFormattedAddress': customerFormattedAddress,
       'items': items.map((i) => i.toJson()).toList(),
       'deliveryCharge': deliveryCharge,
       'totalPrice': totalPrice,
@@ -230,6 +258,12 @@ class OrderModel {
       customerName: json['customerName'] as String? ?? '',
       customerPhone: json['customerPhone'] as String? ?? '',
       deliveryAddress: json['deliveryAddress'] as String? ?? '',
+      customerProvince: json['customerProvince'] as String? ?? '',
+      customerDistrict: json['customerDistrict'] as String? ?? '',
+      customerCity: json['customerCity'] as String? ?? '',
+      customerSuburb: json['customerSuburb'] as String? ?? '',
+      customerFormattedAddress:
+          json['customerFormattedAddress'] as String? ?? '',
       items: (json['items'] as List<dynamic>? ?? [])
           .map((e) => ProposalItem.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList(),

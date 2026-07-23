@@ -1665,120 +1665,101 @@ class _DashboardOrderCard extends StatelessWidget {
           color: isDark ? AppColors.borderDark : AppColors.borderLight,
         ),
       ),
-      child: IntrinsicHeight(
+      child: Padding(
+        padding: EdgeInsets.all(AppSpacing.md),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Container(
-              width: 5,
-              decoration: BoxDecoration(
-                color: accentColor,
-                borderRadius: const BorderRadius.horizontal(
-                  left: Radius.circular(AppRadius.lg),
-                ),
-              ),
+            _DashboardOrderCarousel(
+              order: order,
+              accentColor: accentColor,
             ),
+            SizedBox(width: AppSpacing.md),
             Expanded(
-              child: Padding(
-                padding: EdgeInsets.all(AppSpacing.md),
-                child: Row(
-                  children: [
-                    _DashboardOrderCarousel(
-                      order: order,
-                      accentColor: accentColor,
-                    ),
-                    SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  order.id,
-                                  style: AppTextStyles.subtitle(primaryText),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              if (isMultipleOrders) ...[
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: accentColor.withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    'Multi',
-                                    style: AppTextStyles.caption(accentColor)
-                                        .copyWith(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                          SizedBox(height: AppSpacing.xs),
-                          Text(
-                            order.customerName,
-                            style: AppTextStyles.bodySmall(secondaryText),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          if (hasMultipleItems) ...[
-                            SizedBox(height: AppSpacing.xs),
-                            Text(
-                              '${order.items.length} items',
-                              style: AppTextStyles.caption(secondaryText),
-                            ),
-                          ],
-                          SizedBox(height: AppSpacing.xs),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: accentColor.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              order.status.displayName,
-                              style: AppTextStyles.caption(accentColor)
-                                  .copyWith(fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    SizedBox(width: AppSpacing.sm),
-                    TextButton(
-                      onPressed: onManage,
-                      style: TextButton.styleFrom(
-                        backgroundColor: accentColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          order.id,
+                          style: AppTextStyles.subtitle(primaryText),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(AppRadius.md),
-                        ),
-                        minimumSize: const Size(0, 36),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      child: const Text('Manage'),
+                      if (isMultipleOrders) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: accentColor.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            'Multi',
+                            style: AppTextStyles.caption(accentColor).copyWith(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  SizedBox(height: AppSpacing.xs),
+                  Text(
+                    order.customerName,
+                    style: AppTextStyles.bodySmall(secondaryText),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (hasMultipleItems) ...[
+                    SizedBox(height: AppSpacing.xs),
+                    Text(
+                      '${order.items.length} items',
+                      style: AppTextStyles.caption(secondaryText),
                     ),
                   ],
-                ),
+                  SizedBox(height: AppSpacing.xs),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: accentColor.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      order.status.displayName,
+                      style: AppTextStyles.caption(accentColor)
+                          .copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
               ),
+            ),
+            SizedBox(width: AppSpacing.sm),
+            TextButton(
+              onPressed: onManage,
+              style: TextButton.styleFrom(
+                backgroundColor: accentColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                minimumSize: const Size(0, 36),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('Manage'),
             ),
           ],
         ),
