@@ -685,11 +685,18 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                                             });
                                           },
                                         ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: GestureDetector(
+                                              behavior: HitTestBehavior.translucent,
+                                              onTap: () {
+                                                setStateChecklist(() {
+                                                  _packedItems[item.requestItemId] = !isChecked;
+                                                });
+                                              },
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
                                               Row(
                                                 children: [
                                                   Expanded(
