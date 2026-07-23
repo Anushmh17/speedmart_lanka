@@ -23,6 +23,7 @@ import 'package:speedmart_lanka/shared/providers/category_provider.dart';
 import '../../../../core/storage/storage_service.dart';
 import 'package:flutter/services.dart';
 import '../../../../shared/models/sri_lanka_banks.dart';
+import '../../../../shared/utils/category_constants.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key, this.showBackButton = true});
@@ -769,10 +770,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               spacing: 8,
               runSpacing: 8,
               children: user.allowedCategories!
-                  .map<Widget>((cat) => Theme3StatusChip(
-                    label: cat.toString(),
-                    status: Theme3StatusType.completed,
-                  ))
+                  .map((cat) => VendorCategories.display(
+                        VendorCategories.normalize(cat.toString()),
+                      ))
+                  .toSet()
+                  .toList()
+                  .map<Widget>((label) => Theme3StatusChip(
+                        label: label,
+                        status: Theme3StatusType.completed,
+                      ))
                   .toList(),
             )
           else
@@ -795,12 +801,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
         final activeCategories = ref.watch(activeCategoriesProvider);
         final approvedKeys = (user.allowedCategories ?? [])
-            .map((c) => c.trim().toLowerCase().replaceAll(' ', '_'))
+            .map((c) => VendorCategories.normalize(c.toString()).toLowerCase())
             .toSet();
-        
+
         final requestableCategories = activeCategories
             .where((cat) => cat.isActive)
-            .where((cat) => !approvedKeys.contains(cat.normalizedKey))
+            .where((cat) => !approvedKeys.contains(cat.normalizedKey.toLowerCase()))
             .toList();
 
         return Theme3AppCard(
@@ -840,7 +846,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   children: requestableCategories.map<Widget>((cat) {
                     final isSelected = _requestedCategories.contains(cat.normalizedKey);
                     return FilterChip(
-                      label: Text(cat.name),
+                      label: Text(VendorCategories.display(cat.normalizedKey)),
                       selected: isSelected,
                       onSelected: (selected) {
                         setState(() {

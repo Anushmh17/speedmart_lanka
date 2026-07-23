@@ -46,12 +46,6 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
       _isProcessingAccept = true;
     });
     try {
-      if (widget.proposal.status != ProposalStatus.accepted) {
-        await ref.read(proposalProvider.notifier).acceptProposal(
-              widget.proposal.id,
-              widget.requestId,
-            );
-      }
       if (!mounted) return;
       context.push('/customer/payment', extra: {
         'proposal': widget.proposal,

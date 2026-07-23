@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/routes/route_names.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../proposals/models/proposal.dart';
@@ -179,7 +180,7 @@ class _VendorProposalDetailScreenState
         title: Text(_proposal.id),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded),
-          onPressed: () => context.pop(),
+          onPressed: () => context.go(RouteNames.vendorHome),
         ),
         actions: [
           if (_proposal.canEdit && _request != null)

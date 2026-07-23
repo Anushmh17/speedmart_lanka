@@ -175,7 +175,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         debugPrint('[PaymentAudit] Customer pays: $customerAmount');
         debugPrint('[PaymentAudit] Vendor receives: $vendorNetAmount');
 
-        // Mark individual proposal accepted
+        // Only mark the proposal accepted after the customer has actually confirmed payment.
         if (group.proposal.status != ProposalStatus.accepted) {
           await ref.read(proposalProvider.notifier).acceptProposal(
                 group.proposal.id,
