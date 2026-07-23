@@ -562,9 +562,9 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                         animation: _packedPulseController,
                         builder: (context, child) {
                           final pulseValue = _packedPulseController.isAnimating ? _packedPulseController.value : 0.0;
-                          final pulseAlpha = 0.28 + (pulseValue * 0.22);
-                          final pulseBorderAlpha = 0.44 + (pulseValue * 0.20);
-                          final pulseShadowAlpha = 0.38 + (pulseValue * 0.24);
+                          final pulseAlpha = 0.22 + (pulseValue * 0.24);
+                          final pulseBorderAlpha = 0.38 + (pulseValue * 0.24);
+                          final pulseShadowAlpha = 0.28 + (pulseValue * 0.26);
                           final pulseScale = 1.0 + (pulseValue * 0.18);
 
                           return Column(
@@ -623,14 +623,14 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                                                       boxShadow: (totalPackable > 0 && packedCount == totalPackable)
                                                           ? [
                                                               BoxShadow(
-                                                                color: AppColors.success.withValues(alpha: isDark ? 0.72 : 0.46),
-                                                                blurRadius: 36,
-                                                                spreadRadius: 5,
+                                                                color: AppColors.success.withValues(alpha: isDark ? 0.56 : 0.36),
+                                                                blurRadius: 24,
+                                                                spreadRadius: 3,
                                                               ),
                                                               BoxShadow(
-                                                                color: AppColors.success.withValues(alpha: isDark ? 0.42 : 0.28),
-                                                                blurRadius: 18,
-                                                                spreadRadius: 2,
+                                                                color: AppColors.success.withValues(alpha: isDark ? 0.32 : 0.22),
+                                                                blurRadius: 14,
+                                                                spreadRadius: 1.5,
                                                               ),
                                                             ]
                                                           : null,
@@ -661,35 +661,42 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
 
                                   final isChecked = _packedItems[item.requestItemId] ?? false;
 
-                                  return Container(
-                                    margin: const EdgeInsets.only(bottom: 10),
-                                    padding: const EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      color: cardColor,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: isChecked
-                                            ? AppColors.vendorColor.withOpacity(0.5)
-                                            : borderColor,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Checkbox(
-                                          value: isChecked,
-                                          activeColor: AppColors.vendorColor,
-                                          onChanged: (val) {
-                                            setStateChecklist(() {
-                                              _packedItems[item.requestItemId] = val ?? false;
-                                            });
-                                          },
+                                  return InkWell(
+                                    onTap: () {
+                                      setStateChecklist(() {
+                                        _packedItems[item.requestItemId] = !isChecked;
+                                      });
+                                    },
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      margin: const EdgeInsets.only(bottom: 10),
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: cardColor,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: isChecked
+                                              ? AppColors.vendorColor.withOpacity(0.5)
+                                              : borderColor,
                                         ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
+                                      ),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Checkbox(
+                                            value: isChecked,
+                                            activeColor: AppColors.vendorColor,
+                                            onChanged: (val) {
+                                              setStateChecklist(() {
+                                                _packedItems[item.requestItemId] = val ?? false;
+                                              });
+                                            },
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
                                               Row(
                                                 children: [
                                                   Expanded(
