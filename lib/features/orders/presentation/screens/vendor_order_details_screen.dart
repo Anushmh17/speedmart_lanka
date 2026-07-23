@@ -661,25 +661,25 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
 
                                   final isChecked = _packedItems[item.requestItemId] ?? false;
 
-                                  return InkWell(
-                                    onTap: () {
-                                      setStateChecklist(() {
-                                        _packedItems[item.requestItemId] = !isChecked;
-                                      });
-                                    },
-                                    borderRadius: BorderRadius.circular(12),
-                                    child: Container(
-                                      margin: const EdgeInsets.only(bottom: 10),
-                                      padding: const EdgeInsets.all(14),
-                                      decoration: BoxDecoration(
-                                        color: cardColor,
-                                        borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                          color: isChecked
-                                              ? AppColors.vendorColor.withOpacity(0.5)
-                                              : borderColor,
-                                        ),
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 10),
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: cardColor,
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: isChecked
+                                            ? AppColors.vendorColor.withOpacity(0.5)
+                                            : borderColor,
                                       ),
+                                    ),
+                                    child: GestureDetector(
+                                      behavior: HitTestBehavior.translucent,
+                                      onTap: () {
+                                        setStateChecklist(() {
+                                          _packedItems[item.requestItemId] = !isChecked;
+                                        });
+                                      },
                                       child: Row(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
