@@ -173,10 +173,17 @@ class _VendorProposalDetailScreenState
       );
     }
 
-    return Scaffold(
-      backgroundColor:
-          isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-      appBar: AppBar(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          context.go(RouteNames.vendorHome);
+        }
+      },
+      child: Scaffold(
+        backgroundColor:
+            isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+        appBar: AppBar(
         title: Text(_proposal.id),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded),
@@ -195,9 +202,9 @@ class _VendorProposalDetailScreenState
             ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(20),
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
@@ -400,7 +407,8 @@ class _VendorProposalDetailScreenState
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }
 
