@@ -420,9 +420,6 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
         final isDarkCtx = Theme.of(ctx).brightness == Brightness.dark;
         final txtColor = isDarkCtx ? Colors.white : Colors.black;
         final subtotal = activeOrder.totalPrice - activeOrder.deliveryCharge;
-        final serviceCharge = subtotal * 0.015;
-        final sscl = subtotal * 0.025;
-        final vat = subtotal * 0.18;
 
         return AlertDialog(
           backgroundColor:
@@ -472,12 +469,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                 _buildReceiptRow('Delivery Charge',
                     'Rs. ${activeOrder.deliveryCharge.toStringAsFixed(2)}',
                     txtColor),
-                _buildReceiptRow('Platform Service (1.5%)',
-                    'Rs. ${serviceCharge.toStringAsFixed(2)}', txtColor),
-                _buildReceiptRow('SSCL Tax Levy (2.5%)',
-                    'Rs. ${sscl.toStringAsFixed(2)}', txtColor),
-                _buildReceiptRow('VAT Regulatory (18%)',
-                    'Rs. ${vat.toStringAsFixed(2)}', txtColor),
+                // Platform/service/tax lines removed per request; only subtotal and delivery charge shown.
                 const Divider(height: 20),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
