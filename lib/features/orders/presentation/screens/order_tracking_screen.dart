@@ -556,6 +556,8 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
     final font = pw.Font.ttf(fontData.buffer.asByteData());
     final boldFontData = await rootBundle.load('assets/fonts/Inter_28pt-Bold.ttf');
     final boldFont = pw.Font.ttf(boldFontData.buffer.asByteData());
+    final logoData = await rootBundle.load('assets/images/logo.png');
+    final logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
 
     final pdf = pw.Document(
       theme: pw.ThemeData.withFont(base: font, bold: boldFont),
@@ -596,18 +598,15 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                     ),
                   ),
                   pw.Container(
-                    width: 70,
-                    height: 70,
+                    padding: const pw.EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                     decoration: pw.BoxDecoration(
-                      color: PdfColors.white,
-                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(14)),
+                      color: const PdfColor(0.0862745098, 0.0980392157, 0.0862745098),
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(10)),
                     ),
-                    child: pw.Center(
-                      child: pw.Text('LOGO',
-                          style: pw.TextStyle(
-                              fontSize: 10,
-                              fontWeight: pw.FontWeight.bold,
-                              color: PdfColors.blue900)),
+                    child: pw.Image(
+                      logoImage,
+                      height: 22,
+                      fit: pw.BoxFit.contain,
                     ),
                   ),
                 ],
