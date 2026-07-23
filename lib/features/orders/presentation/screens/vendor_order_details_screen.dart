@@ -31,6 +31,18 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
   final Map<String, bool> _packedItems = {};
   late final AnimationController _packedPulseController;
 
+  Widget _buildSummaryChip(String label, Color secondaryText) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.vendorColor.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.vendorColor.withValues(alpha: 0.18)),
+      ),
+      child: Text(label, style: AppTextStyles.caption(secondaryText)),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -157,11 +169,14 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
       (o) => o.id == widget.order.id,
       orElse: () => widget.order,
     );
+    final isSummaryOnly = activeOrder.status == OrderStatus.delivered ||
+        activeOrder.status == OrderStatus.completed ||
+        activeOrder.status == OrderStatus.cancelled;
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
       appBar: AppBar(
-        title: Text('Manage ${activeOrder.id}'),
+        title: Text(isSummaryOnly ? 'Order Summary' : 'Manage ${activeOrder.id}'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded),
           onPressed: () => context.pop(),
@@ -204,6 +219,136 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                     ),
                   ),
                   const SizedBox(height: 24),
+
+                  if (isSummaryOnly) ...[
+                    Text('Items Ordered', style: AppTextStyles.h2(primaryText)),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: cardColor,
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: borderColor),
+                      ),
+                      child: activeOrder.items.isEmpty
+                          ? Text(
+                              'No items were listed for this order.',
+                              style: AppTextStyles.bodyMedium(secondaryText),
+                            )
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: activeOrder.items.map((item) {
+                                final itemName = item.status == ProposalItemStatus.alternative
+                                    ? '${item.alternativeName} (Alternative)'
+                                    : item.requestItemName;
+                                final allUrls = [
+                                  if (item.imageUrl != null && item.imageUrl!.isNotEmpty) item.imageUrl!,
+                                  ...item.vendorImageUrls.where((u) => u.isNotEmpty),
+                                ];
+
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 12),
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.vendorColor.withValues(alpha: 0.05),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: AppColors.vendorColor.withValues(alpha: 0.18)),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  itemName,
+                                                  style: AppTextStyles.bodyLarge(primaryText),
+                                                ),
+                                                const SizedBox(height: 4),
+                                                Text(
+                                                  'Product ID: ${item.id}',
+                                                  style: AppTextStyles.caption(AppColors.vendorColor).copyWith(fontWeight: FontWeight.w700),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Text(
+                                            'Rs. ${item.totalPrice.toStringAsFixed(2)}',
+                                            style: AppTextStyles.bodyMedium(primaryText).copyWith(fontWeight: FontWeight.w700),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Wrap(
+                                        spacing: 8,
+                                        runSpacing: 6,
+                                        children: [
+                                          _buildSummaryChip('Qty: ${item.quantity}', secondaryText),
+                                          _buildSummaryChip('Status: ${item.status.name}', secondaryText),
+                                        ],
+                                      ),
+                                      if (allUrls.isNotEmpty) ...[
+                                        const SizedBox(height: 10),
+                                        Text('Attached photos', style: AppTextStyles.caption(secondaryText)),
+                                        const SizedBox(height: 6),
+                                        SizedBox(
+                                          height: 88,
+                                          child: ListView.builder(
+                                            scrollDirection: Axis.horizontal,
+                                            itemCount: allUrls.length,
+                                            itemBuilder: (context, index) {
+                                              final url = allUrls[index];
+                                              final isNetwork = url.startsWith('http://') || url.startsWith('https://');
+                                              return GestureDetector(
+                                                onTap: () => Navigator.of(context).push(
+                                                  MaterialPageRoute(
+                                                    builder: (_) => ImageGalleryViewer(imagePaths: allUrls, initialIndex: index),
+                                                  ),
+                                                ),
+                                                child: Container(
+                                                  width: 88,
+                                                  height: 88,
+                                                  margin: EdgeInsets.only(right: index < allUrls.length - 1 ? 8 : 0),
+                                                  decoration: BoxDecoration(
+                                                    color: borderColor,
+                                                    borderRadius: BorderRadius.circular(10),
+                                                  ),
+                                                  child: ClipRRect(
+                                                    borderRadius: BorderRadius.circular(10),
+                                                    child: isNetwork
+                                                        ? Image.network(
+                                                            url,
+                                                            width: 88,
+                                                            height: 88,
+                                                            fit: BoxFit.cover,
+                                                            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, color: Colors.white54),
+                                                          )
+                                                        : Image.file(
+                                                            File(url),
+                                                            width: 88,
+                                                            height: 88,
+                                                            fit: BoxFit.cover,
+                                                            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, color: Colors.white54),
+                                                          ),
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
 
                   // COD Order Indicator
                   if (activeOrder.paymentMethod == PaymentMethod.cashOnDelivery)
@@ -538,253 +683,255 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                   ),
                   const SizedBox(height: 24),
 
-                  // Packing Checklist
-                  Text('Packing Checklist', style: AppTextStyles.h2(primaryText)),
-                  const SizedBox(height: 4),
-                  Text('Check items off as you prepare and pack them.', style: AppTextStyles.caption(secondaryText)),
-                  const SizedBox(height: 12),
-                  StatefulBuilder(
-                    builder: (context, setStateChecklist) {
-                      final packableItems = activeOrder.items.where((item) => item.status != ProposalItemStatus.unavailable).toList();
-                      final totalPackable = packableItems.length;
-                      final packedCount = packableItems.where((item) => (_packedItems[item.requestItemId] ?? false)).length;
+                  if (!isSummaryOnly) ...[
+                    // Packing Checklist
+                    Text('Packing Checklist', style: AppTextStyles.h2(primaryText)),
+                    const SizedBox(height: 4),
+                    Text('Check items off as you prepare and pack them.', style: AppTextStyles.caption(secondaryText)),
+                    const SizedBox(height: 12),
+                    StatefulBuilder(
+                      builder: (context, setStateChecklist) {
+                        final packableItems = activeOrder.items.where((item) => item.status != ProposalItemStatus.unavailable).toList();
+                        final totalPackable = packableItems.length;
+                        final packedCount = packableItems.where((item) => (_packedItems[item.requestItemId] ?? false)).length;
 
-                      final isComplete = totalPackable > 0 && packedCount == totalPackable;
-                      if (isComplete) {
-                        if (!_packedPulseController.isAnimating) {
-                          _packedPulseController.repeat(reverse: true);
+                        final isComplete = totalPackable > 0 && packedCount == totalPackable;
+                        if (isComplete) {
+                          if (!_packedPulseController.isAnimating) {
+                            _packedPulseController.repeat(reverse: true);
+                          }
+                        } else if (_packedPulseController.isAnimating) {
+                          _packedPulseController.stop();
                         }
-                      } else if (_packedPulseController.isAnimating) {
-                        _packedPulseController.stop();
-                      }
 
-                      return AnimatedBuilder(
-                        animation: _packedPulseController,
-                        builder: (context, child) {
-                          final pulseValue = _packedPulseController.isAnimating ? _packedPulseController.value : 0.0;
-                          final pulseAlpha = 0.28 + (pulseValue * 0.22);
-                          final pulseBorderAlpha = 0.44 + (pulseValue * 0.20);
-                          final pulseShadowAlpha = 0.38 + (pulseValue * 0.24);
-                          final pulseScale = 1.0 + (pulseValue * 0.18);
+                        return AnimatedBuilder(
+                          animation: _packedPulseController,
+                          builder: (context, child) {
+                            final pulseValue = _packedPulseController.isAnimating ? _packedPulseController.value : 0.0;
+                            final pulseAlpha = 0.28 + (pulseValue * 0.22);
+                            final pulseBorderAlpha = 0.44 + (pulseValue * 0.20);
+                            final pulseShadowAlpha = 0.38 + (pulseValue * 0.24);
+                            final pulseScale = 1.0 + (pulseValue * 0.18);
 
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              AnimatedContainer(
-                                duration: const Duration(milliseconds: 260),
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                                decoration: BoxDecoration(
-                                  color: isComplete
-                                      ? AppColors.success.withValues(alpha: isDark ? pulseAlpha : pulseAlpha * 0.9)
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: isComplete
-                                      ? Border.all(color: AppColors.success.withValues(alpha: pulseBorderAlpha), width: 1.4)
-                                      : null,
-                                  boxShadow: isComplete
-                                      ? [
-                                          BoxShadow(
-                                            color: AppColors.success.withValues(alpha: isDark ? pulseShadowAlpha : pulseShadowAlpha * 0.9),
-                                            blurRadius: 34,
-                                            spreadRadius: 5,
-                                          ),
-                                          BoxShadow(
-                                            color: AppColors.success.withValues(alpha: isDark ? pulseShadowAlpha * 0.7 : pulseShadowAlpha * 0.55),
-                                            blurRadius: 18,
-                                            spreadRadius: 2,
-                                          ),
-                                        ]
-                                      : null,
-                                ),
-                                child: Row(
-                                  children: [
-                                    Text('$packedCount of $totalPackable packed', style: AppTextStyles.caption(primaryText)),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: ClipRRect(
-                                        borderRadius: BorderRadius.circular(6),
-                                        child: LayoutBuilder(
-                                          builder: (ctx, constraints) {
-                                            final fullWidth = constraints.maxWidth;
-                                            final ratio = totalPackable == 0 ? 0.0 : (packedCount / totalPackable);
-                                            final filledWidth = fullWidth * ratio;
-                                            return Container(
-                                              height: 8,
-                                              color: borderColor.withOpacity(0.6),
-                                              child: Stack(
-                                                children: [
-                                                  AnimatedContainer(
-                                                    duration: const Duration(milliseconds: 360),
-                                                    width: filledWidth,
-                                                    height: 8,
-                                                    decoration: BoxDecoration(
-                                                      color: AppColors.vendorColor,
-                                                      borderRadius: BorderRadius.circular(6),
-                                                      boxShadow: (totalPackable > 0 && packedCount == totalPackable)
-                                                          ? [
-                                                              BoxShadow(
-                                                                color: AppColors.success.withValues(alpha: isDark ? 0.72 : 0.46),
-                                                                blurRadius: 36,
-                                                                spreadRadius: 5,
-                                                              ),
-                                                              BoxShadow(
-                                                                color: AppColors.success.withValues(alpha: isDark ? 0.42 : 0.28),
-                                                                blurRadius: 18,
-                                                                spreadRadius: 2,
-                                                              ),
-                                                            ]
-                                                          : null,
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              ListView.builder(
-                                shrinkWrap: true,
-                                physics: const NeverScrollableScrollPhysics(),
-                                itemCount: activeOrder.items.length,
-                                itemBuilder: (context, index) {
-                                  final item = activeOrder.items[index];
-                                  if (item.status == ProposalItemStatus.unavailable) return const SizedBox.shrink();
-
-                                  final itemName = item.status == ProposalItemStatus.alternative
-                                      ? '${item.alternativeName} (Alternative)'
-                                      : item.requestItemName;
-
-                                  final isChecked = _packedItems[item.requestItemId] ?? false;
-
-                                  return Container(
-                                    margin: const EdgeInsets.only(bottom: 10),
-                                    padding: const EdgeInsets.all(14),
-                                    decoration: BoxDecoration(
-                                      color: cardColor,
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: isChecked
-                                            ? AppColors.vendorColor.withOpacity(0.5)
-                                            : borderColor,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Checkbox(
-                                          value: isChecked,
-                                          activeColor: AppColors.vendorColor,
-                                          onChanged: (val) {
-                                            setStateChecklist(() {
-                                              _packedItems[item.requestItemId] = val ?? false;
-                                            });
-                                          },
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: GestureDetector(
-                                            behavior: HitTestBehavior.translucent,
-                                            onTap: () {
-                                              setStateChecklist(() {
-                                                _packedItems[item.requestItemId] = !isChecked;
-                                              });
-                                            },
-                                            child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                Row(
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                AnimatedContainer(
+                                  duration: const Duration(milliseconds: 260),
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: isComplete
+                                        ? AppColors.success.withValues(alpha: isDark ? pulseAlpha : pulseAlpha * 0.9)
+                                        : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: isComplete
+                                        ? Border.all(color: AppColors.success.withValues(alpha: pulseBorderAlpha), width: 1.4)
+                                        : null,
+                                    boxShadow: isComplete
+                                        ? [
+                                            BoxShadow(
+                                              color: AppColors.success.withValues(alpha: isDark ? pulseShadowAlpha : pulseShadowAlpha * 0.9),
+                                              blurRadius: 34,
+                                              spreadRadius: 5,
+                                            ),
+                                            BoxShadow(
+                                              color: AppColors.success.withValues(alpha: isDark ? pulseShadowAlpha * 0.7 : pulseShadowAlpha * 0.55),
+                                              blurRadius: 18,
+                                              spreadRadius: 2,
+                                            ),
+                                          ]
+                                        : null,
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Text('$packedCount of $totalPackable packed', style: AppTextStyles.caption(primaryText)),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(6),
+                                          child: LayoutBuilder(
+                                            builder: (ctx, constraints) {
+                                              final fullWidth = constraints.maxWidth;
+                                              final ratio = totalPackable == 0 ? 0.0 : (packedCount / totalPackable);
+                                              final filledWidth = fullWidth * ratio;
+                                              return Container(
+                                                height: 8,
+                                                color: borderColor.withOpacity(0.6),
+                                                child: Stack(
                                                   children: [
-                                                    Expanded(
-                                                      child: Column(
-                                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                                        children: [
-                                                          Text(
-                                                            itemName,
-                                                            style: AppTextStyles.bodyLarge(primaryText).copyWith(
-                                                              decoration: isChecked ? TextDecoration.lineThrough : null,
-                                                              color: isChecked ? secondaryText : primaryText,
-                                                            ),
-                                                          ),
-                                                          Text('Product ID: ${item.id}', style: AppTextStyles.caption(AppColors.vendorColor).copyWith(fontWeight: FontWeight.w600)),
-                                                          Text('Quantity to Pack: ${item.quantity}', style: AppTextStyles.caption(secondaryText)),
-                                                        ],
+                                                    AnimatedContainer(
+                                                      duration: const Duration(milliseconds: 360),
+                                                      width: filledWidth,
+                                                      height: 8,
+                                                      decoration: BoxDecoration(
+                                                        color: AppColors.vendorColor,
+                                                        borderRadius: BorderRadius.circular(6),
+                                                        boxShadow: (totalPackable > 0 && packedCount == totalPackable)
+                                                            ? [
+                                                                BoxShadow(
+                                                                  color: AppColors.success.withValues(alpha: isDark ? 0.72 : 0.46),
+                                                                  blurRadius: 36,
+                                                                  spreadRadius: 5,
+                                                                ),
+                                                                BoxShadow(
+                                                                  color: AppColors.success.withValues(alpha: isDark ? 0.42 : 0.28),
+                                                                  blurRadius: 18,
+                                                                  spreadRadius: 2,
+                                                                ),
+                                                              ]
+                                                            : null,
                                                       ),
                                                     ),
-                                                    Text('Rs. ${item.totalPrice.toStringAsFixed(2)}', style: AppTextStyles.bodyMedium(primaryText)),
                                                   ],
                                                 ),
-                                                Builder(builder: (ctx) {
-                                                  final allUrls = [
-                                                    if (item.imageUrl != null && item.imageUrl!.isNotEmpty) item.imageUrl!,
-                                                    ...item.vendorImageUrls.where((u) => u.isNotEmpty),
-                                                  ];
-                                                  if (allUrls.isEmpty) return const SizedBox.shrink();
-                                                  return Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    children: [
-                                                      const SizedBox(height: 10),
-                                                      Text(
-                                                        'Product photos (${allUrls.length})',
-                                                        style: AppTextStyles.caption(secondaryText),
-                                                      ),
-                                                      const SizedBox(height: 6),
-                                                      SizedBox(
-                                                        height: 90,
-                                                        child: ListView.builder(
-                                                          scrollDirection: Axis.horizontal,
-                                                          itemCount: allUrls.length,
-                                                          itemBuilder: (_, i) {
-                                                            final url = allUrls[i];
-                                                            final isNetwork = url.startsWith('http://') || url.startsWith('https://');
-                                                            return GestureDetector(
-                                                              onTap: () => Navigator.of(ctx).push(MaterialPageRoute(
-                                                                builder: (_) => ImageGalleryViewer(imagePaths: allUrls, initialIndex: i),
-                                                              )),
-                                                              child: Container(
-                                                                width: 90,
-                                                                height: 90,
-                                                                margin: EdgeInsets.only(right: i < allUrls.length - 1 ? 8 : 0),
-                                                                decoration: BoxDecoration(
-                                                                  color: borderColor,
-                                                                  borderRadius: BorderRadius.circular(8),
-                                                                ),
-                                                                child: ClipRRect(
-                                                                  borderRadius: BorderRadius.circular(8),
-                                                                  child: isNetwork
-                                                                      ? Image.network(url, width: 90, height: 90, fit: BoxFit.cover,
-                                                                          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, color: Colors.white54))
-                                                                      : Image.file(File(url), width: 90, height: 90, fit: BoxFit.cover,
-                                                                          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, color: Colors.white54)),
-                                                                ),
-                                                              ),
-                                                            );
-                                                          },
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  );
-                                                }),
-                                              ],
-                                            ),
+                                              );
+                                            },
                                           ),
                                         ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                              ),
-                            ],
-                          );
-                        },
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 30),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                ListView.builder(
+                                  shrinkWrap: true,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  itemCount: activeOrder.items.length,
+                                  itemBuilder: (context, index) {
+                                    final item = activeOrder.items[index];
+                                    if (item.status == ProposalItemStatus.unavailable) return const SizedBox.shrink();
+
+                                    final itemName = item.status == ProposalItemStatus.alternative
+                                        ? '${item.alternativeName} (Alternative)'
+                                        : item.requestItemName;
+
+                                    final isChecked = _packedItems[item.requestItemId] ?? false;
+
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 10),
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: cardColor,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: isChecked
+                                              ? AppColors.vendorColor.withOpacity(0.5)
+                                              : borderColor,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Checkbox(
+                                            value: isChecked,
+                                            activeColor: AppColors.vendorColor,
+                                            onChanged: (val) {
+                                              setStateChecklist(() {
+                                                _packedItems[item.requestItemId] = val ?? false;
+                                              });
+                                            },
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: GestureDetector(
+                                              behavior: HitTestBehavior.translucent,
+                                              onTap: () {
+                                                setStateChecklist(() {
+                                                  _packedItems[item.requestItemId] = !isChecked;
+                                                });
+                                              },
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      Expanded(
+                                                        child: Column(
+                                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                                          children: [
+                                                            Text(
+                                                              itemName,
+                                                              style: AppTextStyles.bodyLarge(primaryText).copyWith(
+                                                                decoration: isChecked ? TextDecoration.lineThrough : null,
+                                                                color: isChecked ? secondaryText : primaryText,
+                                                              ),
+                                                            ),
+                                                            Text('Product ID: ${item.id}', style: AppTextStyles.caption(AppColors.vendorColor).copyWith(fontWeight: FontWeight.w600)),
+                                                            Text('Quantity to Pack: ${item.quantity}', style: AppTextStyles.caption(secondaryText)),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                      Text('Rs. ${item.totalPrice.toStringAsFixed(2)}', style: AppTextStyles.bodyMedium(primaryText)),
+                                                    ],
+                                                  ),
+                                                  Builder(builder: (ctx) {
+                                                    final allUrls = [
+                                                      if (item.imageUrl != null && item.imageUrl!.isNotEmpty) item.imageUrl!,
+                                                      ...item.vendorImageUrls.where((u) => u.isNotEmpty),
+                                                    ];
+                                                    if (allUrls.isEmpty) return const SizedBox.shrink();
+                                                    return Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        const SizedBox(height: 10),
+                                                        Text(
+                                                          'Product photos (${allUrls.length})',
+                                                          style: AppTextStyles.caption(secondaryText),
+                                                        ),
+                                                        const SizedBox(height: 6),
+                                                        SizedBox(
+                                                          height: 90,
+                                                          child: ListView.builder(
+                                                            scrollDirection: Axis.horizontal,
+                                                            itemCount: allUrls.length,
+                                                            itemBuilder: (_, i) {
+                                                              final url = allUrls[i];
+                                                              final isNetwork = url.startsWith('http://') || url.startsWith('https://');
+                                                              return GestureDetector(
+                                                                onTap: () => Navigator.of(ctx).push(MaterialPageRoute(
+                                                                  builder: (_) => ImageGalleryViewer(imagePaths: allUrls, initialIndex: i),
+                                                                )),
+                                                                child: Container(
+                                                                  width: 90,
+                                                                  height: 90,
+                                                                  margin: EdgeInsets.only(right: i < allUrls.length - 1 ? 8 : 0),
+                                                                  decoration: BoxDecoration(
+                                                                    color: borderColor,
+                                                                    borderRadius: BorderRadius.circular(8),
+                                                                  ),
+                                                                  child: ClipRRect(
+                                                                    borderRadius: BorderRadius.circular(8),
+                                                                    child: isNetwork
+                                                                        ? Image.network(url, width: 90, height: 90, fit: BoxFit.cover,
+                                                                            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, color: Colors.white54))
+                                                                        : Image.file(File(url), width: 90, height: 90, fit: BoxFit.cover,
+                                                                            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, color: Colors.white54)),
+                                                                  ),
+                                                                ),
+                                                              );
+                                                            },
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    );
+                                                  }),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 30),
+                  ],
                 ],
               ),
             ),

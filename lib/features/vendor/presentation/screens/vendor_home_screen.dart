@@ -157,6 +157,7 @@ class _VendorHomeScreenState extends ConsumerState<VendorHomeScreen>
     });
     
     final showBottomNav = ref.watch(bottomNavVisibilityProvider);
+    final requestFeedState = ref.watch(vendorRequestFeedProvider);
 
     // PopScope(canPop: false) suppresses the Android 13 predictive-back
     // swipe preview so the UI doesn't flash a "going back" animation.
@@ -198,8 +199,8 @@ class _VendorHomeScreenState extends ConsumerState<VendorHomeScreen>
             currentIndex: _currentIndex,
             onTap: _switchTab,
             activeColor: AppColors.vendorColor,
-            items: const [
-              SharedFloatingBottomNavItem(
+            items: [
+              const SharedFloatingBottomNavItem(
                 unselectedIcon: Icons.dashboard_outlined,
                 selectedIcon: Icons.dashboard_rounded,
                 label: 'Dashboard',
@@ -208,18 +209,19 @@ class _VendorHomeScreenState extends ConsumerState<VendorHomeScreen>
                 unselectedIcon: Icons.inbox_outlined,
                 selectedIcon: Icons.inbox_rounded,
                 label: 'Requests',
+                badgeCount: requestFeedState.items.length,
               ),
-              SharedFloatingBottomNavItem(
+              const SharedFloatingBottomNavItem(
                 unselectedIcon: Icons.assignment_outlined,
                 selectedIcon: Icons.assignment_rounded,
                 label: 'Proposals',
               ),
-              SharedFloatingBottomNavItem(
+              const SharedFloatingBottomNavItem(
                 unselectedIcon: Icons.account_balance_wallet_outlined,
                 selectedIcon: Icons.account_balance_wallet_rounded,
                 label: 'Earnings',
               ),
-              SharedFloatingBottomNavItem(
+              const SharedFloatingBottomNavItem(
                 unselectedIcon: Icons.person_outline_rounded,
                 selectedIcon: Icons.person_rounded,
                 label: 'Profile',
@@ -446,6 +448,7 @@ class _DashboardTab extends ConsumerWidget {
                     icon: Icons.radar_rounded,
                     color: AppColors.vendorColor,
                     isDark: isDark,
+                    badgeCount: feedState.items.length,
                     onTap: () => onNavigateTab?.call(1),
                   ),
                   SizedBox(width: AppSpacing.sm),
@@ -1463,7 +1466,7 @@ class _DashboardQuickAction extends StatelessWidget {
                             borderRadius: BorderRadius.circular(10),
                           ),
                           child: Text(
-                            badgeCount! > 9 ? '9+' : '$badgeCount',
+                            badgeCount! > 99 ? '99+' : '$badgeCount',
                             style: AppTextStyles.caption(Colors.white)
                                 .copyWith(
                                   fontSize: 9,
