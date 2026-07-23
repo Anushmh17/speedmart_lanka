@@ -685,91 +685,92 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                                             });
                                           },
                                         ),
-                                          const SizedBox(width: 8),
-                                          Expanded(
-                                            child: GestureDetector(
-                                              behavior: HitTestBehavior.translucent,
-                                              onTap: () {
-                                                setStateChecklist(() {
-                                                  _packedItems[item.requestItemId] = !isChecked;
-                                                });
-                                              },
-                                              child: Column(
-                                                crossAxisAlignment: CrossAxisAlignment.start,
-                                                children: [
-                                              Row(
-                                                children: [
-                                                  Expanded(
-                                                    child: Column(
-                                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                                      children: [
-                                                        Text(
-                                                          itemName,
-                                                          style: AppTextStyles.bodyLarge(primaryText).copyWith(
-                                                            decoration: isChecked ? TextDecoration.lineThrough : null,
-                                                            color: isChecked ? secondaryText : primaryText,
-                                                          ),
-                                                        ),
-                                                        Text('Product ID: ${item.id}', style: AppTextStyles.caption(AppColors.vendorColor).copyWith(fontWeight: FontWeight.w600)),
-                                                        Text('Quantity to Pack: ${item.quantity}', style: AppTextStyles.caption(secondaryText)),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                  Text('Rs. ${item.totalPrice.toStringAsFixed(2)}', style: AppTextStyles.bodyMedium(primaryText)),
-                                                ],
-                                              ),
-                                              Builder(builder: (ctx) {
-                                                final allUrls = [
-                                                  if (item.imageUrl != null && item.imageUrl!.isNotEmpty) item.imageUrl!,
-                                                  ...item.vendorImageUrls.where((u) => u.isNotEmpty),
-                                                ];
-                                                if (allUrls.isEmpty) return const SizedBox.shrink();
-                                                return Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: GestureDetector(
+                                            behavior: HitTestBehavior.translucent,
+                                            onTap: () {
+                                              setStateChecklist(() {
+                                                _packedItems[item.requestItemId] = !isChecked;
+                                              });
+                                            },
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
                                                   children: [
-                                                    const SizedBox(height: 10),
-                                                    Text(
-                                                      'Product photos (${allUrls.length})',
-                                                      style: AppTextStyles.caption(secondaryText),
-                                                    ),
-                                                    const SizedBox(height: 6),
-                                                    SizedBox(
-                                                      height: 90,
-                                                      child: ListView.builder(
-                                                        scrollDirection: Axis.horizontal,
-                                                        itemCount: allUrls.length,
-                                                        itemBuilder: (_, i) {
-                                                          final url = allUrls[i];
-                                                          final isNetwork = url.startsWith('http://') || url.startsWith('https://');
-                                                          return GestureDetector(
-                                                            onTap: () => Navigator.of(ctx).push(MaterialPageRoute(
-                                                              builder: (_) => ImageGalleryViewer(imagePaths: allUrls, initialIndex: i),
-                                                            )),
-                                                            child: Container(
-                                                              width: 90,
-                                                              height: 90,
-                                                              margin: EdgeInsets.only(right: i < allUrls.length - 1 ? 8 : 0),
-                                                              decoration: BoxDecoration(
-                                                                color: borderColor,
-                                                                borderRadius: BorderRadius.circular(8),
-                                                              ),
-                                                              child: ClipRRect(
-                                                                borderRadius: BorderRadius.circular(8),
-                                                                child: isNetwork
-                                                                    ? Image.network(url, width: 90, height: 90, fit: BoxFit.cover,
-                                                                        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, color: Colors.white54))
-                                                                    : Image.file(File(url), width: 90, height: 90, fit: BoxFit.cover,
-                                                                        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, color: Colors.white54)),
-                                                              ),
+                                                    Expanded(
+                                                      child: Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                                        children: [
+                                                          Text(
+                                                            itemName,
+                                                            style: AppTextStyles.bodyLarge(primaryText).copyWith(
+                                                              decoration: isChecked ? TextDecoration.lineThrough : null,
+                                                              color: isChecked ? secondaryText : primaryText,
                                                             ),
-                                                          );
-                                                        },
+                                                          ),
+                                                          Text('Product ID: ${item.id}', style: AppTextStyles.caption(AppColors.vendorColor).copyWith(fontWeight: FontWeight.w600)),
+                                                          Text('Quantity to Pack: ${item.quantity}', style: AppTextStyles.caption(secondaryText)),
+                                                        ],
                                                       ),
                                                     ),
+                                                    Text('Rs. ${item.totalPrice.toStringAsFixed(2)}', style: AppTextStyles.bodyMedium(primaryText)),
                                                   ],
-                                                );
-                                              }),
-                                            ],
+                                                ),
+                                                Builder(builder: (ctx) {
+                                                  final allUrls = [
+                                                    if (item.imageUrl != null && item.imageUrl!.isNotEmpty) item.imageUrl!,
+                                                    ...item.vendorImageUrls.where((u) => u.isNotEmpty),
+                                                  ];
+                                                  if (allUrls.isEmpty) return const SizedBox.shrink();
+                                                  return Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      const SizedBox(height: 10),
+                                                      Text(
+                                                        'Product photos (${allUrls.length})',
+                                                        style: AppTextStyles.caption(secondaryText),
+                                                      ),
+                                                      const SizedBox(height: 6),
+                                                      SizedBox(
+                                                        height: 90,
+                                                        child: ListView.builder(
+                                                          scrollDirection: Axis.horizontal,
+                                                          itemCount: allUrls.length,
+                                                          itemBuilder: (_, i) {
+                                                            final url = allUrls[i];
+                                                            final isNetwork = url.startsWith('http://') || url.startsWith('https://');
+                                                            return GestureDetector(
+                                                              onTap: () => Navigator.of(ctx).push(MaterialPageRoute(
+                                                                builder: (_) => ImageGalleryViewer(imagePaths: allUrls, initialIndex: i),
+                                                              )),
+                                                              child: Container(
+                                                                width: 90,
+                                                                height: 90,
+                                                                margin: EdgeInsets.only(right: i < allUrls.length - 1 ? 8 : 0),
+                                                                decoration: BoxDecoration(
+                                                                  color: borderColor,
+                                                                  borderRadius: BorderRadius.circular(8),
+                                                                ),
+                                                                child: ClipRRect(
+                                                                  borderRadius: BorderRadius.circular(8),
+                                                                  child: isNetwork
+                                                                      ? Image.network(url, width: 90, height: 90, fit: BoxFit.cover,
+                                                                          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, color: Colors.white54))
+                                                                      : Image.file(File(url), width: 90, height: 90, fit: BoxFit.cover,
+                                                                          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined, color: Colors.white54)),
+                                                                ),
+                                                              ),
+                                                            );
+                                                          },
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  );
+                                                }),
+                                              ],
+                                            ),
                                           ),
                                         ),
                                       ],
