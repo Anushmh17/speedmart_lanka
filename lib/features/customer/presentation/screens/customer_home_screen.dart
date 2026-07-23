@@ -336,19 +336,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
           ],
         ),
         extendBody: true,
-        body: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 260),
-          switchInCurve: Curves.easeOut,
-          switchOutCurve: Curves.easeIn,
-          transitionBuilder: (child, animation) => FadeTransition(
-            opacity: animation,
-            child: child,
-          ),
-          child: KeyedSubtree(
-            key: ValueKey(shellLocation),
-            child: widget.child,
-          ),
-        ),
+        body: widget.child,
         bottomNavigationBar: AnimatedBottomNavWrapper(
             visible: showBottomNav,
             child: _buildBottomNav(context, currentIndex),

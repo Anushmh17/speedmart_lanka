@@ -36,7 +36,7 @@ import 'package:speedmart_lanka/figma_screens/figma_auth_flow.dart';
 final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');
 final shellNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'shell');
 
-/// Smooth fade + slight upward slide page transition used across all routes.
+/// Smooth fade + slight upward slide page transition used across all full-screen routes.
 Page<T> _buildPage<T>(BuildContext context, GoRouterState state, Widget child) {
   return CustomTransitionPage<T>(
     key: state.pageKey,
@@ -54,6 +54,14 @@ Page<T> _buildPage<T>(BuildContext context, GoRouterState state, Widget child) {
         child: SlideTransition(position: slide, child: child),
       );
     },
+  );
+}
+
+/// No transition page used for shell child routes so the shell can manage cross-fade animation.
+Page<T> _buildShellPage<T>(BuildContext context, GoRouterState state, Widget child) {
+  return NoTransitionPage<T>(
+    key: state.pageKey,
+    child: child,
   );
 }
 
@@ -171,25 +179,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // ── Customer Shell ───────────────────────────────────────────────────
       ShellRoute(
         navigatorKey: shellNavigatorKey,
-        builder: (context, state, child) {
-          return CustomerHomeScreen(child: child);
-        },
+        pageBuilder: (context, state, child) => NoTransitionPage(
+          key: state.pageKey,
+          child: CustomerHomeScreen(child: child),
+        ),
         routes: [
           GoRoute(
             path: RouteNames.customerHome,
-            pageBuilder: (context, state) => _buildPage(context, state, const CustomerHomeTab()),
+            pageBuilder: (context, state) => _buildShellPage(context, state, const CustomerHomeTab()),
           ),
           GoRoute(
             path: RouteNames.customerRequests,
-            pageBuilder: (context, state) => _buildPage(context, state, const RequestListScreen()),
+            pageBuilder: (context, state) => _buildShellPage(context, state, const RequestListScreen()),
           ),
           GoRoute(
             path: RouteNames.customerOrders,
-            pageBuilder: (context, state) => _buildPage(context, state, const CustomerOrdersTab()),
+            pageBuilder: (context, state) => _buildShellPage(context, state, const CustomerOrdersTab()),
           ),
           GoRoute(
             path: RouteNames.customerProfile,
-            pageBuilder: (context, state) => _buildPage(context, state, const ProfileScreen()),
+            pageBuilder: (context, state) => _buildShellPage(context, state, const ProfileScreen()),
           ),
         ],
       ),
