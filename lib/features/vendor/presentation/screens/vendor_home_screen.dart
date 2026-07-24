@@ -341,37 +341,21 @@ class _DashboardTab extends ConsumerWidget {
     final proposalsSentCount = proposalState.proposals.length.toString();
 
     // Active orders: anything not in completed/cancelled/delivered state
-    final activeOrders = orderState.orders
-        .where((o) =>
-            o.status != OrderStatus.delivered &&
-            o.status != OrderStatus.completed &&
-            o.status != OrderStatus.cancelled)
-        .toList();
+    final activeOrders = orderState.orders.where((o) => o.isActiveForDashboard).toList();
     final activeOrdersCount = activeOrders.length.toString();
 
     // Completed orders: successfully delivered
-    final completedOrders = orderState.orders
-        .where((o) =>
-            o.status == OrderStatus.delivered ||
-            o.status == OrderStatus.completed)
-        .toList();
+    final completedOrders = orderState.orders.where((o) => o.isDeliveredOrCompleted).toList();
     final completedOrdersCount = completedOrders.length.toString();
 
-    final paidOrders = orderState.orders.where((o) =>
-        (o.status == OrderStatus.delivered || o.status == OrderStatus.completed) &&
-        (o.paymentStatus == PaymentStatus.paid ||
-            o.paymentStatus == PaymentStatus.pendingOnDelivery)).toList();
-    final pendingOrders = orderState.orders.where((o) =>
-        o.status != OrderStatus.cancelled &&
-        o.status != OrderStatus.completed &&
-        o.status != OrderStatus.delivered).toList();
+    final revenueSummary = _VendorRevenueSummary.fromOrders(orderState.orders);
 
-    final paidGrossEarnings = paidOrders.fold<double>(0, (sum, o) => sum + o.totalPrice);
-    final paidNetEarnings = paidOrders.fold<double>(0, (sum, o) => sum + o.vendorNetAmount);
-    final pendingGrossEarnings = pendingOrders.fold<double>(0, (sum, o) => sum + o.totalPrice);
-    final pendingNetEarnings = pendingOrders.fold<double>(0, (sum, o) => sum + o.vendorNetAmount);
+    final paidGrossEarnings = revenueSummary.paidGross;
+    final paidNetEarnings = revenueSummary.paidNet;
+    final pendingGrossEarnings = revenueSummary.pendingGross;
+    final pendingNetEarnings = revenueSummary.pendingNet;
 
-    final hiddenCommissionOwed = paidOrders.fold<double>(0, (sum, o) => sum + o.platformCommission);
+    final hiddenCommissionOwed = revenueSummary.commission;
 
     debugPrint(
         '[VendorHome] dashboard rendered with ${feedState.items.length} requests, ${proposalState.proposals.length} proposals, ${orderState.orders.length} orders');
@@ -1241,6 +1225,47 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
     );
   }
 }
+class _VendorRevenueSummary {
+  const _VendorRevenueSummary({
+    required this.grossSales,
+    required this.commission,
+    required this.netEarnings,
+    required this.paidGross,
+    required this.pendingGross,
+    required this.paidNet,
+    required this.pendingNet,
+  });
+
+  final double grossSales;
+  final double commission;
+  final double netEarnings;
+  final double paidGross;
+  final double pendingGross;
+  final double paidNet;
+  final double pendingNet;
+
+  factory _VendorRevenueSummary.fromOrders(List<OrderModel> orders) {
+    final liveOrders = orders.where((o) => o.status != OrderStatus.cancelled).toList();
+    final paidOrders = liveOrders.where((o) => o.isPaidForDashboard).toList();
+    final pendingOrders = liveOrders.where((o) => o.isPendingForDashboard).toList();
+
+    final paidGross = paidOrders.fold<double>(0, (sum, o) => sum + o.totalPrice);
+    final pendingGross = pendingOrders.fold<double>(0, (sum, o) => sum + o.totalPrice);
+    final paidNet = paidOrders.fold<double>(0, (sum, o) => sum + o.vendorNetAmount);
+    final pendingNet = pendingOrders.fold<double>(0, (sum, o) => sum + o.vendorNetAmount);
+
+    return _VendorRevenueSummary(
+      grossSales: paidGross + pendingGross,
+      commission: liveOrders.fold<double>(0, (sum, o) => sum + o.platformCommission),
+      netEarnings: paidNet + pendingNet,
+      paidGross: paidGross,
+      pendingGross: pendingGross,
+      paidNet: paidNet,
+      pendingNet: pendingNet,
+    );
+  }
+}
+
 class _DashboardHeroBanner extends StatelessWidget {
   const _DashboardHeroBanner({
     required this.user,
@@ -1973,35 +1998,6 @@ class _VendorWalletTab extends ConsumerStatefulWidget {
 
 class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
   _WalletWeekRange _selectedWeekRange = _WalletWeekRange.currentWeek;
-  final List<Map<String, dynamic>> _mockPayouts = [
-    {
-      'date': 'May 18, 2026',
-      'ref': '#SL-883A',
-      'payout': 14250.0,
-      'comm': 427.50,
-      'net': 13822.50,
-      'bank': 'Commercial Bank - Account ****4892',
-      'status': 'Settled to Bank'
-    },
-    {
-      'date': 'May 15, 2026',
-      'ref': '#SL-92B4',
-      'payout': 9800.0,
-      'comm': 294.00,
-      'net': 9506.00,
-      'bank': 'Commercial Bank - Account ****4892',
-      'status': 'Settled to Bank'
-    },
-    {
-      'date': 'May 10, 2026',
-      'ref': '#SL-76C1',
-      'payout': 22500.0,
-      'comm': 675.00,
-      'net': 21825.00,
-      'bank': 'Commercial Bank - Account ****4892',
-      'status': 'Settled to Bank'
-    }
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -2016,27 +2012,17 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
     
 
     final orderState = ref.watch(orderProvider);
+    final revenueSummary = _VendorRevenueSummary.fromOrders(orderState.orders);
+
     // Include all active vendor orders except cancelled ones.
     // This keeps the wallet ledger in sync with live order activity.
-    final walletOrders = orderState.orders
+    final allWalletOrders = orderState.orders
         .where((o) => o.status != OrderStatus.cancelled)
         .toList();
 
-    // Platform commission is folded into the customer-facing proposal total.
-    // The vendor net is the item subtotal plus delivery fee.
-    final double liveGrossRevenue =
-        walletOrders.fold<double>(0, (sum, o) => sum + o.totalPrice);
-    final double liveCommission = walletOrders.fold<double>(
-        0, (sum, o) => sum + o.platformCommission);
-    final double liveNetEarnings = walletOrders.fold<double>(
-        0, (sum, o) => sum + o.vendorNetAmount);
-
-    final double totalHistoricGross =
-        _mockPayouts.fold<double>(0.0, (sum, p) => sum + p['payout']);
-    final double totalHistoricComm =
-        _mockPayouts.fold<double>(0.0, (sum, p) => sum + p['comm']);
-    final double totalHistoricNet =
-        _mockPayouts.fold<double>(0.0, (sum, p) => sum + p['net']);
+    final double liveGrossRevenue = revenueSummary.grossSales;
+    final double liveCommission = revenueSummary.commission;
+    final double liveNetEarnings = revenueSummary.netEarnings;
 
     final weeklySales = <String, double>{
       'Mon': 0,
@@ -2056,15 +2042,16 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
         : startOfLastWeek;
     final selectedEndOfWeek = selectedStartOfWeek.add(const Duration(days: 7));
 
-    for (final order in walletOrders) {
+    final visibleWalletOrders = allWalletOrders.where((order) {
       final orderDate = DateTime(
         order.createdAt.year,
         order.createdAt.month,
         order.createdAt.day,
       );
-      if (orderDate.isBefore(selectedStartOfWeek) || !orderDate.isBefore(selectedEndOfWeek)) {
-        continue;
-      }
+      return !orderDate.isBefore(selectedStartOfWeek) && orderDate.isBefore(selectedEndOfWeek);
+    }).toList();
+
+    for (final order in visibleWalletOrders) {
       final day = const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
           [order.createdAt.weekday - 1];
       weeklySales[day] = weeklySales[day]! + order.totalPrice;
@@ -2075,9 +2062,9 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
     final double weeklyChartMax = currentWeekMax > 0 ? currentWeekMax : 1.0;
     final bool hasWeeklySales = weeklySales.values.any((value) => value > 0);
 
-    final double cumulativeGross = liveGrossRevenue + totalHistoricGross;
-    final double cumulativeCommission = liveCommission + totalHistoricComm;
-    final double cumulativeNet = liveNetEarnings + totalHistoricNet;
+    final double cumulativeGross = liveGrossRevenue;
+    final double cumulativeCommission = liveCommission;
+    final double cumulativeNet = liveNetEarnings;
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -2258,8 +2245,8 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
               ],
             ),
             const SizedBox(height: 12),
-            if (walletOrders.isNotEmpty) ...[
-              ...walletOrders.map((order) {
+            if (allWalletOrders.isNotEmpty) ...[
+              ...allWalletOrders.map((order) {
                 final orderGross = order.totalPrice;
                 final orderComm = order.platformCommission;
                 final orderNet = order.vendorNetAmount;
@@ -2323,9 +2310,7 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                               Text('Customer: ${order.customerName}',
                                   style: AppTextStyles.caption(secondaryText)),
                               Text(
-                                order.updatedAt != null
-                                    ? '${order.updatedAt!.day}/${order.updatedAt!.month}/${order.updatedAt!.year}'
-                                    : '${order.createdAt.day}/${order.createdAt.month}/${order.createdAt.year}',
+                                '${order.createdAt.day}/${order.createdAt.month}/${order.createdAt.year}',
                                 style: AppTextStyles.caption(secondaryText)),
                             ],
                           ),
@@ -2355,70 +2340,14 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                   ),
                 );
               }),
-            ],
-            ..._mockPayouts.map((payout) {
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: cardColor,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: borderColor),
+            ] else
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                child: Text(
+                  'No settlement activity yet.',
+                  style: AppTextStyles.bodyMedium(secondaryText),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Order Reference: ${payout['ref']}',
-                            style: AppTextStyles.bodyMedium(primaryText)
-                                .copyWith(fontWeight: FontWeight.bold)),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: AppColors.success.withValues(alpha: 0.12),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            'Settled to Bank',
-                            style: AppTextStyles.caption(AppColors.success)
-                                .copyWith(
-                                    fontWeight: FontWeight.bold, fontSize: 10),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(payout['bank']!,
-                            style: AppTextStyles.caption(secondaryText)),
-                        Text(payout['date']!,
-                            style: AppTextStyles.caption(secondaryText)),
-                      ],
-                    ),
-                    const Divider(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                            'Sales: Rs. ${payout['payout'].toStringAsFixed(0)}',
-                            style: AppTextStyles.bodySmall(secondaryText)),
-                        Text(
-                            'Comm (${(payout['comm'] as double) == 0 ? '0%' : '3%'}): Rs. ${(payout['comm'] as double).toStringAsFixed(0)}',
-                            style: AppTextStyles.bodySmall(secondaryText)),
-                        Text('Net: Rs. ${(payout['net'] as double).toStringAsFixed(2)}',
-                            style: AppTextStyles.bodyMedium(primaryText)
-                                .copyWith(fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ],
-                ),
-              );
-            }),
+              ),
             const SizedBox(height: 40),
           ],
         ),

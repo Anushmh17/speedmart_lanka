@@ -107,6 +107,29 @@ class OrderModel {
   /// The hidden platform commission is charged separately on item subtotal.
   double get vendorNetAmount => itemSubtotal + deliveryCharge;
 
+  /// Orders that have reached a settled/finished state from the vendor dashboard viewpoint.
+  bool get isDeliveredOrCompleted =>
+      status == OrderStatus.delivered || status == OrderStatus.completed;
+
+  /// Orders that still require fulfillment and should contribute to pending payout math.
+  bool get isActiveForDashboard =>
+      status != OrderStatus.cancelled &&
+      status != OrderStatus.delivered &&
+      status != OrderStatus.completed;
+
+  /// Dashboard paid bucket should only include orders that are fully completed and
+  /// have a confirmed paid payment state.
+  bool get isPaidForDashboard =>
+      isDeliveredOrCompleted && paymentStatus == PaymentStatus.paid;
+
+  /// Dashboard pending bucket should include active in-flight orders plus any
+  /// completed orders that are still awaiting collection or delivery settlement.
+  bool get isPendingForDashboard =>
+      isActiveForDashboard ||
+      (isDeliveredOrCompleted &&
+          (paymentStatus == PaymentStatus.pending ||
+              paymentStatus == PaymentStatus.pendingOnDelivery));
+
   OrderModel({
     required this.id,
     required this.proposalId,
