@@ -91,15 +91,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   void _loadStatsData() {
-    final user = ref.read(currentUserProvider);
-    if (user == null) return;
-    if (user.role == UserRole.vendor) {
-      ref.read(orderProvider.notifier).loadVendorOrders();
-      ref.read(vendorRequestFeedProvider.notifier).loadFeed();
-    } else {
-      ref.read(requestProvider.notifier).loadMyRequests();
-      ref.read(orderProvider.notifier).loadCustomerOrders();
-    }
+    // Deferred: Only load stats when user actually views this screen
+    // Prevents loading overhead during navigation
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final user = ref.read(currentUserProvider);
+      if (user == null) return;
+      if (user.role == UserRole.vendor) {
+        ref.read(orderProvider.notifier).loadVendorOrders();
+        ref.read(vendorRequestFeedProvider.notifier).loadFeed();
+      } else {
+        ref.read(requestProvider.notifier).loadMyRequests();
+        ref.read(orderProvider.notifier).loadCustomerOrders();
+      }
+    });
   }
 
   void _initData() {
@@ -399,24 +404,51 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildProfileHeader(user, isDark, _isEditing),
+                  RepaintBoundary(
+                    child: _buildProfileHeader(user, isDark, _isEditing),
+                  ),
                   const SizedBox(height: AppSpacing.xl),
 
-                  if (!_isEditing) ..._buildQuickStats(user, isDark),
+                  if (!_isEditing)
+                    RepaintBoundary(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [..._buildQuickStats(user, isDark)],
+                      ),
+                    ),
                   if (!_isEditing) const SizedBox(height: AppSpacing.xl),
 
-                  ..._buildAccountSection(user, isDark, _isEditing),
+                  RepaintBoundary(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [..._buildAccountSection(user, isDark, _isEditing)],
+                    ),
+                  ),
                   const SizedBox(height: AppSpacing.xl),
 
-                  if (user.role == UserRole.vendor) ..._buildVendorSection(user, isDark, _isEditing),
+                  if (user.role == UserRole.vendor)
+                    RepaintBoundary(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [..._buildVendorSection(user, isDark, _isEditing)],
+                      ),
+                    ),
                   if (user.role == UserRole.vendor) const SizedBox(height: AppSpacing.xl),
 
-                  if (!_isEditing) _buildSupportSection(isDark),
+                  if (!_isEditing)
+                    RepaintBoundary(child: _buildSupportSection(isDark)),
                   if (!_isEditing) const SizedBox(height: AppSpacing.xl),
 
-                  if (!_isEditing) _buildDangerZone(isDark, _handleLogout, isLoading),
+                  if (!_isEditing)
+                    RepaintBoundary(
+                      child: _buildDangerZone(isDark, _handleLogout, isLoading),
+                    ),
 
-                  if (_isEditing) ..._buildSaveButton(isLoading),
+                  if (_isEditing)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [..._buildSaveButton(isLoading)],
+                    ),
 
                   const SizedBox(height: AppSpacing.xl),
                 ],

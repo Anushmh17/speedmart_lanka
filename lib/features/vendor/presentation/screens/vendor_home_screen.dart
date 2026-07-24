@@ -12,6 +12,7 @@ import 'package:speedmart_lanka/core/widgets/app_state_widgets.dart';
 import 'package:speedmart_lanka/core/guards/vendor_status_guard.dart';
 import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
 import 'package:speedmart_lanka/features/auth/providers/theme_provider.dart';
+import 'package:speedmart_lanka/features/auth/providers/theme_animation_provider.dart';
 import 'package:speedmart_lanka/core/providers/notification_provider.dart';
 import 'package:speedmart_lanka/shared/models/user_role.dart';
 import 'package:speedmart_lanka/features/vendor/request_feed/presentation/vendor_request_feed_screen.dart';
@@ -2801,8 +2802,15 @@ extension _VendorHomeScreenStateExtension on _VendorHomeScreenState {  Widget _b
           ),
           const Spacer(),
           IconButton(
-            onPressed: () {
-              ref.read(themeProvider.notifier).toggleTheme();
+            onPressed: () async {
+              // Show overlay
+              ref.read(themeAnimationProvider.notifier).show();
+              // Quick toggle - theme changes while overlay is fading in
+              await Future.delayed(const Duration(milliseconds: 50));
+              await ref.read(themeProvider.notifier).toggleTheme();
+              // Smooth fade-out after theme changes
+              await Future.delayed(const Duration(milliseconds: 500));
+              ref.read(themeAnimationProvider.notifier).hide();
             },
             icon: Icon(
               isDark
