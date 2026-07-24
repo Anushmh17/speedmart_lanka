@@ -24,7 +24,6 @@ class VendorRequestFilterService {
     'vehicle parts': 5,
     'home appliances': 5,
     'stationery': 5,
-    'other': 5,
   };
 
   static const double defaultRadiusKm = 5;

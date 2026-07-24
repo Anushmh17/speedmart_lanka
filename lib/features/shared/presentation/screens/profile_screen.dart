@@ -699,6 +699,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         label: 'Full Name',
         controller: _nameCtrl,
         prefixIcon: Icons.person_outline_rounded,
+        textCapitalization: TextCapitalization.words,
       ),
       const SizedBox(height: AppSpacing.md),
       Theme3AppTextField(
@@ -739,6 +740,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           label: 'Business Name',
           controller: _businessNameCtrl,
           prefixIcon: Icons.storefront_rounded,
+          textCapitalization: TextCapitalization.words,
         )
       else
         Theme3AppCard(
@@ -1013,12 +1015,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               label: 'Branch',
               controller: _bankBranchCtrl,
               prefixIcon: Icons.location_city_outlined,
+              textCapitalization: TextCapitalization.words,
             ),
             const SizedBox(height: AppSpacing.sm),
             Theme3AppTextField(
               label: 'Account Holder Name',
               controller: _bankAccountNameCtrl,
               prefixIcon: Icons.person_outline_rounded,
+              textCapitalization: TextCapitalization.words,
             ),
             const SizedBox(height: AppSpacing.sm),
             TextFormField(

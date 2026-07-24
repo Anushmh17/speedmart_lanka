@@ -19,6 +19,7 @@ class Theme3AppTextField extends StatefulWidget {
   final ValueChanged<String>? onChanged;
   final int? maxLines;
   final TextInputType? keyboardType;
+  final TextCapitalization textCapitalization;
 
   const Theme3AppTextField({
     super.key,
@@ -35,6 +36,7 @@ class Theme3AppTextField extends StatefulWidget {
     this.onChanged,
     this.maxLines = 1,
     this.keyboardType,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   @override
@@ -125,6 +127,7 @@ class _Theme3AppTextFieldState extends State<Theme3AppTextField> {
           onChanged: widget.onChanged,
           maxLines: widget.maxLines,
           keyboardType: widget.keyboardType,
+          textCapitalization: widget.textCapitalization,
           style: AppTextStyles.bodyMedium(
             isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
           ),

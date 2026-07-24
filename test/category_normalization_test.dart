@@ -12,5 +12,11 @@ void main() {
       expect(VendorCategories.display(VendorCategories.normalize('vehicle_parts')), 'Vehicle Parts');
       expect(VendorCategories.display(VendorCategories.normalize('home_appliances')), 'Home Appliances');
     });
+
+    test('does not expose the Other category in the shared vendor category registry', () {
+      expect(VendorCategories.displayNames.contains('Other'), isFalse);
+      expect(VendorCategories.normalizedList.contains('other'), isFalse);
+      expect(VendorCategories.isValid('other'), isFalse);
+    });
   });
 }

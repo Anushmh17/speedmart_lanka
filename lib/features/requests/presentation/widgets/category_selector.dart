@@ -141,12 +141,6 @@ const Map<String, _CategoryMeta> _categoryMeta = {
     lightBg: Color(0xFFFEF3C7),
     darkBg: Color(0xFF2C1800),
   ),
-  'other': _CategoryMeta(
-    icon: Icons.category_rounded,
-    color: Color(0xFF6B7280),
-    lightBg: Color(0xFFF3F4F6),
-    darkBg: Color(0xFF1A1A1A),
-  ),
 };
 
 _CategoryMeta _metaFor(String displayName) {
