@@ -62,8 +62,8 @@ class _SpeedmartAppState extends ConsumerState<SpeedmartApp> {
   bool _showThemeTransition = false;
 
   @override
-  void initState() {
-    super.initState();
+  Widget build(BuildContext context) {
+    final themeMode = ref.watch(themeProvider);
 
     // Listen for theme changes and show a brief overlay animation to smooth the transition.
     ref.listen<ThemeMode>(themeProvider, (previous, next) {
@@ -75,11 +75,6 @@ class _SpeedmartAppState extends ConsumerState<SpeedmartApp> {
         });
       }
     });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final themeMode = ref.watch(themeProvider);
 
     debugPrint('[Theme] MaterialApp building with themeMode=${themeMode.name}');
 
