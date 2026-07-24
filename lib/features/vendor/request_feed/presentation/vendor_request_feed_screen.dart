@@ -14,9 +14,7 @@ import '../widgets/vendor_request_card.dart';
 
 /// Vendor marketplace feed: nearby active requests matching categories & radius.
 class VendorRequestFeedScreen extends ConsumerStatefulWidget {
-  const VendorRequestFeedScreen({super.key, required this.isDark});
-
-  final bool isDark;
+  const VendorRequestFeedScreen({super.key});
 
   @override
   ConsumerState<VendorRequestFeedScreen> createState() =>
@@ -41,7 +39,7 @@ class _VendorRequestFeedScreenState
 
   @override
   Widget build(BuildContext context) {
-    final isDark = widget.isDark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryText =
         isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryText = isDark
@@ -329,32 +327,32 @@ class _VendorRequestFeedScreenState
   }
 
   Widget _buildCategoryChip(String label, bool selected, bool isDark, Color primaryText, String? categoryValue) {
-    const accent = AppColors.vendorColor;
-    return GestureDetector(
-      onTap: () => ref
+    final accent = AppColors.vendorColor;
+    final chipBg = isDark ? AppColors.cardDark : AppColors.cardLight;
+    final border = isDark ? AppColors.borderDark : AppColors.borderLight;
+
+    return FilterChip(
+      label: Text(
+        label,
+        style: AppTextStyles.caption(
+          selected ? accent : primaryText,
+        ).copyWith(fontWeight: FontWeight.w600),
+      ),
+      selected: selected,
+      onSelected: (_) => ref
           .read(vendorRequestFeedProvider.notifier)
           .setCategoryFilter(categoryValue),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: selected
-              ? accent.withValues(alpha: 0.15)
-              : (isDark ? AppColors.cardDark : AppColors.cardLight),
-          borderRadius: BorderRadius.circular(AppRadius.full),
-          border: Border.all(
-            color: selected ? accent : (isDark ? AppColors.borderDark : AppColors.borderLight),
-            width: selected ? 1.5 : 1,
-          ),
-        ),
-        child: Text(
-          label,
-          style: AppTextStyles.caption(
-            selected ? accent : primaryText,
-          ).copyWith(fontWeight: FontWeight.w600),
-        ),
+      selectedColor: accent.withValues(alpha: 0.2),
+      checkmarkColor: accent,
+      backgroundColor: chipBg,
+      side: BorderSide(
+        color: selected ? accent : border,
+        width: selected ? 1.5 : 1,
       ),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.full),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 4),
     );
   }
 }

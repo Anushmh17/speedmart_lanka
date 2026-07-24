@@ -8,11 +8,14 @@ class ThemeNotifier extends StateNotifier<ThemeMode> {
     _loadSavedTheme();
   }
 
+  bool _isInitializing = true;
+
   Future<void> _loadSavedTheme() async {
     final saved = await StorageService.getThemeMode();
     if (saved != null) {
       state = _fromString(saved);
     }
+    _isInitializing = false;
   }
 
   Future<void> setTheme(ThemeMode mode) async {

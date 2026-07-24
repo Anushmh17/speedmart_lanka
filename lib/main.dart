@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import 'core/routes/app_router.dart';
 import 'core/services/local_notification_service.dart';
 import 'core/theme/app_theme.dart';
-import 'core/widgets/global_notification_overlay.dart';
 import 'core/widgets/network_fallback_wrapper.dart';
 import 'features/auth/providers/theme_provider.dart';
 import 'features/orders/data/mock_order_repository.dart';
@@ -59,26 +58,16 @@ class SpeedmartApp extends ConsumerStatefulWidget {
 }
 
 class _SpeedmartAppState extends ConsumerState<SpeedmartApp> {
-  bool _showThemeTransition = false;
-
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeProvider);
+    final router = ref.watch(appRouterProvider);
 
-    // Listen for theme changes and show a brief overlay animation to smooth the transition.
-    ref.listen<ThemeMode>(themeProvider, (previous, next) {
-      if (previous != null && previous != next) {
-        setState(() => _showThemeTransition = true);
-        // Keep the overlay visible for longer transition effect.
-        Future.delayed(const Duration(milliseconds: 1500), () {
-          if (mounted) setState(() => _showThemeTransition = false);
-        });
-      }
-    });
+    final resolvedTheme = themeMode == ThemeMode.dark
+        ? AppTheme.darkTheme
+        : AppTheme.lightTheme;
 
     debugPrint('[Theme] MaterialApp building with themeMode=${themeMode.name}');
-
-    final router = ref.watch(appRouterProvider);
 
     return _AppLifecycleManager(
       child: MaterialApp.router(
@@ -104,32 +93,11 @@ class _SpeedmartAppState extends ConsumerState<SpeedmartApp> {
           if (child == null) return const SizedBox.shrink();
 
           return NetworkFallbackWrapper(
-            child: Stack(
-              children: [
-                if (child != null) SizedBox.expand(child: child),
-                const GlobalNotificationOverlay(),
-                // Theme transition overlay
-                IgnorePointer(
-                  ignoring: !_showThemeTransition,
-                  child: AnimatedOpacity(
-                    opacity: _showThemeTransition ? 1.0 : 0.0,
-                    duration: const Duration(milliseconds: 600),
-                    curve: Curves.easeInOut,
-                    child: Container(
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? Colors.black.withOpacity(0.6)
-                          : Colors.white.withOpacity(0.6),
-                      child: const Center(
-                        child: SizedBox(
-                          width: 72,
-                          height: 72,
-                          child: CircularProgressIndicator(strokeWidth: 4),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
+            child: AnimatedTheme(
+              data: resolvedTheme,
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeOutCubic,
+              child: SizedBox.expand(child: child),
             ),
           );
         },

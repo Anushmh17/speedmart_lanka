@@ -321,9 +321,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         pageBuilder: (context, state) => _buildPage(
           context,
           state,
-          VendorRequestFeedScreen(
-            isDark: Theme.of(context).brightness == Brightness.dark,
-          ),
+          const VendorRequestFeedScreen(),
         ),
       ),
       GoRoute(
