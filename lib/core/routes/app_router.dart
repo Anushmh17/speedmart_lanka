@@ -19,6 +19,7 @@ import 'package:speedmart_lanka/features/orders/presentation/screens/order_track
 import 'package:speedmart_lanka/features/orders/presentation/screens/vendor_order_details_screen.dart';
 import 'package:speedmart_lanka/features/orders/presentation/screens/vendor_orders_screen.dart';
 import 'package:speedmart_lanka/features/vendor/presentation/screens/vendor_home_screen.dart';
+import 'package:speedmart_lanka/features/vendor/request_feed/presentation/vendor_request_feed_screen.dart';
 import 'package:speedmart_lanka/features/vendor/presentation/screens/vendor_shopfront_screen.dart';
 import 'package:speedmart_lanka/features/vendor/proposals/presentation/vendor_request_detail_screen.dart';
 import 'package:speedmart_lanka/features/vendor/proposals/presentation/vendor_proposal_form_screen.dart';
@@ -313,6 +314,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: RouteNames.vendorHome,
         pageBuilder: (context, state) => _buildPage(context, state, const VendorHomeScreen()),
+      ),
+      GoRoute(
+        path: RouteNames.vendorNearbyRequests,
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => _buildPage(
+          context,
+          state,
+          VendorRequestFeedScreen(
+            isDark: Theme.of(context).brightness == Brightness.dark,
+          ),
+        ),
       ),
       GoRoute(
         path: RouteNames.vendorRequestDetail,

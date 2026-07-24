@@ -14,6 +14,7 @@ import '../../../../core/widgets/theme3/theme3_status_chip.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
 import '../../../../features/orders/models/order_model.dart';
 import '../../../../features/orders/providers/order_provider.dart';
+import '../../../../features/vendor/request_feed/providers/vendor_request_feed_provider.dart';
 import '../../../../features/requests/providers/request_provider.dart';
 import '../../../../shared/models/user_role.dart';
 import 'package:go_router/go_router.dart';
@@ -26,11 +27,16 @@ import '../../../../shared/models/sri_lanka_banks.dart';
 import '../../../../shared/utils/category_constants.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
-  const ProfileScreen({super.key, this.showBackButton = true});
+  const ProfileScreen({
+    super.key,
+    this.showBackButton = true,
+    this.onVendorRequestsTap,
+  });
 
   /// Set to false when embedded as a tab (e.g. vendor bottom nav) so the
   /// AppBar back arrow is hidden.
   final bool showBackButton;
+  final VoidCallback? onVendorRequestsTap;
 
   @override
   ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
@@ -87,6 +93,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (user == null) return;
     if (user.role == UserRole.vendor) {
       ref.read(orderProvider.notifier).loadVendorOrders();
+      ref.read(vendorRequestFeedProvider.notifier).loadFeed();
     } else {
       ref.read(requestProvider.notifier).loadMyRequests();
       ref.read(orderProvider.notifier).loadCustomerOrders();
@@ -525,13 +532,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   List<Widget> _buildQuickStats(dynamic user, bool isDark) {
     final requestState = ref.watch(requestProvider);
     final orderState = ref.watch(orderProvider);
+    final vendorFeedState = ref.watch(vendorRequestFeedProvider);
 
     final int totalRequests;
     final int activeOrders;
     final int completedOrders;
 
     if (user.role == UserRole.vendor) {
-      totalRequests = ref.watch(orderProvider).orders.length;
+      totalRequests = vendorFeedState.items.length;
       activeOrders = orderState.orders.where((o) =>
           o.status != OrderStatus.delivered &&
           o.status != OrderStatus.completed &&
@@ -561,23 +569,54 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       Row(
         children: [
           Expanded(
-            child: _buildStatCard('Requests', totalRequests.toString(), Icons.receipt_long_outlined, isDark),
+            child: _buildStatCard(
+              'Requests',
+              totalRequests.toString(),
+              Icons.receipt_long_outlined,
+              isDark,
+              onTap: user.role == UserRole.vendor
+                  ? (widget.onVendorRequestsTap ??
+                    () => context.push(RouteNames.vendorNearbyRequests))
+                  : null,
+            ),
           ),
           SizedBox(width: AppSpacing.md),
           Expanded(
-            child: _buildStatCard('Active', activeOrders.toString(), Icons.shopping_bag_outlined, isDark),
+            child: _buildStatCard(
+              'Active',
+              activeOrders.toString(),
+              Icons.shopping_bag_outlined,
+              isDark,
+              onTap: user.role == UserRole.vendor
+                  ? () => context.push(RouteNames.vendorOrders, extra: {'initialTabIndex': 0})
+                  : null,
+            ),
           ),
           SizedBox(width: AppSpacing.md),
           Expanded(
-            child: _buildStatCard('Completed', completedOrders.toString(), Icons.check_circle_outline_rounded, isDark),
+            child: _buildStatCard(
+              'Completed',
+              completedOrders.toString(),
+              Icons.check_circle_outline_rounded,
+              isDark,
+              onTap: user.role == UserRole.vendor
+                  ? () => context.push(RouteNames.vendorOrders, extra: {'initialTabIndex': 1})
+                  : null,
+            ),
           ),
         ],
       ),
     ];
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, bool isDark) {
-    return Theme3AppCard(
+  Widget _buildStatCard(
+    String label,
+    String value,
+    IconData icon,
+    bool isDark, {
+    VoidCallback? onTap,
+  }) {
+    final card = Theme3AppCard(
       type: Theme3CardType.standard,
       padding: const EdgeInsets.all(AppSpacing.md),
       child: Column(
@@ -606,6 +645,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ],
       ),
     );
+
+    return onTap == null
+        ? card
+        : InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: onTap,
+            child: card,
+          );
   }
 
   List<Widget> _buildAccountSection(dynamic user, bool isDark, bool isEditing) {
