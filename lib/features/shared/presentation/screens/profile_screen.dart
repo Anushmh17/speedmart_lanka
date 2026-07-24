@@ -77,6 +77,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   bool _dataInitialized = false;
+  bool _acceptsCashOnDelivery = true;
+  bool _acceptsBankTransfer = true;
 
   @override
   void didChangeDependencies() {
@@ -111,6 +113,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _bankBranchCtrl.text = user.bankBranch ?? '';
       _bankAccountNameCtrl.text = user.bankAccountName ?? '';
       _bankAccountNumberCtrl.text = user.bankAccountNumber ?? '';
+      _acceptsCashOnDelivery = user.acceptsCashOnDelivery ?? true;
+      _acceptsBankTransfer = user.acceptsBankTransfer ?? true;
       // Restore selected bank from saved name
       if (user.bankName != null && user.bankName!.isNotEmpty) {
         try {
@@ -205,6 +209,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final sameBankBranch = (user.bankBranch ?? '') == _bankBranchCtrl.text.trim();
     final sameBankAccountName = (user.bankAccountName ?? '') == _bankAccountNameCtrl.text.trim();
     final sameBankAccountNumber = (user.bankAccountNumber ?? '') == _bankAccountNumberCtrl.text.trim();
+    final sameAcceptsCod = (user.acceptsCashOnDelivery ?? true) == _acceptsCashOnDelivery;
+    final sameAcceptsBank = (user.acceptsBankTransfer ?? true) == _acceptsBankTransfer;
     final sameRequestedCategories = currentRequested.containsAll(editedRequested) && editedRequested.containsAll(currentRequested);
 
     if (user.role == UserRole.vendor) {
@@ -216,6 +222,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           !sameBankBranch ||
           !sameBankAccountName ||
           !sameBankAccountNumber ||
+          !sameAcceptsCod ||
+          !sameAcceptsBank ||
           !sameRequestedCategories;
     }
 
@@ -245,6 +253,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       bankBranch: user.role == UserRole.vendor ? _bankBranchCtrl.text.trim() : null,
       bankAccountName: user.role == UserRole.vendor ? _bankAccountNameCtrl.text.trim() : null,
       bankAccountNumber: user.role == UserRole.vendor ? _bankAccountNumberCtrl.text.trim() : null,
+      acceptsCashOnDelivery: user.role == UserRole.vendor ? _acceptsCashOnDelivery : null,
+      acceptsBankTransfer: user.role == UserRole.vendor ? _acceptsBankTransfer : null,
     );
 
     if (mounted && !ref.read(authLoadingProvider)) {
@@ -830,6 +840,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       if (isEditing) _buildRequestableCategories(isDark),
       const SizedBox(height: AppSpacing.md),
       _buildBankDetailsSection(user, isDark, isEditing),
+      if (isEditing) const SizedBox(height: AppSpacing.md),
+      if (isEditing) _buildPaymentAvailabilitySection(isDark),
     ];
   }
 
@@ -969,166 +981,237 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final hasBankDetails = (user.bankName ?? '').isNotEmpty ||
         (user.bankAccountNumber ?? '').isNotEmpty;
 
-    return Theme3AppCard(
-      type: Theme3CardType.standard,
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Bank Transfer Details',
+          style: AppTextStyles.subtitle(
+            isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+          ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        Theme3AppCard(
+          type: Theme3CardType.standard,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.account_balance_rounded, size: 20,
-                  color: isDark ? AppColors.primaryDark : AppColors.primary),
-              const SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Text('Bank / Payment Details',
-                    style: AppTextStyles.labelMedium(secondaryText)),
-              ),
-              if (!isEditing && !hasBankDetails)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: AppColors.warning.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text('Not set',
-                      style: AppTextStyles.caption(AppColors.warning)
-                          .copyWith(fontWeight: FontWeight.w600)),
-                ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Used by admin to settle commission charges.',
-            style: AppTextStyles.caption(secondaryText),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          if (isEditing) ...[
-            // Bank picker
-            GestureDetector(
-              onTap: () => _showBankPickerSheet(isDark, primaryText, secondaryText),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                decoration: BoxDecoration(
-                  border: Border.all(color: secondaryText.withValues(alpha: 0.4)),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    if (_selectedBank != null) ...[
-                      Image.asset(
-                        _selectedBank!.logoAsset,
-                        width: 40,
-                        height: 40,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => const Icon(Icons.account_balance_outlined, size: 36),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(child: Text(_selectedBank!.name, style: AppTextStyles.bodyMedium(primaryText))),
-                    ] else ...[
-                      Icon(Icons.account_balance_outlined, color: secondaryText),
-                      const SizedBox(width: 10),
-                      Expanded(child: Text('Select your bank', style: AppTextStyles.bodyMedium(secondaryText))),
-                    ],
-                    Icon(Icons.keyboard_arrow_down_rounded, color: secondaryText),
-                  ],
-                ),
-              ),
-            ),
-            if (_selectedBank != null) ...[
-              const SizedBox(height: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: (isDark ? AppColors.primaryDark : AppColors.primary).withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline, size: 14,
-                        color: isDark ? AppColors.primaryDark : AppColors.primary),
-                    const SizedBox(width: 6),
-                    Text(
-                      'Account number: ${_selectedBank!.digitRule}',
-                      style: AppTextStyles.caption(
-                          isDark ? AppColors.primaryDark : AppColors.primary),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            const SizedBox(height: AppSpacing.sm),
-            Theme3AppTextField(
-              label: 'Branch',
-              controller: _bankBranchCtrl,
-              prefixIcon: Icons.location_city_outlined,
-              textCapitalization: TextCapitalization.words,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            Theme3AppTextField(
-              label: 'Account Holder Name',
-              controller: _bankAccountNameCtrl,
-              prefixIcon: Icons.person_outline_rounded,
-              textCapitalization: TextCapitalization.words,
-            ),
-            const SizedBox(height: AppSpacing.sm),
-            TextFormField(
-              controller: _bankAccountNumberCtrl,
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
-                if (_selectedBank != null)
-                  LengthLimitingTextInputFormatter(_selectedBank!.maxDigits),
-              ],
-              decoration: InputDecoration(
-                labelText: 'Account Number',
-                hintText: _selectedBank?.hint ?? 'Enter account number',
-                prefixIcon: const Icon(Icons.numbers_rounded),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-              ),
-              validator: (val) {
-                if (val == null || val.trim().isEmpty) return null;
-                final digits = val.trim();
-                if (_selectedBank != null) {
-                  if (digits.length < _selectedBank!.minDigits ||
-                      digits.length > _selectedBank!.maxDigits) {
-                    return '${_selectedBank!.name} requires ${_selectedBank!.digitRule}';
-                  }
-                }
-                return null;
-              },
-            ),
-          ] else if (hasBankDetails) ...[
-            // View mode — show a styled card with bank info
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: cardBg,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: borderColor),
-              ),
-              child: Column(
+              Row(
                 children: [
-                  _bankInfoRow(Icons.account_balance_outlined, 'Bank',
-                      user.bankName ?? '—', primaryText, secondaryText),
-                  const SizedBox(height: 8),
-                  _bankInfoRow(Icons.location_city_outlined, 'Branch',
-                      user.bankBranch ?? '—', primaryText, secondaryText),
-                  const SizedBox(height: 8),
-                  _bankInfoRow(Icons.person_outline_rounded, 'Account Holder',
-                      user.bankAccountName ?? '—', primaryText, secondaryText),
-                  const SizedBox(height: 8),
-                  _bankInfoRow(Icons.numbers_rounded, 'Account No.',
-                      user.bankAccountNumber ?? '—', primaryText, secondaryText),
+                  Icon(Icons.account_balance_rounded, size: 20,
+                      color: isDark ? AppColors.primaryDark : AppColors.primary),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text('Bank / Payment Details',
+                        style: AppTextStyles.labelMedium(secondaryText)),
+                  ),
+                  if (!isEditing && !hasBankDetails)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.warning.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text('Not set',
+                          style: AppTextStyles.caption(AppColors.warning)
+                              .copyWith(fontWeight: FontWeight.w600)),
+                    ),
                 ],
               ),
-            ),
-          ] else
-            Text('Tap edit to add your bank details.',
-                style: AppTextStyles.bodySmall(secondaryText)),
-        ],
-      ),
+              const SizedBox(height: 4),
+              Text(
+                'This account is used for customer bank transfer payments.',
+                style: AppTextStyles.caption(secondaryText),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              if (isEditing) ...[
+                // Bank picker
+                GestureDetector(
+                  onTap: () => _showBankPickerSheet(isDark, primaryText, secondaryText),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: secondaryText.withValues(alpha: 0.4)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        if (_selectedBank != null) ...[
+                          Image.asset(
+                            _selectedBank!.logoAsset,
+                            width: 40,
+                            height: 40,
+                            fit: BoxFit.contain,
+                            errorBuilder: (_, __, ___) => const Icon(Icons.account_balance_outlined, size: 36),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(child: Text(_selectedBank!.name, style: AppTextStyles.bodyMedium(primaryText))),
+                        ] else ...[
+                          Icon(Icons.account_balance_outlined, color: secondaryText),
+                          const SizedBox(width: 10),
+                          Expanded(child: Text('Select your bank', style: AppTextStyles.bodyMedium(secondaryText))),
+                        ],
+                        Icon(Icons.keyboard_arrow_down_rounded, color: secondaryText),
+                      ],
+                    ),
+                  ),
+                ),
+                if (_selectedBank != null) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: (isDark ? AppColors.primaryDark : AppColors.primary).withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, size: 14,
+                            color: isDark ? AppColors.primaryDark : AppColors.primary),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Account number: ${_selectedBank!.digitRule}',
+                          style: AppTextStyles.caption(
+                              isDark ? AppColors.primaryDark : AppColors.primary),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: AppSpacing.sm),
+                Theme3AppTextField(
+                  label: 'Branch',
+                  controller: _bankBranchCtrl,
+                  prefixIcon: Icons.location_city_outlined,
+                  textCapitalization: TextCapitalization.words,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                Theme3AppTextField(
+                  label: 'Account Holder Name',
+                  controller: _bankAccountNameCtrl,
+                  prefixIcon: Icons.person_outline_rounded,
+                  textCapitalization: TextCapitalization.words,
+                ),
+                const SizedBox(height: AppSpacing.sm),
+                TextFormField(
+                  controller: _bankAccountNumberCtrl,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly,
+                    if (_selectedBank != null)
+                      LengthLimitingTextInputFormatter(_selectedBank!.maxDigits),
+                  ],
+                  decoration: InputDecoration(
+                    labelText: 'Account Number',
+                    hintText: _selectedBank?.hint ?? 'Enter account number',
+                    prefixIcon: const Icon(Icons.numbers_rounded),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                  ),
+                  validator: (val) {
+                    if (val == null || val.trim().isEmpty) return null;
+                    final digits = val.trim();
+                    if (_selectedBank != null) {
+                      if (digits.length < _selectedBank!.minDigits ||
+                          digits.length > _selectedBank!.maxDigits) {
+                        return '${_selectedBank!.name} requires ${_selectedBank!.digitRule}';
+                      }
+                    }
+                    return null;
+                  },
+                ),
+              ] else if (hasBankDetails) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: borderColor),
+                  ),
+                  child: Column(
+                    children: [
+                      _bankInfoRow(Icons.account_balance_outlined, 'Bank',
+                          user.bankName ?? '—', primaryText, secondaryText),
+                      const SizedBox(height: 8),
+                      _bankInfoRow(Icons.location_city_outlined, 'Branch',
+                          user.bankBranch ?? '—', primaryText, secondaryText),
+                      const SizedBox(height: 8),
+                      _bankInfoRow(Icons.person_outline_rounded, 'Account Holder',
+                          user.bankAccountName ?? '—', primaryText, secondaryText),
+                      const SizedBox(height: 8),
+                      _bankInfoRow(Icons.numbers_rounded, 'Account No.',
+                          user.bankAccountNumber ?? '—', primaryText, secondaryText),
+                    ],
+                  ),
+                ),
+              ] else
+                Text('Tap edit to add your bank details.',
+                    style: AppTextStyles.bodySmall(secondaryText)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPaymentAvailabilitySection(bool isDark) {
+    final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Payment Options', style: AppTextStyles.subtitle(primaryText)),
+        const SizedBox(height: AppSpacing.md),
+        Theme3AppCard(
+          type: Theme3CardType.standard,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.payments_outlined, size: 20,
+                      color: isDark ? AppColors.primaryDark : AppColors.primary),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text('Payment Methods',
+                        style: AppTextStyles.labelMedium(
+                            isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Text(
+                'Toggle which payment methods customers can choose when accepting your proposals.',
+                style: AppTextStyles.caption(isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('Enable Cash on Delivery', style: AppTextStyles.bodyMedium(isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
+                subtitle: Text('Customers can choose COD for your accepted proposals.', style: AppTextStyles.caption(isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight)),
+                value: _acceptsCashOnDelivery,
+                activeColor: AppColors.success,
+                onChanged: (value) {
+                  setState(() => _acceptsCashOnDelivery = value);
+                },
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('Enable Bank Transfer', style: AppTextStyles.bodyMedium(isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight)),
+                subtitle: Text('Customers can choose bank transfer when checking out.', style: AppTextStyles.caption(isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight)),
+                value: _acceptsBankTransfer,
+                activeColor: AppColors.primary,
+                onChanged: (value) {
+                  setState(() => _acceptsBankTransfer = value);
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -1293,7 +1376,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             _paymentMethodTile(
               icon: Icons.credit_card_rounded,
               label: 'Online Payment',
-              sublabel: 'Card / bank transfer at checkout',
+              sublabel: 'Bank transfer at checkout',
               color: AppColors.primary,
               isDark: isDark,
               primaryText: primaryText,
