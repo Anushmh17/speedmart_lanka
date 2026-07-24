@@ -245,6 +245,9 @@ class _VendorProposalFormScreenState
         .map((i) => i.requestItemId)
         .toList();
     final subtotal = items.fold<double>(0, (s, i) => s + i.subtotal);
+    final commissionRate = user.commissionRate ?? 0.0;
+    final commissionAmount = subtotal * commissionRate;
+    final totalPrice = subtotal + _deliveryFee + commissionAmount;
 
     // Determine category for this proposal from the (already-filtered) request items
     String? proposalCategory;
@@ -272,7 +275,7 @@ class _VendorProposalFormScreenState
       missingItemIds: missing,
       deliveryCharge: _deliveryFee,
       estimatedDeliveryTime: _deliveryTimeController.text.trim(),
-      totalPrice: subtotal + _deliveryFee,
+      totalPrice: totalPrice,
       status: status,
       createdAt: widget.existingProposal?.createdAt ?? DateTime.now(),
       notes: _notesController.text.trim().isEmpty
@@ -488,6 +491,10 @@ class _VendorProposalFormScreenState
         : AppColors.textSecondaryLight;
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+    final currentUser = ref.read(currentUserProvider);
+    final commissionRate = currentUser?.commissionRate ?? 0.0;
+    final commissionAmount = _itemsSubtotal * commissionRate;
+    final totalBid = _itemsSubtotal + _deliveryFee + commissionAmount;
 
     return Scaffold(
       backgroundColor:
@@ -501,170 +508,171 @@ class _VendorProposalFormScreenState
       ),
       body: Form(
         key: _formKey,
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 32 + MediaQuery.of(context).viewInsets.bottom),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
                 padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: borderColor),
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: cardColor,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: borderColor),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.request.vendorVisibleAreaLabel,
-                            style: AppTextStyles.subtitle(primaryText),
-                          ),
-                          Text(
-                            '${widget.request.items.length} items · ${widget.request.status.displayName}',
-                            style: AppTextStyles.caption(secondaryText),
-                          ),
-                        ],
-                      ),
+                    Text(
+                      widget.request.vendorVisibleAreaLabel,
+                      style: AppTextStyles.subtitle(primaryText),
                     ),
-                    const SizedBox(height: 20),
-                    Text('Line items', style: AppTextStyles.h2(primaryText)),
-                    const SizedBox(height: 10),
-                    ..._buildGroupedItemEditors(isDark: isDark),
-                    const SizedBox(height: 20),
-                    Text('Delivery & notes', style: AppTextStyles.h2(primaryText)),
-                    const SizedBox(height: 10),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: cardColor,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: borderColor),
-                      ),
-                      child: Column(
-                        children: [
-                          TextFormField(
-                            controller: _deliveryFeeController,
-                            keyboardType: TextInputType.number,
-                            decoration: InputDecoration(
-                              labelText: 'Delivery fee (LKR)',
-                              prefixText: 'Rs. ',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _deliveryTimeController,
-                            textCapitalization: TextCapitalization.sentences,
-                            decoration: InputDecoration(
-                              labelText: 'Estimated delivery time *',
-                              hintText: 'e.g. 1-2 hours',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            validator: (v) =>
-                                v == null || v.trim().isEmpty ? 'Required' : null,
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _notesController,
-                            textCapitalization: TextCapitalization.sentences,
-                            maxLines: 3,
-                            decoration: InputDecoration(
-                              labelText: 'Message / notes to customer',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                    Text(
+                      '${widget.request.items.length} items · ${widget.request.status.displayName}',
+                      style: AppTextStyles.caption(secondaryText),
                     ),
-                    const SizedBox(height: 24),
                   ],
                 ),
               ),
-            ),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: cardColor,
-                border: Border(top: BorderSide(color: borderColor)),
-              ),
-              child: SafeArea(
+              const SizedBox(height: 20),
+              Text('Line items', style: AppTextStyles.h2(primaryText)),
+              const SizedBox(height: 10),
+              ..._buildGroupedItemEditors(isDark: isDark),
+              const SizedBox(height: 20),
+              Text('Delivery & notes', style: AppTextStyles.h2(primaryText)),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: borderColor),
+                ),
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('Subtotal', style: AppTextStyles.bodyMedium(secondaryText)),
-                        Text('Rs. ${_itemsSubtotal.toStringAsFixed(2)}',
-                            style: AppTextStyles.bodyMedium(primaryText)),
-                      ],
+                    TextFormField(
+                      controller: _deliveryFeeController,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Delivery fee (LKR)',
+                        prefixText: 'Rs. ',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
                     ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _deliveryTimeController,
+                      textCapitalization: TextCapitalization.sentences,
+                      decoration: InputDecoration(
+                        labelText: 'Estimated delivery time *',
+                        hintText: 'e.g. 1-2 hours',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      validator: (v) =>
+                          v == null || v.trim().isEmpty ? 'Required' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: _notesController,
+                      textCapitalization: TextCapitalization.sentences,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        labelText: 'Message / notes to customer',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text('Proposal summary', style: AppTextStyles.h2(primaryText)),
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Column(
+                  children: [
+                    _summaryRow('Subtotal', 'Rs. ${_itemsSubtotal.toStringAsFixed(2)}', primaryText, secondaryText),
+                    const SizedBox(height: 8),
+                    _summaryRow('Delivery fee', 'Rs. ${_deliveryFee.toStringAsFixed(2)}', primaryText, secondaryText),
+                    if (commissionRate > 0) ...[
+                      const SizedBox(height: 8),
+                      _summaryRow('Platform fee included', 'Rs. ${commissionAmount.toStringAsFixed(2)}', primaryText, secondaryText),
+                    ],
+                    const Divider(height: 28),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text('Total bid', style: AppTextStyles.subtitle(primaryText)),
-                        Text(
-                          'Rs. ${(_itemsSubtotal + _deliveryFee).toStringAsFixed(2)}',
-                          style: AppTextStyles.h2(AppColors.vendorColor),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: _saving ? null : _saveDraft,
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.vendorColor,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            child: const Text('Save draft'),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          flex: 2,
-                          child: ElevatedButton(
-                            onPressed: _saving ? null : _submit,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.vendorColor,
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                            ),
-                            child: _saving
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: Colors.white,
-                                    ),
-                                  )
-                                : Text(
-                                    _isEditing ? 'Update & submit' : 'Submit proposal',
-                                    style: AppTextStyles.button(Colors.white),
-                                  ),
-                          ),
-                        ),
+                        Text('Rs. ${totalBid.toStringAsFixed(2)}', style: AppTextStyles.h2(AppColors.vendorColor)),
                       ],
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _saving ? null : _saveDraft,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.vendorColor,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: const Text('Save draft'),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: _saving ? null : _submit,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.vendorColor,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                      ),
+                      child: _saving
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              _isEditing ? 'Update & submit' : 'Submit proposal',
+                              style: AppTextStyles.button(Colors.white),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  Widget _summaryRow(String label, String value, Color primaryText, Color secondaryText) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: AppTextStyles.bodyMedium(secondaryText)),
+        Text(value, style: AppTextStyles.bodyMedium(primaryText)),
+      ],
     );
   }
 

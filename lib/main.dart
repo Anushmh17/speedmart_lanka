@@ -51,12 +51,30 @@ void main() async {
   );
 }
 
-class SpeedmartApp extends ConsumerWidget {
+class SpeedmartApp extends ConsumerStatefulWidget {
   const SpeedmartApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SpeedmartApp> createState() => _SpeedmartAppState();
+}
+
+class _SpeedmartAppState extends ConsumerState<SpeedmartApp> {
+  bool _showThemeTransition = false;
+
+  @override
+  Widget build(BuildContext context) {
     final themeMode = ref.watch(themeProvider);
+
+    // Listen for theme changes and show a brief overlay animation to smooth the transition.
+    ref.listen<ThemeMode>(themeProvider, (previous, next) {
+      if (previous != null && previous != next) {
+        setState(() => _showThemeTransition = true);
+        // Keep the overlay visible for longer transition effect.
+        Future.delayed(const Duration(milliseconds: 1500), () {
+          if (mounted) setState(() => _showThemeTransition = false);
+        });
+      }
+    });
 
     debugPrint('[Theme] MaterialApp building with themeMode=${themeMode.name}');
 
@@ -90,6 +108,27 @@ class SpeedmartApp extends ConsumerWidget {
               children: [
                 if (child != null) SizedBox.expand(child: child),
                 const GlobalNotificationOverlay(),
+                // Theme transition overlay
+                IgnorePointer(
+                  ignoring: !_showThemeTransition,
+                  child: AnimatedOpacity(
+                    opacity: _showThemeTransition ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 600),
+                    curve: Curves.easeInOut,
+                    child: Container(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? Colors.black.withOpacity(0.6)
+                          : Colors.white.withOpacity(0.6),
+                      child: const Center(
+                        child: SizedBox(
+                          width: 72,
+                          height: 72,
+                          child: CircularProgressIndicator(strokeWidth: 4),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           );

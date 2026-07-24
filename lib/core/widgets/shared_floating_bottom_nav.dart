@@ -6,11 +6,13 @@ class SharedFloatingBottomNavItem {
   final IconData unselectedIcon;
   final IconData selectedIcon;
   final String label;
+  final int? badgeCount;
 
   const SharedFloatingBottomNavItem({
     required this.unselectedIcon,
     required this.selectedIcon,
     required this.label,
+    this.badgeCount,
   });
 }
 
@@ -92,26 +94,53 @@ class SharedFloatingBottomNav extends StatelessWidget {
                             : Colors.transparent,
                         borderRadius: BorderRadius.circular(22),
                       ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
+                      child: Stack(
+                        clipBehavior: Clip.none,
                         children: [
-                          Icon(
-                            isSelected
-                                ? item.selectedIcon
-                                : item.unselectedIcon,
-                            color: color,
-                            size: 22,
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isSelected
+                                    ? item.selectedIcon
+                                    : item.unselectedIcon,
+                                color: color,
+                                size: 22,
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                item.label,
+                                style: AppTextStyles.labelSmall(color).copyWith(
+                                  fontWeight: isSelected
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 3),
-                          Text(
-                            item.label,
-                            style: AppTextStyles.labelSmall(color).copyWith(
-                              fontWeight: isSelected
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                              fontSize: 10,
+                          if (item.badgeCount != null && item.badgeCount! > 0)
+                            Positioned(
+                              top: -4,
+                              right: -8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.error,
+                                  borderRadius: BorderRadius.circular(999),
+                                ),
+                                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                                child: Text(
+                                  item.badgeCount! > 99 ? '99+' : item.badgeCount!.toString(),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
                             ),
-                          ),
                         ],
                       ),
                     ),

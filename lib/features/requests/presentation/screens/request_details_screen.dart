@@ -207,13 +207,6 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
     });
 
     try {
-      await ref
-          .read(proposalProvider.notifier)
-          .acceptProposal(
-            proposal.id,
-            _request.id,
-            categoryNormalized: categoryNormalized,
-          );
       final refreshed =
           await MockRequestRepository.instance.getRequestById(_request.id);
       if (refreshed != null && mounted) {
@@ -977,7 +970,6 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
     return CustomerProposalView(
       proposal: p.copyWith(
         items: singleItem,
-        totalPrice: subtotal + p.deliveryCharge,
         status: displayStatus,
         categoryNormalized: category.isEmpty ? p.categoryNormalized : category,
       ),

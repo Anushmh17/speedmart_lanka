@@ -164,11 +164,6 @@ class _CustomerProposalComparisonScreenState
           _isAcceptingProposal = true;
         });
         try {
-          await ref.read(proposalProvider.notifier).acceptProposal(
-                proposal.id,
-                widget.requestId,
-                categoryNormalized: proposal.categoryNormalized,
-              );
           if (mounted) {
             context.push('/customer/payment', extra: {
               'proposal': proposal,

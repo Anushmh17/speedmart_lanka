@@ -15,7 +15,6 @@ class VendorCategories {
     'Vehicle Parts',
     'Home Appliances',
     'Stationery',
-    'Other',
   ];
 
   /// Normalized list (lowercase) - used for storage and comparison
@@ -29,7 +28,6 @@ class VendorCategories {
     'vehicle parts',
     'home appliances',
     'stationery',
-    'other',
   ];
 
   /// Mapping from normalized to display format for easy lookup
@@ -43,7 +41,6 @@ class VendorCategories {
     'vehicle parts': 'Vehicle Parts',
     'home appliances': 'Home Appliances',
     'stationery': 'Stationery',
-    'other': 'Other',
   };
 
   /// Alias mapping for legacy/alternate category names
@@ -74,21 +71,10 @@ class VendorCategories {
     
     // Stationery aliases (common misspelling)
     'stationary': 'stationery',
-    
-    // Umbrella alias
-    'umbrella': 'other',
-    'umbrellas': 'other',
-    
+
     // Roof alias
     'roof': 'hardware',
     'roofing': 'hardware',
-    
-    // Baby products alias
-    'baby products': 'other',
-    'baby product': 'other',
-    'babies': 'other',
-    'infant': 'other',
-    'infant products': 'other',
   };
 
   /// Convert display format to normalized format

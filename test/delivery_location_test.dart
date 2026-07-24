@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:speedmart_lanka/features/location/models/delivery_location.dart';
 import 'package:speedmart_lanka/features/location/services/location_service.dart';
+import 'package:speedmart_lanka/features/orders/models/order_model.dart';
+import 'package:speedmart_lanka/features/payments/models/payment.dart';
 import 'package:speedmart_lanka/features/requests/providers/draft_provider.dart';
 
 void main() {
@@ -152,6 +154,73 @@ void main() {
       expect(decoded.hasCoordinates, isFalse);
       expect(decoded.approximateAreaText, equals('Near Temple of Tooth'));
       expect(decoded.source, equals('manual'));
+    });
+
+    test('OrderModel preserves structured customer location fields', () {
+      final createdAt = DateTime(2026, 7, 23, 9, 30);
+      final original = OrderModel(
+        id: 'ORD-001',
+        proposalId: 'PROP-001',
+        requestId: 'REQ-001',
+        customerId: 'CUS-001',
+        vendorId: 'VEN-001',
+        vendorBusinessName: 'Vendor Shop',
+        vendorPhone: '+94 77 000 0000',
+        customerName: 'Jane Customer',
+        customerPhone: '+94 71 111 1111',
+        deliveryAddress: '45 Galle Rd',
+        customerProvince: 'Western',
+        customerDistrict: 'Colombo',
+        customerCity: 'Colombo 03',
+        customerSuburb: 'Colpetty',
+        customerFormattedAddress: 'Colpetty, Colombo 03, Western',
+        items: const [],
+        deliveryCharge: 0,
+        totalPrice: 1500,
+        paymentMethod: PaymentMethod.cashOnDelivery,
+        createdAt: createdAt,
+      );
+
+      final json = original.toJson();
+      final decoded = OrderModel.fromJson(json);
+
+      expect(decoded.customerProvince, equals('Western'));
+      expect(decoded.customerDistrict, equals('Colombo'));
+      expect(decoded.customerCity, equals('Colombo 03'));
+      expect(decoded.customerSuburb, equals('Colpetty'));
+      expect(decoded.customerFormattedAddress,
+          equals('Colpetty, Colombo 03, Western'));
+      expect(decoded.deliveryAddress, equals('45 Galle Rd'));
+    });
+
+    test('OrderModel computes commission and vendor net correctly', () {
+      final order = OrderModel(
+        id: 'ORD-002',
+        proposalId: 'PROP-002',
+        requestId: 'REQ-002',
+        customerId: 'CUS-002',
+        vendorId: 'VEN-002',
+        vendorBusinessName: 'Vendor Shop',
+        vendorPhone: '+94 77 000 0001',
+        customerName: 'John Customer',
+        customerPhone: '+94 71 222 2222',
+        deliveryAddress: '10 Temple St',
+        customerProvince: 'Western',
+        customerDistrict: 'Colombo',
+        customerCity: 'Colombo 05',
+        customerSuburb: 'Bambalapitiya',
+        customerFormattedAddress: 'Bambalapitiya, Colombo 05, Western',
+        items: const [],
+        deliveryCharge: 1500,
+        totalPrice: 6500,
+        paymentMethod: PaymentMethod.mockOnline,
+        createdAt: DateTime.now(),
+        commissionRate: 0.2,
+      );
+
+      expect(order.itemSubtotal, equals(0));
+      expect(order.platformCommission, equals(0));
+      expect(order.vendorNetAmount, equals(1500));
     });
 
     test('DraftService.hasValidDraft validation rules', () {
