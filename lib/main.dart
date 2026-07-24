@@ -69,8 +69,8 @@ class _SpeedmartAppState extends ConsumerState<SpeedmartApp> {
     ref.listen<ThemeMode>(themeProvider, (previous, next) {
       if (previous != null && previous != next) {
         setState(() => _showThemeTransition = true);
-        // Keep the overlay for a longer moment then hide it.
-        Future.delayed(const Duration(milliseconds: 800), () {
+        // Keep the overlay visible for longer transition effect.
+        Future.delayed(const Duration(milliseconds: 1500), () {
           if (mounted) setState(() => _showThemeTransition = false);
         });
       }
@@ -113,7 +113,7 @@ class _SpeedmartAppState extends ConsumerState<SpeedmartApp> {
                   ignoring: !_showThemeTransition,
                   child: AnimatedOpacity(
                     opacity: _showThemeTransition ? 1.0 : 0.0,
-                    duration: const Duration(milliseconds: 400),
+                    duration: const Duration(milliseconds: 600),
                     curve: Curves.easeInOut,
                     child: Container(
                       color: Theme.of(context).brightness == Brightness.dark
