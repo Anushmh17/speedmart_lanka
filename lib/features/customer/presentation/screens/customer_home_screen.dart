@@ -13,7 +13,6 @@ import 'package:speedmart_lanka/core/widgets/theme3/theme3_widgets.dart';
 import 'package:speedmart_lanka/core/navigation/bottom_nav_visibility.dart';
 import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
 import 'package:speedmart_lanka/features/auth/providers/theme_provider.dart';
-import 'package:speedmart_lanka/features/auth/providers/theme_animation_provider.dart';
 import 'package:speedmart_lanka/features/vendor/providers/nearby_vendors_provider.dart';
 import 'package:speedmart_lanka/core/widgets/theme3/request_image_carousel.dart';
 import 'package:speedmart_lanka/features/requests/presentation/screens/request_details_screen.dart';
@@ -314,16 +313,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
                 isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
                 color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
               ),
-              onPressed: () async {
-                // Show overlay
-                ref.read(themeAnimationProvider.notifier).show();
-                // Quick toggle - theme changes while overlay is fading in
-                await Future.delayed(const Duration(milliseconds: 50));
-                await ref.read(themeProvider.notifier).toggleTheme();
-                // Smooth fade-out after theme changes
-                await Future.delayed(const Duration(milliseconds: 500));
-                ref.read(themeAnimationProvider.notifier).hide();
-              },
+              onPressed: () => ref.read(themeProvider.notifier).toggleTheme(),
             ),
             IconButton(
               icon: Badge(
