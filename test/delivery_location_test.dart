@@ -193,6 +193,36 @@ void main() {
       expect(decoded.deliveryAddress, equals('45 Galle Rd'));
     });
 
+    test('OrderModel computes commission and vendor net correctly', () {
+      final order = OrderModel(
+        id: 'ORD-002',
+        proposalId: 'PROP-002',
+        requestId: 'REQ-002',
+        customerId: 'CUS-002',
+        vendorId: 'VEN-002',
+        vendorBusinessName: 'Vendor Shop',
+        vendorPhone: '+94 77 000 0001',
+        customerName: 'John Customer',
+        customerPhone: '+94 71 222 2222',
+        deliveryAddress: '10 Temple St',
+        customerProvince: 'Western',
+        customerDistrict: 'Colombo',
+        customerCity: 'Colombo 05',
+        customerSuburb: 'Bambalapitiya',
+        customerFormattedAddress: 'Bambalapitiya, Colombo 05, Western',
+        items: const [],
+        deliveryCharge: 1500,
+        totalPrice: 6500,
+        paymentMethod: PaymentMethod.mockOnline,
+        createdAt: DateTime.now(),
+        commissionRate: 0.2,
+      );
+
+      expect(order.itemSubtotal, equals(0));
+      expect(order.platformCommission, equals(0));
+      expect(order.vendorNetAmount, equals(1500));
+    });
+
     test('DraftService.hasValidDraft validation rules', () {
       // Empty draft
       expect(DraftService.hasValidDraft(null), isFalse);

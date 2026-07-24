@@ -706,6 +706,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     color: Colors.transparent,
                     child: InkWell(
                       onTap: hasAction ? onTap : null,
+                      borderRadius: BorderRadius.circular(12),
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Row(

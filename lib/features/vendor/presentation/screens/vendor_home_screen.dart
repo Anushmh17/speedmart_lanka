@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:speedmart_lanka/core/theme/app_colors.dart';
@@ -11,6 +12,7 @@ import 'package:speedmart_lanka/core/widgets/app_state_widgets.dart';
 import 'package:speedmart_lanka/core/guards/vendor_status_guard.dart';
 import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
 import 'package:speedmart_lanka/features/auth/providers/theme_provider.dart';
+import 'package:speedmart_lanka/core/providers/notification_provider.dart';
 import 'package:speedmart_lanka/shared/models/user_role.dart';
 import 'package:speedmart_lanka/features/vendor/request_feed/presentation/vendor_request_feed_screen.dart';
 import 'package:speedmart_lanka/features/vendor/request_feed/providers/vendor_request_feed_provider.dart';
@@ -355,25 +357,21 @@ class _DashboardTab extends ConsumerWidget {
         .toList();
     final completedOrdersCount = completedOrders.length.toString();
 
-    final currentUser = ref.watch(currentUserProvider);
-    final double commissionRate = currentUser?.commissionRate ?? 0.0;
+    final paidOrders = orderState.orders.where((o) =>
+        (o.status == OrderStatus.delivered || o.status == OrderStatus.completed) &&
+        (o.paymentStatus == PaymentStatus.paid ||
+            o.paymentStatus == PaymentStatus.pendingOnDelivery)).toList();
+    final pendingOrders = orderState.orders.where((o) =>
+        o.status != OrderStatus.cancelled &&
+        o.status != OrderStatus.completed &&
+        o.status != OrderStatus.delivered).toList();
 
-    // Vendor payout stays equal to the customer-visible quoted amount.
-    // The admin-set commission is folded into that quote and is not deducted again here.
-    final paidEarnings = orderState.orders
-        .where((o) =>
-            (o.status == OrderStatus.delivered ||
-                o.status == OrderStatus.completed) &&
-            (o.paymentStatus == PaymentStatus.paid ||
-                o.paymentStatus == PaymentStatus.pendingOnDelivery))
-        .fold<double>(0, (sum, o) => sum + o.totalPrice);
+    final paidGrossEarnings = paidOrders.fold<double>(0, (sum, o) => sum + o.totalPrice);
+    final paidNetEarnings = paidOrders.fold<double>(0, (sum, o) => sum + o.vendorNetAmount);
+    final pendingGrossEarnings = pendingOrders.fold<double>(0, (sum, o) => sum + o.totalPrice);
+    final pendingNetEarnings = pendingOrders.fold<double>(0, (sum, o) => sum + o.vendorNetAmount);
 
-    final pendingEarnings = orderState.orders
-        .where((o) =>
-            o.status != OrderStatus.cancelled &&
-            o.status != OrderStatus.completed &&
-            o.status != OrderStatus.delivered)
-        .fold<double>(0, (sum, o) => sum + o.totalPrice);
+    final hiddenCommissionOwed = paidOrders.fold<double>(0, (sum, o) => sum + o.platformCommission);
 
     debugPrint(
         '[VendorHome] dashboard rendered with ${feedState.items.length} requests, ${proposalState.proposals.length} proposals, ${orderState.orders.length} orders');
@@ -392,8 +390,11 @@ class _DashboardTab extends ConsumerWidget {
           children: [
             _DashboardHeroBanner(
               user: user,
-              paidEarnings: paidEarnings,
-              pendingEarnings: pendingEarnings,
+              paidEarnings: paidNetEarnings,
+              pendingEarnings: pendingNetEarnings,
+              grossPaidEarnings: paidGrossEarnings,
+              grossPendingEarnings: pendingGrossEarnings,
+              commissionOwed: hiddenCommissionOwed,
               isDark: isDark,
             ),
             SizedBox(height: AppSpacing.lg),
@@ -1245,17 +1246,24 @@ class _DashboardHeroBanner extends StatelessWidget {
     required this.user,
     required this.paidEarnings,
     required this.pendingEarnings,
+    required this.grossPaidEarnings,
+    required this.grossPendingEarnings,
+    required this.commissionOwed,
     required this.isDark,
   });
 
   final dynamic user;
   final double paidEarnings;
   final double pendingEarnings;
+  final double grossPaidEarnings;
+  final double grossPendingEarnings;
+  final double commissionOwed;
   final bool isDark;
 
   @override
   Widget build(BuildContext context) {
     final total = paidEarnings + pendingEarnings;
+    final grossTotal = grossPaidEarnings + grossPendingEarnings;
 
     return Container(
       width: double.infinity,
@@ -1333,7 +1341,7 @@ class _DashboardHeroBanner extends StatelessWidget {
           ),
           SizedBox(height: AppSpacing.lg),
           Text(
-            'Total earnings',
+            'Estimated payout',
             style: AppTextStyles.bodySmall(Colors.white70),
           ),
           SizedBox(height: AppSpacing.xs),
@@ -1342,6 +1350,11 @@ class _DashboardHeroBanner extends StatelessWidget {
             style: AppTextStyles.display1(Colors.white).copyWith(fontSize: 30),
           ),
           SizedBox(height: AppSpacing.md),
+          Text(
+            'Gross sales: Rs. ${grossTotal.toStringAsFixed(0)}',
+            style: AppTextStyles.caption(Colors.white70),
+          ),
+          SizedBox(height: AppSpacing.sm),
           Row(
             children: [
               Expanded(
@@ -1355,6 +1368,13 @@ class _DashboardHeroBanner extends StatelessWidget {
                 child: _HeroEarningsPill(
                   label: 'Pending',
                   value: pendingEarnings,
+                ),
+              ),
+              SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: _HeroEarningsPill(
+                  label: 'Commission',
+                  value: commissionOwed,
                 ),
               ),
             ],
@@ -1942,6 +1962,8 @@ class _PendingApprovalView extends StatelessWidget {
   }
 }
 
+enum _WalletWeekRange { currentWeek, lastWeek }
+
 class _VendorWalletTab extends ConsumerStatefulWidget {
   const _VendorWalletTab();
 
@@ -1950,6 +1972,7 @@ class _VendorWalletTab extends ConsumerStatefulWidget {
 }
 
 class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
+  _WalletWeekRange _selectedWeekRange = _WalletWeekRange.currentWeek;
   final List<Map<String, dynamic>> _mockPayouts = [
     {
       'date': 'May 18, 2026',
@@ -1993,23 +2016,20 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
     
 
     final orderState = ref.watch(orderProvider);
-    // Include delivered and completed orders, for both COD and online payments
-    final completedOrders = orderState.orders
-        .where((o) =>
-            (o.status == OrderStatus.delivered ||
-                o.status == OrderStatus.completed) &&
-            (o.paymentStatus == PaymentStatus.paid ||
-                o.paymentStatus == PaymentStatus.pendingOnDelivery))
+    // Include all active vendor orders except cancelled ones.
+    // This keeps the wallet ledger in sync with live order activity.
+    final walletOrders = orderState.orders
+        .where((o) => o.status != OrderStatus.cancelled)
         .toList();
 
-    // Platform commission is now folded into the customer-facing proposal total
-    // and is not deducted from the vendor payout.
+    // Platform commission is folded into the customer-facing proposal total.
+    // The vendor net is the item subtotal plus delivery fee.
     final double liveGrossRevenue =
-        completedOrders.fold<double>(0, (sum, o) => sum + o.totalPrice);
-    final currentUser = ref.watch(currentUserProvider);
-    final double commissionRate = currentUser?.commissionRate ?? 0.0;
-    final double liveCommission = 0.0;
-    final double liveNetEarnings = liveGrossRevenue;
+        walletOrders.fold<double>(0, (sum, o) => sum + o.totalPrice);
+    final double liveCommission = walletOrders.fold<double>(
+        0, (sum, o) => sum + o.platformCommission);
+    final double liveNetEarnings = walletOrders.fold<double>(
+        0, (sum, o) => sum + o.vendorNetAmount);
 
     final double totalHistoricGross =
         _mockPayouts.fold<double>(0.0, (sum, p) => sum + p['payout']);
@@ -2017,6 +2037,43 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
         _mockPayouts.fold<double>(0.0, (sum, p) => sum + p['comm']);
     final double totalHistoricNet =
         _mockPayouts.fold<double>(0.0, (sum, p) => sum + p['net']);
+
+    final weeklySales = <String, double>{
+      'Mon': 0,
+      'Tue': 0,
+      'Wed': 0,
+      'Thu': 0,
+      'Fri': 0,
+      'Sat': 0,
+      'Sun': 0,
+    };
+    final now = DateTime.now();
+    final startOfCurrentWeek = DateTime(now.year, now.month, now.day)
+        .subtract(Duration(days: now.weekday - 1));
+    final startOfLastWeek = startOfCurrentWeek.subtract(const Duration(days: 7));
+    final selectedStartOfWeek = _selectedWeekRange == _WalletWeekRange.currentWeek
+        ? startOfCurrentWeek
+        : startOfLastWeek;
+    final selectedEndOfWeek = selectedStartOfWeek.add(const Duration(days: 7));
+
+    for (final order in walletOrders) {
+      final orderDate = DateTime(
+        order.createdAt.year,
+        order.createdAt.month,
+        order.createdAt.day,
+      );
+      if (orderDate.isBefore(selectedStartOfWeek) || !orderDate.isBefore(selectedEndOfWeek)) {
+        continue;
+      }
+      final day = const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+          [order.createdAt.weekday - 1];
+      weeklySales[day] = weeklySales[day]! + order.totalPrice;
+    }
+
+    final double currentWeekMax = weeklySales.values.fold<double>(0.0,
+        (maxValue, dailyValue) => dailyValue > maxValue ? dailyValue : maxValue);
+    final double weeklyChartMax = currentWeekMax > 0 ? currentWeekMax : 1.0;
+    final bool hasWeeklySales = weeklySales.values.any((value) => value > 0);
 
     final double cumulativeGross = liveGrossRevenue + totalHistoricGross;
     final double cumulativeCommission = liveCommission + totalHistoricComm;
@@ -2042,80 +2099,119 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Real-time earnings ledger — customer quote totals are shown as your sales amount. No platform fee is deducted from your payout.',
+              'Real-time earnings ledger — customer quote totals are shown as your sales amount. Hidden platform commission is calculated separately from item subtotal.',
               style: AppTextStyles.bodyMedium(secondaryText),
             ),
             const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [AppColors.vendorColor, AppColors.vendorColorDark],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.vendorColor.withValues(alpha: 0.25),
-                    blurRadius: 15,
-                    offset: const Offset(0, 8),
-                  )
-                ],
+                onTap: () => _showEarningsSummary(context, cumulativeGross, cumulativeCommission, cumulativeNet),
+                child: Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [AppColors.vendorColor, AppColors.vendorColorDark],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.vendorColor.withValues(alpha: 0.25),
+                        blurRadius: 15,
+                        offset: const Offset(0, 8),
+                      )
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Cumulative Net Earnings',
+                              style: AppTextStyles.caption(Colors.white70)
+                                  .copyWith(fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Rs. ${cumulativeNet.toStringAsFixed(2)}',
+                        style: AppTextStyles.h1(Colors.white)
+                            .copyWith(fontSize: 32, letterSpacing: -0.5),
+                      ),
+                      const SizedBox(height: 16),
+                      const Divider(color: Colors.white30, height: 1),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Gross Sales',
+                                  style: AppTextStyles.caption(Colors.white60)),
+                              const SizedBox(height: 4),
+                              Text('Rs. ${cumulativeGross.toStringAsFixed(0)}',
+                                  style: AppTextStyles.bodyLarge(Colors.white)
+                                      .copyWith(fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Commission Owed',
+                                  style: AppTextStyles.caption(Colors.white60)),
+                              const SizedBox(height: 4),
+                              Text('Rs. ${cumulativeCommission.toStringAsFixed(0)}',
+                                  style: AppTextStyles.bodyLarge(Colors.amber)
+                                      .copyWith(fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Cumulative Net Earnings',
-                          style: AppTextStyles.caption(Colors.white70)
-                              .copyWith(fontWeight: FontWeight.bold)),
-                    ],
+            ),
+            const SizedBox(height: 28),
+            Text('Weekly Sales Distribution', style: AppTextStyles.h2(primaryText)),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: ToggleButtons(
+                isSelected: [
+                  _selectedWeekRange == _WalletWeekRange.currentWeek,
+                  _selectedWeekRange == _WalletWeekRange.lastWeek,
+                ],
+                onPressed: (index) {
+                  setState(() {
+                    _selectedWeekRange = index == 0
+                        ? _WalletWeekRange.currentWeek
+                        : _WalletWeekRange.lastWeek;
+                  });
+                },
+                borderRadius: BorderRadius.circular(12),
+                selectedColor: Colors.white,
+                fillColor: AppColors.vendorColor,
+                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                borderColor: borderColor,
+                selectedBorderColor: AppColors.vendorColor,
+                children: const [
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    child: Text('This Week'),
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Rs. ${cumulativeNet.toStringAsFixed(2)}',
-                    style: AppTextStyles.h1(Colors.white)
-                        .copyWith(fontSize: 32, letterSpacing: -0.5),
-                  ),
-                  const SizedBox(height: 16),
-                  const Divider(color: Colors.white30, height: 1),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Gross Sales',
-                              style: AppTextStyles.caption(Colors.white60)),
-                          const SizedBox(height: 4),
-                          Text('Rs. ${cumulativeGross.toStringAsFixed(0)}',
-                              style: AppTextStyles.bodyLarge(Colors.white)
-                                  .copyWith(fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Included in Quote',
-                              style: AppTextStyles.caption(Colors.white60)),
-                          const SizedBox(height: 4),
-                          Text('Rs. 0.00',
-                              style: AppTextStyles.bodyLarge(Colors.amber)
-                                  .copyWith(fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                    ],
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    child: Text('Last Week'),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 28),
-            Text('Weekly Sales Distribution',
-                style: AppTextStyles.h2(primaryText)),
             const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.all(16),
@@ -2126,14 +2222,28 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
               ),
               child: Column(
                 children: [
-                  _buildChartBar('Mon', 14250, cumulativeGross, isDark),
-                  _buildChartBar('Tue', 0, cumulativeGross, isDark),
-                  _buildChartBar('Wed', 9800, cumulativeGross, isDark),
-                  _buildChartBar('Thu', 0, cumulativeGross, isDark),
-                  _buildChartBar('Fri', 22500, cumulativeGross, isDark),
-                  _buildChartBar(
-                      'Sat', liveGrossRevenue, cumulativeGross, isDark),
-                  _buildChartBar('Sun', 0, cumulativeGross, isDark),
+                  if (!hasWeeklySales)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 24.0),
+                      child: Text(
+                        _selectedWeekRange == _WalletWeekRange.currentWeek
+                            ? 'No sales recorded for this week yet.'
+                            : 'No sales recorded for last week.',
+                        style: AppTextStyles.bodyMedium(
+                          isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    )
+                  else ...[
+                    _buildChartBar('Mon', weeklySales['Mon']!, weeklyChartMax, isDark),
+                    _buildChartBar('Tue', weeklySales['Tue']!, weeklyChartMax, isDark),
+                    _buildChartBar('Wed', weeklySales['Wed']!, weeklyChartMax, isDark),
+                    _buildChartBar('Thu', weeklySales['Thu']!, weeklyChartMax, isDark),
+                    _buildChartBar('Fri', weeklySales['Fri']!, weeklyChartMax, isDark),
+                    _buildChartBar('Sat', weeklySales['Sat']!, weeklyChartMax, isDark),
+                    _buildChartBar('Sun', weeklySales['Sun']!, weeklyChartMax, isDark),
+                  ],
                 ],
               ),
             ),
@@ -2148,84 +2258,100 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
               ],
             ),
             const SizedBox(height: 12),
-            if (completedOrders.isNotEmpty) ...[
-              ...completedOrders.map((order) {
+            if (walletOrders.isNotEmpty) ...[
+              ...walletOrders.map((order) {
                 final orderGross = order.totalPrice;
-                final double orderComm = 0.0;
-                final orderNet = orderGross;
+                final orderComm = order.platformCommission;
+                final orderNet = order.vendorNetAmount;
 
-                // Determine settlement status from payment status
                 final isCod = order.paymentStatus == PaymentStatus.pendingOnDelivery;
-                final settlementLabel = isCod ? 'COD – Collect on Delivery' : 'Settled (Online)';  
-                final settlementColor = isCod ? AppColors.warning : AppColors.success;
+                final isSettledOrder = order.status == OrderStatus.delivered || order.status == OrderStatus.completed;
+                final settlementLabel = isSettledOrder
+                    ? (isCod ? 'COD – Settled after delivery' : 'Settled (Online)')
+                    : (isCod ? 'COD – Pending delivery' : 'Pending settlement');
+                final settlementColor = isSettledOrder ? AppColors.success : AppColors.warning;
 
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: cardColor,
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                        color: AppColors.vendorColor.withValues(alpha: 0.3),
-                        width: 1.2),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    onTap: () => _showOrderSettlementSummary(context, order),
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: cardColor,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                            color: AppColors.vendorColor.withValues(alpha: 0.3),
+                            width: 1.2),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Expanded(
-                            child: Text('Order: ${order.id}',
-                                style: AppTextStyles.bodyMedium(primaryText)
-                                    .copyWith(fontWeight: FontWeight.bold),
-                                overflow: TextOverflow.ellipsis),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text('Order: ${order.id}',
+                                    style: AppTextStyles.bodyMedium(primaryText)
+                                        .copyWith(fontWeight: FontWeight.bold),
+                                    overflow: TextOverflow.ellipsis),
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: settlementColor.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  settlementLabel,
+                                  style: AppTextStyles.caption(settlementColor)
+                                      .copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 10),
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: settlementColor.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              settlementLabel,
-                              style: AppTextStyles.caption(settlementColor)
-                                  .copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 10),
-                            ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Customer: ${order.customerName}',
+                                  style: AppTextStyles.caption(secondaryText)),
+                              Text(
+                                order.updatedAt != null
+                                    ? '${order.updatedAt!.day}/${order.updatedAt!.month}/${order.updatedAt!.year}'
+                                    : '${order.createdAt.day}/${order.createdAt.month}/${order.createdAt.year}',
+                                style: AppTextStyles.caption(secondaryText)),
+                            ],
+                          ),
+                          const Divider(height: 16),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text('Sales: Rs. ${orderGross.toStringAsFixed(0)}',
+                                    style: AppTextStyles.bodySmall(secondaryText)),
+                              ),
+                              Expanded(
+                                child: Text('Comm: Rs. ${orderComm.toStringAsFixed(0)}',
+                                    style: AppTextStyles.bodySmall(secondaryText)),
+                              ),
+                              Expanded(
+                                child: Text('Net: Rs. ${orderNet.toStringAsFixed(2)}',
+                                    textAlign: TextAlign.end,
+                                    style: AppTextStyles.bodyMedium(AppColors.success)
+                                        .copyWith(fontWeight: FontWeight.bold)),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Customer: ${order.customerName}',
-                              style: AppTextStyles.caption(secondaryText)),
-                          Text(
-                            order.updatedAt != null
-                                ? '${order.updatedAt!.day}/${order.updatedAt!.month}/${order.updatedAt!.year}'
-                                : '${order.createdAt.day}/${order.createdAt.month}/${order.createdAt.year}',
-                            style: AppTextStyles.caption(secondaryText)),
-                        ],
-                      ),
-                      const Divider(height: 16),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Sales: Rs. ${orderGross.toStringAsFixed(0)}',
-                              style: AppTextStyles.bodySmall(secondaryText)),
-                          Text('Included in Quote: Rs. 0.00',
-                              style: AppTextStyles.bodySmall(secondaryText)),
-                          Text('Net: Rs. ${orderNet.toStringAsFixed(2)}',
-                              style: AppTextStyles.bodyMedium(AppColors.success)
-                                  .copyWith(fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                    ],
+                    ),
                   ),
                 );
               }),
@@ -2347,6 +2473,231 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
               textAlign: TextAlign.end,
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  void _showEarningsSummary(
+    BuildContext context,
+    double gross,
+    double commission,
+    double net,
+  ) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        final theme = Theme.of(context);
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
+            decoration: BoxDecoration(
+              color: theme.scaffoldBackgroundColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 45,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade400,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text('Earnings Summary',
+                    style: AppTextStyles.h2(theme.colorScheme.onBackground)),
+                const SizedBox(height: 10),
+                Text(
+                  'Tap any settlement row to see a detailed breakdown of that order.',
+                  style: AppTextStyles.bodyMedium(AppColors.textSecondaryLight),
+                ),
+                const SizedBox(height: 20),
+                _buildSummaryRow('Gross Sales', 'Rs. ${gross.toStringAsFixed(2)}'),
+                _buildSummaryRow('Platform Commission', 'Rs. ${commission.toStringAsFixed(2)}'),
+                const Divider(height: 32),
+                _buildSummaryRow(
+                  'Vendor Net Earnings',
+                  'Rs. ${net.toStringAsFixed(2)}',
+                  valueColor: AppColors.success,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Net earnings exclude commission and represent the amount available to your wallet.',
+                  style: AppTextStyles.caption(AppColors.textSecondaryLight),
+                ),
+                const SizedBox(height: 18),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showOrderSettlementSummary(BuildContext context, OrderModel order) {
+    final bool isCod = order.paymentStatus == PaymentStatus.pendingOnDelivery;
+    final bool isSettledOrder = order.status == OrderStatus.delivered || order.status == OrderStatus.completed;
+    final String statusLabel = isSettledOrder
+        ? (isCod ? 'COD – Settled after delivery' : 'Settled (Online)')
+        : (isCod ? 'COD – Pending delivery' : 'Pending settlement');
+    final parentContext = context;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
+            decoration: BoxDecoration(
+              color: theme.scaffoldBackgroundColor,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 45,
+                    height: 5,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade400,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Text('Order Settlement',
+                    style: AppTextStyles.h2(theme.colorScheme.onBackground)),
+                const SizedBox(height: 8),
+                Text('Order ID: ${order.id}',
+                    style: AppTextStyles.bodyMedium(AppColors.textSecondaryLight)),
+                const SizedBox(height: 12),
+                Text('Product IDs',
+                    style: AppTextStyles.labelSmall(AppColors.textSecondaryLight)),
+                const SizedBox(height: 8),
+                if (order.items.isNotEmpty)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: order.items.map((item) {
+                      final productId = item.id.toString();
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8.0),
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () async {
+                              await Clipboard.setData(ClipboardData(text: productId));
+                              if (!mounted) return;
+                              ref.read(notificationProvider.notifier).triggerNotification(
+                                title: 'Copied',
+                                body: 'Product ID copied',
+                                icon: Icons.copy_rounded,
+                                color: AppColors.vendorColor,
+                              );
+                            },
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 10,
+                                horizontal: 14,
+                              ),
+                              decoration: BoxDecoration(
+                                color: theme.colorScheme.surfaceVariant.withOpacity(0.14),
+                                border: Border.all(
+                                  color: theme.colorScheme.onSurface.withOpacity(0.16),
+                                ),
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      productId,
+                                      style: AppTextStyles.bodyMedium(theme.colorScheme.onBackground),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Icon(
+                                    Icons.copy_rounded,
+                                    size: 18,
+                                    color: theme.colorScheme.onBackground.withOpacity(0.72),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  )
+                else
+                  Text('N/A', style: AppTextStyles.bodyMedium(AppColors.textSecondaryLight)),
+                const SizedBox(height: 16),
+                _buildSummaryRow('Customer', order.customerName),
+                _buildSummaryRow('Order Date',
+                    '${order.createdAt.day}/${order.createdAt.month}/${order.createdAt.year}'),
+                _buildSummaryRow('Status', statusLabel,
+                    valueColor: isSettledOrder ? AppColors.success : AppColors.warning),
+                const Divider(height: 32),
+                _buildSummaryRow('Sales', 'Rs. ${order.totalPrice.toStringAsFixed(2)}'),
+                _buildSummaryRow('Commission', 'Rs. ${order.platformCommission.toStringAsFixed(2)}'),
+                _buildSummaryRow('Net to Vendor', 'Rs. ${order.vendorNetAmount.toStringAsFixed(2)}',
+                    valueColor: AppColors.success),
+                if (order.deliveryCharge > 0) ...[
+                  const SizedBox(height: 12),
+                  _buildSummaryRow('Delivery Fee', 'Rs. ${order.deliveryCharge.toStringAsFixed(2)}'),
+                ],
+                const SizedBox(height: 8),
+                Text(
+                  'This summary separates your gross sales, platform commission, and net earnings. Delivery fee is shown separately for transparency.',
+                  style: AppTextStyles.caption(AppColors.textSecondaryLight),
+                ),
+                const SizedBox(height: 18),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSummaryRow(String label, String value, {Color? valueColor}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Text(label,
+                style: AppTextStyles.bodyMedium(AppColors.textSecondaryLight)),
+          ),
+          const SizedBox(width: 12),
+          Text(value,
+              style: AppTextStyles.bodyMedium(valueColor ?? AppColors.textSecondaryLight)
+                  .copyWith(fontWeight: FontWeight.bold)),
         ],
       ),
     );

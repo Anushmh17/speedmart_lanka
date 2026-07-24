@@ -98,6 +98,15 @@ class OrderModel {
   /// Snapshotted at order creation from the vendor's admin-set commission rate.
   final double commissionRate;
 
+  double get itemSubtotal =>
+      items.fold<double>(0.0, (sum, item) => sum + item.subtotal);
+
+  double get platformCommission => itemSubtotal * commissionRate;
+
+  /// Vendor net amount is the subtotal plus delivery fee.
+  /// The hidden platform commission is charged separately on item subtotal.
+  double get vendorNetAmount => itemSubtotal + deliveryCharge;
+
   OrderModel({
     required this.id,
     required this.proposalId,
