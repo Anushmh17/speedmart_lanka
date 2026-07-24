@@ -1240,90 +1240,108 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: bgColor,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (ctx) {
-        return StatefulBuilder(
-          builder: (ctx, setSheetState) {
-            return DraggableScrollableSheet(
-              expand: false,
-              initialChildSize: 0.55,
-              minChildSize: 0.4,
-              maxChildSize: 0.85,
-              builder: (_, scrollCtrl) {
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                  child: Column(
-                    children: [
-                      Container(
-                        width: 40, height: 4,
-                        decoration: BoxDecoration(
-                          color: borderColor,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text('Select Bank', style: AppTextStyles.h3(primaryText)),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: searchCtrl,
-                        autofocus: true,
-                        decoration: InputDecoration(
-                          hintText: 'Search bank...',
-                          prefixIcon: const Icon(Icons.search_rounded),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                        ),
-                        onChanged: (q) {
-                          setSheetState(() {
-                            filtered = sriLankaBanks
-                                .where((b) => b.name.toLowerCase().contains(q.toLowerCase()))
-                                .toList();
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 8),
-                      Expanded(
-                        child: ListView.separated(
-                          controller: scrollCtrl,
-                          itemCount: filtered.length,
-                          separatorBuilder: (_, __) => Divider(height: 0, color: borderColor),
-                          itemBuilder: (_, i) {
-                            final bank = filtered[i];
-                            final isSelected = _selectedBank?.code == bank.code;
-                            return ListTile(
-                              leading: Image.asset(
-                                bank.logoAsset,
-                                width: 40,
-                                height: 40,
-                                fit: BoxFit.contain,
-                                errorBuilder: (_, __, ___) => const Icon(Icons.account_balance_outlined, size: 36),
-                              ),
-                              title: Text(bank.name, style: AppTextStyles.bodyMedium(primaryText)),
-                              trailing: isSelected
-                                  ? Icon(Icons.check_circle_rounded,
-                                      color: isDark ? AppColors.primaryDark : AppColors.primary)
-                                  : null,
-                              onTap: () {
-                                setState(() {
-                                  _selectedBank = bank;
-                                  _bankNameCtrl.text = bank.name;
-                                  _bankAccountNumberCtrl.clear();
-                                });
-                                Navigator.of(ctx).pop();
+        return Padding(
+          padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+          child: StatefulBuilder(
+            builder: (ctx, setSheetState) {
+              return DraggableScrollableSheet(
+                expand: false,
+                initialChildSize: 0.75,
+                minChildSize: 0.55,
+                maxChildSize: 0.95,
+                builder: (_, scrollCtrl) {
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                      child: Column(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Center(
+                                  child: Container(
+                                    width: 40,
+                                    height: 4,
+                                    decoration: BoxDecoration(
+                                      color: borderColor,
+                                      borderRadius: BorderRadius.circular(2),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                Center(child: Text('Select Bank', style: AppTextStyles.h3(primaryText))),
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: searchCtrl,
+                                  autofocus: true,
+                                  decoration: InputDecoration(
+                                    hintText: 'Search bank...',
+                                    prefixIcon: const Icon(Icons.search_rounded),
+                                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                  ),
+                                  onChanged: (q) {
+                                    setSheetState(() {
+                                      filtered = sriLankaBanks
+                                          .where((b) => b.name.toLowerCase().contains(q.toLowerCase()))
+                                          .toList();
+                                    });
+                                  },
+                                ),
+                                const SizedBox(height: 8),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            child: ListView.separated(
+                              controller: scrollCtrl,
+                              physics: const BouncingScrollPhysics(),
+                              itemCount: filtered.length,
+                              separatorBuilder: (_, __) => Divider(height: 0, color: borderColor),
+                              itemBuilder: (_, i) {
+                                final bank = filtered[i];
+                                final isSelected = _selectedBank?.code == bank.code;
+                                return ListTile(
+                                  leading: Image.asset(
+                                    bank.logoAsset,
+                                    width: 40,
+                                    height: 40,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => const Icon(Icons.account_balance_outlined, size: 36),
+                                  ),
+                                  title: Text(bank.name, style: AppTextStyles.bodyMedium(primaryText)),
+                                  trailing: isSelected
+                                      ? Icon(Icons.check_circle_rounded,
+                                          color: isDark ? AppColors.primaryDark : AppColors.primary)
+                                      : null,
+                                  onTap: () {
+                                    setState(() {
+                                      _selectedBank = bank;
+                                      _bankNameCtrl.text = bank.name;
+                                      _bankAccountNumberCtrl.clear();
+                                    });
+                                    Navigator.of(ctx).pop();
+                                  },
+                                );
                               },
-                            );
-                          },
-                        ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                );
-              },
-            );
-          },
+                    ),
+                  );
+                },
+              );
+            },
+          ),
         );
       },
     );

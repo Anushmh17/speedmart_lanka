@@ -52,6 +52,10 @@ class UserModel {
   final String? bankAccountName;
   final String? bankAccountNumber;
 
+  /// Vendor payment availability toggles for customers.
+  final bool? acceptsCashOnDelivery;
+  final bool? acceptsBankTransfer;
+
   /// Country override and risk fields for anti-abuse audit
   final String? detectedCountry;
   final String? selectedCountry;
@@ -121,6 +125,8 @@ class UserModel {
     this.bankBranch,
     this.bankAccountName,
     this.bankAccountNumber,
+    this.acceptsCashOnDelivery,
+    this.acceptsBankTransfer,
   });
 
   /// Create from JSON (API response)
@@ -191,6 +197,8 @@ class UserModel {
       bankBranch: json['bank_branch'] as String?,
       bankAccountName: json['bank_account_name'] as String?,
       bankAccountNumber: json['bank_account_number'] as String?,
+      acceptsCashOnDelivery: json['accepts_cash_on_delivery'] as bool?,
+      acceptsBankTransfer: json['accepts_bank_transfer'] as bool?,
     );
   }
 
@@ -245,6 +253,8 @@ class UserModel {
       'bank_branch': bankBranch,
       'bank_account_name': bankAccountName,
       'bank_account_number': bankAccountNumber,
+      'accepts_cash_on_delivery': acceptsCashOnDelivery,
+      'accepts_bank_transfer': acceptsBankTransfer,
     };
   }
 
@@ -299,6 +309,8 @@ class UserModel {
     String? bankBranch,
     String? bankAccountName,
     String? bankAccountNumber,
+    bool? acceptsCashOnDelivery,
+    bool? acceptsBankTransfer,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -350,6 +362,8 @@ class UserModel {
       bankBranch: bankBranch ?? this.bankBranch,
       bankAccountName: bankAccountName ?? this.bankAccountName,
       bankAccountNumber: bankAccountNumber ?? this.bankAccountNumber,
+      acceptsCashOnDelivery: acceptsCashOnDelivery ?? this.acceptsCashOnDelivery,
+      acceptsBankTransfer: acceptsBankTransfer ?? this.acceptsBankTransfer,
     );
   }
 

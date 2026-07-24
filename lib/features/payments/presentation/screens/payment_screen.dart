@@ -17,6 +17,9 @@ import 'package:speedmart_lanka/features/notifications/models/notification_type.
 import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart' as notification_feature;
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
 import 'package:speedmart_lanka/features/payments/providers/payment_provider.dart';
+import 'package:speedmart_lanka/features/auth/data/mock_auth_repository.dart';
+import 'package:speedmart_lanka/shared/models/user_model.dart';
+import 'package:speedmart_lanka/shared/models/user_role.dart';
 
 class AcceptedVendorGroup {
   final Proposal proposal;
@@ -36,6 +39,18 @@ class AcceptedVendorGroup {
   double get platformCommission => (subtotal + deliveryCharge) * commissionRate;
   double get customerAmount => proposal.totalPrice; // What customer pays (includes any admin-set commission already folded into proposal total)
   double get vendorNetAmount => customerAmount - platformCommission; // Vendor net receipt after hidden platform fee
+}
+
+class _VendorPaymentAvailability {
+  final bool acceptsCashOnDelivery;
+  final bool acceptsBankTransfer;
+  final List<String> unavailableMessages;
+
+  _VendorPaymentAvailability({
+    required this.acceptsCashOnDelivery,
+    required this.acceptsBankTransfer,
+    required this.unavailableMessages,
+  });
 }
 
 class PaymentScreen extends ConsumerStatefulWidget {
@@ -63,6 +78,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   final _cardExpiryController = TextEditingController();
   final _cardCvvController = TextEditingController();
   final _cardNameController = TextEditingController();
+
+  Future<_VendorPaymentAvailability>? _vendorAvailabilityFuture;
 
   bool _isProcessing = false;
   ShoppingRequest? _request;
@@ -112,6 +129,65 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     super.dispose();
   }
 
+  Future<UserModel?> _loadVendorProfile(Proposal proposal) async {
+    final repository = MockAuthRepository.instance;
+    final byId = await repository.getUserById(proposal.vendorId);
+    if (byId != null) return byId;
+
+    final businessName = proposal.vendorBusinessName.trim().toLowerCase();
+    if (businessName.isEmpty) return null;
+
+    final users = await repository.getAllUsers();
+    for (final user in users) {
+      if (user.role == UserRole.vendor &&
+          (user.businessName ?? '').trim().toLowerCase() == businessName) {
+        return user;
+      }
+    }
+    return null;
+  }
+
+  _VendorPaymentAvailability _vendorAvailabilityFor(UserModel vendor) {
+    final acceptsCod = vendor.acceptsCashOnDelivery ?? true;
+    final acceptsBank = vendor.acceptsBankTransfer ?? true;
+    final unavailable = <String>[];
+    if (!acceptsCod) unavailable.add('Cash on Delivery is unavailable for this vendor.');
+    if (!acceptsBank) unavailable.add('Bank Transfer is unavailable for this vendor.');
+    return _VendorPaymentAvailability(
+      acceptsCashOnDelivery: acceptsCod,
+      acceptsBankTransfer: acceptsBank,
+      unavailableMessages: unavailable,
+    );
+  }
+
+  Future<_VendorPaymentAvailability> _loadGlobalVendorAvailability(List<AcceptedVendorGroup> groups) async {
+    final repository = MockAuthRepository.instance;
+    bool acceptsCod = true;
+    bool acceptsBank = true;
+    final unavailableMessages = <String>[];
+
+    for (final group in groups) {
+      final vendor = await _loadVendorProfile(group.proposal);
+      if (vendor != null) {
+        final availability = _vendorAvailabilityFor(vendor);
+        if (!availability.acceptsCashOnDelivery) {
+          acceptsCod = false;
+        }
+        if (!availability.acceptsBankTransfer) {
+          acceptsBank = false;
+        }
+        unavailableMessages.addAll(availability.unavailableMessages);
+      }
+    }
+
+    final uniqueMessages = unavailableMessages.toSet().toList();
+    return _VendorPaymentAvailability(
+      acceptsCashOnDelivery: acceptsCod,
+      acceptsBankTransfer: acceptsBank,
+      unavailableMessages: uniqueMessages,
+    );
+  }
+
   Future<void> _handleConfirmPayment(List<AcceptedVendorGroup> groups) async {
     if (_isProcessing) return;
 
@@ -129,7 +205,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final customer = ref.read(currentUserProvider);
     if (customer == null) return;
 
-    if (_selectedMethod == PaymentMethod.bankTransfer || _selectedMethod == PaymentMethod.cardPlaceholder) {
+    if (_selectedMethod == PaymentMethod.cardPlaceholder) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('This payment method is a placeholder in mock mode.'),
@@ -165,7 +241,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         final groupIndex = groups.indexOf(group);
         final receiptNumber = 'RCPT-${ts.toString().substring(7)}-$groupIndex';
         final transactionReference = _selectedMethod == PaymentMethod.mockOnline
-            ? 'MOCK-$ts-$groupIndex'
+          ? 'MOCK-$ts-$groupIndex'
+          : _selectedMethod == PaymentMethod.bankTransfer
+            ? 'BANK-$ts-$groupIndex'
             : 'COD-$ts-$groupIndex';
 
         debugPrint('[PaymentAudit] ===== PAYMENT CREATION (Group: ${group.proposal.vendorBusinessName}) =====');
@@ -269,6 +347,14 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             userId: group.proposal.vendorId,
             relatedId: createdOrder.id,
           );
+        } else if (_selectedMethod == PaymentMethod.bankTransfer) {
+          await ref.read(notification_feature.notificationProvider.notifier).createNotification(
+            type: NotificationType.orderStatusUpdated,
+            title: 'Bank Transfer Order Confirmed',
+            body: 'Bank transfer details are ready for order ${createdOrder.id}.',
+            userId: group.proposal.vendorId,
+            relatedId: createdOrder.id,
+          );
         } else {
           await ref.read(notification_feature.notificationProvider.notifier).createNotification(
             type: NotificationType.cashOnDeliveryConfirmed,
@@ -290,7 +376,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 status: RequestCategoryStatus.codConfirmed,
                 codConfirmedAt: DateTime.now(),
               );
-            } else if (_selectedMethod == PaymentMethod.mockOnline) {
+            } else if (_selectedMethod == PaymentMethod.mockOnline ||
+              _selectedMethod == PaymentMethod.bankTransfer) {
               updatedFulfillments[category] = currentFulfillment.copyWith(
                 status: RequestCategoryStatus.paid,
                 paidAt: DateTime.now(),
@@ -314,6 +401,14 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             type: NotificationType.receiptGenerated,
             title: 'Receipt Generated',
             body: 'Your payment was successful and receipt is ready.',
+            userId: customer.id,
+            relatedId: firstOrder.id,
+          );
+        } else if (_selectedMethod == PaymentMethod.bankTransfer) {
+          await ref.read(notification_feature.notificationProvider.notifier).createNotification(
+            type: NotificationType.receiptGenerated,
+            title: 'Bank Transfer Details Ready',
+            body: 'Bank transfer details are available for order ${firstOrder.id}.',
             userId: customer.id,
             relatedId: firstOrder.id,
           );
@@ -498,6 +593,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     }
 
     final grandTotal = acceptedGroups.fold<double>(0.0, (sum, g) => sum + g.customerAmount);
+    _vendorAvailabilityFuture ??= _loadGlobalVendorAvailability(acceptedGroups);
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
@@ -663,88 +759,113 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                     // Payment Method Section
                     Text('Choose Payment Method', style: AppTextStyles.h2(primaryText)),
                     const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: cardColor,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: borderColor),
-                      ),
-                      child: Column(
-                        children: [
-                          RadioListTile<PaymentMethod>(
-                            title: Row(
-                              children: [
-                                const Icon(Icons.local_shipping_outlined, color: AppColors.customerColor),
-                                const SizedBox(width: 12),
-                                Text('Cash on Delivery (COD)', style: AppTextStyles.bodyMedium(primaryText)),
-                              ],
-                            ),
-                            value: PaymentMethod.cashOnDelivery,
-                            groupValue: _selectedMethod,
-                            activeColor: AppColors.customerColor,
-                            onChanged: (val) {
-                              setState(() {
-                                _selectedMethod = val!;
-                              });
-                            },
+                    FutureBuilder<_VendorPaymentAvailability>(
+                      future: _vendorAvailabilityFuture,
+                      builder: (context, snapshot) {
+                        final availability = snapshot.data ?? _VendorPaymentAvailability(
+                          acceptsCashOnDelivery: true,
+                          acceptsBankTransfer: true,
+                          unavailableMessages: [],
+                        );
+                        final isLoadingAvailability = snapshot.connectionState == ConnectionState.waiting;
+                        return Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: cardColor,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: borderColor),
                           ),
-                          const Divider(height: 1),
-                          RadioListTile<PaymentMethod>(
-                            title: Row(
-                              children: [
-                                const Icon(Icons.payment_outlined, color: AppColors.customerColor),
-                                const SizedBox(width: 12),
-                                Text('Mock Online Payment', style: AppTextStyles.bodyMedium(primaryText)),
+                          child: Column(
+                            children: [
+                              if (isLoadingAvailability) ...[
+                                const LinearProgressIndicator(),
+                                const SizedBox(height: 10),
                               ],
-                            ),
-                            value: PaymentMethod.mockOnline,
-                            groupValue: _selectedMethod,
-                            activeColor: AppColors.customerColor,
-                            onChanged: (val) {
-                              setState(() {
-                                _selectedMethod = val!;
-                              });
-                            },
+                              RadioListTile<PaymentMethod>(
+                                title: Row(
+                                  children: [
+                                    const Icon(Icons.local_shipping_outlined, color: AppColors.customerColor),
+                                    const SizedBox(width: 12),
+                                    Text('Cash on Delivery (COD)', style: AppTextStyles.bodyMedium(primaryText)),
+                                  ],
+                                ),
+                                value: PaymentMethod.cashOnDelivery,
+                                groupValue: _selectedMethod,
+                                activeColor: AppColors.customerColor,
+                                onChanged: availability.acceptsCashOnDelivery
+                                    ? (val) {
+                                        setState(() {
+                                          _selectedMethod = val!;
+                                        });
+                                      }
+                                    : null,
+                                subtitle: !availability.acceptsCashOnDelivery
+                                    ? Text('Unavailable for this vendor', style: AppTextStyles.caption(AppColors.error))
+                                    : null,
+                              ),
+                              const Divider(height: 1),
+                              RadioListTile<PaymentMethod>(
+                                title: Row(
+                                  children: [
+                                    const Icon(Icons.payment_outlined, color: AppColors.customerColor),
+                                    const SizedBox(width: 12),
+                                    Text('Mock Online Payment', style: AppTextStyles.bodyMedium(primaryText)),
+                                  ],
+                                ),
+                                value: PaymentMethod.mockOnline,
+                                groupValue: _selectedMethod,
+                                activeColor: AppColors.customerColor,
+                                onChanged: (val) {
+                                  setState(() {
+                                    _selectedMethod = val!;
+                                  });
+                                },
+                              ),
+                              const Divider(height: 1),
+                              RadioListTile<PaymentMethod>(
+                                title: Row(
+                                  children: [
+                                    const Icon(Icons.account_balance_outlined, color: AppColors.customerColor),
+                                    const SizedBox(width: 12),
+                                    Text('Bank Transfer', style: AppTextStyles.bodyMedium(primaryText)),
+                                  ],
+                                ),
+                                value: PaymentMethod.bankTransfer,
+                                groupValue: _selectedMethod,
+                                activeColor: AppColors.customerColor,
+                                onChanged: availability.acceptsBankTransfer
+                                    ? (val) {
+                                        setState(() {
+                                          _selectedMethod = val!;
+                                        });
+                                      }
+                                    : null,
+                                subtitle: !availability.acceptsBankTransfer
+                                    ? Text('Unavailable for this vendor', style: AppTextStyles.caption(AppColors.error))
+                                    : null,
+                              ),
+                              const Divider(height: 1),
+                              RadioListTile<PaymentMethod>(
+                                title: Row(
+                                  children: [
+                                    const Icon(Icons.credit_card_outlined, color: AppColors.customerColor),
+                                    const SizedBox(width: 12),
+                                    Text('Card Payment (Placeholder)', style: AppTextStyles.bodyMedium(primaryText)),
+                                  ],
+                                ),
+                                value: PaymentMethod.cardPlaceholder,
+                                groupValue: _selectedMethod,
+                                activeColor: AppColors.customerColor,
+                                onChanged: (val) {
+                                  setState(() {
+                                    _selectedMethod = val!;
+                                  });
+                                },
+                              ),
+                            ],
                           ),
-                          const Divider(height: 1),
-                          RadioListTile<PaymentMethod>(
-                            title: Row(
-                              children: [
-                                const Icon(Icons.account_balance_outlined, color: AppColors.customerColor),
-                                const SizedBox(width: 12),
-                                Text('Bank Transfer (Placeholder)', style: AppTextStyles.bodyMedium(primaryText)),
-                              ],
-                            ),
-                            value: PaymentMethod.bankTransfer,
-                            groupValue: _selectedMethod,
-                            activeColor: AppColors.customerColor,
-                            onChanged: (val) {
-                              setState(() {
-                                _selectedMethod = val!;
-                              });
-                            },
-                          ),
-                          const Divider(height: 1),
-                          RadioListTile<PaymentMethod>(
-                            title: Row(
-                              children: [
-                                const Icon(Icons.credit_card_outlined, color: AppColors.customerColor),
-                                const SizedBox(width: 12),
-                                Text('Card Payment (Placeholder)', style: AppTextStyles.bodyMedium(primaryText)),
-                              ],
-                            ),
-                            value: PaymentMethod.cardPlaceholder,
-                            groupValue: _selectedMethod,
-                            activeColor: AppColors.customerColor,
-                            onChanged: (val) {
-                              setState(() {
-                                _selectedMethod = val!;
-                              });
-                            },
-                          ),
-                        ],
-                      ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 24),
 
@@ -825,6 +946,57 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
+                    ],
+
+                    if (_selectedMethod == PaymentMethod.bankTransfer) ...[
+                      Text('Payment', style: AppTextStyles.h2(primaryText)),
+                      const SizedBox(height: 12),
+                      ...acceptedGroups.map(
+                        (group) => FutureBuilder<UserModel?>(
+                          future: _loadVendorProfile(group.proposal),
+                          builder: (context, snapshot) {
+                            final vendor = snapshot.data;
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return const Padding(
+                                padding: EdgeInsets.only(bottom: 12),
+                                child: LinearProgressIndicator(),
+                              );
+                            }
+
+                            final hasDetails = vendor != null &&
+                                ((vendor.bankName ?? '').isNotEmpty ||
+                                    (vendor.bankBranch ?? '').isNotEmpty ||
+                                    (vendor.bankAccountName ?? '').isNotEmpty ||
+                                    (vendor.bankAccountNumber ?? '').isNotEmpty);
+
+                            return Container(
+                              width: double.infinity,
+                              margin: const EdgeInsets.only(bottom: 12),
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: cardColor,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: borderColor),
+                              ),
+                              child: hasDetails
+                                  ? Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        _summaryRow('Bank Name', vendor!.bankName ?? '—', primaryText),
+                                        _summaryRow('Branch', vendor.bankBranch ?? '—', primaryText),
+                                        _summaryRow('Account Holder', vendor.bankAccountName ?? '—', primaryText),
+                                        _summaryRow('Account Number', vendor.bankAccountNumber ?? '—', primaryText),
+                                      ],
+                                    )
+                                  : Text(
+                                      'Bank details are not available for this proposal.',
+                                      style: AppTextStyles.bodyMedium(secondaryText),
+                                    ),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                     ],
 
                     // Pricing breakdown card

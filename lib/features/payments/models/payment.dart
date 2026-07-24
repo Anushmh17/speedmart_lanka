@@ -15,7 +15,7 @@ extension PaymentMethodExtension on PaymentMethod {
       case PaymentMethod.mockOnline:
         return 'Mock Online Payment';
       case PaymentMethod.bankTransfer:
-        return 'Bank Transfer (Placeholder)';
+        return 'Bank Transfer';
       case PaymentMethod.cardPlaceholder:
         return 'Card Payment (Placeholder)';
     }

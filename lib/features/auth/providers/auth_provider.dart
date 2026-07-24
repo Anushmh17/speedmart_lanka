@@ -268,6 +268,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
     String? bankBranch,
     String? bankAccountName,
     String? bankAccountNumber,
+    bool? acceptsCashOnDelivery,
+    bool? acceptsBankTransfer,
   }) async {
     // Do NOT set isLoading here — it triggers the router's refreshListenable
     // and causes unwanted navigation during a simple profile update.
@@ -287,6 +289,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
         bankBranch: bankBranch ?? currentUser.bankBranch,
         bankAccountName: bankAccountName ?? currentUser.bankAccountName,
         bankAccountNumber: bankAccountNumber ?? currentUser.bankAccountNumber,
+        acceptsCashOnDelivery: acceptsCashOnDelivery ?? currentUser.acceptsCashOnDelivery,
+        acceptsBankTransfer: acceptsBankTransfer ?? currentUser.acceptsBankTransfer,
       );
 
       final savedUser = await _repo.updateUser(updatedUser);
