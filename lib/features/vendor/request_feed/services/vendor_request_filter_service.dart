@@ -185,10 +185,18 @@ class VendorRequestFilterService {
     // A request is only hidden from the feed when the vendor has bid on ALL
     // categories that match their approved categories (not just one of them).
     final Map<String, Set<String>> bidCategoriesByRequest = {};
+    final rejectedRequestIds = <String>{};
     if (vendorId != null) {
       for (final p in allProposals) {
         if (p.vendorId != vendorId) continue;
-        if (p.status == ProposalStatus.withdrawn || p.status == ProposalStatus.draft) continue;
+        if (p.status == ProposalStatus.rejected) {
+          rejectedRequestIds.add(p.requestId);
+        }
+        if (p.status == ProposalStatus.withdrawn ||
+            p.status == ProposalStatus.draft ||
+            p.status == ProposalStatus.expired) {
+          continue;
+        }
         bidCategoriesByRequest
             .putIfAbsent(p.requestId, () => {})
             .add(p.categoryNormalized ?? '');
@@ -216,6 +224,14 @@ class VendorRequestFilterService {
 
     final matched = active.where((request) {
       debugPrint('[FeedCategoryFix] ===== REQUEST ${request.id} =====');
+
+      // A rejected proposal belongs in the vendor's proposal history, not in
+      // the marketplace request feed. Use request identity rather than the
+      // proposal category because older records may have no category key.
+      if (rejectedRequestIds.contains(request.id)) {
+        debugPrint('[FeedCategoryFix] hidden reason: vendor_rejected_proposal');
+        return false;
+      }
 
       // Exclude request only if vendor has already bid on ALL matching categories.
       final matchingCatsForRequest = filterMatchingItems(request, vendorCategories)

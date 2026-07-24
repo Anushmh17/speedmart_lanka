@@ -355,22 +355,22 @@ class _DashboardTab extends ConsumerWidget {
     final currentUser = ref.watch(currentUserProvider);
     final double commissionRate = currentUser?.commissionRate ?? 0.0;
 
-    // Calculate confirmed net earnings from delivered/completed orders (both COD and online)
+    // Vendor payout stays equal to the customer-visible quoted amount.
+    // The admin-set commission is folded into that quote and is not deducted again here.
     final paidEarnings = orderState.orders
         .where((o) =>
             (o.status == OrderStatus.delivered ||
                 o.status == OrderStatus.completed) &&
             (o.paymentStatus == PaymentStatus.paid ||
                 o.paymentStatus == PaymentStatus.pendingOnDelivery))
-        .fold<double>(0, (sum, o) => sum + (o.totalPrice - (o.totalPrice * commissionRate)));
+        .fold<double>(0, (sum, o) => sum + o.totalPrice);
 
-    // Calculate pending net earnings from active (non-cancelled, non-completed) orders
     final pendingEarnings = orderState.orders
         .where((o) =>
             o.status != OrderStatus.cancelled &&
             o.status != OrderStatus.completed &&
             o.status != OrderStatus.delivered)
-        .fold<double>(0, (sum, o) => sum + (o.totalPrice - (o.totalPrice * commissionRate)));
+        .fold<double>(0, (sum, o) => sum + o.totalPrice);
 
     debugPrint(
         '[VendorHome] dashboard rendered with ${feedState.items.length} requests, ${proposalState.proposals.length} proposals, ${orderState.orders.length} orders');
@@ -583,6 +583,7 @@ class _MyProposalsTab extends ConsumerStatefulWidget {
 
 class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
   bool _groupByRequest = true;
+  String _statusFilter = 'Active';
   final Map<String, ShoppingRequest?> _requestCache = {};
   bool _isLoadingRequests = false;
 
@@ -782,6 +783,30 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
     );
   }
 
+  List<Proposal> _filterProposals(List<Proposal> proposals) {
+    switch (_statusFilter) {
+      case 'Accepted':
+        return proposals.where((p) => p.status == ProposalStatus.accepted).toList();
+      case 'Rejected':
+        return proposals.where((p) => p.status == ProposalStatus.rejected).toList();
+      case 'Active':
+      default:
+        return proposals.where((p) =>
+            p.status == ProposalStatus.draft ||
+            p.status == ProposalStatus.submitted ||
+            p.status == ProposalStatus.updated).toList();
+    }
+  }
+
+  String _formatDateTime(DateTime value) {
+    final local = value.toLocal();
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$day/$month/${local.year} at $hour:$minute';
+  }
+
   @override
   Widget build(BuildContext context) {
     final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
@@ -791,6 +816,7 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
     final proposalState = ref.watch(proposalProvider);
     final orderState = ref.watch(orderProvider);
     final orders = orderState.orders;
+    final filteredProposals = _filterProposals(proposalState.proposals);
 
     // Listen for updates to load request metadata
     ref.listen<ProposalState>(proposalProvider, (previous, next) {
@@ -846,22 +872,40 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
                 ],
               ),
             ),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
+              child: Row(
+                children: [
+                  for (final filter in const ['Active', 'Accepted', 'Rejected']) ...[
+                    _buildToggleButton(
+                      label: filter,
+                      selected: _statusFilter == filter,
+                      onTap: () => setState(() => _statusFilter = filter),
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                ],
+              ),
+            ),
 
             // ── Body ────────────────────────────────────────────────────
             Expanded(
               child: proposalState.isLoading
                   ? const Center(child: CircularProgressIndicator(color: AppColors.vendorColor))
-                  : proposalState.proposals.isEmpty
+                  : filteredProposals.isEmpty
                       ? Theme3EmptyState(
                           icon: Icons.assignment_outlined,
-                          title: 'No Proposals Yet',
-                          subtitle: 'Accept a request to submit your first shop bid.',
+                          title: _statusFilter == 'Rejected' ? 'No Rejected Proposals' : 'No Proposals Found',
+                          subtitle: _statusFilter == 'Rejected'
+                              ? 'Rejected proposals will appear here.'
+                              : 'Submit a proposal to see it in this list.',
                         )
                       : _groupByRequest
                           ? _buildGroupedView(
-                              proposalState.proposals, orders, primaryText, secondaryText, borderCol)
+                              filteredProposals, orders, primaryText, secondaryText, borderCol)
                           : _buildFlatView(
-                              proposalState.proposals, primaryText, secondaryText),
+                              filteredProposals, primaryText, secondaryText),
             ),
           ],
         ),
@@ -938,6 +982,9 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
                       matchingOrder = orders.firstWhere((o) => o.proposalId == proposal.id);
                     } catch (_) {}
                   }
+                  final isCompletedOrder = matchingOrder != null &&
+                      (matchingOrder!.status == OrderStatus.delivered ||
+                          matchingOrder.status == OrderStatus.completed);
 
                   return SizedBox(
                     width: double.infinity,
@@ -977,6 +1024,10 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
                               children: [
                                 Text('Items: ${proposal.items.length}', style: AppTextStyles.caption(secondaryText)),
                                 Text(
+                                  'Date: ${_formatDateTime(matchingOrder?.createdAt ?? proposal.createdAt)}',
+                                  style: AppTextStyles.caption(secondaryText),
+                                ),
+                                Text(
                                   'Rs. ${proposal.totalPrice.toStringAsFixed(2)}',
                                   style: AppTextStyles.bodyMedium(primaryText).copyWith(fontWeight: FontWeight.bold),
                                 ),
@@ -993,8 +1044,16 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
                                     minimumSize: const Size(0, 36),
                                   ),
                                   onPressed: () => context.push('/vendor/orders/manage', extra: matchingOrder),
-                                  icon: const Icon(Icons.delivery_dining_rounded, size: 16),
-                                  label: const Text('Manage', style: TextStyle(fontSize: 11)),
+                                  icon: Icon(
+                                    isCompletedOrder
+                                        ? Icons.receipt_long_rounded
+                                        : Icons.delivery_dining_rounded,
+                                    size: 16,
+                                  ),
+                                  label: Text(
+                                    isCompletedOrder ? 'View Summary' : 'Manage',
+                                    style: const TextStyle(fontSize: 11),
+                                  ),
                                 )
                               else if (proposal.status == ProposalStatus.submitted ||
                                   proposal.status == ProposalStatus.updated) ...[
@@ -1089,6 +1148,10 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
                   Text('Request: ${proposal.requestId}', style: AppTextStyles.bodySmall(secondaryText)),
                   if ((proposal.categoryNormalized ?? '').isNotEmpty)
                     Text('Category: ${proposal.categoryNormalized}', style: AppTextStyles.caption(secondaryText)),
+                  Text(
+                    'Date: ${_formatDateTime(proposal.createdAt)}',
+                    style: AppTextStyles.caption(secondaryText),
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     'Summary: $availableCount available, $altCount alternatives, $missingCount missing.',
@@ -1936,13 +1999,14 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                 o.paymentStatus == PaymentStatus.pendingOnDelivery))
         .toList();
 
-    // Platform commission is dynamically read from vendor profile (set by admin)
+    // Platform commission is now folded into the customer-facing proposal total
+    // and is not deducted from the vendor payout.
     final double liveGrossRevenue =
         completedOrders.fold<double>(0, (sum, o) => sum + o.totalPrice);
     final currentUser = ref.watch(currentUserProvider);
     final double commissionRate = currentUser?.commissionRate ?? 0.0;
-    final double liveCommission = liveGrossRevenue * commissionRate;
-    final double liveNetEarnings = liveGrossRevenue - liveCommission;
+    final double liveCommission = 0.0;
+    final double liveNetEarnings = liveGrossRevenue;
 
     final double totalHistoricGross =
         _mockPayouts.fold<double>(0.0, (sum, p) => sum + p['payout']);
@@ -1975,9 +2039,7 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
             ),
             const SizedBox(height: 8),
             Text(
-              commissionRate > 0
-                  ? 'Real-time earnings ledger — ${(commissionRate * 100).toStringAsFixed(1)}% platform commission. You keep the rest.'
-                  : 'Real-time earnings ledger — 0% platform commission. You keep everything you earn.',
+              'Real-time earnings ledger — customer quote totals are shown as your sales amount. No platform fee is deducted from your payout.',
               style: AppTextStyles.bodyMedium(secondaryText),
             ),
             const SizedBox(height: 24),
@@ -2007,19 +2069,6 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                       Text('Cumulative Net Earnings',
                           style: AppTextStyles.caption(Colors.white70)
                               .copyWith(fontWeight: FontWeight.bold)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          'Platform Fee: ${(commissionRate * 100).toStringAsFixed(1)}%',
-                          style: AppTextStyles.caption(Colors.white).copyWith(
-                              fontSize: 10, fontWeight: FontWeight.bold),
-                        ),
-                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -2048,10 +2097,10 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Comm. Deducted (${(commissionRate * 100).toStringAsFixed(1)}%)',
+                          Text('Included in Quote',
                               style: AppTextStyles.caption(Colors.white60)),
                           const SizedBox(height: 4),
-                          Text('Rs. ${cumulativeCommission.toStringAsFixed(2)}',
+                          Text('Rs. 0.00',
                               style: AppTextStyles.bodyLarge(Colors.amber)
                                   .copyWith(fontWeight: FontWeight.bold)),
                         ],
@@ -2099,8 +2148,8 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
             if (completedOrders.isNotEmpty) ...[
               ...completedOrders.map((order) {
                 final orderGross = order.totalPrice;
-                final double orderComm = orderGross * commissionRate;
-                final orderNet = orderGross - orderComm;
+                final double orderComm = 0.0;
+                final orderNet = orderGross;
 
                 // Determine settlement status from payment status
                 final isCod = order.paymentStatus == PaymentStatus.pendingOnDelivery;
@@ -2166,7 +2215,7 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                         children: [
                           Text('Sales: Rs. ${orderGross.toStringAsFixed(0)}',
                               style: AppTextStyles.bodySmall(secondaryText)),
-                          Text('Comm (${(commissionRate * 100).toStringAsFixed(1)}%): Rs. ${orderComm.toStringAsFixed(1)}',
+                          Text('Included in Quote: Rs. 0.00',
                               style: AppTextStyles.bodySmall(secondaryText)),
                           Text('Net: Rs. ${orderNet.toStringAsFixed(2)}',
                               style: AppTextStyles.bodyMedium(AppColors.success)

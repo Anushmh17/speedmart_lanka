@@ -39,9 +39,9 @@ class CustomerProposalView {
           ? proposal.id
           : '${proposal.id}_$proposalItemId';
 
-  /// Computed total = items subtotal (excluding unavailable) + delivery.
-  /// Matches the calculation used in the payment screen to avoid discrepancies.
-  double get totalPrice => proposal.subtotal + deliveryFee;
+  /// Customer-visible total is whatever the vendor quote already stores,
+  /// including the hidden platform fee folded into the proposal total.
+  double get totalPrice => proposal.totalPrice;
 
   double get subtotal => proposal.subtotal;
 

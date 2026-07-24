@@ -34,8 +34,8 @@ class AcceptedVendorGroup {
   double get subtotal => acceptedItems.fold<double>(0.0, (sum, item) => sum + item.subtotal);
   double get deliveryCharge => waveDeliveryCharge ? 0.0 : proposal.deliveryCharge;
   double get platformCommission => (subtotal + deliveryCharge) * commissionRate;
-  double get customerAmount => subtotal + deliveryCharge; // What customer pays (subtotal + delivery)
-  double get vendorNetAmount => customerAmount - platformCommission; // Vendor net receipt
+  double get customerAmount => proposal.totalPrice; // What customer pays (includes any admin-set commission already folded into proposal total)
+  double get vendorNetAmount => customerAmount - platformCommission; // Vendor net receipt after hidden platform fee
 }
 
 class PaymentScreen extends ConsumerStatefulWidget {

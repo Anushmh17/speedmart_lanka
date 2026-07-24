@@ -970,7 +970,6 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
     return CustomerProposalView(
       proposal: p.copyWith(
         items: singleItem,
-        totalPrice: subtotal + p.deliveryCharge,
         status: displayStatus,
         categoryNormalized: category.isEmpty ? p.categoryNormalized : category,
       ),

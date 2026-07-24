@@ -43,6 +43,15 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
     );
   }
 
+  String _formatDateTime(DateTime value) {
+    final local = value.toLocal();
+    final day = local.day.toString().padLeft(2, '0');
+    final month = local.month.toString().padLeft(2, '0');
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    return '$day/$month/${local.year} at $hour:$minute';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -215,6 +224,30 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                             Text(activeOrder.status.displayName, style: AppTextStyles.bodyMedium(primaryText)),
                           ],
                         ),
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text('Order Date:', style: AppTextStyles.bodyMedium(secondaryText)),
+                            Text(
+                              _formatDateTime(activeOrder.createdAt),
+                              style: AppTextStyles.bodyMedium(primaryText),
+                            ),
+                          ],
+                        ),
+                        if (activeOrder.updatedAt != null) ...[
+                          const SizedBox(height: 6),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('Last Updated:', style: AppTextStyles.bodyMedium(secondaryText)),
+                              Text(
+                                _formatDateTime(activeOrder.updatedAt!),
+                                style: AppTextStyles.bodyMedium(primaryText),
+                              ),
+                            ],
+                          ),
+                        ],
                       ],
                     ),
                   ),

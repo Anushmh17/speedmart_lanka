@@ -111,7 +111,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
     await _repo.ensureInitialized();
     final draft = proposal.copyWith(
       status: ProposalStatus.draft,
-      totalPrice: proposal.subtotal + proposal.deliveryCharge,
+      totalPrice: proposal.totalPrice,
     );
     final Proposal saved;
     if (draft.id.isEmpty) {
@@ -130,7 +130,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
     try {
       final toSubmit = proposal.copyWith(
         status: ProposalStatus.submitted,
-        totalPrice: proposal.subtotal + proposal.deliveryCharge,
+        totalPrice: proposal.totalPrice,
       );
 
       final Proposal saved;
@@ -172,7 +172,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
     try {
       final updated = await _repo.updateProposal(
         proposal.copyWith(
-          totalPrice: proposal.subtotal + proposal.deliveryCharge,
+          totalPrice: proposal.totalPrice,
         ),
       );
       _upsertInList(updated);

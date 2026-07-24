@@ -245,6 +245,9 @@ class _VendorProposalFormScreenState
         .map((i) => i.requestItemId)
         .toList();
     final subtotal = items.fold<double>(0, (s, i) => s + i.subtotal);
+    final commissionRate = user.commissionRate ?? 0.0;
+    final commissionAmount = (subtotal + _deliveryFee) * commissionRate;
+    final totalPrice = subtotal + _deliveryFee + commissionAmount;
 
     // Determine category for this proposal from the (already-filtered) request items
     String? proposalCategory;
@@ -272,7 +275,7 @@ class _VendorProposalFormScreenState
       missingItemIds: missing,
       deliveryCharge: _deliveryFee,
       estimatedDeliveryTime: _deliveryTimeController.text.trim(),
-      totalPrice: subtotal + _deliveryFee,
+      totalPrice: totalPrice,
       status: status,
       createdAt: widget.existingProposal?.createdAt ?? DateTime.now(),
       notes: _notesController.text.trim().isEmpty
@@ -609,12 +612,25 @@ class _VendorProposalFormScreenState
                             style: AppTextStyles.bodyMedium(primaryText)),
                       ],
                     ),
+                    if ((ref.read(currentUserProvider)?.commissionRate ?? 0.0) > 0) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Platform fee included', style: AppTextStyles.bodyMedium(secondaryText)),
+                          Text(
+                            'Rs. ${((_itemsSubtotal + _deliveryFee) * (ref.read(currentUserProvider)?.commissionRate ?? 0.0)).toStringAsFixed(2)}',
+                            style: AppTextStyles.bodyMedium(primaryText),
+                          ),
+                        ],
+                      ),
+                    ],
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text('Total bid', style: AppTextStyles.subtitle(primaryText)),
                         Text(
-                          'Rs. ${(_itemsSubtotal + _deliveryFee).toStringAsFixed(2)}',
+                          'Rs. ${(_itemsSubtotal + _deliveryFee + ((_itemsSubtotal + _deliveryFee) * (ref.read(currentUserProvider)?.commissionRate ?? 0.0))).toStringAsFixed(2)}',
                           style: AppTextStyles.h2(AppColors.vendorColor),
                         ),
                       ],
