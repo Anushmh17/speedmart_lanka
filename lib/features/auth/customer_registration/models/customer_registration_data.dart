@@ -13,6 +13,10 @@ class CustomerRegistrationData {
     this.approxArea = '',
     this.preciseAddress = '',
     this.deliveryNote = '',
+    this.deliveryLatitude,
+    this.deliveryLongitude,
+    this.deliveryAccuracy,
+    this.deliveryDetectedAt,
     this.isLkUser = true,
   });
 
@@ -26,6 +30,10 @@ class CustomerRegistrationData {
   final String approxArea;
   final String preciseAddress;
   final String deliveryNote;
+  final double? deliveryLatitude;
+  final double? deliveryLongitude;
+  final double? deliveryAccuracy;
+  final DateTime? deliveryDetectedAt;
   final bool isLkUser;
 
   factory CustomerRegistrationData.empty() => const CustomerRegistrationData();
@@ -41,9 +49,14 @@ class CustomerRegistrationData {
     String? approxArea,
     String? preciseAddress,
     String? deliveryNote,
+    double? deliveryLatitude,
+    double? deliveryLongitude,
+    double? deliveryAccuracy,
+    DateTime? deliveryDetectedAt,
     bool? isLkUser,
     bool clearProvince = false,
     bool clearDistrict = false,
+    bool clearDeliveryCoordinates = false,
   }) {
     return CustomerRegistrationData(
       fullName: fullName ?? this.fullName,
@@ -56,6 +69,10 @@ class CustomerRegistrationData {
       approxArea: approxArea ?? this.approxArea,
       preciseAddress: preciseAddress ?? this.preciseAddress,
       deliveryNote: deliveryNote ?? this.deliveryNote,
+      deliveryLatitude: clearDeliveryCoordinates ? null : (deliveryLatitude ?? this.deliveryLatitude),
+      deliveryLongitude: clearDeliveryCoordinates ? null : (deliveryLongitude ?? this.deliveryLongitude),
+      deliveryAccuracy: clearDeliveryCoordinates ? null : (deliveryAccuracy ?? this.deliveryAccuracy),
+      deliveryDetectedAt: clearDeliveryCoordinates ? null : (deliveryDetectedAt ?? this.deliveryDetectedAt),
       isLkUser: isLkUser ?? this.isLkUser,
     );
   }

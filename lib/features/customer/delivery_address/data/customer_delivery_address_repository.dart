@@ -28,6 +28,7 @@ class CustomerDeliveryAddressRepository {
       print('[ApproxAreaAudit] Loaded from storage key: ${storageKey(customerId)}');
       print('[ApproxAreaAudit] Raw JSON approximateArea: "${json['approximateArea']}"');
       print('[ApproxAreaAudit] Deserialized address.approximateArea: "${address.approximateArea}"');
+      print('[ApproxAreaAudit] Deserialized lat/lng: ${address.latitude}/${address.longitude}');
       print('[ApproxAreaAudit] ===== LOAD COMPLETE =====');
       
       return address;

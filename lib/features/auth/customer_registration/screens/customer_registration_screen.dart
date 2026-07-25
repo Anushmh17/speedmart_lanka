@@ -129,6 +129,10 @@ class _CustomerRegistrationScreenState
                 province: province,
                 district: district,
                 approxArea: result.city ?? '',
+                latitude: position.latitude,
+                longitude: position.longitude,
+                accuracy: result.accuracy,
+                detectedAt: result.detectedAt ?? DateTime.now(),
               );
         }
       } else {
@@ -159,8 +163,18 @@ class _CustomerRegistrationScreenState
     reg.updatePhone(_phoneCtrl.text.trim());
     reg.updateEmail(_emailCtrl.text.trim());
     reg.updateCountry(_countryCtrl.text.trim());
-    reg.updateApproxArea(_approxAreaCtrl.text.trim());
-    reg.updatePreciseAddress(_addressCtrl.text.trim());
+
+    final currentData = ref.read(customerRegistrationProvider).data;
+    final approxText = _approxAreaCtrl.text.trim();
+    final preciseText = _addressCtrl.text.trim();
+
+    if (approxText != currentData.approxArea) {
+      reg.updateApproxArea(approxText);
+    }
+    if (preciseText != currentData.preciseAddress) {
+      reg.updatePreciseAddress(preciseText);
+    }
+
     reg.updateDeliveryNote(_noteCtrl.text.trim());
     if (_selectedProvince != null) reg.updateProvince(_selectedProvince);
     if (_selectedDistrict != null) reg.updateDistrict(_selectedDistrict);

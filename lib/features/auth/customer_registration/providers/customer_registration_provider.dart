@@ -79,9 +79,17 @@ class CustomerRegistrationNotifier
   void updateEmail(String v) => _updateData(state.data.copyWith(email: v));
   void updateCountry(String v) => _updateData(state.data.copyWith(country: v));
   void updateApproxArea(String v) =>
-      _updateData(state.data.copyWith(approxArea: v));
+      _updateData(state.data.copyWith(
+        approxArea: v,
+        clearDeliveryCoordinates: true,
+      ));
   void updatePreciseAddress(String v) =>
-      _updateData(state.data.copyWith(preciseAddress: v));
+      _updateData(state.data.copyWith(
+        preciseAddress: v,
+        // Preserve GPS coordinates when the user enters a precise street address.
+        // Precise door/unit text does not invalidate the previously detected location.
+        clearDeliveryCoordinates: false,
+      ));
   void updateDeliveryNote(String v) =>
       _updateData(state.data.copyWith(deliveryNote: v));
 
@@ -99,11 +107,19 @@ class CustomerRegistrationNotifier
     required SriLankaProvince province,
     required SriLankaDistrict district,
     required String approxArea,
+    double? latitude,
+    double? longitude,
+    double? accuracy,
+    DateTime? detectedAt,
   }) {
     _updateData(state.data.copyWith(
       province: province,
       district: district,
       approxArea: approxArea,
+      deliveryLatitude: latitude,
+      deliveryLongitude: longitude,
+      deliveryAccuracy: accuracy,
+      deliveryDetectedAt: detectedAt,
     ));
   }
 

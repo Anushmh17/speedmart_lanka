@@ -158,6 +158,13 @@ class _OtpVerificationScreenState
               deliveryApproxArea: regState.data.approxArea,
               deliveryPreciseAddress: regState.data.preciseAddress,
               deliveryNote: regState.data.deliveryNote,
+              accuracy: regState.data.deliveryAccuracy,
+              detectedAt: regState.data.deliveryDetectedAt,
+              deliveryLatitude: regState.data.deliveryLatitude,
+              deliveryLongitude: regState.data.deliveryLongitude,
+              isGpsDetected: regState.data.deliveryLatitude != null &&
+                  regState.data.deliveryLongitude != null,
+              isManualOverride: false,
             );
             await ref
                 .read(customerDeliveryAddressProvider.notifier)

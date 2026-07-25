@@ -146,9 +146,15 @@ class CustomerDeliveryAddress {
     String? deliveryNote,
     double? accuracy,
     DateTime? detectedAt,
+    double? deliveryLatitude,
+    double? deliveryLongitude,
+    bool? isGpsDetected,
+    bool? isManualOverride,
   }) {
     final area = deliveryApproxArea?.trim() ?? '';
     final street = deliveryPreciseAddress?.trim() ?? '';
+    final resolvedGpsDetected = isGpsDetected ??
+        (deliveryLatitude != null && deliveryLongitude != null);
     return CustomerDeliveryAddress(
       customerId: customerId,
       province: deliveryProvince?.trim() ?? '',
@@ -160,7 +166,10 @@ class CustomerDeliveryAddress {
           .where((e) => e != null && e.trim().isNotEmpty)
           .join(', '),
       deliveryNote: deliveryNote?.trim() ?? '',
-      isManualOverride: true,
+      latitude: deliveryLatitude,
+      longitude: deliveryLongitude,
+      isGpsDetected: resolvedGpsDetected,
+      isManualOverride: isManualOverride ?? !resolvedGpsDetected,
       accuracy: accuracy,
       detectedAt: detectedAt,
       updatedAt: DateTime.now(),

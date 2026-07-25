@@ -507,7 +507,9 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> with 
   Future<void> _loadDefaultDeliveryAddress() async {
     await ref.read(customerDeliveryAddressProvider.notifier).loadForCurrentUser();
     final addrState = ref.read(customerDeliveryAddressProvider);
-    if (addrState.hasSavedAddress && ref.read(deliveryLocationProvider).currentLocation == null) {
+    final activeLocation = addrState.activeLocation;
+    final currentLoc = ref.read(deliveryLocationProvider).currentLocation;
+    if (activeLocation != null && _shouldApplyDefaultLocation(currentLoc, activeLocation)) {
       await ref.read(customerDeliveryAddressProvider.notifier).applyActiveLocationToProvider();
       final loc = ref.read(deliveryLocationProvider).currentLocation;
       if (loc != null) {
@@ -519,6 +521,19 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> with 
       }
     }
     if (mounted) setState(() => _deliveryAddressReady = true);
+  }
+
+  bool _shouldApplyDefaultLocation(
+    DeliveryLocation? currentLoc,
+    DeliveryLocation activeLocation,
+  ) {
+    if (currentLoc == null) return true;
+    if (_defaultLoadedLocation != null) return false;
+    return currentLoc.formattedAddress != activeLocation.formattedAddress ||
+        currentLoc.streetAddress != activeLocation.streetAddress ||
+        currentLoc.approximateAreaText != activeLocation.approximateAreaText ||
+        currentLoc.latitude != activeLocation.latitude ||
+        currentLoc.longitude != activeLocation.longitude;
   }
 
   Future<void> _openDeliveryAddressEditor() async {
@@ -687,7 +702,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> with 
           const SizedBox(height: AppSpacing.md),
           if (!_deliveryAddressReady || addrState.isLoading)
             const Center(child: Theme3InlineLoading())
-          else if (loc != null && _hasLocation())
+          else if (loc != null)
             DeliveryAddressSummaryCard(
               location: loc,
               isRequestOnly: addrState.requestOnlyLocation != null,

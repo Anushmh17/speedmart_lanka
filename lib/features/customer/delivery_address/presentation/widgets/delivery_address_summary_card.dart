@@ -65,6 +65,13 @@ class DeliveryAddressSummaryCard extends StatelessWidget {
             location.streetAddress,
             style: AppTextStyles.bodySmall(secondaryText),
           ),
+          if (!location.hasCoordinates) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Confirm location on map to finalize delivery pin.',
+              style: AppTextStyles.caption(secondaryText),
+            ),
+          ],
           if (location.deliveryNote.isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(
