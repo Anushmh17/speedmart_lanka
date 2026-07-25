@@ -89,6 +89,11 @@ class ShoppingListBuilder extends StatelessWidget {
     final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+    final canAddItem = isMixedCategory != null &&
+        (isMixedCategory == true || (globalCategory?.isNotEmpty ?? false));
+    final addButtonTooltip = canAddItem
+        ? 'Add the first shopping item'
+        : 'Select Same Category or Mixed Categories before adding items';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -222,7 +227,9 @@ class ShoppingListBuilder extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  'Tap "+ Add item" to write down your first request.',
+                  canAddItem
+                      ? 'Tap "+ Add item" to write down your first request.'
+                      : 'Choose Same Category or Mixed Categories before adding items.',
                   textAlign: TextAlign.center,
                   style: AppTextStyles.caption(secondaryText),
                 ),
@@ -230,17 +237,20 @@ class ShoppingListBuilder extends StatelessWidget {
                 SizedBox(
                   width: 180,
                   height: 44,
-                  child: ElevatedButton.icon(
-                    onPressed: _addItem,
-                    icon: const Icon(Icons.add_rounded, color: Colors.white, size: 18),
-                    label: const Text('Add First Item'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.customerColor,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      elevation: 0,
+                  child: Tooltip(
+                    message: addButtonTooltip,
+                    child: ElevatedButton.icon(
+                      onPressed: canAddItem ? _addItem : null,
+                      icon: const Icon(Icons.add_rounded, color: Colors.white, size: 18),
+                      label: const Text('Add First Item'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: canAddItem ? AppColors.customerColor : AppColors.borderLight,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                        elevation: 0,
+                      ),
                     ),
                   ),
                 ),
