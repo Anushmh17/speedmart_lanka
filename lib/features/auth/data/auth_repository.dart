@@ -8,163 +8,18 @@ import '../../../shared/models/vendor_status.dart';
 /// Local authentication repository.
 /// Users and sessions are persisted locally until the backend API is ready.
 /// TODO: Replace local auth persistence with backend API later.
-class MockAuthRepository {
-  MockAuthRepository._() {
+class AuthRepository {
+  AuthRepository._() {
     _initFuture = _initialize();
   }
 
-  static final MockAuthRepository instance = MockAuthRepository._();
+  static final AuthRepository instance = AuthRepository._();
 
   late final Future<void> _initFuture;
   bool _isInitialized = false;
 
   /// Password storage: email -> password hash (mock implementation)
-  final Map<String, String> _passwordStore = {
-    // Default passwords for seed users (for testing)
-    'customer@test.com': 'customer123',
-    'vendor@test.com': 'vendor123',
-    'vendor2@test.com': 'vendor123',
-    'vendor3@test.com': 'vendor123',
-    'vendor4@test.com': 'vendor123',
-    'vendor5@test.com': 'vendor123',
-    'vendor6@test.com': 'vendor123',
-    'admin@speedmart.lk': 'admin123',
-  };
-
-  // ── Seed users for development/testing ────────────────────────────────────
-  static final List<UserModel> _mockUsers = [
-    UserModel(
-      id: 'cust-001',
-      fullName: 'Amara Perera',
-      email: 'customer@test.com',
-      phone: '0771234567',
-      role: UserRole.customer,
-      isActive: true,
-      isVerified: true,
-      createdAt: DateTime(2025, 1, 15),
-    ),
-    // Active vendor with shop assigned
-    UserModel(
-      id: 'vend-001',
-      fullName: 'Kamal Silva',
-      email: 'vendor@test.com',
-      phone: '0779876543',
-      role: UserRole.vendor,
-      isActive: true,
-      isVerified: true,
-      businessName: 'Silva Super Store',
-      vendorApproved: true,
-      vendorStatus: VendorStatus.approved,
-      vendorCategories: ['groceries', 'home appliances'],
-      allowedCategories: ['groceries', 'home appliances'], // Admin-approved categories
-      shopName: 'Speedmart Silva Main',
-      shopAddress: 'Main Street, Colombo 03',
-      shopLatitude: 6.9271,
-      shopLongitude: 79.8612,
-      assignedRadiusKm: 5.0,
-      isShopLocationAssigned: true,
-      createdAt: DateTime(2025, 2, 10),
-    ),
-    // Approved vendor without shop assigned
-    UserModel(
-      id: 'vend-002',
-      fullName: 'Nimal Fernando',
-      email: 'vendor2@test.com',
-      phone: '0761234567',
-      role: UserRole.vendor,
-      isActive: true,
-      isVerified: false,
-      businessName: 'Fernando Electronics',
-      vendorApproved: true,
-      vendorStatus: VendorStatus.approved,
-      vendorCategories: ['electronics', 'stationery'],
-      isShopLocationAssigned: false,
-      createdAt: DateTime(2025, 3, 5),
-    ),
-    // Active vendor with shop assigned
-    UserModel(
-      id: 'vend-003',
-      fullName: 'Ravi Chandran',
-      email: 'vendor3@test.com',
-      phone: '0757654321',
-      role: UserRole.vendor,
-      isActive: true,
-      isVerified: true,
-      businessName: 'Chandran Pharma Store',
-      vendorApproved: true,
-      vendorStatus: VendorStatus.approved,
-      vendorCategories: ['pharmacy'],
-      allowedCategories: ['pharmacy'], // Admin-approved categories
-      shopName: 'Chandran Pharmacy Jaffna',
-      shopAddress: 'Nallur Street, Jaffna',
-      shopLatitude: 9.6615,
-      shopLongitude: 80.0255,
-      assignedRadiusKm: 5.0,
-      isShopLocationAssigned: true,
-      createdAt: DateTime(2025, 1, 20),
-    ),
-    // Pending vendor (awaiting approval)
-    UserModel(
-      id: 'vend-004',
-      fullName: 'Lakshmi Desai',
-      email: 'vendor4@test.com',
-      phone: '0712345678',
-      role: UserRole.vendor,
-      isActive: true,
-      isVerified: false,
-      businessName: 'Desai Fashion Hub',
-      vendorApproved: false,
-      vendorStatus: VendorStatus.pendingApproval,
-      vendorCategories: ['clothing', 'fashion'],
-      createdAt: DateTime(2025, 3, 20),
-    ),
-    // Rejected vendor
-    UserModel(
-      id: 'vend-005',
-      fullName: 'Anil Patel',
-      email: 'vendor5@test.com',
-      phone: '0723456789',
-      role: UserRole.vendor,
-      isActive: true,
-      isVerified: false,
-      businessName: 'Patel Industries',
-      vendorApproved: false,
-      vendorStatus: VendorStatus.rejected,
-      vendorCategories: ['manufacturing'],
-      createdAt: DateTime(2025, 2, 28),
-    ),
-    // Suspended vendor
-    UserModel(
-      id: 'vend-006',
-      fullName: 'Priya Sharma',
-      email: 'vendor6@test.com',
-      phone: '0734567890',
-      role: UserRole.vendor,
-      isActive: false,
-      isVerified: true,
-      businessName: 'Sharma Digital Services',
-      vendorApproved: true,
-      vendorStatus: VendorStatus.suspended,
-      vendorCategories: ['digital services'],
-      shopName: 'Sharma Services Colombo',
-      shopAddress: 'Galle Road, Colombo 04',
-      shopLatitude: 6.8820,
-      shopLongitude: 79.8674,
-      assignedRadiusKm: 5.0,
-      isShopLocationAssigned: true,
-      createdAt: DateTime(2025, 1, 10),
-    ),
-    UserModel(
-      id: 'admin-001',
-      fullName: 'Admin User',
-      email: 'admin@speedmart.lk',
-      phone: '0112345678',
-      role: UserRole.admin,
-      isActive: true,
-      isVerified: true,
-      createdAt: DateTime(2024, 12, 1),
-    ),
-  ];
+  final Map<String, String> _passwordStore = {};
 
   final List<UserModel> _sessionUsers = [];
   String? _currentToken;
@@ -175,11 +30,7 @@ class MockAuthRepository {
   Future<void> _initialize() async {
     if (_isInitialized) return;
 
-    _sessionUsers
-      ..clear()
-      ..addAll(_mockUsers);
-
-    debugPrint('[Auth] Initialized with ${_mockUsers.length} mock users');
+    _sessionUsers.clear();
 
     try {
       // Load users from storage
@@ -208,7 +59,6 @@ class MockAuthRepository {
       }
     } catch (e) {
       debugPrint('[Auth] Failed to load users from storage: $e');
-      // Keep seed users if storage read fails.
     }
 
     _isInitialized = true;
@@ -294,7 +144,7 @@ class MockAuthRepository {
     }
 
     _currentToken =
-        'mock_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
+        'auth_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
     debugPrint('[Auth] Login success: ${user.email}');
     return (user: user, token: _currentToken!);
   }
@@ -337,7 +187,7 @@ class MockAuthRepository {
     }
 
     _currentToken =
-        'mock_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
+        'auth_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
     return (user: user, token: _currentToken!);
   }
 
@@ -464,7 +314,7 @@ class MockAuthRepository {
     debugPrint('[Auth] Total users in memory: ${_sessionUsers.length}');
 
     _currentToken =
-        'mock_token_${newUser.id}_${DateTime.now().millisecondsSinceEpoch}';
+        'auth_token_${newUser.id}_${DateTime.now().millisecondsSinceEpoch}';
     return (user: newUser, token: _currentToken!);
   }
 

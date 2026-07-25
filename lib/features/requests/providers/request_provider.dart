@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../shared/models/location_model.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../data/mock_request_repository.dart';
-import '../../proposals/data/mock_proposal_repository.dart';
+import '../data/request_repository.dart';
+import '../../proposals/data/proposal_repository.dart';
 import '../../proposals/models/proposal.dart';
 import '../models/request_item.dart';
 import '../models/shopping_request.dart';
@@ -51,16 +51,16 @@ class RequestState {
 
 class RequestNotifier extends StateNotifier<RequestState> {
   RequestNotifier(this.ref) : super(const RequestState()) {
-    _repo = MockRequestRepository.instance;
+    _repo = RequestRepository.instance;
     _bootstrap();
   }
 
   final Ref ref;
-  late final MockRequestRepository _repo;
+  late final RequestRepository _repo;
 
   Future<void> _bootstrap() async {
     await _repo.ensureInitialized();
-    await MockProposalRepository.instance.ensureInitialized();
+    await ProposalRepository.instance.ensureInitialized();
     final user = ref.read(currentUserProvider);
     if (user == null) return;
     if (user.role.name == 'customer') {
@@ -169,11 +169,11 @@ class RequestNotifier extends StateNotifier<RequestState> {
     String? reason,
   }) async {
     await _repo.ensureInitialized();
-    await MockProposalRepository.instance.ensureInitialized();
+    await ProposalRepository.instance.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final proposals =
-          await MockProposalRepository.instance.getProposalsForRequest(requestId);
+          await ProposalRepository.instance.getProposalsForRequest(requestId);
       final hasAccepted =
           proposals.any((p) => p.status == ProposalStatus.accepted);
 
@@ -200,7 +200,7 @@ class RequestNotifier extends StateNotifier<RequestState> {
         reason: reason,
         cancelledBy: 'customer',
       );
-      await MockProposalRepository.instance.cancelProposalsForRequest(requestId);
+      await ProposalRepository.instance.cancelProposalsForRequest(requestId);
 
       final updatedList = state.requests.map((r) {
         return r.id == requestId ? cancelled : r;

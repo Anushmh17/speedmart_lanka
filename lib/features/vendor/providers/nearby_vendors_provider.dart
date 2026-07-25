@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:speedmart_lanka/features/auth/data/mock_auth_repository.dart';
+import 'package:speedmart_lanka/features/auth/data/auth_repository.dart';
 import 'package:speedmart_lanka/features/location/providers/location_provider.dart';
 import 'package:speedmart_lanka/features/location/services/distance_calculation_service.dart';
 import 'package:speedmart_lanka/shared/models/user_role.dart';
@@ -11,7 +11,7 @@ const _distanceCalc = DistanceCalculationService();
 /// current delivery location. Returns 0 when no location is set.
 final nearbyActiveVendorCountProvider = FutureProvider<int>((ref) async {
   final locationState = ref.watch(locationProvider);
-  final allUsers = await MockAuthRepository.instance.getAllUsers();
+  final allUsers = await AuthRepository.instance.getAllUsers();
 
   final activeVendors = allUsers.where((u) =>
       u.role == UserRole.vendor &&

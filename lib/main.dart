@@ -9,9 +9,9 @@ import 'core/services/local_notification_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/network_fallback_wrapper.dart';
 import 'features/auth/providers/theme_provider.dart';
-import 'features/orders/data/mock_order_repository.dart';
-import 'features/proposals/data/mock_proposal_repository.dart';
-import 'features/requests/data/mock_request_repository.dart';
+import 'features/orders/data/order_repository.dart';
+import 'features/proposals/data/proposal_repository.dart';
+import 'features/requests/data/request_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,9 +19,9 @@ void main() async {
   await LocalNotificationService.initialize();
 
   await Future.wait([
-    MockRequestRepository.instance.ensureInitialized(),
-    MockProposalRepository.instance.ensureInitialized(),
-    MockOrderRepository.instance.ensureInitialized(),
+    RequestRepository.instance.ensureInitialized(),
+    ProposalRepository.instance.ensureInitialized(),
+    OrderRepository.instance.ensureInitialized(),
   ]);
 
   // Lock to portrait on mobile only; web/desktop should be free.

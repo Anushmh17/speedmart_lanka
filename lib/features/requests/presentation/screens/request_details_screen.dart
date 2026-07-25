@@ -19,7 +19,7 @@ import '../../../customer/proposals/models/customer_proposal_view.dart';
 import '../../../customer/proposals/providers/customer_proposal_comparison_provider.dart';
 import '../../../customer/proposals/services/proposal_comparison_service.dart';
 import '../../../customer/proposals/widgets/customer_proposal_card.dart';
-import '../../../requests/data/mock_request_repository.dart';
+import '../../../requests/data/request_repository.dart';
 import 'request_item_details_screen.dart';
 import '../widgets/category_selector.dart';
 
@@ -208,7 +208,7 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
 
     try {
       final refreshed =
-          await MockRequestRepository.instance.getRequestById(_request.id);
+          await RequestRepository.instance.getRequestById(_request.id);
       if (refreshed != null && mounted) {
         setState(() => _request = refreshed);
       }
@@ -1009,7 +1009,7 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
     });
 
     if (!mounted) return;
-    final refreshed = await MockRequestRepository.instance.getRequestById(_request.id);
+    final refreshed = await RequestRepository.instance.getRequestById(_request.id);
     if (refreshed != null && mounted) {
       setState(() => _request = refreshed);
     }

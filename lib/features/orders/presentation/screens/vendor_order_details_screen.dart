@@ -7,15 +7,15 @@ import 'package:speedmart_lanka/core/theme/app_colors.dart';
 import 'package:speedmart_lanka/core/theme/app_text_styles.dart';
 import 'package:speedmart_lanka/features/proposals/models/proposal.dart';
 import 'package:speedmart_lanka/features/proposals/providers/proposal_provider.dart';
-import 'package:speedmart_lanka/features/orders/data/mock_order_repository.dart';
+import 'package:speedmart_lanka/features/orders/data/order_repository.dart';
 import 'package:speedmart_lanka/features/orders/models/order_model.dart';
 import 'package:speedmart_lanka/features/orders/providers/order_provider.dart';
 import 'package:speedmart_lanka/features/orders/services/vendor_delivery_access_service.dart';
 import 'package:speedmart_lanka/core/providers/notification_provider.dart';
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
-import 'package:speedmart_lanka/features/payments/data/mock_payment_repository.dart';
+import 'package:speedmart_lanka/features/payments/data/payment_repository.dart';
 import 'package:speedmart_lanka/features/requests/models/request_category_fulfillment.dart';
-import 'package:speedmart_lanka/features/requests/data/mock_request_repository.dart';
+import 'package:speedmart_lanka/features/requests/data/request_repository.dart';
 import 'package:speedmart_lanka/features/location/services/location_service.dart';
 import 'package:speedmart_lanka/features/vendor/proposals/widgets/image_gallery_viewer.dart';
 
@@ -72,7 +72,7 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
     OrderModel order,
   ) async {
     // Get payment for this order
-    final payment = await MockPaymentRepository.instance.getPaymentByOrderId(order.id);
+    final payment = await PaymentRepository.instance.getPaymentByOrderId(order.id);
     if (payment == null) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -92,15 +92,15 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
     debugPrint('[CODFlow] payment before: ${payment.paymentStatus.name}');
 
     // Update payment status to paid in the payment record
-    await MockPaymentRepository.instance.updatePaymentStatus(payment.id, PaymentStatus.paid);
+    await PaymentRepository.instance.updatePaymentStatus(payment.id, PaymentStatus.paid);
     debugPrint('[CODFlow] payment after: paid');
 
     // Also update the order record so tracking/UIs show paid for COD deliveries
-    await MockOrderRepository.instance.updatePaymentStatus(order.id, PaymentStatus.paid);
+    await OrderRepository.instance.updatePaymentStatus(order.id, PaymentStatus.paid);
     debugPrint('[CODFlow] order payment status updated to paid');
 
     // Get the request to update category fulfillment
-    final request = await MockRequestRepository.instance.getRequestById(order.requestId);
+    final request = await RequestRepository.instance.getRequestById(order.requestId);
     if (request != null && order.proposalId.isNotEmpty) {
       // Get proposal to find category
       final proposal = await ref.read(proposalProvider.notifier).loadProposalById(order.proposalId); // ignore: use_build_context_synchronously
@@ -129,7 +129,7 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
             updatedAt: DateTime.now(),
           );
 
-          await MockRequestRepository.instance.updateRequest(updatedRequest);
+          await RequestRepository.instance.updateRequest(updatedRequest);
           debugPrint('[CODFlow] fulfillment after: paid');
           debugPrint('[CODFlow] customer UI should now show paid: true');
         }

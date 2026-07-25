@@ -35,7 +35,7 @@ class NotifyLkService {
   }) async {
     throw UnimplementedError(
       'NotifyLkService.sendSms() is not yet implemented.\n'
-      'Use MockOtpService during development.\n'
+      'Use LocalOtpService during development.\n'
       'See notify_lk_service.dart for integration instructions.',
     );
 

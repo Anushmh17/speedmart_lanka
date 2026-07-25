@@ -213,7 +213,7 @@ class CustomerRegistrationNotifier
 }
 
 final otpServiceProvider = Provider<OtpService>(
-  (_) => MockOtpService(mockValidCode: '123456'),
+  (_) => LocalOtpService(validCode: '123456'),
 );
 
 final customerRegistrationProvider = StateNotifierProvider<

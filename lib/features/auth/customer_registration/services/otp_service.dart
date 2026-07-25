@@ -28,7 +28,7 @@ class OtpSendResult {
 
 /// Abstract OTP service interface.
 ///
-/// Swap [MockOtpService] for [NotifyLkOtpService] (or any other real
+/// Swap [LocalOtpService] for [NotifyLkOtpService] (or any other real
 /// implementation) without changing calling code.
 abstract class OtpService {
   /// Sends a one-time password to [destination] via [channel].
@@ -52,18 +52,18 @@ abstract class OtpService {
 /// Development-only mock OTP service.
 ///
 /// - [sendOtp]   → always succeeds after a 1.5-second delay, up to [maxSendsPerDestination].
-/// - [verifyOtp] → accepts [mockValidCode] as the valid code, up to [maxVerifyAttemptsPerDestination].
+/// - [verifyOtp] → accepts [validCode] as the valid code, up to [maxVerifyAttemptsPerDestination].
 ///
 /// Replace with [NotifyLkOtpService] when integrating production SMS.
-class MockOtpService implements OtpService {
-  MockOtpService({
-    this.mockValidCode = '123456',
+class LocalOtpService implements OtpService {
+  LocalOtpService({
+    this.validCode = '123456',
     this.maxSendsPerDestination = 5,
     this.maxVerifyAttemptsPerDestination = 5,
     this.baseBlockDuration = const Duration(minutes: 10),
   });
 
-  final String mockValidCode;
+  final String validCode;
   final int maxSendsPerDestination;
   final int maxVerifyAttemptsPerDestination;
   final Duration baseBlockDuration;
@@ -160,7 +160,7 @@ class MockOtpService implements OtpService {
       return false;
     }
 
-    final isValid = code.trim() == mockValidCode;
+    final isValid = code.trim() == validCode;
     if (!isValid) {
       final newAttempts = currentAttempts + 1;
       _verifyAttempts[destination] = newAttempts;

@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 
 enum PaymentMethod {
   cashOnDelivery,
-  mockOnline,
+  online,
   bankTransfer,
   cardPlaceholder,
 }
@@ -12,8 +12,8 @@ extension PaymentMethodExtension on PaymentMethod {
     switch (this) {
       case PaymentMethod.cashOnDelivery:
         return 'Cash on Delivery';
-      case PaymentMethod.mockOnline:
-        return 'Mock Online Payment';
+      case PaymentMethod.online:
+        return 'Online Payment';
       case PaymentMethod.bankTransfer:
         return 'Bank Transfer';
       case PaymentMethod.cardPlaceholder:

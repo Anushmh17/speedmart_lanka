@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
-import 'package:speedmart_lanka/features/requests/data/mock_request_repository.dart';
+import 'package:speedmart_lanka/features/requests/data/request_repository.dart';
 import 'package:speedmart_lanka/features/requests/models/shopping_request.dart';
-import 'package:speedmart_lanka/features/orders/data/mock_order_repository.dart';
+import 'package:speedmart_lanka/features/orders/data/order_repository.dart';
 import 'package:speedmart_lanka/features/orders/models/order_model.dart';
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
 
@@ -33,13 +33,13 @@ class OrderState {
 
 class OrderNotifier extends StateNotifier<OrderState> {
   OrderNotifier(this.ref) : super(const OrderState()) {
-    _repo = MockOrderRepository.instance;
-    _requestRepo = MockRequestRepository.instance;
+    _repo = OrderRepository.instance;
+    _requestRepo = RequestRepository.instance;
   }
 
   final Ref ref;
-  late final MockOrderRepository _repo;
-  late final MockRequestRepository _requestRepo;
+  late final OrderRepository _repo;
+  late final RequestRepository _requestRepo;
 
   Future<void> loadAllOrders() async {
     await _repo.ensureInitialized();
@@ -93,7 +93,7 @@ class OrderNotifier extends StateNotifier<OrderState> {
 
       // Only update request status once (first order in a multi-vendor placement)
       if (updateRequestStatus) {
-        final nextStatus = order.paymentMethod == PaymentMethod.mockOnline
+        final nextStatus = order.paymentMethod == PaymentMethod.online
             ? RequestStatus.paid
             : RequestStatus.cashOnDeliveryConfirmed;
         await _requestRepo.updateRequestStatus(order.requestId, nextStatus);

@@ -1,7 +1,7 @@
 import 'dart:math';
 
 import '../../../core/storage/storage_service.dart';
-import '../../auth/data/mock_auth_repository.dart';
+import '../../auth/data/auth_repository.dart';
 import '../models/proposal.dart';
 
 /// Local proposal repository with persisted data.
@@ -49,7 +49,7 @@ class ProposalRepository {
     final vendorIds = proposals.map((p) => p.vendorId).toSet();
     final coordMap = <String, ({double lat, double lon})>{};
     for (final id in vendorIds) {
-      final user = await MockAuthRepository.instance.getUserById(id);
+      final user = await AuthRepository.instance.getUserById(id);
       if (user != null &&
           user.shopLatitude != null &&
           user.shopLongitude != null &&

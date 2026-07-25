@@ -7,7 +7,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../proposals/models/proposal.dart';
 import '../../../proposals/providers/proposal_provider.dart';
-import '../../../requests/data/mock_request_repository.dart';
+import '../../../requests/data/request_repository.dart';
 import '../../../requests/models/shopping_request.dart';
 import '../../request_feed/providers/vendor_request_feed_provider.dart';
 import '../widgets/vendor_proposal_status_chip.dart';
@@ -43,7 +43,7 @@ class _VendorProposalDetailScreenState
 
   Future<void> _load() async {
     final proposalNotifier = ref.read(proposalProvider.notifier);
-    final req = await MockRequestRepository.instance
+    final req = await RequestRepository.instance
         .getRequestById(_proposal.requestId);
     if (!mounted) return;
 

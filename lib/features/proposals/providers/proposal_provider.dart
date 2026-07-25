@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../../core/providers/notification_provider.dart';
 import '../../vendor/proposals/services/proposal_validation_service.dart';
-import '../../requests/data/mock_request_repository.dart';
+import '../../requests/data/request_repository.dart';
 import '../../requests/models/shopping_request.dart';
 import '../../requests/models/request_category_fulfillment.dart';
 import '../../requests/providers/request_provider.dart';
-import '../data/mock_proposal_repository.dart';
+import '../data/proposal_repository.dart';
 import '../models/proposal.dart';
 
 class ProposalState {
@@ -43,13 +43,13 @@ class ProposalState {
 
 class ProposalNotifier extends StateNotifier<ProposalState> {
   ProposalNotifier(this.ref) : super(const ProposalState()) {
-    _repo = MockProposalRepository.instance;
-    _requestRepo = MockRequestRepository.instance;
+    _repo = ProposalRepository.instance;
+    _requestRepo = RequestRepository.instance;
   }
 
   final Ref ref;
-  late final MockProposalRepository _repo;
-  late final MockRequestRepository _requestRepo;
+  late final ProposalRepository _repo;
+  late final RequestRepository _requestRepo;
 
   Future<List<Proposal>> loadProposalsForRequest(String requestId) async {
     await _repo.ensureInitialized();

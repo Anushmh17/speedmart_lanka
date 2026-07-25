@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../data/mock_notification_repository.dart';
+import '../data/notification_repository.dart';
 import '../models/notification_model.dart';
 import '../models/notification_type.dart';
 
@@ -35,11 +35,11 @@ class NotificationState {
 
 class NotificationNotifier extends StateNotifier<NotificationState> {
   NotificationNotifier(this.ref) : super(const NotificationState()) {
-    _repo = MockNotificationRepository.instance;
+    _repo = NotificationRepository.instance;
   }
 
   final Ref ref;
-  late final MockNotificationRepository _repo;
+  late final NotificationRepository _repo;
 
   Future<void> loadNotifications() async {
     final user = ref.read(currentUserProvider);

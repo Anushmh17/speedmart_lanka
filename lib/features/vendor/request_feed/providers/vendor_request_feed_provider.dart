@@ -2,8 +2,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../auth/providers/auth_provider.dart';
-import '../../../proposals/data/mock_proposal_repository.dart';
-import '../../../requests/data/mock_request_repository.dart';
+import '../../../proposals/data/proposal_repository.dart';
+import '../../../requests/data/request_repository.dart';
 import '../../../../shared/models/vendor_status.dart';
 import '../models/vendor_feed_enums.dart';
 import '../models/vendor_feed_request.dart';
@@ -170,13 +170,13 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
     debugPrint('[CategoryAudit] SOURCE OF TRUTH for feed: $sanitizedCategories');
 
     try {
-      await MockRequestRepository.instance.ensureInitialized();
-      await MockProposalRepository.instance.ensureInitialized();
+      await RequestRepository.instance.ensureInitialized();
+      await ProposalRepository.instance.ensureInitialized();
 
       final requests =
-          await MockRequestRepository.instance.getMarketplaceActiveRequests();
+          await RequestRepository.instance.getMarketplaceActiveRequests();
       final proposals =
-          await MockProposalRepository.instance.getAllProposals();
+          await ProposalRepository.instance.getAllProposals();
 
       debugPrint('[RequestAudit] Total active requests: ${requests.length}');
       if (requests.isEmpty) {

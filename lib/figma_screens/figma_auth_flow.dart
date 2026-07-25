@@ -378,7 +378,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
 
     // Reset OTP rate-limit for this destination so retries always work
     final otpService = ref.read(otpServiceProvider);
-    if (otpService is MockOtpService) otpService.resetLimits();
+    if (otpService is LocalOtpService) otpService.resetLimits();
 
     await reg.sendOtp();
 

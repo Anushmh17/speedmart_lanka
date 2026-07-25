@@ -28,7 +28,7 @@ import 'package:speedmart_lanka/core/widgets/shared_floating_bottom_nav.dart';
 import 'package:speedmart_lanka/core/navigation/bottom_nav_visibility.dart';
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
 import 'vendor_status_screen.dart';
-import 'package:speedmart_lanka/features/requests/data/mock_request_repository.dart';
+import 'package:speedmart_lanka/features/requests/data/request_repository.dart';
 
 class VendorHomeScreen extends ConsumerStatefulWidget {
   const VendorHomeScreen({super.key});
@@ -601,7 +601,7 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
 
     try {
       final results = await Future.wait(
-        missingIds.map((id) => MockRequestRepository.instance.getRequestById(id)),
+        missingIds.map((id) => RequestRepository.instance.getRequestById(id)),
       );
 
       if (mounted) {
@@ -1051,7 +1051,7 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
                                     padding: const EdgeInsets.symmetric(horizontal: 8),
                                   ),
                                   onPressed: () async {
-                                    final req = await MockRequestRepository.instance.getRequestById(requestId);
+                                    final req = await RequestRepository.instance.getRequestById(requestId);
                                     if (req != null && context.mounted) {
                                       context.push('/vendor/proposals/edit', extra: {'proposal': proposal, 'request': req});
                                     }
@@ -1709,7 +1709,7 @@ class _DashboardOrderCarouselState extends State<_DashboardOrderCarousel> {
     }
 
     final request =
-        await MockRequestRepository.instance.getRequestById(widget.order.requestId);
+        await RequestRepository.instance.getRequestById(widget.order.requestId);
     if (!mounted) return;
     setState(() => _images = _collectCustomerRequestImages(request));
   }

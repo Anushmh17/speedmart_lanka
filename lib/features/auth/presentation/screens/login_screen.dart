@@ -202,6 +202,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           case UserRole.vendor:
             debugPrint('[Auth] Vendor login success → Navigating to vendor home');
             context.go(RouteNames.vendorHome);
+          default:
+            debugPrint('[Auth] Unhandled role received in mobile app, defaulting to customer home');
+            context.go(RouteNames.customerHome);
         }
       }
     });

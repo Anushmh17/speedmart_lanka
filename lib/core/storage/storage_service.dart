@@ -103,9 +103,9 @@ class StorageService {
     await prefs.remove('draft_request');
   }
 
-  // ── Mock registered users (SharedPreferences, until backend is ready) ───
+  // ── Local registered users (SharedPreferences, until backend is ready) ───
 
-  /// Persists the local mock user registry.
+  /// Persists the local user registry.
   /// TODO: Replace with backend user sync when API is available.
   static Future<void> saveRegisteredUsers(
     List<Map<String, dynamic>> users,
@@ -216,7 +216,7 @@ class StorageService {
 
   // ── Passwords (mock auth, non-sensitive during dev) ────────────────────────
 
-  /// Persists password store for mock authentication.
+  /// Persists password store for local authentication.
   /// TODO: Replace with backend authentication when API is ready.
   static Future<void> savePasswords(Map<String, String> passwords) async {
     try {

@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/models/user_role.dart';
-import '../data/mock_auth_repository.dart';
+import '../data/auth_repository.dart';
 import '../domain/auth_state.dart';
 
 /// Riverpod [StateNotifier] that drives all authentication logic.
@@ -14,7 +14,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   final Ref _ref;
-  final _repo = MockAuthRepository.instance;
+  final _repo = AuthRepository.instance;
 
   Future<void> _bootstrap() async {
     try {

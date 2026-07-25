@@ -12,12 +12,12 @@ import 'package:speedmart_lanka/features/proposals/providers/proposal_provider.d
 import 'package:speedmart_lanka/features/requests/models/shopping_request.dart';
 import 'package:speedmart_lanka/features/requests/models/request_category_fulfillment.dart';
 import 'package:speedmart_lanka/features/requests/providers/request_provider.dart';
-import 'package:speedmart_lanka/features/requests/data/mock_request_repository.dart';
+import 'package:speedmart_lanka/features/requests/data/request_repository.dart';
 import 'package:speedmart_lanka/features/notifications/models/notification_type.dart';
 import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart' as notification_feature;
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
 import 'package:speedmart_lanka/features/payments/providers/payment_provider.dart';
-import 'package:speedmart_lanka/features/auth/data/mock_auth_repository.dart';
+import 'package:speedmart_lanka/features/auth/data/auth_repository.dart';
 import 'package:speedmart_lanka/shared/models/user_model.dart';
 import 'package:speedmart_lanka/shared/models/user_role.dart';
 
@@ -130,7 +130,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   }
 
   Future<UserModel?> _loadVendorProfile(Proposal proposal) async {
-    final repository = MockAuthRepository.instance;
+    final repository = AuthRepository.instance;
     final byId = await repository.getUserById(proposal.vendorId);
     if (byId != null) return byId;
 
@@ -161,7 +161,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   }
 
   Future<_VendorPaymentAvailability> _loadGlobalVendorAvailability(List<AcceptedVendorGroup> groups) async {
-    final repository = MockAuthRepository.instance;
+    final repository = AuthRepository.instance;
     bool acceptsCod = true;
     bool acceptsBank = true;
     final unavailableMessages = <String>[];
@@ -240,8 +240,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         final ts = DateTime.now().millisecondsSinceEpoch;
         final groupIndex = groups.indexOf(group);
         final receiptNumber = 'RCPT-${ts.toString().substring(7)}-$groupIndex';
-        final transactionReference = _selectedMethod == PaymentMethod.mockOnline
-          ? 'MOCK-$ts-$groupIndex'
+        final transactionReference = _selectedMethod == PaymentMethod.online
+          ? 'ONLINE-$ts-$groupIndex'
           : _selectedMethod == PaymentMethod.bankTransfer
             ? 'BANK-$ts-$groupIndex'
             : 'COD-$ts-$groupIndex';
@@ -284,7 +284,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         PaymentModel createdPayment = await ref.read(paymentProvider.notifier).createPayment(pendingPayment);
         PaymentModel finalPayment = createdPayment;
 
-        if (_selectedMethod == PaymentMethod.mockOnline) {
+        if (_selectedMethod == PaymentMethod.online) {
           await Future.delayed(const Duration(seconds: 1));
           finalPayment = await ref.read(paymentProvider.notifier).markPaid(createdPayment.id) ?? createdPayment;
         }
@@ -339,7 +339,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         }
 
         // Send Notifications
-        if (_selectedMethod == PaymentMethod.mockOnline) {
+        if (_selectedMethod == PaymentMethod.online) {
           await ref.read(notification_feature.notificationProvider.notifier).createNotification(
             type: NotificationType.orderStatusUpdated,
             title: 'Payment Confirmed',
@@ -376,7 +376,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 status: RequestCategoryStatus.codConfirmed,
                 codConfirmedAt: DateTime.now(),
               );
-            } else if (_selectedMethod == PaymentMethod.mockOnline ||
+            } else if (_selectedMethod == PaymentMethod.online ||
               _selectedMethod == PaymentMethod.bankTransfer) {
               updatedFulfillments[category] = currentFulfillment.copyWith(
                 status: RequestCategoryStatus.paid,
@@ -396,7 +396,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
       // Create notifications for customer
       if (firstOrder != null) {
-        if (_selectedMethod == PaymentMethod.mockOnline) {
+        if (_selectedMethod == PaymentMethod.online) {
           await ref.read(notification_feature.notificationProvider.notifier).createNotification(
             type: NotificationType.receiptGenerated,
             title: 'Receipt Generated',
@@ -811,10 +811,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                                   children: [
                                     const Icon(Icons.payment_outlined, color: AppColors.customerColor),
                                     const SizedBox(width: 12),
-                                    Text('Mock Online Payment', style: AppTextStyles.bodyMedium(primaryText)),
+                                    Text('Online Payment', style: AppTextStyles.bodyMedium(primaryText)),
                                   ],
                                 ),
-                                value: PaymentMethod.mockOnline,
+                                value: PaymentMethod.online,
                                 groupValue: _selectedMethod,
                                 activeColor: AppColors.customerColor,
                                 onChanged: (val) {
@@ -1060,8 +1060,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                         child: Text(
                           _selectedMethod == PaymentMethod.cashOnDelivery
                               ? 'Confirm Cash on Delivery'
-                              : _selectedMethod == PaymentMethod.mockOnline
-                                  ? 'Confirm & Pay Mock Online'
+                              : _selectedMethod == PaymentMethod.online
+                                  ? 'Confirm & Pay Online Payment'
                                   : 'Placeholder payment method',
                           style: AppTextStyles.button(Colors.white),
                         ),

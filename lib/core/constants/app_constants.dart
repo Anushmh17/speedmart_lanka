@@ -33,23 +33,23 @@ class AppConstants {
   static const String themeKey = 'theme_mode';
   static const String roleKey = 'user_role';
 
-  /// Local mock auth user registry (until backend API is ready).
-  static const String registeredUsersKey = 'mock_registered_users';
+  /// Local auth user registry (until backend API is ready).
+  static const String registeredUsersKey = 'registered_users';
 
-  /// Local mock shopping requests (until backend API is ready).
-  static const String shoppingRequestsKey = 'mock_shopping_requests';
+  /// Local shopping requests (until backend API is ready).
+  static const String shoppingRequestsKey = 'shopping_requests';
 
-  /// Local mock vendor proposals (until backend API is ready).
-  static const String vendorProposalsKey = 'mock_vendor_proposals';
+  /// Local vendor proposals (until backend API is ready).
+  static const String vendorProposalsKey = 'vendor_proposals';
 
-  /// Local mock orders (until backend API is ready).
-  static const String ordersKey = 'mock_orders';
+  /// Local orders (until backend API is ready).
+  static const String ordersKey = 'orders';
 
-  /// Local mock payments (until backend API is ready).
-  static const String paymentsKey = 'mock_payments';
+  /// Local payments (until backend API is ready).
+  static const String paymentsKey = 'payments';
 
-  /// Local mock notifications (until backend API / Firebase is ready).
-  static const String notificationsKey = 'mock_notifications';
+  /// Local notifications (until backend API / Firebase is ready).
+  static const String notificationsKey = 'notifications';
 
   /// Per-customer saved delivery address: `customer_delivery_address_{customerId}`.
   static const String customerDeliveryAddressPrefix = 'customer_delivery_address_';

@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../auth/data/mock_auth_repository.dart';
+import '../../auth/data/auth_repository.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../data/mock_payment_repository.dart';
+import '../data/payment_repository.dart';
 import '../models/payment.dart';
 
 class PaymentState {
@@ -31,11 +31,11 @@ class PaymentState {
 
 class PaymentNotifier extends StateNotifier<PaymentState> {
   PaymentNotifier(this.ref) : super(const PaymentState()) {
-    _repo = MockPaymentRepository.instance;
+    _repo = PaymentRepository.instance;
   }
 
   final Ref ref;
-  late final MockPaymentRepository _repo;
+  late final PaymentRepository _repo;
 
   Future<void> loadCustomerPayments() async {
     final user = ref.read(currentUserProvider);
@@ -152,7 +152,7 @@ final paymentProvider = StateNotifierProvider<PaymentNotifier, PaymentState>((re
 /// Reads a vendor's custom commission rate from their user profile.
 /// Falls back to 0.0 if the vendor is not found or the profile has no rate.
 final vendorCommissionRateProvider = FutureProvider.family<double, String>((ref, vendorId) async {
-  final vendor = await MockAuthRepository.instance.getUserById(vendorId);
+  final vendor = await AuthRepository.instance.getUserById(vendorId);
   return vendor?.commissionRate ?? 0.0;
 });
 
