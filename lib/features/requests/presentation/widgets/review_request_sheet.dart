@@ -70,46 +70,7 @@ class ReviewRequestSheet extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Location Block
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.black26 : Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: borderColor),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.my_location_rounded, color: AppColors.customerColor, size: 18),
-                            const SizedBox(width: 8),
-                            Text('Delivery Details', style: AppTextStyles.labelMedium(primaryText)),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Suburb / City: $suburbOrCity',
-                          style: AppTextStyles.bodyMedium(primaryText).copyWith(fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            const Icon(Icons.lock_outline, size: 14, color: AppColors.customerColor),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                'Address: Hidden until confirmation',
-                                style: AppTextStyles.bodySmall(secondaryText),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 8),
 
                   // Shopping Receipt Details Block
                   Text(

@@ -314,6 +314,8 @@ class _RequestItemCardState extends ConsumerState<RequestItemCard> {
                   label: 'Item Name',
                   hint: 'e.g. Onion, Red Pumpkins...',
                   textCapitalization: TextCapitalization.sentences,
+                  textInputAction: TextInputAction.next,
+                  onFieldSubmitted: (_) => FocusScope.of(context).nextFocus(),
                   onChanged: (val) {
                     _updateItem(widget.item.copyWith(itemName: val));
                   },
@@ -348,6 +350,8 @@ class _RequestItemCardState extends ConsumerState<RequestItemCard> {
                   label: 'Preferred Brand / Model (Optional)',
                   hint: 'e.g. Prima, Anchor, Toyota Genuine',
                   textCapitalization: TextCapitalization.sentences,
+                  textInputAction: TextInputAction.next,
+                  onFieldSubmitted: (_) => FocusScope.of(context).nextFocus(),
                   onChanged: (val) {
                     _updateItem(widget.item.copyWith(preferredBrand: val));
                   },
@@ -361,6 +365,8 @@ class _RequestItemCardState extends ConsumerState<RequestItemCard> {
                   hint: 'e.g. Fresh medium size, organic...',
                   maxLines: 2,
                   textCapitalization: TextCapitalization.sentences,
+                  textInputAction: TextInputAction.done,
+                  onFieldSubmitted: (_) => FocusScope.of(context).unfocus(),
                   onChanged: (val) {
                     _updateItem(widget.item.copyWith(description: val));
                   },

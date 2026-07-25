@@ -43,8 +43,9 @@ class CreateRequestScreen extends ConsumerStatefulWidget {
   ConsumerState<CreateRequestScreen> createState() => _CreateRequestScreenState();
 }
 
-class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
+class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> with WidgetsBindingObserver {
   int _progressStep = 0;
+  double _lastViewInsetBottom = 0.0;
 
   RequestType? _requestType;
   late final TextEditingController _suburbSearchController;
@@ -71,6 +72,8 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _lastViewInsetBottom = WidgetsBinding.instance.window.viewInsets.bottom;
     _suburbFocusNode = FocusNode();
     _suburbFocusNode.addListener(() {
       if (!_suburbFocusNode.hasFocus) {
@@ -127,6 +130,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _suburbSearchController.dispose();
     _addressController.dispose();
     _suburbFocusNode.dispose();
@@ -134,6 +138,27 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     _singleBrandController.dispose();
     _singleDescController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    final newBottom = WidgetsBinding.instance.window.viewInsets.bottom;
+    if (_lastViewInsetBottom > 0 && newBottom == 0) {
+      FocusManager.instance.primaryFocus?.unfocus();
+      SystemChannels.textInput.invokeMethod('TextInput.hide');
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        FocusManager.instance.primaryFocus?.unfocus();
+        FocusScope.of(context).unfocus();
+      });
+      Future.delayed(const Duration(milliseconds: 150), () {
+        if (!mounted) return;
+        FocusManager.instance.primaryFocus?.unfocus();
+        FocusScope.of(context).unfocus();
+      });
+    }
+    _lastViewInsetBottom = newBottom;
   }
 
   bool _isFormDirty() {
@@ -583,6 +608,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
   void _triggerReviewSheet() {
     if (!_hasLocation()) return;
 
+    FocusScope.of(context).unfocus();
     setState(() {
       _progressStep = 1;
     });
@@ -611,6 +637,7 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> {
     final loc = ref.read(deliveryLocationProvider).currentLocation;
     if (loc == null) return;
 
+    FocusScope.of(context).unfocus();
     ConfirmDeliveryAddressSheet.show(
       context,
       location: loc,
