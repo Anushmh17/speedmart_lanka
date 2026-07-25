@@ -71,7 +71,7 @@ class _SrilankavendorregistrationotpWidgetState
     final keyboardOpen = media.viewInsets.bottom > 0;
     final sx = w / 360;
     final sy = h / 800;
-    final fontScale = sx.clamp(0.92, 1.08).toDouble();
+    final fontScale = sx.clamp(0.76, 1.0).toDouble();
     double x(double v) => v * sx;
     double y(double v) => v * sy;
     double fs(double v) => v * fontScale;

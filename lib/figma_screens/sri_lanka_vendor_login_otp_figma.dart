@@ -93,7 +93,7 @@ class _SrilankavendorloginotpWidgetState
 
     final sx = w / 360;
     final sy = h / 810;
-    final fontScale = sx.clamp(0.92, 1.08).toDouble();
+    final fontScale = sx.clamp(0.76, 1.0).toDouble();
 
     double x(double value) => value * sx;
     double y(double value) => value * sy;

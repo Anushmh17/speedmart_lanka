@@ -119,9 +119,10 @@ class _SrilankacustomerregistrationotpWidgetState
     final keyboardOpen = media.viewInsets.bottom > 0;
     final sx = w / 360;
     final sy = h / 800;
+    final fontScale = sx.clamp(0.76, 1.0).toDouble();
     double x(double v) => v * sx;
     double y(double v) => v * sy;
-    double fs(double v) => v * sx.clamp(0.92, 1.08);
+    double fs(double v) => v * fontScale;
 
     final resendLabel = _canResend ? 'Resend OTP' : 'Resend in ${_secondsLeft}s';
 

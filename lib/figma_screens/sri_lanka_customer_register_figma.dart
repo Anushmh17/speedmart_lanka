@@ -154,10 +154,11 @@ class _SrilankacustomerregisteraccountWidgetState
     final w = media.size.width;
 
     final scale = w / 360;
+    final fontScale = scale.clamp(0.76, 1.0).toDouble();
 
     double x(double value) => value * scale;
     double y(double value) => value * scale;
-    double fs(double value) => value * scale.clamp(0.92, 1.08);
+    double fs(double value) => value * fontScale;
 
     Widget sectionTitle({
       required double top,
