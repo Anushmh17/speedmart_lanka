@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../../core/providers/notification_provider.dart';
+import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart' as notification_feature;
+import 'package:speedmart_lanka/features/notifications/models/notification_type.dart';
 import '../../vendor/proposals/services/proposal_validation_service.dart';
 import '../../requests/data/request_repository.dart';
 import '../../requests/models/shopping_request.dart';
@@ -152,6 +154,18 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
         );
         await _requestRepo.updateRequest(updatedRequest);
         ref.read(requestProvider.notifier).syncRequest(updatedRequest);
+        
+        // Create a persisted notification for the customer to inform about the new proposal
+        try {
+          await ref.read(notification_feature.notificationProvider.notifier).createNotification(
+            type: NotificationType.newProposal,
+            title: 'New Proposal Received',
+            body: '${saved.vendorBusinessName} submitted a proposal for your request.',
+            userId: request.customerId,
+            relatedId: saved.id,
+            data: {'requestId': saved.requestId, 'vendorId': saved.vendorId},
+          );
+        } catch (_) {}
       } else {
         await _requestRepo.updateRequestStatus(
           proposal.requestId,
@@ -229,6 +243,18 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
       // Accept selected proposal
       await _repo.updateProposalStatus(proposalId, ProposalStatus.accepted);
 
+      // Persist notification to vendor that their proposal was accepted
+      try {
+        await ref.read(notification_feature.notificationProvider.notifier).createNotification(
+          type: NotificationType.proposalAccepted,
+          title: 'Proposal Accepted',
+          body: 'Your proposal has been accepted by the customer.',
+          userId: acceptedProposal.vendorId,
+          relatedId: acceptedProposal.id,
+          data: {'requestId': requestId},
+        );
+      } catch (_) {}
+
       // Reject only competing proposals from SAME category
       final allProps = await _repo.getAllProposalsForRequest(requestId);
       for (final p in allProps) {
@@ -253,6 +279,16 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
               icon: Icons.cancel_outlined,
               color: const Color(0xFFEF5350),
             );
+            // Persist rejection notification for vendor
+            try {
+              await ref.read(notification_feature.notificationProvider.notifier).createNotification(
+                type: NotificationType.proposalRejected,
+                title: 'Proposal Rejected',
+                body: rejectionReason,
+                userId: p.vendorId,
+                relatedId: p.id,
+              );
+            } catch (_) {}
           } else {
             print('[MultiCategoryFlow] Preserved other-category proposal: ${p.id} (${p.categoryNormalized})');
           }
@@ -335,6 +371,19 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
         ProposalStatus.rejected,
         rejectionReason: reason,
       );
+      // Persist notification to vendor about rejection
+      try {
+        final updatedProp = await _repo.getProposalById(proposalId);
+        if (updatedProp != null) {
+          await ref.read(notification_feature.notificationProvider.notifier).createNotification(
+            type: NotificationType.proposalRejected,
+            title: 'Proposal Rejected',
+            body: reason,
+            userId: updatedProp.vendorId,
+            relatedId: updatedProp.id,
+          );
+        }
+      } catch (_) {}
       
       // Notify vendor about rejection
       ref.read(notificationProvider.notifier).triggerNotification(

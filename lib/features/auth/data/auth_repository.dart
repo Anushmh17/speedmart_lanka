@@ -1,6 +1,9 @@
 import 'package:flutter/foundation.dart';
+import 'package:dio/dio.dart';
+import 'package:async/async.dart';
 
 import '../../../core/storage/storage_service.dart';
+import '../../../core/services/fcm_service.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/models/user_role.dart';
 import '../../../shared/models/vendor_status.dart';
@@ -17,6 +20,7 @@ class AuthRepository {
 
   late final Future<void> _initFuture;
   bool _isInitialized = false;
+  String? _currentUserId;
 
   /// Password storage: email -> password hash (mock implementation)
   final Map<String, String> _passwordStore = {};
@@ -145,7 +149,11 @@ class AuthRepository {
 
     _currentToken =
         'auth_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
+    _currentUserId = user.id;
     debugPrint('[Auth] Login success: ${user.email}');
+
+    // Upload FCM token to backend (best-effort)
+    _uploadDeviceTokenForUser(user);
     return (user: user, token: _currentToken!);
   }
 
@@ -188,6 +196,9 @@ class AuthRepository {
 
     _currentToken =
         'auth_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
+    _currentUserId = user.id;
+    // Upload FCM token to backend (best-effort)
+    _uploadDeviceTokenForUser(user);
     return (user: user, token: _currentToken!);
   }
 
@@ -315,13 +326,61 @@ class AuthRepository {
 
     _currentToken =
         'auth_token_${newUser.id}_${DateTime.now().millisecondsSinceEpoch}';
+    _currentUserId = newUser.id;
+    // Upload FCM token to backend (best-effort)
+    _uploadDeviceTokenForUser(newUser);
     return (user: newUser, token: _currentToken!);
+  }
+
+  // Best-effort upload of device FCM token to backend. No-op if backend URL not configured.
+  static const String _backendBaseUrl = '';
+
+  Future<void> _uploadDeviceTokenForUser(UserModel user, {String? token}) async {
+    try {
+      if (_backendBaseUrl.isEmpty) {
+        debugPrint('[Auth] No backend URL configured; skipping token upload');
+        return;
+      }
+
+      final resolvedToken = token ?? await FcmService.getToken();
+      if (resolvedToken == null) return;
+
+      final dio = Dio();
+      final resp = await dio.post('$_backendBaseUrl/devices', data: {
+        'userId': user.id,
+        'token': resolvedToken,
+        'platform': defaultTargetPlatform.toString(),
+      });
+      debugPrint('[Auth] Uploaded FCM token: ${resp.statusCode}');
+    } catch (e) {
+      debugPrint('[Auth] Failed to upload FCM token: $e');
+    }
+  }
+
+  /// Called when Firebase issues a new token (on refresh). If a user is
+  /// currently logged in, attempt to upload immediately.
+  Future<void> handleFcmTokenRefresh(String token) async {
+    try {
+      if (_currentUserId == null) {
+        debugPrint('[Auth] No logged-in user; skipping token upload on refresh');
+        return;
+      }
+      final user = await getUserById(_currentUserId!);
+      if (user == null) {
+        debugPrint('[Auth] Current user id not found in registry');
+        return;
+      }
+      await _uploadDeviceTokenForUser(user, token: token);
+    } catch (e) {
+      debugPrint('[Auth] handleFcmTokenRefresh error: $e');
+    }
   }
 
   // ── Logout ─────────────────────────────────────────────────────────────────
   Future<void> logout() async {
     await Future.delayed(const Duration(milliseconds: 300));
     _currentToken = null;
+    _currentUserId = null;
   }
 
   // ── Restore session ────────────────────────────────────────────────────────

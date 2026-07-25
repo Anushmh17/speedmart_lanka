@@ -3,6 +3,9 @@ import '../../auth/providers/auth_provider.dart';
 import '../data/notification_repository.dart';
 import '../models/notification_model.dart';
 import '../models/notification_type.dart';
+import 'dart:convert';
+import 'package:speedmart_lanka/core/services/local_notification_service.dart';
+import 'package:speedmart_lanka/core/routes/route_names.dart';
 
 class NotificationState {
   final bool isLoading;
@@ -84,6 +87,60 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
 
       await _repo.createNotification(notification);
       await loadNotifications();
+
+      // If the notification is for the current signed-in user, show a platform notification
+      final current = ref.read(currentUserProvider);
+      if (current != null && current.id == userId) {
+        try {
+          final payload = <String, dynamic>{
+            'type': type.name,
+            'relatedId': relatedId,
+            'notificationId': '',
+          };
+
+          // Map notification types to deep links / routes
+          String? route;
+          dynamic extra;
+          switch (type) {
+            case NotificationType.newNearbyRequest:
+              // Open the specific vendor request detail
+              route = (relatedId != null && relatedId.isNotEmpty)
+                  ? RouteNames.vendorRequestDetail.replaceFirst(':id', relatedId)
+                  : RouteNames.vendorNearbyRequests;
+              extra = null;
+              break;
+            case NotificationType.newProposal:
+              route = (relatedId != null && relatedId.isNotEmpty)
+                  ? RouteNames.customerProposalDetail.replaceFirst(':id', relatedId)
+                  : RouteNames.customerProposals;
+              extra = null;
+              break;
+            case NotificationType.proposalAccepted:
+            case NotificationType.proposalRejected:
+              route = (relatedId != null && relatedId.isNotEmpty)
+                  ? RouteNames.vendorProposalDetail.replaceFirst(':id', relatedId)
+                  : RouteNames.vendorProposals;
+              extra = null;
+              break;
+            case NotificationType.orderStatusUpdated:
+            case NotificationType.receiptGenerated:
+              route = (relatedId != null && relatedId.isNotEmpty)
+                  ? RouteNames.customerOrderTrack.replaceFirst(':id', relatedId)
+                  : RouteNames.customerOrders;
+              extra = null;
+              break;
+            default:
+              route = null;
+          }
+
+          await LocalNotificationService.showNotification(
+            id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+            title: title,
+            body: body,
+            payload: route != null ? {'route': route, 'extra': extra} : null,
+          );
+        } catch (_) {}
+      }
     } catch (e) {
       state = state.copyWith(error: e.toString());
     }

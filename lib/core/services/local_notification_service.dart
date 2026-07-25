@@ -1,5 +1,9 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:speedmart_lanka/core/routes/app_router.dart';
+import 'package:go_router/go_router.dart';
 
 /// Initializes Android local notifications with the app drawable icon.
 class LocalNotificationService {
@@ -24,7 +28,24 @@ class LocalNotificationService {
     );
 
     try {
-      await _plugin.initialize(settings);
+      await _plugin.initialize(
+        settings,
+        onDidReceiveNotificationResponse: (response) {
+          try {
+            final payload = response.payload;
+            if (payload != null && payload.isNotEmpty) {
+              final Map<String, dynamic> map = jsonDecode(payload);
+              final route = map['route'] as String?;
+              final extra = map['extra'];
+              if (route != null && rootNavigatorKey.currentContext != null) {
+                GoRouter.of(rootNavigatorKey.currentContext!).go(route, extra: extra);
+              }
+            }
+          } catch (e) {
+            debugPrint('[LocalNotificationService] onResponse error: $e');
+          }
+        },
+      );
 
       const channel = AndroidNotificationChannel(
         'speedmart_default',
@@ -42,5 +63,34 @@ class LocalNotificationService {
     } catch (e, st) {
       debugPrint('[LocalNotificationService] init failed: $e\n$st');
     }
+  }
+
+  /// Show a platform notification with an optional JSON payload.
+  static Future<void> showNotification({
+    required int id,
+    required String title,
+    required String body,
+    Map<String, dynamic>? payload,
+  }) async {
+    await initialize();
+
+    final androidDetails = AndroidNotificationDetails(
+      'speedmart_default',
+      'Speedmart Notifications',
+      channelDescription: 'Order and request updates',
+      importance: Importance.defaultImportance,
+      playSound: true,
+      icon: androidIcon,
+    );
+
+    final details = NotificationDetails(android: androidDetails);
+
+    await _plugin.show(
+      id,
+      title,
+      body,
+      details,
+      payload: payload != null ? jsonEncode(payload) : null,
+    );
   }
 }

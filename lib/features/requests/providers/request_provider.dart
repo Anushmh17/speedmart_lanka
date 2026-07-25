@@ -1,6 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../shared/models/location_model.dart';
 import '../../auth/providers/auth_provider.dart';
+import 'package:speedmart_lanka/features/auth/data/auth_repository.dart';
+import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart' as notification_feature;
+import 'package:speedmart_lanka/features/notifications/models/notification_type.dart';
+import 'package:speedmart_lanka/shared/utils/category_constants.dart';
 import '../data/request_repository.dart';
 import '../../proposals/data/proposal_repository.dart';
 import '../../proposals/models/proposal.dart';
@@ -157,6 +161,55 @@ class RequestNotifier extends StateNotifier<RequestState> {
         isLoading: false,
         requests: [newReq, ...state.requests],
       );
+
+      // Notify nearby vendors (persisted) based on vendor locations and categories.
+      try {
+        final allUsers = await AuthRepository.instance.getAllUsers();
+        final requestCats = newReq.categories;
+
+        for (final u in allUsers) {
+          if (u.role.name != 'vendor') continue;
+          if (u.isActive == false) continue;
+          // Ensure vendor has shop coordinates
+          final vLat = u.shopLatitude;
+          final vLng = u.shopLongitude;
+          if (vLat == null || vLng == null) continue;
+
+          final radius = u.assignedRadiusKm ?? 20.0;
+          final distance = LocationModel.calculateDistance(
+            lat1: newReq.latitude,
+            lon1: newReq.longitude,
+            lat2: vLat,
+            lon2: vLng,
+          );
+          if (distance > radius) continue;
+
+          // Category match: vendor allowed categories or vendorCategories
+          final vendorCatsRaw = u.allowedCategories ?? u.vendorCategories ?? [];
+          final vendorCats = vendorCatsRaw.map((c) => VendorCategories.normalize(c)).toSet();
+          final matches = requestCats.where((c) => vendorCats.contains(c)).toList();
+          if (matches.isEmpty) continue;
+
+          final title = 'New Request Nearby';
+          final body = 'A customer in ${newReq.customerArea} submitted a request matching ${matches.take(2).join(', ')}.';
+
+          await ref.read(notification_feature.notificationProvider.notifier).createNotification(
+            type: NotificationType.newNearbyRequest,
+            title: title,
+            body: body,
+            userId: u.id,
+            relatedId: newReq.id,
+            data: {
+              'distanceKm': distance,
+              'matchedCategories': matches,
+              'customerId': newReq.customerId,
+            },
+          );
+        }
+      } catch (e) {
+        // non-fatal: notification creation failed
+        // debugPrint omitted to keep noise low
+      }
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
       rethrow;

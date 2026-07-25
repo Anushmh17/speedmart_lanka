@@ -1,4 +1,4 @@
-package com.example.speedmart_lanka
+package com.speedmart.lk
 
 import io.flutter.embedding.android.FlutterActivity
 

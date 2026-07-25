@@ -27,6 +27,7 @@ import 'package:speedmart_lanka/features/chat/presentation/screens/chat_screen.d
 import 'package:speedmart_lanka/features/requests/presentation/screens/request_list_screen.dart';
 import 'package:speedmart_lanka/shared/presentation/screens/profile_screen.dart';
 import 'package:speedmart_lanka/features/customer/delivery_address/presentation/screens/customer_delivery_address_screen.dart';
+import 'package:speedmart_lanka/features/notifications/presentation/deep_link_loaders.dart';
 import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
 import 'package:speedmart_lanka/shared/models/user_role.dart';
 import 'package:speedmart_lanka/core/routes/route_names.dart';
@@ -226,6 +227,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: RouteNames.customerProposalDetail,
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return _buildPage(context, state, ProposalDeepLinkLoader(proposalId: id));
+        },
+      ),
+      GoRoute(
         path: '/customer/payment',
         parentNavigatorKey: rootNavigatorKey,
         pageBuilder: (context, state) {
@@ -327,13 +336,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: RouteNames.vendorRequestDetail,
         parentNavigatorKey: rootNavigatorKey,
         pageBuilder: (context, state) {
-          final request = state.extra as ShoppingRequest?;
-          if (request == null) {
-            return _buildPage(context, state, const Scaffold(
-              body: Center(child: Text('Request not found. Please select again from your vendor dashboard.')),
-            ));
-          }
-          return _buildPage(context, state, VendorRequestDetailScreen(request: request));
+          final id = state.pathParameters['id'] ?? '';
+          return _buildPage(context, state, RequestDeepLinkLoader(requestId: id));
         },
       ),
       GoRoute(
@@ -353,13 +357,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: RouteNames.vendorProposalDetail,
         parentNavigatorKey: rootNavigatorKey,
         pageBuilder: (context, state) {
-          final proposal = state.extra as Proposal?;
-          if (proposal == null) {
-            return _buildPage(context, state, const Scaffold(
-              body: Center(child: Text('Proposal not found. Please open it again from your proposals list.')),
-            ));
-          }
-          return _buildPage(context, state, VendorProposalDetailScreen(proposal: proposal));
+          final id = state.pathParameters['id'] ?? '';
+          return _buildPage(context, state, ProposalDeepLinkLoader(proposalId: id));
         },
       ),
       GoRoute(

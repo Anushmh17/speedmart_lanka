@@ -47,3 +47,8 @@ app.*.map.json
 # Keystore and signing properties
 /android/key.jks
 /android/key.properties
+
+# Firebase config files
+/android/app/google-services.json
+/ios/Runner/GoogleService-Info.plist
+/tools/fcm_server_example/serviceAccountKey.json

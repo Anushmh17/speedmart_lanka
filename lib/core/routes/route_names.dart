@@ -24,6 +24,7 @@ class RouteNames {
   static const String customerProfile = '/customer/profile';
   static const String customerDeliveryAddress = '/customer/delivery-address';
   static const String customerPaymentReceipt = '/customer/payment/receipt';
+  static const String customerOrderTrack = '/customer/orders/track/:id';
   static const String customerPaymentHistory = '/customer/payments';
 
   // ── Customer Full-Screen Routes (without bottom nav) ────────────────────────
@@ -36,14 +37,15 @@ class RouteNames {
   // - /chat
 
   static const String customerProposals = '/customer/proposals';
+  static const String customerProposalDetail = '/customer/proposals/:id';
 
   // ── Vendor Shell ──────────────────────────────────────────────────────────
   static const String vendorHome = '/vendor';
   static const String vendorNearbyRequests = '/vendor/requests';
-  static const String vendorRequestDetail = '/vendor/requests/detail';
+  static const String vendorRequestDetail = '/vendor/requests/:id';
   static const String vendorProposals = '/vendor/proposals';
   static const String vendorProposalCreate = '/vendor/proposals/create';
-  static const String vendorProposalDetail = '/vendor/proposals/detail';
+  static const String vendorProposalDetail = '/vendor/proposals/:id';
   static const String vendorProposalEdit = '/vendor/proposals/edit';
   static const String vendorOrders = '/vendor/orders';
   static const String vendorEarnings = '/vendor/earnings';

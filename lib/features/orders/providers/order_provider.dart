@@ -5,6 +5,8 @@ import 'package:speedmart_lanka/features/requests/models/shopping_request.dart';
 import 'package:speedmart_lanka/features/orders/data/order_repository.dart';
 import 'package:speedmart_lanka/features/orders/models/order_model.dart';
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
+import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart' as notification_feature;
+import 'package:speedmart_lanka/features/notifications/models/notification_type.dart';
 
 class OrderState {
   final bool isLoading;
@@ -136,6 +138,22 @@ class OrderNotifier extends StateNotifier<OrderState> {
           await _requestRepo.updateRequestStatus(order.requestId, reqStatus);
         }
       }
+
+      // Persist a notification for the customer about the status change
+      try {
+        if (order != null) {
+          final statusTitle = 'Order Update';
+          final statusBody = 'Order ${order.id} status: ${status.name}';
+          await ref.read(notification_feature.notificationProvider.notifier).createNotification(
+            type: NotificationType.orderStatusUpdated,
+            title: statusTitle,
+            body: statusBody,
+            userId: order.customerId,
+            relatedId: order.id,
+            data: {'status': status.name},
+          );
+        }
+      } catch (_) {}
 
       // Reload appropriate orders list
       final user = ref.read(currentUserProvider);

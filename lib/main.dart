@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'core/routes/app_router.dart';
 import 'core/services/local_notification_service.dart';
+import 'core/services/fcm_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/network_fallback_wrapper.dart';
 import 'features/auth/providers/theme_provider.dart';
@@ -16,9 +17,11 @@ import 'features/requests/data/request_repository.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await LocalNotificationService.initialize();
-
   await Future.wait([
+    // Initialize Firebase + FCM
+    FcmService.initialize(),
+    LocalNotificationService.initialize(),
+    
     RequestRepository.instance.ensureInitialized(),
     ProposalRepository.instance.ensureInitialized(),
     OrderRepository.instance.ensureInitialized(),

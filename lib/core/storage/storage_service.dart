@@ -28,6 +28,16 @@ class StorageService {
     await _secure.delete(key: AppConstants.tokenKey);
   }
 
+  // ── FCM device token (secure) ──────────────────────────────────────────
+
+  static Future<void> saveFcmToken(String token) async {
+    await _secure.write(key: 'fcm_device_token', value: token);
+  }
+
+  static Future<String?> getFcmToken() async {
+    return _secure.read(key: 'fcm_device_token');
+  }
+
   // ── User JSON (secure) ────────────────────────────────────────────────────
 
   static Future<void> saveUser(Map<String, dynamic> userJson) async {
