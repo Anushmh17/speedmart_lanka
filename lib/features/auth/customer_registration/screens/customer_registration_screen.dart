@@ -11,6 +11,7 @@ import 'package:speedmart_lanka/features/location/data/sri_lanka_data.dart';
 import 'package:speedmart_lanka/features/location/models/sri_lanka_district.dart';
 import 'package:speedmart_lanka/features/location/models/sri_lanka_province.dart';
 import 'package:speedmart_lanka/features/location/services/gps_location_service.dart';
+import '../../../../core/utils/permission_utils.dart';
 import 'package:speedmart_lanka/features/location/services/reverse_geocoding_service.dart';
 import 'package:speedmart_lanka/features/location/widgets/province_dropdown.dart';
 import 'package:speedmart_lanka/features/location/widgets/district_dropdown.dart';
@@ -99,6 +100,10 @@ class _CustomerRegistrationScreenState
       _gpsError = null;
     });
     try {
+      if (!await AppPermissionUtils.ensureLocationPermission(context)) {
+        return;
+      }
+
       final gps = GpsLocationService();
       final position = await gps.getCurrentPosition();
       final geocoder = ReverseGeocodingService();

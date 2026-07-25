@@ -20,6 +20,7 @@ import '../../../requests/models/shopping_request.dart';
 import '../../../requests/providers/request_provider.dart';
 import '../../../customer/delivery_address/utils/vendor_delivery_privacy.dart';
 import '../widgets/image_gallery_viewer.dart';
+import '../../../../core/utils/permission_utils.dart';
 import '../../../../core/routes/route_names.dart';
 /// Create or edit a vendor proposal (quotation) for a customer request.
 class VendorProposalFormScreen extends ConsumerStatefulWidget {
@@ -723,6 +724,9 @@ class _ItemEditorCard extends StatefulWidget {
 class _ItemEditorCardState extends State<_ItemEditorCard> {
   Future<void> _pickVendorImage() async {
     if (widget.vendorImageUrls.length >= 4) return;
+    if (!await AppPermissionUtils.ensureGalleryPermission(context)) {
+      return;
+    }
     final picker = ImagePicker();
     final file = await picker.pickImage(source: ImageSource.gallery);
     if (file != null) {

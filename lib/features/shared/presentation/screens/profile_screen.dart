@@ -25,6 +25,7 @@ import '../../../../core/storage/storage_service.dart';
 import 'package:flutter/services.dart';
 import '../../../../shared/models/sri_lanka_banks.dart';
 import '../../../../shared/utils/category_constants.dart';
+import '../../../../core/utils/permission_utils.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({
@@ -154,6 +155,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _pickImage() async {
+    if (!await AppPermissionUtils.ensureGalleryPermission(context)) {
+      return;
+    }
+
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
     if (picked == null || !mounted) return;

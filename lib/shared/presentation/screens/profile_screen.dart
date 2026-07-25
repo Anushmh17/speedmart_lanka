@@ -20,6 +20,7 @@ import '../../../core/navigation/bottom_nav_visibility.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/providers/category_provider.dart';
 import '../../../shared/utils/category_sync_helper.dart';
+import '../../../core/utils/permission_utils.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -111,6 +112,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _pickImage() async {
+    if (!await AppPermissionUtils.ensureGalleryPermission(context)) {
+      return;
+    }
+
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
     if (picked == null || !mounted) return;

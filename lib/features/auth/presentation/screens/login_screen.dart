@@ -59,14 +59,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   bool _isSubmittingCustomerOtp = false;
 
   Color get _roleColor {
-    switch (widget.role) {
-      case UserRole.customer:
-        return const Color(0xFFFF8A00);
-      case UserRole.vendor:
-        return const Color(0xFF2563EB);
-      case UserRole.admin:
-        return AppColors.adminColor;
-    }
+    return widget.role == UserRole.vendor
+        ? const Color(0xFF2563EB)
+        : const Color(0xFFFF8A00);
   }
 
   @override
@@ -207,9 +202,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           case UserRole.vendor:
             debugPrint('[Auth] Vendor login success → Navigating to vendor home');
             context.go(RouteNames.vendorHome);
-          case UserRole.admin:
-            debugPrint('[Auth] Admin access is no longer available in the mobile app');
-            context.go(RouteNames.customerHome);
         }
       }
     });
@@ -234,9 +226,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           gradient: LinearGradient(
             colors: widget.role == UserRole.customer
                 ? const [Color(0xFFFF8A00), Color(0xFFFFB84D)]
-                : (widget.role == UserRole.admin
-                    ? const [Color(0xFF6C3483), Color(0xFF4A235A)]
-                    : const [Color(0xFF2563EB), Color(0xFF0F4DB8)]),
+                : const [Color(0xFF2563EB), Color(0xFF0F4DB8)],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -309,9 +299,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     child: Icon(
                       widget.role == UserRole.customer
                           ? Icons.shopping_bag_rounded
-                          : (widget.role == UserRole.admin
-                              ? Icons.admin_panel_settings_rounded
-                              : Icons.storefront_rounded),
+                          : Icons.storefront_rounded,
                       size: 56,
                       color: Colors.white,
                     ),
@@ -337,7 +325,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         Text(
           widget.role == UserRole.customer
               ? 'Sign in as Customer'
-              : (widget.role == UserRole.admin ? 'Sign in as Admin' : 'Sign in as Vendor'),
+              : 'Sign in as Vendor',
           style: AppTextStyles.bodyLarge(_roleColor).copyWith(
             fontWeight: FontWeight.bold,
           ),
@@ -476,7 +464,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     );
   }
 
-  // ── Vendor / Admin Form ────────────────────────────────────────────────────
+  // ── Vendor Form ─────────────────────────────────────────────────────────
   Widget _buildVendorForm({
     required bool isDark,
     required AuthState authState,
@@ -696,11 +684,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               if (widget.role == UserRole.customer) {
                 context.push(RouteNames.customerRegister);
               } else {
-                context.push(
-                  widget.role == UserRole.vendor
-                      ? RouteNames.vendorRegister
-                      : RouteNames.vendorRegister,
-                );
+                context.push(RouteNames.vendorRegister);
               }
             },
             child: Text(
@@ -719,14 +703,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   Widget _demoCredential() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     String email;
-    switch (widget.role) {
-      case UserRole.customer:
-        email = 'customer@test.com';
-      case UserRole.vendor:
-        email = 'vendor@test.com';
-      case UserRole.admin:
-        email = 'admin@speedmart.lk';
-    }
+    email = widget.role == UserRole.customer
+        ? 'customer@test.com'
+        : 'vendor@test.com';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
