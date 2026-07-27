@@ -274,7 +274,7 @@ class StorageService {
 
   static Future<bool> getCustomerRememberMe() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool('customer_remember_me') ?? false;
+    return prefs.getBool('customer_remember_me') ?? true;
   }
 
   static Future<void> clearCustomerRememberMe() async {

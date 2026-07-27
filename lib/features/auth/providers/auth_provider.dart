@@ -140,6 +140,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
     return _repo.checkCustomerExists(contact);
   }
 
+  Future<void> validateCustomerRegistrationData({
+    String? phone,
+    String? email,
+    String? nic,
+  }) async {
+    await _repo.validateCustomerRegistrationData(
+      phone: phone,
+      email: email,
+      nic: nic,
+    );
+  }
+
   Future<void> loginCustomerOtp({required String contact}) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
@@ -178,6 +190,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
     String? deliveryApproxArea,
     String? deliveryPreciseAddress,
     String? deliveryNote,
+    double? deliveryLatitude,
+    double? deliveryLongitude,
     // Vendor shop details
     String? shopName,
     String? shopAddress,
@@ -217,6 +231,8 @@ class AuthNotifier extends StateNotifier<AuthState> {
         deliveryApproxArea: deliveryApproxArea,
         deliveryPreciseAddress: deliveryPreciseAddress,
         deliveryNote: deliveryNote,
+        deliveryLatitude: deliveryLatitude,
+        deliveryLongitude: deliveryLongitude,
         shopName: shopName,
         shopAddress: shopAddress,
         shopProvince: shopProvince,

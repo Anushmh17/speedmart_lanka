@@ -17,6 +17,7 @@ import 'package:speedmart_lanka/features/location/widgets/province_dropdown.dart
 import 'package:speedmart_lanka/features/location/widgets/district_dropdown.dart';
 import '../models/registration_step.dart';
 import '../providers/customer_registration_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../widgets/registration_header.dart';
 import '../widgets/registration_section_card.dart';
 import '../widgets/nic_input_field.dart';
@@ -157,6 +158,26 @@ class _CustomerRegistrationScreenState
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
+    final isLk = ref.read(customerRegistrationProvider).isLkUser;
+    if (isLk && _selectedProvince == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select your Province.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    if (isLk && _selectedDistrict == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select your District.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final reg = ref.read(customerRegistrationProvider.notifier);
     reg.updateFullName(_nameCtrl.text.trim());
     reg.updateNic(_nicCtrl.text.trim());
@@ -178,6 +199,23 @@ class _CustomerRegistrationScreenState
     reg.updateDeliveryNote(_noteCtrl.text.trim());
     if (_selectedProvince != null) reg.updateProvince(_selectedProvince);
     if (_selectedDistrict != null) reg.updateDistrict(_selectedDistrict);
+
+    try {
+      await ref.read(authProvider.notifier).validateCustomerRegistrationData(
+        phone: _phoneCtrl.text.trim(),
+        email: _emailCtrl.text.trim(),
+        nic: _nicCtrl.text.trim(),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString().replaceAll('Exception: ', '')),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     await reg.sendOtp();
 

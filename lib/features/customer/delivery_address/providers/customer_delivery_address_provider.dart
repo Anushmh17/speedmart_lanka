@@ -121,6 +121,8 @@ class CustomerDeliveryAddressNotifier
       deliveryApproxArea: user.deliveryApproxArea,
       deliveryPreciseAddress: user.deliveryPreciseAddress,
       deliveryNote: user.deliveryNote,
+      deliveryLatitude: user.deliveryLatitude,
+      deliveryLongitude: user.deliveryLongitude,
     );
     if (migrated.isComplete) {
       await _repo.save(migrated);

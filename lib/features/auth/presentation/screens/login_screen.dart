@@ -14,6 +14,7 @@ import '../../providers/auth_provider.dart';
 import '../../customer_registration/providers/customer_registration_provider.dart';
 import '../../customer_registration/widgets/phone_field_lk.dart';
 import '../../customer_registration/models/registration_step.dart';
+import '../../../../core/storage/storage_service.dart';
 
 class AuthWaveClipper extends CustomClipper<Path> {
   @override
@@ -46,7 +47,7 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen>
   with WidgetsBindingObserver {
   static const _hPad = 24.0;
-  bool _rememberMe = false;
+  bool _rememberMe = true;
 
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
@@ -154,6 +155,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         notifier.updateEmail(contact);
       }
 
+      await StorageService.saveCustomerRememberMe(_rememberMe);
       await notifier.sendOtp();
     } catch (e) {
       if (!mounted) return;
@@ -172,6 +174,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
 
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
+    await StorageService.saveVendorRememberMe(_rememberMe);
     await ref.read(authProvider.notifier).login(
           email: _emailCtrl.text.trim(),
           password: _passwordCtrl.text,
@@ -430,6 +433,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   validator: Validators.email,
                   onFieldSubmitted: (_) => _loginCustomerOtp(),
                 ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: Checkbox(
+                      value: _rememberMe,
+                      activeColor: _roleColor,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      onChanged: (v) => setState(() => _rememberMe = v ?? true),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () => setState(() => _rememberMe = !_rememberMe),
+                    child: Text(
+                      'Remember me',
+                      style: AppTextStyles.bodySmall(secondaryText).copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 20),
               AppButton(
                 label: 'Send OTP',

@@ -148,6 +148,8 @@ class _OtpVerificationScreenState
             deliveryApproxArea: regState.data.approxArea,
             deliveryPreciseAddress: regState.data.preciseAddress,
             deliveryNote: regState.data.deliveryNote,
+            deliveryLatitude: regState.data.deliveryLatitude,
+            deliveryLongitude: regState.data.deliveryLongitude,
           );
           final user = ref.read(currentUserProvider);
           if (user != null) {

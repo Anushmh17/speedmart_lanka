@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -301,17 +301,38 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
 
   Future<void> _onSriLankaCustomerCreateAccount(
       Map<String, String> data) async {
-    final phone = data['phone'] ?? '';
-    final fullName = data['fullName'] ?? '';
-    final nic = data['nic'] ?? '';
-    final preciseAddress = data['preciseAddress'] ?? '';
+    final phone = (data['phone'] ?? '').trim();
+    final fullName = (data['fullName'] ?? '').trim();
+    final nic = (data['nic'] ?? '').trim();
+    final email = (data['email'] ?? '').trim();
+    final preciseAddress = (data['preciseAddress'] ?? '').trim();
 
-    if (fullName.trim().isEmpty) {
+    if (nic.isEmpty) {
+      _showError('Please enter your NIC number.');
+      return;
+    }
+    if (nic.length != 10 && nic.length != 12) {
+      _showError('Please enter a valid 10 or 12 digit NIC number.');
+      return;
+    }
+    if (fullName.isEmpty) {
       _showError('Please enter your full name.');
       return;
     }
-    if (phone.trim().isEmpty) {
+    if (phone.isEmpty) {
       _showError('Please enter your phone number.');
+      return;
+    }
+    if (phone.length < 9) {
+      _showError('Please enter a valid phone number.');
+      return;
+    }
+    if (email.isEmpty || !email.contains('@')) {
+      _showError('Please enter a valid email address.');
+      return;
+    }
+    if (_detectedLatitude == null || _detectedLongitude == null) {
+      _showError('Please pin your delivery location on the map.');
       return;
     }
     if (_selectedProvince == null) {
@@ -320,6 +341,22 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     }
     if (_selectedDistrict == null) {
       _showError('Please select your District.');
+      return;
+    }
+    if (preciseAddress.isEmpty) {
+      _showError('Please enter your precise delivery address.');
+      return;
+    }
+
+    try {
+      await ref.read(authProvider.notifier).validateCustomerRegistrationData(
+        phone: phone.trim(),
+        email: (data['email'] ?? '').trim(),
+        nic: nic.trim(),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      _showError(e.toString().replaceAll('Exception: ', ''));
       return;
     }
 

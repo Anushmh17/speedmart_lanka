@@ -25,7 +25,7 @@ class SrilankacustomerloginWidget extends StatefulWidget {
 
 class _SrilankacustomerloginWidgetState
     extends State<SrilankacustomerloginWidget> {
-  bool _rememberMe = false;
+  bool _rememberMe = true;
 
   late final TextEditingController _phoneController;
   late final bool _ownsController;
@@ -40,12 +40,6 @@ class _SrilankacustomerloginWidgetState
     super.initState();
     _ownsController = widget.phoneController == null;
     _phoneController = widget.phoneController ?? TextEditingController();
-    _loadRememberMe();
-  }
-
-  Future<void> _loadRememberMe() async {
-    final saved = await StorageService.getCustomerRememberMe();
-    if (mounted) setState(() => _rememberMe = saved);
   }
 
   @override

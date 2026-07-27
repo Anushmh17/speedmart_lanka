@@ -75,6 +75,8 @@ class UserModel {
   final String? deliveryApproxArea;
   final String? deliveryPreciseAddress;
   final String? deliveryNote;
+  final double? deliveryLatitude;
+  final double? deliveryLongitude;
 
   const UserModel({
     required this.id,
@@ -107,6 +109,8 @@ class UserModel {
     this.deliveryApproxArea,
     this.deliveryPreciseAddress,
     this.deliveryNote,
+    this.deliveryLatitude,
+    this.deliveryLongitude,
     this.shopName,
     this.shopAddress,
     this.shopProvince,
@@ -177,6 +181,8 @@ class UserModel {
       deliveryApproxArea: json['delivery_approx_area'] as String?,
       deliveryPreciseAddress: json['delivery_precise_address'] as String?,
       deliveryNote: json['delivery_note'] as String?,
+      deliveryLatitude: (json['delivery_latitude'] as num?)?.toDouble(),
+      deliveryLongitude: (json['delivery_longitude'] as num?)?.toDouble(),
       shopName: json['shop_name'] as String?,
       shopAddress: json['shop_address'] as String?,
       shopProvince: json['shop_province'] as String?,
@@ -235,6 +241,8 @@ class UserModel {
       'delivery_approx_area': deliveryApproxArea,
       'delivery_precise_address': deliveryPreciseAddress,
       'delivery_note': deliveryNote,
+      'delivery_latitude': deliveryLatitude,
+      'delivery_longitude': deliveryLongitude,
       'shop_name': shopName,
       'shop_address': shopAddress,
       'shop_province': shopProvince,
@@ -290,6 +298,8 @@ class UserModel {
     String? deliveryApproxArea,
     String? deliveryPreciseAddress,
     String? deliveryNote,
+    double? deliveryLatitude,
+    double? deliveryLongitude,
     String? shopName,
     String? shopAddress,
     String? shopProvince,
@@ -344,6 +354,8 @@ class UserModel {
       deliveryPreciseAddress:
           deliveryPreciseAddress ?? this.deliveryPreciseAddress,
       deliveryNote: deliveryNote ?? this.deliveryNote,
+      deliveryLatitude: deliveryLatitude ?? this.deliveryLatitude,
+      deliveryLongitude: deliveryLongitude ?? this.deliveryLongitude,
       shopName: shopName ?? this.shopName,
       shopAddress: shopAddress ?? this.shopAddress,
       shopProvince: shopProvince ?? this.shopProvince,

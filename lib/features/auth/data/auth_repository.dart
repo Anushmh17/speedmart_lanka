@@ -172,6 +172,44 @@ class AuthRepository {
     });
   }
 
+  Future<void> validateCustomerRegistrationData({
+    String? phone,
+    String? email,
+    String? nic,
+  }) async {
+    await ensureInitialized();
+    final normPhone = phone?.trim();
+    final normEmail = email?.trim().toLowerCase();
+    final normNic = nic?.trim().toLowerCase();
+
+    if (normPhone != null && normPhone.isNotEmpty) {
+      final phoneExists = _sessionUsers.any(
+        (u) => _phoneMatches(normPhone, u.phone),
+      );
+      if (phoneExists) {
+        throw Exception('An account with this phone number already exists.');
+      }
+    }
+
+    if (normEmail != null && normEmail.isNotEmpty) {
+      final emailExists = _sessionUsers.any(
+        (u) => u.email.isNotEmpty && u.email.toLowerCase() == normEmail,
+      );
+      if (emailExists) {
+        throw Exception('An account with this email already exists.');
+      }
+    }
+
+    if (normNic != null && normNic.isNotEmpty) {
+      final nicExists = _sessionUsers.any(
+        (u) => u.nic != null && u.nic!.trim().toLowerCase() == normNic,
+      );
+      if (nicExists) {
+        throw Exception('An account with this NIC number already exists.');
+      }
+    }
+  }
+
   Future<({UserModel user, String token})> loginCustomerOtp(String contact) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 1000));
@@ -225,6 +263,8 @@ class AuthRepository {
     String? deliveryApproxArea,
     String? deliveryPreciseAddress,
     String? deliveryNote,
+    double? deliveryLatitude,
+    double? deliveryLongitude,
     // Vendor shop details
     String? shopName,
     String? shopAddress,
@@ -264,6 +304,16 @@ class AuthRepository {
       }
     }
 
+    final normalizedNic = nic?.trim();
+    if (normalizedNic != null && normalizedNic.isNotEmpty) {
+      final nicExists = _sessionUsers.any(
+        (u) => u.nic != null && u.nic!.trim().toLowerCase() == normalizedNic.toLowerCase(),
+      );
+      if (nicExists) {
+        throw Exception('An account with this NIC number already exists.');
+      }
+    }
+
     final resolvedEmail = normalizedEmail.isNotEmpty
         ? normalizedEmail
         : (normalizedPhone.isNotEmpty
@@ -297,6 +347,8 @@ class AuthRepository {
       deliveryApproxArea: deliveryApproxArea,
       deliveryPreciseAddress: deliveryPreciseAddress,
       deliveryNote: deliveryNote,
+      deliveryLatitude: deliveryLatitude,
+      deliveryLongitude: deliveryLongitude,
       shopName: shopName,
       shopAddress: shopAddress,
       shopProvince: shopProvince,
