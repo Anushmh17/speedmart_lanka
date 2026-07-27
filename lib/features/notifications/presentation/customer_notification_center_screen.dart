@@ -46,12 +46,7 @@ class _CustomerNotificationCenterScreenState extends ConsumerState<CustomerNotif
         icon: Icons.chat_bubble_outline_rounded,
         color: AppColors.info,
         onTap: () {
-          context.push('/chat', extra: {
-            'proposalId': '',
-            'vendorName': 'Support',
-            'isUnlocked': true,
-            'autoMessage': 'Hello! I need help with my order.',
-          });
+          context.push('/chats');
         },
       ),
       _QuickAction(

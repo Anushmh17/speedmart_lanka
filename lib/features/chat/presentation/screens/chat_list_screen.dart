@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/routes/route_names.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -35,7 +36,34 @@ class ChatListScreen extends ConsumerWidget {
         elevation: 1,
       ),
       body: convoEntries.isEmpty
-          ? Center(child: Text('No conversations yet', style: AppTextStyles.bodyMedium(AppColors.textSecondaryLight)))
+          ? SafeArea(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 40),
+                  Icon(Icons.chat_bubble_outline, size: 72, color: AppColors.primary.withOpacity(0.9)),
+                  SizedBox(height: AppSpacing.md),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                    child: Text(
+                      "Once you start a new conversation with a seller about a product, you'll see it listed here.",
+                      textAlign: TextAlign.center,
+                      style: AppTextStyles.bodySmall(AppColors.textSecondaryLight),
+                    ),
+                  ),
+                  SizedBox(height: AppSpacing.lg),
+                  ElevatedButton(
+                    onPressed: () => context.go(RouteNames.customerHome),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      backgroundColor: AppColors.primary,
+                    ),
+                    child: Text('START SHOPPING', style: AppTextStyles.bodyMedium(Colors.white)),
+                  ),
+                ],
+              ),
+            )
           : ListView.separated(
               padding: EdgeInsets.all(AppSpacing.md),
               itemCount: convoEntries.length,
