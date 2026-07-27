@@ -183,7 +183,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ShellRoute(
         navigatorKey: shellNavigatorKey,
         pageBuilder: (context, state, child) => NoTransitionPage(
-          key: state.pageKey,
+          key: const ValueKey('customer_shell'),
           child: CustomerHomeScreen(child: child),
         ),
         routes: [

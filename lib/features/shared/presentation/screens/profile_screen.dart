@@ -43,8 +43,7 @@ class ProfileScreen extends ConsumerStatefulWidget {
   ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends ConsumerState<ProfileScreen>
-    with WidgetsBindingObserver {
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _isEditing = false;
   final _formKey = GlobalKey<FormState>();
 
@@ -72,7 +71,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     _bankBranchCtrl = TextEditingController();
     _bankAccountNameCtrl = TextEditingController();
     _bankAccountNumberCtrl = TextEditingController();
-    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _recoverCroppedImage();
@@ -136,7 +134,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _businessNameCtrl.dispose();
@@ -147,18 +144,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     super.dispose();
   }
 
-  @override
-  Future<bool> didPopRoute() async {
-    if (!mounted) return false;
-
-    final role = ref.read(currentUserProvider)?.role;
-    if (role == UserRole.vendor) {
-      context.go(RouteNames.vendorHome);
-    } else {
-      context.go(RouteNames.customerHome);
-    }
-    return true;
-  }
 
   bool _isLocalPath(String? path) =>
       path != null && (path.startsWith('/') || path.contains(':\\') || path.contains(':/'));
@@ -368,80 +353,67 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       );
     }
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) {
-          final role = ref.read(currentUserProvider)?.role;
-          if (role == UserRole.vendor) {
-            context.go(RouteNames.vendorHome);
-          } else {
-            context.go(RouteNames.customerHome);
-          }
-        }
-      },
-      child: Scaffold(
-        appBar: widget.showBackButton
-            ? Theme3AppBar(
-                title: 'Profile',
-                showBackButton: true,
-                actions: [
-                  if (!_isEditing)
-                    IconButton(
-                      icon: const Icon(Icons.edit_rounded),
-                      onPressed: () => setState(() => _isEditing = true),
-                    )
-                  else
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded),
-                      onPressed: () {
-                        _initData();
-                        setState(() {
-                          _isEditing = false;
-                          _pickedImagePath = null;
-                          _selectedBank = null;
-                        });
-                      },
-                    ),
-                ],
-              )
-            : null,
-        body: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpacing.lg,
-              AppSpacing.lg,
-              AppSpacing.lg,
-              120,
-            ),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildProfileHeader(user, isDark, _isEditing),
-                  const SizedBox(height: AppSpacing.xl),
+    return Scaffold(
+      appBar: widget.showBackButton
+          ? Theme3AppBar(
+              title: 'Profile',
+              showBackButton: true,
+              actions: [
+                if (!_isEditing)
+                  IconButton(
+                    icon: const Icon(Icons.edit_rounded),
+                    onPressed: () => setState(() => _isEditing = true),
+                  )
+                else
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded),
+                    onPressed: () {
+                      _initData();
+                      setState(() {
+                        _isEditing = false;
+                        _pickedImagePath = null;
+                        _selectedBank = null;
+                      });
+                    },
+                  ),
+              ],
+            )
+          : null,
+      body: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.lg,
+            AppSpacing.lg,
+            120,
+          ),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildProfileHeader(user, isDark, _isEditing),
+                const SizedBox(height: AppSpacing.xl),
 
-                  if (!_isEditing) ..._buildQuickStats(user, isDark),
-                  if (!_isEditing) const SizedBox(height: AppSpacing.xl),
+                if (!_isEditing) ..._buildQuickStats(user, isDark),
+                if (!_isEditing) const SizedBox(height: AppSpacing.xl),
 
-                  ..._buildAccountSection(user, isDark, _isEditing),
-                  const SizedBox(height: AppSpacing.xl),
+                ..._buildAccountSection(user, isDark, _isEditing),
+                const SizedBox(height: AppSpacing.xl),
 
-                  if (user.role == UserRole.vendor) ..._buildVendorSection(user, isDark, _isEditing),
-                  if (user.role == UserRole.vendor) const SizedBox(height: AppSpacing.xl),
+                if (user.role == UserRole.vendor) ..._buildVendorSection(user, isDark, _isEditing),
+                if (user.role == UserRole.vendor) const SizedBox(height: AppSpacing.xl),
 
-                  if (!_isEditing) _buildSupportSection(isDark),
-                  if (!_isEditing) const SizedBox(height: AppSpacing.xl),
+                if (!_isEditing) _buildSupportSection(isDark),
+                if (!_isEditing) const SizedBox(height: AppSpacing.xl),
 
-                  if (!_isEditing) _buildDangerZone(isDark, _handleLogout, isLoading),
+                if (!_isEditing) _buildDangerZone(isDark, _handleLogout, isLoading),
 
-                  if (_isEditing) ..._buildSaveButton(isLoading),
+                if (_isEditing) ..._buildSaveButton(isLoading),
 
-                  const SizedBox(height: AppSpacing.xl),
-                ],
-              ),
+                const SizedBox(height: AppSpacing.xl),
+              ],
             ),
           ),
         ),

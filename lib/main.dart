@@ -13,6 +13,8 @@ import 'features/auth/providers/theme_provider.dart';
 import 'features/orders/data/order_repository.dart';
 import 'features/proposals/data/proposal_repository.dart';
 import 'features/requests/data/request_repository.dart';
+import 'core/routes/route_names.dart';
+import 'core/theme/app_colors.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -61,6 +63,7 @@ class SpeedmartApp extends ConsumerStatefulWidget {
 }
 
 class _SpeedmartAppState extends ConsumerState<SpeedmartApp> {
+
   @override
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeProvider);

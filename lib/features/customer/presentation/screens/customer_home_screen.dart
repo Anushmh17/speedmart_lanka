@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:speedmart_lanka/core/routes/route_names.dart';
@@ -33,7 +34,7 @@ class CustomerHomeScreen extends ConsumerStatefulWidget {
 
 class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
     with WidgetsBindingObserver {
-  DateTime? _lastBackPressTime;
+  String _currentLocation = RouteNames.customerHome;
   String? _lastSyncedLocation;
 
   @override
@@ -51,57 +52,31 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
     });
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final location = GoRouterState.of(context).matchedLocation;
-    if (_lastSyncedLocation != location) {
-      _lastSyncedLocation = location;
-      Future.microtask(() {
-        if (!mounted) return;
-        ref.read(bottomNavVisibilityProvider.notifier).updateLocation(location);
-      });
-    }
-  }
+  bool _isExitDialogShowing = false;
 
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  Future<bool> didPopRoute() async {
-    if (!mounted) return false;
-
-    final String location;
+  String _getTrueLocation(BuildContext context) {
     try {
-      location = GoRouter.of(context)
-          .routeInformationProvider
-          .value
-          .uri
-          .path;
-    } catch (_) {
-      return false;
-    }
+      final String path = GoRouter.of(context).routeInformationProvider.value.uri.path;
+      if (path.isNotEmpty) return path;
+    } catch (_) {}
+    try {
+      final String path = GoRouter.of(context).routerDelegate.currentConfiguration.uri.path;
+      if (path.isNotEmpty) return path;
+    } catch (_) {}
+    return RouteNames.customerHome;
+  }
 
-    const customerTabs = {
-      RouteNames.customerHome,
-      RouteNames.customerRequests,
-      RouteNames.customerOrders,
-      RouteNames.customerProfile,
-    };
-    if (!customerTabs.contains(location)) return false;
 
-    if (location != RouteNames.customerHome) {
-      context.go(RouteNames.customerHome);
-      return true;
-    }
 
-    final confirmed = await showDialog<bool>(
+  void _showExitDialog(BuildContext context) {
+    if (_isExitDialogShowing) return;
+    _isExitDialogShowing = true;
+
+    showDialog<bool>(
       context: context,
+      barrierDismissible: false,
       builder: (dialogCtx) => AlertDialog(
-        title: const Text('Exit Speedmart Lanka?'),
+        title: const Text('Exit SpeedMart Lanka?'),
         content: const Text('Do you want to exit the app?'),
         actions: [
           TextButton(
@@ -115,10 +90,49 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
           ),
         ],
       ),
-    );
-
-    return confirmed != true;
+    ).then((confirmed) {
+      _isExitDialogShowing = false;
+      if (confirmed == true && mounted) {
+        SystemNavigator.pop();
+      }
+    });
   }
+
+  @override
+  Future<bool> didPopRoute() async {
+    if (!mounted) return false;
+
+    final loc = _getTrueLocation(context);
+    final cleanLoc = (loc.endsWith('/') && loc.length > 1)
+        ? loc.substring(0, loc.length - 1)
+        : loc;
+
+    final isShellTab = cleanLoc == RouteNames.customerHome ||
+        cleanLoc == RouteNames.customerRequests ||
+        cleanLoc == RouteNames.customerOrders ||
+        cleanLoc == RouteNames.customerProfile;
+
+    if (!isShellTab) return false;
+
+    if (cleanLoc != RouteNames.customerHome) {
+      context.go(RouteNames.customerHome);
+      return true;
+    }
+
+    _showExitDialog(context);
+    return true;
+  }
+
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+
+
+
 
   Widget _buildBottomNav(BuildContext context, int currentIndex) {
     final user = ref.watch(currentUserProvider);
@@ -284,35 +298,51 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final shellLocation = GoRouterState.of(context).matchedLocation;
+    // Force rebuild when router location changes so nav visibility updates
+    try { GoRouterState.of(context); } catch (_) {}
     
+    final shellLocation = _getTrueLocation(context);
+    
+    // Automatically update bottom nav visibility correctly on every frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(bottomNavVisibilityProvider.notifier).updateLocation(shellLocation);
+      }
+    });
+
     final showBottomNav = ref.watch(bottomNavVisibilityProvider);
     final notificationState = ref.watch(notification_feature.notificationProvider);
     final unreadCount = notificationState.unreadCount;
 
     int currentIndex = 0;
-    if (shellLocation == RouteNames.customerRequests) {
+    if (shellLocation.startsWith(RouteNames.customerRequests)) {
       currentIndex = 1;
-    } else if (shellLocation == RouteNames.customerOrders) {
+    } else if (shellLocation.startsWith(RouteNames.customerOrders)) {
       currentIndex = 2;
-    } else if (shellLocation == RouteNames.customerProfile) {
+    } else if (shellLocation.startsWith(RouteNames.customerProfile)) {
       currentIndex = 3;
     }
 
+    final cleanLoc = (shellLocation.endsWith('/') && shellLocation.length > 1) 
+        ? shellLocation.substring(0, shellLocation.length - 1) 
+        : shellLocation;
+
+    final isStrictShellTab = cleanLoc == RouteNames.customerHome ||
+        cleanLoc == RouteNames.customerRequests ||
+        cleanLoc == RouteNames.customerOrders ||
+        cleanLoc == RouteNames.customerProfile;
+
     return PopScope(
-      canPop: false,
+      canPop: !isStrictShellTab,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) {
-          final location = GoRouterState.of(context).matchedLocation;
-          if (location == RouteNames.customerHome) {
-            return;
-          }
-          if (location == RouteNames.customerRequests ||
-              location == RouteNames.customerOrders ||
-              location == RouteNames.customerProfile) {
-            context.go(RouteNames.customerHome);
-          }
+        if (didPop) return;
+
+        if (currentIndex != 0) {
+          context.go(RouteNames.customerHome);
+          return;
         }
+
+        _showExitDialog(context);
       },
       child: Scaffold(
         backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
@@ -1498,19 +1528,7 @@ class CustomerOrdersTab extends ConsumerWidget {
         ? _groupOrdersByDate(orderState.orders)
         : <String, List<dynamic>>{};
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) {
-          final location = GoRouterState.of(context).matchedLocation;
-          if (location == RouteNames.customerRequests ||
-              location == RouteNames.customerOrders ||
-              location == RouteNames.customerProfile) {
-            context.go(RouteNames.customerHome);
-          }
-        }
-      },
-      child: Scaffold(
+    return Scaffold(
         backgroundColor: Colors.transparent,
         body: RefreshIndicator(
           onRefresh: () => ref.read(orderProvider.notifier).loadCustomerOrders(),
@@ -1617,7 +1635,6 @@ class CustomerOrdersTab extends ConsumerWidget {
             ],
           ),
         ),
-      ),
     );
   }
 }

@@ -158,10 +158,6 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
     }
   }
 
-  void _handleCustomerBack() {
-    if (!mounted) return;
-    context.go(RouteNames.customerHome);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -171,39 +167,31 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
     final requestState = ref.watch(requestProvider);
 
     if (requestState.isLoading && requestState.requests.isEmpty) {
-      return PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) {
-            _handleCustomerBack();
-          }
-        },
-        child: Scaffold(
-          backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-          body: Column(
-            children: [
-              _buildHeader(isDark, primaryText, secondaryText),
-              Expanded(
-                child: ListView.builder(
-                  padding: EdgeInsets.all(AppSpacing.md),
-                  itemCount: 5,
-                  itemBuilder: (context, index) => Padding(
-                    padding: EdgeInsets.only(bottom: AppSpacing.md),
-                    child: Container(
-                      height: 180,
-                      decoration: BoxDecoration(
-                        color: isDark ? AppColors.cardDark : AppColors.cardLight,
-                        borderRadius: BorderRadius.circular(AppRadius.lg),
-                      ),
-                      child: const Center(
-                        child: CircularProgressIndicator(),
-                      ),
+      return Scaffold(
+        backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+        body: Column(
+          children: [
+            _buildHeader(isDark, primaryText, secondaryText),
+            Expanded(
+              child: ListView.builder(
+                padding: EdgeInsets.all(AppSpacing.md),
+                itemCount: 5,
+                itemBuilder: (context, index) => Padding(
+                  padding: EdgeInsets.only(bottom: AppSpacing.md),
+                  child: Container(
+                    height: 180,
+                    decoration: BoxDecoration(
+                      color: isDark ? AppColors.cardDark : AppColors.cardLight,
+                      borderRadius: BorderRadius.circular(AppRadius.lg),
+                    ),
+                    child: const Center(
+                      child: CircularProgressIndicator(),
                     ),
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }
@@ -211,31 +199,23 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
     final filteredRequests = _filterRequests(requestState.requests);
 
     if (requestState.requests.isEmpty) {
-      return PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) {
-            _handleCustomerBack();
-          }
-        },
-        child: Scaffold(
-          backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-          body: Column(
-            children: [
-              _buildHeader(isDark, primaryText, secondaryText),
-              Expanded(
-                child: Theme3EmptyState(
-                  icon: Icons.receipt_long_outlined,
-                  title: 'No Requests Yet',
-                  subtitle: 'Create your first shopping request and get proposals from vendors',
-                  actionLabel: 'Create New Request',
-                  onActionPressed: () {
-                    context.push(RouteNames.customerCreateRequest);
-                  },
-                ),
+      return Scaffold(
+        backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+        body: Column(
+          children: [
+            _buildHeader(isDark, primaryText, secondaryText),
+            Expanded(
+              child: Theme3EmptyState(
+                icon: Icons.receipt_long_outlined,
+                title: 'No Requests Yet',
+                subtitle: 'Create your first shopping request and get proposals from vendors',
+                actionLabel: 'Create New Request',
+                onActionPressed: () {
+                  context.push(RouteNames.customerCreateRequest);
+                },
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }
@@ -250,54 +230,46 @@ class _RequestListScreenState extends ConsumerState<RequestListScreen> {
       }
     }
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) {
-          _handleCustomerBack();
-        }
-      },
-      child: Scaffold(
-        backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-        body: Column(
-          children: [
-            _buildHeader(isDark, primaryText, secondaryText),
-            _buildFilterChips(isDark),
-            Expanded(
-              child: filteredRequests.isEmpty
-                  ? Theme3EmptyState(
-                      icon: Icons.filter_list_off_rounded,
-                      title: 'No ${_selectedFilter.name} Requests',
-                      subtitle: 'Try selecting a different filter',
-                    )
-                  : RefreshIndicator(
-                      onRefresh: () => ref.read(requestProvider.notifier).loadMyRequests(),
-                      child: ListView.builder(
-                        padding: EdgeInsets.fromLTRB(
-                          AppSpacing.md,
-                          AppSpacing.sm,
-                          AppSpacing.md,
-                          AppSpacing.md,
-                        ),
-                        itemCount: listItems.length,
-                        itemBuilder: (context, index) {
-                          final item = listItems[index];
-                          if (item is String) {
-                            return _buildSectionHeader(item, isDark, secondaryText);
-                          }
-                          return _buildRequestCard(
-                            context,
-                            item as ShoppingRequest,
-                            isDark,
-                            primaryText,
-                            secondaryText,
-                          );
-                        },
+    return Scaffold(
+      backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+      body: Column(
+        children: [
+          _buildHeader(isDark, primaryText, secondaryText),
+          _buildFilterChips(isDark),
+          Expanded(
+            child: filteredRequests.isEmpty
+                ? Theme3EmptyState(
+                    icon: Icons.filter_list_off_rounded,
+                    title: 'No ${_selectedFilter.name} Requests',
+                    subtitle: 'Try selecting a different filter',
+                  )
+                : RefreshIndicator(
+                    onRefresh: () => ref.read(requestProvider.notifier).loadMyRequests(),
+                    child: ListView.builder(
+                      padding: EdgeInsets.fromLTRB(
+                        AppSpacing.md,
+                        AppSpacing.sm,
+                        AppSpacing.md,
+                        AppSpacing.md,
                       ),
+                      itemCount: listItems.length,
+                      itemBuilder: (context, index) {
+                        final item = listItems[index];
+                        if (item is String) {
+                          return _buildSectionHeader(item, isDark, secondaryText);
+                        }
+                        return _buildRequestCard(
+                          context,
+                          item as ShoppingRequest,
+                          isDark,
+                          primaryText,
+                          secondaryText,
+                        );
+                      },
                     ),
-            ),
-          ],
-        ),
+                  ),
+          ),
+        ],
       ),
     );
   }

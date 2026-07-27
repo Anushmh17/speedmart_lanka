@@ -29,8 +29,7 @@ class ProfileScreen extends ConsumerStatefulWidget {
   ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends ConsumerState<ProfileScreen>
-    with WidgetsBindingObserver {
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _isEditing = false;
   final _formKey = GlobalKey<FormState>();
 
@@ -53,7 +52,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     _phoneCtrl = TextEditingController();
     _businessNameCtrl = TextEditingController();
 
-    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _scheduleDeliveryAddressLoad();
@@ -83,18 +81,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     });
   }
 
-  @override
-  Future<bool> didPopRoute() async {
-    if (!mounted) return false;
 
-    final role = ref.read(currentUserProvider)?.role;
-    if (role == UserRole.vendor) {
-      context.go(RouteNames.vendorHome);
-    } else {
-      context.go(RouteNames.customerHome);
-    }
-    return true;
-  }
 
   bool _isLocalPath(String? path) =>
       path != null && (path.startsWith('/') || path.contains(':\\') || path.contains(':/'));
@@ -115,7 +102,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _businessNameCtrl.dispose();
@@ -289,15 +275,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     final isLoading = ref.watch(authLoadingProvider);
     
     if (user == null) {
-      return PopScope(
-        canPop: false,
-        onPopInvokedWithResult: (didPop, _) {
-          if (!didPop) {
-            context.go(RouteNames.customerHome);
-          }
-        },
-        child: const Center(child: CircularProgressIndicator()),
-      );
+      return const Center(child: CircularProgressIndicator());
     }
 
     final primaryColor = user.role == UserRole.vendor ? AppColors.vendorColor : AppColors.customerColor;
@@ -311,19 +289,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
     final showBottomNav = ref.watch(bottomNavVisibilityProvider);
     final bottomPadding = showBottomNav ? 140.0 : 32.0;
 
-    return PopScope(
-      canPop: false,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) {
-          final role = ref.read(currentUserProvider)?.role;
-          if (role == UserRole.vendor) {
-            context.go(RouteNames.vendorHome);
-          } else {
-            context.go(RouteNames.customerHome);
-          }
-        }
-      },
-      child: Scaffold(
+    return Scaffold(
         backgroundColor: Colors.transparent,
         body: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -524,8 +490,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           ),
         ),
       ),
-    ),
-  );
+    );
   }
 
   List<Widget> createCustomerSection(BuildContext context, Color primaryText, Color cardColor, Color borderColor, Color primaryColor, Color secondaryText) {
