@@ -37,6 +37,7 @@ class _SrilankavendorforgetpasswordotpWidgetState
   );
 
   String _errorMessage = '';
+  bool _isSuccess = false;
 
   void _handleVerifyCode() {
     final code = _otpControllers.map((controller) => controller.text).join();
@@ -45,12 +46,10 @@ class _SrilankavendorforgetpasswordotpWidgetState
       setState(() => _errorMessage = 'Please enter the 6 digit OTP.');
       return;
     }
-    if (code != '123456') {
-      setState(() => _errorMessage = 'Invalid OTP. Please try again.');
-      return;
-    }
+    if (_isSuccess) return;
     setState(() => _errorMessage = '');
     if (widget.onVerifyCode != null) {
+      setState(() => _isSuccess = true);
       widget.onVerifyCode!(code);
       return;
     }
@@ -500,6 +499,27 @@ class _SrilankavendorforgetpasswordotpWidgetState
                           ),
                         ),
                       ),
+                    if (_isSuccess)
+                      Positioned(
+                        top: y(630),
+                        left: x(22),
+                        right: x(22),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.check_circle_rounded, color: Color(0xFF4CAF50), size: 20),
+                            SizedBox(width: x(6)),
+                            Text('Code Verified! Redirecting…',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: const Color(0xFF4CAF50),
+                                fontFamily: 'OpenSans', fontSize: fs(13),
+                                fontWeight: FontWeight.w700, height: 1,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
 
                     Positioned(
                       top: y(660),
@@ -508,9 +528,9 @@ class _SrilankavendorforgetpasswordotpWidgetState
                       child: SizedBox(
                         height: y(49),
                         child: ElevatedButton(
-                          onPressed: _handleVerifyCode,
+                          onPressed: _isSuccess ? null : _handleVerifyCode,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFB6F02),
+                            backgroundColor: _isSuccess ? const Color(0xFF4CAF50) : const Color(0xFFFB6F02),
                             foregroundColor: Colors.white,
                             elevation: 0,
                             padding: EdgeInsets.zero,
@@ -518,28 +538,37 @@ class _SrilankavendorforgetpasswordotpWidgetState
                               borderRadius: BorderRadius.circular(x(20)),
                             ),
                           ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Image.asset(
-                                '${_assetBase}Protect.png',
-                                width: x(20),
-                                height: x(20),
-                                fit: BoxFit.contain,
-                              ),
-                              SizedBox(width: x(10)),
-                              Text(
-                                'Verify Code',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontFamily: 'OpenSans',
-                                  fontSize: fs(18),
-                                  fontWeight: FontWeight.w700,
-                                  height: 1,
+                          child: _isSuccess
+                              ? Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    const Icon(Icons.check_rounded, color: Colors.white, size: 22),
+                                    SizedBox(width: x(8)),
+                                    Text('Verified', style: TextStyle(color: Colors.white, fontFamily: 'OpenSans', fontSize: fs(18), fontWeight: FontWeight.w700, height: 1)),
+                                  ],
+                                )
+                              : Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Image.asset(
+                                      '${_assetBase}Protect.png',
+                                      width: x(20),
+                                      height: x(20),
+                                      fit: BoxFit.contain,
+                                    ),
+                                    SizedBox(width: x(10)),
+                                    Text(
+                                      'Verify Code',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontFamily: 'OpenSans',
+                                        fontSize: fs(18),
+                                        fontWeight: FontWeight.w700,
+                                        height: 1,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ),
-                            ],
-                          ),
                         ),
                       ),
                     ),
