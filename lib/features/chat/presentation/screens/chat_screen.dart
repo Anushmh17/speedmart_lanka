@@ -238,15 +238,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               child: TextField(
                                 controller: _controller,
                                 maxLines: null,
-                                cursorColor: AppColors.customerColor,
                                 style: AppTextStyles.bodyMedium(primaryText),
                                 decoration: InputDecoration(
                                   hintText: 'Discuss availability, prices...',
                                   hintStyle: TextStyle(color: secondaryText, fontSize: 14),
                                   border: InputBorder.none,
+                                  enabledBorder: InputBorder.none,
+                                  focusedBorder: InputBorder.none,
                                   isDense: true,
                                   contentPadding: const EdgeInsets.symmetric(vertical: 8),
                                 ),
+                                cursorColor: AppColors.customerColor,
                               ),
                             ),
                           ],
