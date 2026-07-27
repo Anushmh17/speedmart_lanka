@@ -85,10 +85,10 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
     }
 
     const customerTabs = {
-      '/customer',
-      '/customer/requests',
-      '/customer/orders',
-      '/customer/profile',
+      RouteNames.customerHome,
+      RouteNames.customerRequests,
+      RouteNames.customerOrders,
+      RouteNames.customerProfile,
     };
     if (!customerTabs.contains(location)) return false;
 
@@ -299,7 +299,17 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
-        // didPopRoute() handles all back navigation logic
+        if (!didPop) {
+          final location = GoRouterState.of(context).matchedLocation;
+          if (location == RouteNames.customerHome) {
+            return;
+          }
+          if (location == RouteNames.customerRequests ||
+              location == RouteNames.customerOrders ||
+              location == RouteNames.customerProfile) {
+            context.go(RouteNames.customerHome);
+          }
+        }
       },
       child: Scaffold(
         backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
@@ -1491,7 +1501,12 @@ class CustomerOrdersTab extends ConsumerWidget {
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
-          context.go(RouteNames.customerHome);
+          final location = GoRouterState.of(context).matchedLocation;
+          if (location == RouteNames.customerRequests ||
+              location == RouteNames.customerOrders ||
+              location == RouteNames.customerProfile) {
+            context.go(RouteNames.customerHome);
+          }
         }
       },
       child: Scaffold(

@@ -43,7 +43,8 @@ class ProfileScreen extends ConsumerStatefulWidget {
   ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+class _ProfileScreenState extends ConsumerState<ProfileScreen>
+    with WidgetsBindingObserver {
   bool _isEditing = false;
   final _formKey = GlobalKey<FormState>();
 
@@ -71,6 +72,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _bankBranchCtrl = TextEditingController();
     _bankAccountNameCtrl = TextEditingController();
     _bankAccountNumberCtrl = TextEditingController();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _recoverCroppedImage();
@@ -134,6 +136,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _businessNameCtrl.dispose();
@@ -142,6 +145,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _bankAccountNameCtrl.dispose();
     _bankAccountNumberCtrl.dispose();
     super.dispose();
+  }
+
+  @override
+  Future<bool> didPopRoute() async {
+    if (!mounted) return false;
+
+    final role = ref.read(currentUserProvider)?.role;
+    if (role == UserRole.vendor) {
+      context.go(RouteNames.vendorHome);
+    } else {
+      context.go(RouteNames.customerHome);
+    }
+    return true;
   }
 
   bool _isLocalPath(String? path) =>
@@ -357,11 +373,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) {
           final role = ref.read(currentUserProvider)?.role;
-          context.go(
-            role == UserRole.vendor
-                ? RouteNames.vendorHome
-                : RouteNames.customerHome,
-          );
+          if (role == UserRole.vendor) {
+            context.go(RouteNames.vendorHome);
+          } else {
+            context.go(RouteNames.customerHome);
+          }
         }
       },
       child: Scaffold(
