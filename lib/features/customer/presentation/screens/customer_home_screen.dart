@@ -20,6 +20,7 @@ import 'package:speedmart_lanka/features/requests/providers/request_provider.dar
 import 'package:speedmart_lanka/features/requests/models/shopping_request.dart';
 import 'package:speedmart_lanka/features/orders/models/order_model.dart';
 import 'package:speedmart_lanka/features/orders/providers/order_provider.dart';
+import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart' as notification_feature;
 import 'package:speedmart_lanka/shared/models/user_role.dart';
 
 class CustomerHomeScreen extends ConsumerStatefulWidget {
@@ -286,6 +287,8 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
     final shellLocation = GoRouterState.of(context).matchedLocation;
     
     final showBottomNav = ref.watch(bottomNavVisibilityProvider);
+    final notificationState = ref.watch(notification_feature.notificationProvider);
+    final unreadCount = notificationState.unreadCount;
 
     int currentIndex = 0;
     if (shellLocation == RouteNames.customerRequests) {
@@ -327,19 +330,17 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
             ),
             IconButton(
               icon: Badge(
-                smallSize: 8,
+                isLabelVisible: unreadCount > 0,
+                label: unreadCount > 0 ? Text('$unreadCount') : null,
                 child: Icon(
                   Icons.notifications_outlined,
                   color: isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
                 ),
               ),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Notifications are configured and ready.'),
-                    behavior: SnackBarBehavior.floating,
-                  ),
-                );
+              onPressed: () async {
+                await ref.read(notification_feature.notificationProvider.notifier).loadNotifications();
+                if (!context.mounted) return;
+                context.push(RouteNames.customerNotifications);
               },
             ),
             const SizedBox(width: 8),

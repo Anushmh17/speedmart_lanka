@@ -28,6 +28,7 @@ import 'package:speedmart_lanka/features/requests/presentation/screens/request_l
 import 'package:speedmart_lanka/shared/presentation/screens/profile_screen.dart';
 import 'package:speedmart_lanka/features/customer/delivery_address/presentation/screens/customer_delivery_address_screen.dart';
 import 'package:speedmart_lanka/features/notifications/presentation/deep_link_loaders.dart';
+import 'package:speedmart_lanka/features/notifications/presentation/customer_notification_center_screen.dart';
 import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
 import 'package:speedmart_lanka/shared/models/user_role.dart';
 import 'package:speedmart_lanka/core/routes/route_names.dart';
@@ -205,6 +206,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       ),
 
       // ── Customer Full-Screen Workflows ───────────────────────────────────
+      GoRoute(
+        path: RouteNames.customerNotifications,
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => _buildPage(context, state, const CustomerNotificationCenterScreen()),
+      ),
       GoRoute(
         path: RouteNames.customerCreateRequest,
         parentNavigatorKey: rootNavigatorKey,

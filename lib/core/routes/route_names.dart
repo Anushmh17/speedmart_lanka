@@ -26,6 +26,7 @@ class RouteNames {
   static const String customerPaymentReceipt = '/customer/payment/receipt';
   static const String customerOrderTrack = '/customer/orders/track/:id';
   static const String customerPaymentHistory = '/customer/payments';
+  static const String customerNotifications = '/customer/notifications';
 
   // ── Customer Full-Screen Routes (without bottom nav) ────────────────────────
   static const String customerCreateRequest = '/customer/requests/create';
