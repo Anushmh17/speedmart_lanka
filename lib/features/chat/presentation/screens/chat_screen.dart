@@ -247,6 +247,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                   focusedBorder: InputBorder.none,
                                   isDense: true,
                                   contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                                  // Prevent global InputDecorationTheme from painting a filled white box
+                                  filled: false,
+                                  fillColor: Colors.transparent,
                                 ),
                                 cursorColor: AppColors.customerColor,
                               ),
