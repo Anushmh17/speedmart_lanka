@@ -107,6 +107,24 @@ class ChatNotifier extends StateNotifier<ChatState> {
   List<ChatMessage> getMessagesForProposal(String proposalId) {
     return state.messages.where((m) => m.proposalId == proposalId).toList();
   }
+
+  /// Returns number of conversations where the last message is from the vendor,
+  /// which we treat as an unread conversation for the customer.
+  int unreadConversationsCount() {
+    final Map<String, List<ChatMessage>> grouped = {};
+    for (final m in state.messages) {
+      grouped.putIfAbsent(m.proposalId, () => []).add(m);
+    }
+
+    int count = 0;
+    for (final entry in grouped.entries) {
+      final last = entry.value.isNotEmpty ? entry.value.last : null;
+      if (last != null && last.senderRole == 'vendor') {
+        count++;
+      }
+    }
+    return count;
+  }
 }
 
 final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {

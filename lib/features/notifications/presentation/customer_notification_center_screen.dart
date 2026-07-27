@@ -7,6 +7,7 @@ import 'package:speedmart_lanka/core/theme/app_text_styles.dart';
 import 'package:speedmart_lanka/features/notifications/models/notification_model.dart';
 import 'package:speedmart_lanka/features/notifications/models/notification_type.dart';
 import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart' as notification_feature;
+import 'package:speedmart_lanka/features/chat/providers/chat_provider.dart';
 
 class CustomerNotificationCenterScreen extends ConsumerStatefulWidget {
   const CustomerNotificationCenterScreen({super.key});
@@ -88,7 +89,36 @@ class _CustomerNotificationCenterScreenState extends ConsumerState<CustomerNotif
                   return Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: _QuickActionButton(action: action),
+                      child: Consumer(builder: (context, wref, _) {
+                        final notifState = ref.watch(notification_feature.notificationProvider);
+                        final chatUnread = wref.read(chatProvider.notifier).unreadConversationsCount();
+                        // derive counts
+                        final inboxCount = notifState.unreadCount;
+                        final ordersCount = notifState.notifications.where((n) => n.type == NotificationType.orderStatusUpdated || n.type == NotificationType.orderReadyForPickup || n.type == NotificationType.orderOutForDelivery || n.type == NotificationType.orderDelivered || n.type == NotificationType.receiptGenerated || n.type == NotificationType.cashOnDeliveryConfirmed).where((n) => !n.isRead).length;
+                        final alertsCount = notifState.notifications.where((n) => n.type == NotificationType.paymentFailed || n.type == NotificationType.proposalRejected).where((n) => !n.isRead).length;
+
+                        int badge = 0;
+                        if (action.title == 'Inbox') badge = inboxCount;
+                        if (action.title == 'Chats') badge = chatUnread;
+                        if (action.title == 'Orders') badge = ordersCount;
+                        if (action.title == 'Alerts') badge = alertsCount;
+
+                        return Stack(
+                          children: [
+                            _QuickActionButton(action: action),
+                            if (badge > 0)
+                              Positioned(
+                                right: 6,
+                                top: 6,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
+                                  child: Text('$badge', style: AppTextStyles.caption(Colors.white)),
+                                ),
+                              ),
+                          ],
+                        );
+                      }),
                     ),
                   );
                 }).toList(),
