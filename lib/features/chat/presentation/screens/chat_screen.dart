@@ -365,7 +365,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
         ),
       ),
-      child: Row(
+          child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
@@ -377,8 +377,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           Expanded(
             child: Text(
               widget.isUnlocked
-                  ? 'Order Confirmed! Platform safety filters have been lifted. You can communicate openly.'
-                  : 'Security Shield Active: Phone numbers and private links are automatically masked to prevent platform bypass and protect your billing dispute rights.',
+                  ? 'Open Channel: platform safety filters are lifted — you can communicate openly with the shop owner.'
+                  : 'Security Shield Active: phone numbers and private links are masked to protect your billing dispute rights.',
               style: AppTextStyles.bodySmall(primaryText).copyWith(height: 1.3),
             ),
           ),

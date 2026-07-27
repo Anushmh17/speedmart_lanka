@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -83,45 +85,72 @@ class _CustomerNotificationCenterScreenState extends ConsumerState<CustomerNotif
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: Row(
-                children: quickActions.map((action) {
-                  return Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Consumer(builder: (context, wref, _) {
-                        final notifState = ref.watch(notification_feature.notificationProvider);
-                        final chatUnread = wref.read(chatProvider.notifier).unreadConversationsCount();
-                        // derive counts
-                        final inboxCount = notifState.unreadCount;
-                        final ordersCount = notifState.notifications.where((n) => n.type == NotificationType.orderStatusUpdated || n.type == NotificationType.orderReadyForPickup || n.type == NotificationType.orderOutForDelivery || n.type == NotificationType.orderDelivered || n.type == NotificationType.receiptGenerated || n.type == NotificationType.cashOnDeliveryConfirmed).where((n) => !n.isRead).length;
-                        final alertsCount = notifState.notifications.where((n) => n.type == NotificationType.paymentFailed || n.type == NotificationType.proposalRejected).where((n) => !n.isRead).length;
+              padding: const EdgeInsets.fromLTRB(10, 12, 10, 8),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final itemWidth = (constraints.maxWidth - 16) / quickActions.length;
+                  final itemSize = min(itemWidth, 132.0);
 
-                        int badge = 0;
-                        if (action.title == 'Inbox') badge = inboxCount;
-                        if (action.title == 'Chats') badge = chatUnread;
-                        if (action.title == 'Orders') badge = ordersCount;
-                        if (action.title == 'Alerts') badge = alertsCount;
+                  return SizedBox(
+                    width: double.infinity,
+                    height: itemSize,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: quickActions.map((action) {
+                        return SizedBox(
+                          width: itemSize,
+                          height: itemSize,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                            child: Consumer(builder: (context, wref, _) {
+                              final notifState = ref.watch(notification_feature.notificationProvider);
+                              final chatUnread = wref.read(chatProvider.notifier).unreadConversationsCount();
+                              final inboxCount = notifState.unreadCount;
+                              final ordersCount = notifState.notifications
+                                  .where((n) =>
+                                      n.type == NotificationType.orderStatusUpdated ||
+                                      n.type == NotificationType.orderReadyForPickup ||
+                                      n.type == NotificationType.orderOutForDelivery ||
+                                      n.type == NotificationType.orderDelivered ||
+                                      n.type == NotificationType.receiptGenerated ||
+                                      n.type == NotificationType.cashOnDeliveryConfirmed)
+                                  .where((n) => !n.isRead)
+                                  .length;
+                              final alertsCount = notifState.notifications
+                                  .where((n) =>
+                                      n.type == NotificationType.paymentFailed ||
+                                      n.type == NotificationType.proposalRejected)
+                                  .where((n) => !n.isRead)
+                                  .length;
 
-                        return Stack(
-                          children: [
-                            _QuickActionButton(action: action),
-                            if (badge > 0)
-                              Positioned(
-                                right: 6,
-                                top: 6,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
-                                  child: Text('$badge', style: AppTextStyles.caption(Colors.white)),
-                                ),
-                              ),
-                          ],
+                              int badge = 0;
+                              if (action.title == 'Inbox') badge = inboxCount;
+                              if (action.title == 'Chats') badge = chatUnread;
+                              if (action.title == 'Orders') badge = ordersCount;
+                              if (action.title == 'Alerts') badge = alertsCount;
+
+                              return Stack(
+                                children: [
+                                  _QuickActionButton(action: action),
+                                  if (badge > 0)
+                                    Positioned(
+                                      right: 8,
+                                      top: 8,
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                        decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
+                                        child: Text('$badge', style: AppTextStyles.caption(Colors.white)),
+                                      ),
+                                    ),
+                                ],
+                              );
+                            }),
+                          ),
                         );
-                      }),
+                      }).toList(),
                     ),
                   );
-                }).toList(),
+                },
               ),
             ),
             Expanded(
@@ -176,11 +205,19 @@ class _QuickActionButton extends StatelessWidget {
         onTap: action.onTap,
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          constraints: const BoxConstraints(minHeight: 110, minWidth: 96),
+          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 10),
           decoration: BoxDecoration(
             color: surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.borderLight.withOpacity(0.2)),
+            border: Border.all(color: AppColors.borderLight.withOpacity(0.25)),
+            boxShadow: [
+              BoxShadow(
+                color: isDark ? Colors.black26 : const Color(0x0A000000),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -193,7 +230,7 @@ class _QuickActionButton extends StatelessWidget {
                 ),
                 child: Icon(action.icon, color: action.color),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 10),
               Text(action.title, style: AppTextStyles.bodySmall(textColor)),
             ],
           ),
