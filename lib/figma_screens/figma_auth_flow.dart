@@ -280,6 +280,10 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
                 province: province,
                 district: district,
                 approxArea: result.city ?? '',
+                latitude: position.latitude,
+                longitude: position.longitude,
+                accuracy: result.accuracy,
+                detectedAt: result.detectedAt ?? DateTime.now(),
               );
           if (mounted) {
             _showToast('Location detected: ${district.name}, ${province.name}');
