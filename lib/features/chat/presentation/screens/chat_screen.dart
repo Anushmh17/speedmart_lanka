@@ -94,7 +94,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-      resizeToAvoidBottomInset: false,
+      resizeToAvoidBottomInset: true,
       body: Column(
         children: [
           _buildHeader(context, isDark, primaryText, secondaryText, displayName),
@@ -221,38 +221,58 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               color: surfaceColor,
               border: Border(top: BorderSide(color: borderColor)),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.grey[900] : Colors.grey[100],
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: borderColor),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: TextField(
-                      controller: _controller,
-                      maxLines: null,
-                      style: AppTextStyles.bodyMedium(primaryText),
-                      decoration: InputDecoration(
-                        hintText: 'Discuss availability, prices...',
-                        hintStyle: TextStyle(color: secondaryText, fontSize: 13),
-                        border: InputBorder.none,
+            child: SafeArea(
+              top: false,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Container(
+                      constraints: const BoxConstraints(minHeight: 48),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.grey[900] : Colors.grey[100],
+                        borderRadius: BorderRadius.circular(28),
+                        border: Border.all(color: borderColor),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(isDark ? 0.35 : 0.03),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: TextField(
+                              controller: _controller,
+                              maxLines: null,
+                              style: AppTextStyles.bodyMedium(primaryText),
+                              decoration: InputDecoration(
+                                hintText: 'Discuss availability, prices...',
+                                hintStyle: TextStyle(color: secondaryText, fontSize: 14),
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ),
-                SizedBox(width: AppSpacing.sm),
-                IconButton(
-                  style: IconButton.styleFrom(
-                    backgroundColor: AppColors.customerColor,
+                  SizedBox(width: AppSpacing.sm),
+                  Material(
+                    color: AppColors.customerColor,
                     shape: const CircleBorder(),
+                    elevation: 2,
+                    child: IconButton(
+                      onPressed: () => _sendMessage(),
+                      icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                    ),
                   ),
-                  icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
-                  onPressed: () => _sendMessage(),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
