@@ -60,9 +60,15 @@ class _DeliveryLocationMapPickerState
   void _syncPointFromState(LocationState state) {
     final point = _pointFromState(state);
     if (point == null) return;
-    _pinPoint ??= point;
-    _gpsPoint ??= point;
-    _maybeFlyToNewGps(state);
+
+    final shouldUpdatePin = _pinPoint == null || _pinPoint != point;
+    final shouldUpdateGps = _gpsPoint == null || _gpsPoint != point;
+
+    if (shouldUpdatePin || shouldUpdateGps) {
+      if (shouldUpdatePin) _pinPoint = point;
+      if (shouldUpdateGps) _gpsPoint = point;
+      _maybeFlyToNewGps(state);
+    }
   }
 
   Future<void> _detectAgain() async {

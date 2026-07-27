@@ -44,6 +44,7 @@ class CustomerDeliveryAddressRepository {
     
     final json = address.toJson();
     print('[ApproxAreaAudit] Serialized JSON approximateArea: "${json['approximateArea']}"');
+    print('[ApproxAreaAudit] Serialized JSON lat/lng: ${json['latitude']}/${json['longitude']}');
     
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(

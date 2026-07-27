@@ -151,6 +151,7 @@ class _OtpVerificationScreenState
           );
           final user = ref.read(currentUserProvider);
           if (user != null) {
+            debugPrint('[AuthUITrace] Register save default address lat=${regState.data.deliveryLatitude} lng=${regState.data.deliveryLongitude}');
             final defaultAddress = CustomerDeliveryAddress.fromUserFields(
               customerId: user.id,
               deliveryProvince: regState.data.province?.name,

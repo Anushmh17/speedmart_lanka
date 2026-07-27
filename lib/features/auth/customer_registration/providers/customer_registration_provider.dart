@@ -81,7 +81,10 @@ class CustomerRegistrationNotifier
   void updateApproxArea(String v) =>
       _updateData(state.data.copyWith(
         approxArea: v,
-        clearDeliveryCoordinates: true,
+        // Preserve detected GPS coordinates when the user edits the approximate area.
+        // This keeps the registered location alive unless the user explicitly
+        // clears the location with another flow.
+        clearDeliveryCoordinates: false,
       ));
   void updatePreciseAddress(String v) =>
       _updateData(state.data.copyWith(
@@ -112,6 +115,7 @@ class CustomerRegistrationNotifier
     double? accuracy,
     DateTime? detectedAt,
   }) {
+    debugPrint('[RegistrationGPS] applyGpsLocation lat=$latitude lng=$longitude area=$approxArea');
     _updateData(state.data.copyWith(
       province: province,
       district: district,

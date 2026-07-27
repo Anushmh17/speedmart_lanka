@@ -141,6 +141,7 @@ class CustomerDeliveryAddressNotifier
     debugPrint('[CustomerLocation] approximateArea: ${saved.approximateArea}');
     debugPrint('[CustomerLocation] streetAddress: ${saved.streetAddress}');
     debugPrint('[CustomerLocation] province: ${saved.province}, district: ${saved.district}');
+    debugPrint('[CustomerLocation] latitude: ${saved.latitude}, longitude: ${saved.longitude}, isGpsDetected: ${saved.isGpsDetected}');
 
     await _repo.save(saved);
 
