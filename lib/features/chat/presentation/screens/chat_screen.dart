@@ -215,7 +215,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               left: 12,
               right: 12,
               top: 10,
-              bottom: MediaQuery.of(context).viewInsets.bottom + 12,
+              bottom: 12,
             ),
             decoration: BoxDecoration(
               color: surfaceColor,
@@ -226,38 +226,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: Container(
-                      constraints: const BoxConstraints(minHeight: 48),
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.grey[900] : Colors.grey[100],
-                        borderRadius: BorderRadius.circular(28),
-                        border: Border.all(color: borderColor),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(isDark ? 0.35 : 0.03),
-                            blurRadius: 6,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: TextField(
-                              controller: _controller,
-                              maxLines: null,
-                              style: AppTextStyles.bodyMedium(primaryText),
-                              decoration: InputDecoration(
-                                hintText: 'Discuss availability, prices...',
-                                hintStyle: TextStyle(color: secondaryText, fontSize: 14),
-                                border: InputBorder.none,
-                                isDense: true,
-                                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Material(
+                      color: isDark ? Colors.grey[900] : Colors.grey[100],
+                      elevation: isDark ? 0 : 2,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextField(
+                                controller: _controller,
+                                maxLines: null,
+                                cursorColor: AppColors.customerColor,
+                                style: AppTextStyles.bodyMedium(primaryText),
+                                decoration: InputDecoration(
+                                  hintText: 'Discuss availability, prices...',
+                                  hintStyle: TextStyle(color: secondaryText, fontSize: 14),
+                                  border: InputBorder.none,
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
