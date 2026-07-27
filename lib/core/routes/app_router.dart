@@ -24,6 +24,7 @@ import 'package:speedmart_lanka/features/vendor/proposals/presentation/vendor_re
 import 'package:speedmart_lanka/features/vendor/proposals/presentation/vendor_proposal_form_screen.dart';
 import 'package:speedmart_lanka/features/vendor/proposals/presentation/vendor_proposal_detail_screen.dart';
 import 'package:speedmart_lanka/features/chat/presentation/screens/chat_screen.dart';
+import 'package:speedmart_lanka/features/chat/presentation/screens/chat_list_screen.dart';
 import 'package:speedmart_lanka/features/requests/presentation/screens/request_list_screen.dart';
 import 'package:speedmart_lanka/shared/presentation/screens/profile_screen.dart';
 import 'package:speedmart_lanka/features/customer/delivery_address/presentation/screens/customer_delivery_address_screen.dart';
@@ -322,6 +323,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             autoMessage: autoMessage,
           ));
         },
+      ),
+      GoRoute(
+        path: '/chats',
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => _buildPage(context, state, const ChatListScreen()),
       ),
 
       // ── Vendor ───────────────────────────────────────────────────────────
