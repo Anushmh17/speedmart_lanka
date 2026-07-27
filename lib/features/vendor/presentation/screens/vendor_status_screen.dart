@@ -39,164 +39,149 @@ class VendorStatusScreen extends ConsumerWidget {
       statusColor = AppColors.error;
     }
 
-    return PopScope(
-      canPop: true,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) {
-          debugPrint('[VendorStatus] Android back pressed on inactive vendor');
-          _backToLogin(context, ref);
-        }
-      },
-      child: Scaffold(
-        backgroundColor:
-            isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-        appBar: AppBar(
-          title: const Text('Shop Owner Account'),
-          centerTitle: false,
-        ),
-        body: Center(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Status Icon
-                  Container(
-                    padding: const EdgeInsets.all(24),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(50),
-                    ),
-                    child: Icon(
-                      statusIcon,
-                      size: 64,
-                      color: statusColor,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Status Title
-                  Text(
-                    statusTitle,
-                    style: AppTextStyles.h1(primaryText),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Status Message
-                  Text(
-                    statusMessage,
-                    style: AppTextStyles.bodyMedium(secondaryText),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 32),
-
-                  // Helper Text
-                  if (user.vendorStatus?.isPending ?? false) ...[
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.customerColor.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: AppColors.customerColor.withValues(alpha: 0.2),
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'What happens next?',
-                            style: AppTextStyles.subtitle(primaryText),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            '• Our admin team will review your shop details\n'
-                            '• You\'ll be notified once your account is approved\n'
-                            '• After approval, we\'ll assign your shop location\n'
-                            '• Then you can start accepting customer requests',
-                            style: AppTextStyles.bodySmall(secondaryText),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                  ] else if (user.vendorStatus?.isRejected ?? false) ...[
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.error.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: AppColors.error.withValues(alpha: 0.2),
-                        ),
-                      ),
-                      child: Text(
-                        'If you believe this is an error, please contact our support team at support@speedmart.lk',
-                        style: AppTextStyles.bodySmall(secondaryText),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                  ] else if (user.vendorStatus?.isSuspended ?? false) ...[
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.error.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: AppColors.error.withValues(alpha: 0.2),
-                        ),
-                      ),
-                      child: Text(
-                        'Please contact support@speedmart.lk for more information about your account status.',
-                        style: AppTextStyles.bodySmall(secondaryText),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                  ],
-
-                  // Action Buttons
-                  Column(
-                    children: [
-                      // Contact Support Button
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () => _launchSupport(context),
-                          icon: const Icon(Icons.mail_outline_rounded),
-                          label: const Text('Contact Support'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.customerColor,
-                            minimumSize: const Size(0, 48),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      // Back to Login Button
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () => _backToLogin(context, ref),
-                          icon: const Icon(Icons.logout_rounded),
-                          label: const Text('Back to Login'),
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size(0, 48),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            // Section header
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Shop Owner Account',
+                style: AppTextStyles.h2(primaryText),
               ),
             ),
-          ),
+            const SizedBox(height: 120),
+
+            // Status Icon
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(50),
+              ),
+              child: Icon(
+                statusIcon,
+                size: 64,
+                color: statusColor,
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Status Title
+            Text(
+              statusTitle,
+              style: AppTextStyles.h1(primaryText),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+
+            // Status Message
+            Text(
+              statusMessage,
+              style: AppTextStyles.bodyMedium(secondaryText),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+
+            // Helper Text
+            if (user.vendorStatus?.isPending ?? false) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.customerColor.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.customerColor.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'What happens next?',
+                      style: AppTextStyles.subtitle(primaryText),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '• Our admin team will review your shop details\n'
+                      '• You\'ll be notified once your account is approved\n'
+                      '• After approval, we\'ll assign your shop location\n'
+                      '• Then you can start accepting customer requests',
+                      style: AppTextStyles.bodySmall(secondaryText),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+            ] else if (user.vendorStatus?.isRejected ?? false) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.error.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Text(
+                  'If you believe this is an error, please contact our support team at support@speedmart.lk',
+                  style: AppTextStyles.bodySmall(secondaryText),
+                ),
+              ),
+              const SizedBox(height: 24),
+            ] else if (user.vendorStatus?.isSuspended ?? false) ...[
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: AppColors.error.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Text(
+                  'Please contact support@speedmart.lk for more information about your account status.',
+                  style: AppTextStyles.bodySmall(secondaryText),
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
+
+            // Action Buttons
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => _launchSupport(context),
+                icon: const Icon(Icons.mail_outline_rounded),
+                label: const Text('Contact Support'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.customerColor,
+                  minimumSize: const Size(0, 48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _backToLogin(context, ref),
+                icon: const Icon(Icons.logout_rounded),
+                label: const Text('Back to Login'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(0, 48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

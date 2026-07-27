@@ -2747,19 +2747,23 @@ extension _VendorHomeScreenStateExtension on _VendorHomeScreenState {  Widget _b
           ),
           SizedBox(width: AppSpacing.xs),
           IconButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    'Notifications are fully set up for proposals and orders.',
-                  ),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            },
+            onPressed: VendorStatusGuard.shouldShowStatusScreen(ref.read(currentUserProvider))
+                ? null
+                : () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                          'Notifications are fully set up for proposals and orders.',
+                        ),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
             icon: Icon(
               Icons.notifications_outlined,
-              color: secondaryText,
+              color: VendorStatusGuard.shouldShowStatusScreen(ref.read(currentUserProvider))
+                  ? secondaryText.withValues(alpha: 0.38)
+                  : secondaryText,
             ),
             style: IconButton.styleFrom(
               backgroundColor: isDark
