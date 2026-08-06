@@ -11,8 +11,8 @@ class FirestoreService {
     return instance.collection(path);
   }
 
-  /// Waits until Firebase Auth has an authenticated user, then runs [action].
-  /// Gives up after [timeout] and skips the action silently.
+  /// Runs [action] only if Firebase Auth has an authenticated user.
+  /// If not authenticated, fires and forgets after auth state arrives (non-blocking).
   static Future<void> runAuthenticated(
     Future<void> Function() action, {
     Duration timeout = const Duration(seconds: 10),
@@ -21,14 +21,12 @@ class FirestoreService {
       await action();
       return;
     }
-    try {
-      await FirebaseAuth.instance
-          .authStateChanges()
-          .firstWhere((user) => user != null)
-          .timeout(timeout);
-      await action();
-    } catch (_) {
-      // Timed out or unauthenticated — skip sync silently
-    }
+    // Not authenticated yet — run non-blocking in background
+    FirebaseAuth.instance
+        .authStateChanges()
+        .firstWhere((user) => user != null)
+        .timeout(timeout)
+        .then((_) => action())
+        .catchError((_) {}); // Timed out or unauthenticated — skip silently
   }
 }
