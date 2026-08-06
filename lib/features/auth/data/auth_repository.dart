@@ -10,9 +10,7 @@ import '../../../shared/models/user_model.dart';
 import '../../../shared/models/user_role.dart';
 import '../../../shared/models/vendor_status.dart';
 
-/// Local authentication repository.
-/// Users and sessions are persisted locally until the backend API is ready.
-/// TODO: Replace local auth persistence with backend API later.
+/// Authentication repository — Firebase Auth for credentials, Firestore for user data.
 class AuthRepository {
   AuthRepository._() {
     _initFuture = _initialize();
@@ -27,8 +25,6 @@ class AuthRepository {
   String? _currentUserId;
 
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
-  final Map<String, String> _legacyPasswordStore = {};
-
   final List<UserModel> _sessionUsers = [];
   String? _currentToken;
 
@@ -99,38 +95,6 @@ class AuthRepository {
     }
   }
 
-  Future<void> _migrateLegacyUsersToFirebaseAuth() async {
-    if (_legacyPasswordStore.isEmpty) return;
-
-    for (final entry in _legacyPasswordStore.entries) {
-      final email = entry.key;
-      final password = entry.value;
-
-      // Skip users with empty passwords — nothing to migrate
-      if (password.trim().isEmpty) {
-        debugPrint('[Auth] Skipping legacy migration for $email: empty password');
-        continue;
-      }
-
-      try {
-        await _firebaseAuth.createUserWithEmailAndPassword(
-          email: email,
-          password: password,
-        );
-        await _firebaseAuth.signOut();
-        debugPrint('[Auth] Migrated legacy user to FirebaseAuth: $email');
-      } on FirebaseAuthException catch (e) {
-        if (e.code == 'email-already-in-use') {
-          debugPrint('[Auth] FirebaseAuth already has user: $email');
-          continue;
-        }
-        debugPrint('[Auth] Legacy migration failed for $email: ${e.message ?? e.code}');
-      } catch (e) {
-        debugPrint('[Auth] Legacy migration failed for $email: $e');
-      }
-    }
-  }
-
   Future<void> _syncUsersToFirestore(List<UserModel> users) async {
     for (final user in users) {
       await _syncUserToFirestore(user);
@@ -146,7 +110,6 @@ class AuthRepository {
     _sessionUsers.clear();
 
     try {
-      // Load users from Firestore first, then fall back to local storage.
       final firestoreUsers = await _fetchUsersFromFirestore();
       if (firestoreUsers.isNotEmpty) {
         debugPrint('[Auth] Loaded ${firestoreUsers.length} users from Firestore');
@@ -159,33 +122,19 @@ class AuthRepository {
             _sessionUsers.add(user);
           }
         }
-      }
-
-      // Load fallback users from local storage only for records that are missing in Firestore.
-      final savedJson = await StorageService.getRegisteredUsers();
-      if (savedJson.isNotEmpty) {
-        debugPrint('[Auth] Loaded ${savedJson.length} users from local storage');
-        for (final json in savedJson) {
-          final user = UserModel.fromJson(json);
-          final index = _sessionUsers.indexWhere((u) => u.id == user.id);
-          if (index == -1) {
-            _sessionUsers.add(user);
-          } else {
-            debugPrint('[Auth] Skipping local user ${user.id} because Firestore data is authoritative');
+      } else {
+        // Firestore unavailable (no auth user) — fall back to local storage once
+        final savedJson = await StorageService.getRegisteredUsers();
+        if (savedJson.isNotEmpty) {
+          debugPrint('[Auth] Loaded ${savedJson.length} users from local storage (offline fallback)');
+          for (final json in savedJson) {
+            _sessionUsers.add(UserModel.fromJson(json));
           }
         }
       }
       debugPrint('[Auth] Total users loaded: ${_sessionUsers.length}');
 
-      // Load legacy password store only for migration.
-      try {
-        final savedPasswords = await StorageService.getPasswords();
-        _legacyPasswordStore.addAll(savedPasswords);
-        debugPrint('[Auth] Loaded ${savedPasswords.length} legacy passwords from storage');
-        await _migrateLegacyUsersToFirebaseAuth();
-      } catch (e) {
-        debugPrint('[Auth] Failed to load legacy passwords from storage: $e');
-      }
+
     } catch (e) {
       debugPrint('[Auth] Failed to load users during initialization: $e');
     }
@@ -194,11 +143,8 @@ class AuthRepository {
   }
 
   Future<void> _persistUsers() async {
-    final payload = _sessionUsers.map((u) => u.toJson()).toList();
-    await StorageService.saveRegisteredUsers(payload);
-    debugPrint('[Auth] Users persisted to local storage: ${payload.length} users');
-
     await _syncUsersToFirestore(_sessionUsers);
+    debugPrint('[Auth] Users synced to Firestore: ${_sessionUsers.length} users');
   }
 
   static String _digitsOnly(String value) =>
@@ -466,7 +412,7 @@ class AuthRepository {
 
     await _createFirebaseUser(resolvedEmail, password);
     _sessionUsers.add(newUser);
-    await _persistUsers(); // persists locally + syncs all users to Firestore
+    await _persistUsers();
 
     debugPrint('[VendorLocationAudit] Stored vendor coordinates: lat=$shopLatitude, lng=$shopLongitude');
     debugPrint('[Auth] Vendor registration saved: email=$resolvedEmail, id=${newUser.id}, status=${newUser.vendorStatus}');
@@ -684,16 +630,8 @@ class AuthRepository {
 
   // ── Password Reset ──────────────────────────────────────────────────────
 
-  /// Returns the current stored password for a vendor email (for same-password check).
-  Future<String?> getVendorPassword(String email) async {
-    await ensureInitialized();
-    final normalizedEmail = email.toLowerCase().trim();
-    final user = _sessionUsers.firstWhere(
-      (u) => u.role == UserRole.vendor && u.email.toLowerCase() == normalizedEmail,
-      orElse: () => throw Exception('User not found'),
-    );
-    return _legacyPasswordStore[user.email];
-  }
+  /// Returns null — passwords are now managed entirely by Firebase Auth.
+  Future<String?> getVendorPassword(String email) async => null;
 
   /// Checks if a vendor with [email] exists and returns a mock OTP.
   Future<String> generateResetOtp(String email) async {
@@ -717,25 +655,10 @@ class AuthRepository {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 600));
     final normalizedEmail = email.toLowerCase().trim();
-    final user = _sessionUsers.firstWhere(
-      (u) =>
-          u.role == UserRole.vendor &&
-          u.email.toLowerCase() == normalizedEmail,
-      orElse: () => throw Exception('No vendor account found with this email.'),
+    final exists = _sessionUsers.any(
+      (u) => u.role == UserRole.vendor && u.email.toLowerCase() == normalizedEmail,
     );
-
-    final currentPassword = _legacyPasswordStore[user.email];
-    if (currentPassword != null && currentPassword == newPassword) {
-      throw Exception('New password cannot be the same as your previous password.');
-    }
-
-    if (currentPassword != null) {
-      // Legacy password fallback - update local record until full backend reset flow exists.
-      _legacyPasswordStore[user.email] = newPassword;
-      debugPrint('[Auth] Legacy password reset locally for: $normalizedEmail');
-      return;
-    }
-
+    if (!exists) throw Exception('No vendor account found with this email.');
     try {
       await _firebaseAuth.sendPasswordResetEmail(email: normalizedEmail);
       debugPrint('[Auth] Password reset email sent for: $normalizedEmail');

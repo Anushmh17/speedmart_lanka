@@ -9,8 +9,7 @@ import 'package:speedmart_lanka/core/storage/storage_service.dart';
 import 'package:speedmart_lanka/features/orders/models/order_model.dart';
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
 
-/// Local order repository with persisted data.
-/// TODO: Replace local order persistence with backend API.
+/// Order repository — Firestore-backed.
 class OrderRepository {
   OrderRepository._() {
     _initFuture = _initialize();
@@ -71,28 +70,16 @@ class OrderRepository {
       _orders
         ..clear()
         ..addAll(firestoreOrders.map(OrderModel.fromJson));
-    }
-
-    final saved = await StorageService.getOrders();
-    if (saved.isNotEmpty) {
-      for (final json in saved) {
-        final order = OrderModel.fromJson(json);
-        final index = _orders.indexWhere((o) => o.id == order.id);
-        if (index != -1) {
-          _orders[index] = order;
-        } else {
-          _orders.add(order);
-        }
-      }
+    } else {
+      // Firestore unavailable — fall back to local storage once
+      final saved = await StorageService.getOrders();
+      _orders.addAll(saved.map(OrderModel.fromJson));
     }
 
     _isInitialized = true;
   }
 
   Future<void> _persistOrders() async {
-    await StorageService.saveOrders(
-      _orders.map((o) => o.toJson()).toList(),
-    );
     await _syncOrdersToFirestore(_orders);
   }
 
