@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../../core/services/firestore_service.dart';
 import 'package:speedmart_lanka/core/storage/storage_service.dart';
@@ -30,6 +31,7 @@ class OrderRepository {
       FirestoreService.collection(_ordersCollectionPath);
 
   Future<List<Map<String, dynamic>>> _fetchOrdersFromFirestore() async {
+    if (FirebaseAuth.instance.currentUser == null) return [];
     try {
       final query = await _ordersCollection.get();
       return query.docs.map((doc) {

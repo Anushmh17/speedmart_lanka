@@ -36,6 +36,7 @@ class AuthRepository {
       FirestoreService.collection(_usersCollectionPath);
 
   Future<List<Map<String, dynamic>>> _fetchUsersFromFirestore() async {
+    if (_firebaseAuth.currentUser == null) return [];
     try {
       final query = await _usersCollection.get();
       return query.docs.map((doc) {
@@ -92,9 +93,9 @@ class AuthRepository {
     } catch (e) {
       throw Exception('Login failed: $e');
     } finally {
-      try {
-        await _firebaseAuth.signOut();
-      } catch (_) {}
+      // Do NOT sign out here — signing out triggers authStateChanges(null)
+      // which causes NotificationRepository to reset and the router to
+      // briefly see isAuthenticated=false, kicking the user to login.
     }
   }
 

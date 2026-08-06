@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/services/firestore_service.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../location/models/delivery_location.dart';
@@ -31,6 +32,7 @@ class RequestRepository {
       FirestoreService.collection(_requestsCollectionPath);
 
   Future<List<Map<String, dynamic>>> _fetchRequestsFromFirestore() async {
+    if (FirebaseAuth.instance.currentUser == null) return [];
     try {
       final query = await _requestsCollection.get();
       return query.docs.map((doc) {
