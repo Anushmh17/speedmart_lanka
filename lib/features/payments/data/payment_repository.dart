@@ -1,4 +1,7 @@
 import 'dart:math';
+import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/services/firestore_service.dart';
 import '../../../core/storage/storage_service.dart';
 import '../models/payment.dart';
 
@@ -11,21 +14,71 @@ class PaymentRepository {
 
   static final PaymentRepository instance = PaymentRepository._();
 
+  static const String _paymentsCollectionPath = 'payments';
+
   late final Future<void> _initFuture;
   bool _isInitialized = false;
 
   final List<PaymentModel> _payments = [];
 
+  CollectionReference<Map<String, dynamic>> get _paymentsCollection =>
+      FirestoreService.collection(_paymentsCollectionPath);
+
+  Future<List<Map<String, dynamic>>> _fetchPaymentsFromFirestore() async {
+    try {
+      final query = await _paymentsCollection.get();
+      return query.docs.map((doc) {
+        final data = doc.data();
+        return {
+          ...data,
+          'id': doc.id,
+        };
+      }).toList();
+    } catch (e) {
+      debugPrint('[Payment] Failed to load payments from Firestore: $e');
+      return [];
+    }
+  }
+
+  Future<void> _syncPaymentToFirestore(PaymentModel payment) async {
+    try {
+      await _paymentsCollection.doc(payment.id).set(payment.toJson());
+    } catch (e) {
+      debugPrint('[Payment] Failed to sync payment ${payment.id} to Firestore: $e');
+    }
+  }
+
+  Future<void> _syncPaymentsToFirestore(List<PaymentModel> payments) async {
+    for (final payment in payments) {
+      await _syncPaymentToFirestore(payment);
+    }
+  }
+
   Future<void> ensureInitialized() => _initFuture;
 
   Future<void> _initialize() async {
     if (_isInitialized) return;
-    final saved = await StorageService.getPayments();
-    if (saved.isNotEmpty) {
+
+    final firestorePayments = await _fetchPaymentsFromFirestore();
+    if (firestorePayments.isNotEmpty) {
       _payments
         ..clear()
-        ..addAll(saved.map(PaymentModel.fromJson));
+        ..addAll(firestorePayments.map(PaymentModel.fromJson));
     }
+
+    final saved = await StorageService.getPayments();
+    if (saved.isNotEmpty) {
+      for (final json in saved) {
+        final payment = PaymentModel.fromJson(json);
+        final index = _payments.indexWhere((p) => p.id == payment.id);
+        if (index != -1) {
+          _payments[index] = payment;
+        } else {
+          _payments.add(payment);
+        }
+      }
+    }
+
     _isInitialized = true;
   }
 
@@ -33,6 +86,7 @@ class PaymentRepository {
     await StorageService.savePayments(
       _payments.map((p) => p.toJson()).toList(),
     );
+    await _syncPaymentsToFirestore(_payments);
   }
 
   Future<PaymentModel> createPayment(PaymentModel payment) async {

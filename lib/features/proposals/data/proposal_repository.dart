@@ -1,5 +1,8 @@
 import 'dart:math';
+import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/services/firestore_service.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../auth/data/auth_repository.dart';
 import '../models/proposal.dart';
@@ -13,6 +16,8 @@ class ProposalRepository {
 
   static final ProposalRepository instance = ProposalRepository._();
 
+  static const String _proposalsCollectionPath = 'proposals';
+
   late final Future<void> _initFuture;
   bool _isInitialized = false;
 
@@ -21,16 +26,62 @@ class ProposalRepository {
 
   Future<void> ensureInitialized() => _initFuture;
 
+  CollectionReference<Map<String, dynamic>> get _proposalsCollection =>
+      FirestoreService.collection(_proposalsCollectionPath);
+
+  Future<List<Map<String, dynamic>>> _fetchProposalsFromFirestore() async {
+    try {
+      final query = await _proposalsCollection.get();
+      return query.docs.map((doc) => {
+            ...doc.data(),
+            'id': doc.id,
+          }).toList();
+    } catch (e) {
+      debugPrint('[Proposal] Failed to load proposals from Firestore: $e');
+      return [];
+    }
+  }
+
+  Future<void> _syncProposalToFirestore(Proposal proposal) async {
+    await FirestoreService.runAuthenticated(() async {
+      try {
+        await _proposalsCollection.doc(proposal.id).set(proposal.toJson());
+      } catch (e) {
+        debugPrint('[Proposal] Failed to sync proposal ${proposal.id} to Firestore: $e');
+      }
+    });
+  }
+
+  Future<void> _syncProposalsToFirestore(List<Proposal> proposals) async {
+    for (final proposal in proposals) {
+      await _syncProposalToFirestore(proposal);
+    }
+  }
+
   Future<void> _initialize() async {
     if (_isInitialized) return;
+
+    final firestoreProposals = await _fetchProposalsFromFirestore();
+    if (firestoreProposals.isNotEmpty) {
+      final proposals = firestoreProposals.map(Proposal.fromJson).toList();
+      final patched = await _patchVendorCoords(proposals);
+      _proposals
+        ..clear()
+        ..addAll(patched);
+    }
 
     final saved = await StorageService.getVendorProposals();
     if (saved.isNotEmpty) {
       final proposals = saved.map(Proposal.fromJson).toList();
       final patched = await _patchVendorCoords(proposals);
-      _proposals
-        ..clear()
-        ..addAll(patched);
+      for (final proposal in patched) {
+        final index = _proposals.indexWhere((p) => p.id == proposal.id);
+        if (index != -1) {
+          _proposals[index] = proposal;
+        } else {
+          _proposals.add(proposal);
+        }
+      }
     }
 
     final savedIds = await StorageService.getSavedProposals();
@@ -69,6 +120,7 @@ class ProposalRepository {
     await StorageService.saveVendorProposals(
       _proposals.map((p) => p.toJson()).toList(),
     );
+    await _syncProposalsToFirestore(_proposals);
   }
 
   Future<List<Proposal>> getProposalsForRequest(String requestId) async {

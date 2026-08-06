@@ -5,6 +5,7 @@ import 'package:speedmart_lanka/features/location/models/sri_lanka_province.dart
 import '../models/customer_registration_data.dart';
 import '../models/registration_step.dart';
 import '../services/otp_service.dart';
+import '../services/notify_lk_service.dart';
 
 // ── State ──────────────────────────────────────────────────────────────────
 
@@ -232,9 +233,24 @@ class CustomerRegistrationNotifier
   }
 }
 
-final otpServiceProvider = Provider<OtpService>(
-  (_) => LocalOtpService(validCode: '123456'),
-);
+/// Notify.lk credentials — replace with your real values from app.notify.lk
+const _notifyLkUserId = '<your_user_id>';      // e.g. '12345'
+const _notifyLkApiKey = '<your_api_key>';      // e.g. 'aBcDeFgHiJkL'
+const _notifyLkSenderId = '<your_sender_id>'; // e.g. 'SPEDMART'
+
+/// Returns [NotifyLkOtpService] when credentials are configured,
+/// otherwise falls back to [LocalOtpService] for development.
+final otpServiceProvider = Provider<OtpService>((_) {
+  const isConfigured = _notifyLkUserId != '<your_user_id>';
+  if (isConfigured) {
+    return NotifyLkOtpService(
+      userId: _notifyLkUserId,
+      apiKey: _notifyLkApiKey,
+      senderId: _notifyLkSenderId,
+    );
+  }
+  return LocalOtpService(validCode: '123456');
+});
 
 final customerRegistrationProvider = StateNotifierProvider<
     CustomerRegistrationNotifier, CustomerRegistrationState>(

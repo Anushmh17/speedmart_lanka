@@ -19,11 +19,11 @@ import 'core/theme/app_colors.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Firebase must be initialized before any Firestore access
+  await FcmService.initialize();
+
   await Future.wait([
-    // Initialize Firebase + FCM
-    FcmService.initialize(),
     LocalNotificationService.initialize(),
-    
     RequestRepository.instance.ensureInitialized(),
     ProposalRepository.instance.ensureInitialized(),
     OrderRepository.instance.ensureInitialized(),

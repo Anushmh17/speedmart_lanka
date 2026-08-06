@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/storage/storage_service.dart';
+import '../../../features/notifications/data/notification_repository.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/models/user_role.dart';
 import '../data/auth_repository.dart';
@@ -67,6 +68,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       debugPrint('[CategoryAudit] cleanedUser.requestedCategories: ${cleanedUser.requestedCategories}');
       debugPrint('[CategoryAudit] ===== SESSION RESTORED WITH CLEAN CATEGORIES =====');
       
+      NotificationRepository.instance.resetForNewSession();
       state = AuthState.authenticated(cleanedUser);
       return;
     }
@@ -75,6 +77,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
     if (user != null) {
       final cleanedUser = await _cleanUserCategoriesOnLogin(user);
       await StorageService.saveUser(cleanedUser.toJson());
+      NotificationRepository.instance.resetForNewSession();
       state = AuthState.authenticated(cleanedUser);
     } else {
       await StorageService.clearSession();
@@ -128,6 +131,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await StorageService.saveToken(result.token);
       await StorageService.saveUser(cleanedUser.toJson());
       await StorageService.saveRole(cleanedUser.role.name);
+      NotificationRepository.instance.resetForNewSession();
       state = AuthState.authenticated(cleanedUser);
     } catch (e) {
       state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
@@ -159,6 +163,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await StorageService.saveToken(result.token);
       await StorageService.saveUser(result.user.toJson());
       await StorageService.saveRole(result.user.role.name);
+      NotificationRepository.instance.resetForNewSession();
       state = AuthState.authenticated(result.user);
     } catch (e) {
       state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));

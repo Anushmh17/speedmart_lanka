@@ -1,5 +1,9 @@
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
+import '../../../core/services/firestore_service.dart';
 import 'package:speedmart_lanka/core/storage/storage_service.dart';
 import 'package:speedmart_lanka/features/orders/models/order_model.dart';
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
@@ -13,6 +17,8 @@ class OrderRepository {
 
   static final OrderRepository instance = OrderRepository._();
 
+  static const String _ordersCollectionPath = 'orders';
+
   late final Future<void> _initFuture;
   bool _isInitialized = false;
 
@@ -20,14 +26,62 @@ class OrderRepository {
 
   Future<void> ensureInitialized() => _initFuture;
 
+  CollectionReference<Map<String, dynamic>> get _ordersCollection =>
+      FirestoreService.collection(_ordersCollectionPath);
+
+  Future<List<Map<String, dynamic>>> _fetchOrdersFromFirestore() async {
+    try {
+      final query = await _ordersCollection.get();
+      return query.docs.map((doc) {
+        final data = doc.data();
+        return {
+          ...data,
+          'id': doc.id,
+        };
+      }).toList();
+    } catch (e) {
+      debugPrint('[Order] Failed to load orders from Firestore: $e');
+      return [];
+    }
+  }
+
+  Future<void> _syncOrderToFirestore(OrderModel order) async {
+    await FirestoreService.runAuthenticated(() async {
+      try {
+        await _ordersCollection.doc(order.id).set(order.toJson());
+      } catch (e) {
+        debugPrint('[Order] Failed to sync order ${order.id} to Firestore: $e');
+      }
+    });
+  }
+
+  Future<void> _syncOrdersToFirestore(List<OrderModel> orders) async {
+    for (final order in orders) {
+      await _syncOrderToFirestore(order);
+    }
+  }
+
   Future<void> _initialize() async {
     if (_isInitialized) return;
 
-    final saved = await StorageService.getOrders();
-    if (saved.isNotEmpty) {
+    final firestoreOrders = await _fetchOrdersFromFirestore();
+    if (firestoreOrders.isNotEmpty) {
       _orders
         ..clear()
-        ..addAll(saved.map(OrderModel.fromJson));
+        ..addAll(firestoreOrders.map(OrderModel.fromJson));
+    }
+
+    final saved = await StorageService.getOrders();
+    if (saved.isNotEmpty) {
+      for (final json in saved) {
+        final order = OrderModel.fromJson(json);
+        final index = _orders.indexWhere((o) => o.id == order.id);
+        if (index != -1) {
+          _orders[index] = order;
+        } else {
+          _orders.add(order);
+        }
+      }
     }
 
     _isInitialized = true;
@@ -37,6 +91,7 @@ class OrderRepository {
     await StorageService.saveOrders(
       _orders.map((o) => o.toJson()).toList(),
     );
+    await _syncOrdersToFirestore(_orders);
   }
 
   Future<List<OrderModel>> getAllOrders() async {

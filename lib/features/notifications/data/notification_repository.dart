@@ -1,4 +1,8 @@
 import 'dart:math';
+import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../../../core/services/firestore_service.dart';
 import '../../../core/storage/storage_service.dart';
 import '../models/notification_model.dart';
 
@@ -12,21 +16,78 @@ class NotificationRepository {
   static final NotificationRepository instance =
       NotificationRepository._();
 
-  late final Future<void> _initFuture;
+  static const String _notificationsCollectionPath = 'notifications';
+
+  late Future<void> _initFuture;
   bool _isInitialized = false;
 
   final List<NotificationModel> _notifications = [];
 
+  CollectionReference<Map<String, dynamic>> get _notificationsCollection =>
+      FirestoreService.collection(_notificationsCollectionPath);
+
+  Future<List<Map<String, dynamic>>> _fetchNotificationsFromFirestore() async {
+    if (FirebaseAuth.instance.currentUser == null) return [];
+    try {
+      final query = await _notificationsCollection.get();
+      return query.docs.map((doc) {
+        final data = doc.data();
+        return {
+          ...data,
+          'id': doc.id,
+        };
+      }).toList();
+    } catch (e) {
+      debugPrint('[Notification] Failed to load notifications from Firestore: $e');
+      return [];
+    }
+  }
+
+  Future<void> _syncNotificationToFirestore(NotificationModel notification) async {
+    await FirestoreService.runAuthenticated(() async {
+      try {
+        await _notificationsCollection.doc(notification.id).set(notification.toJson());
+      } catch (e) {
+        debugPrint('[Notification] Failed to sync notification ${notification.id} to Firestore: $e');
+      }
+    });
+  }
+
+  Future<void> _syncNotificationsToFirestore(List<NotificationModel> notifications) async {
+    for (final notification in notifications) {
+      await _syncNotificationToFirestore(notification);
+    }
+  }
+
   Future<void> ensureInitialized() => _initFuture;
+
+  void resetForNewSession() {
+    _isInitialized = false;
+    _notifications.clear();
+    _initFuture = _initialize();
+  }
 
   Future<void> _initialize() async {
     if (_isInitialized) return;
 
-    final saved = await StorageService.getNotifications();
-    if (saved.isNotEmpty) {
+    final firestoreNotifications = await _fetchNotificationsFromFirestore();
+    if (firestoreNotifications.isNotEmpty) {
       _notifications
         ..clear()
-        ..addAll(saved.map(NotificationModel.fromJson));
+        ..addAll(firestoreNotifications.map(NotificationModel.fromJson));
+    }
+
+    final saved = await StorageService.getNotifications();
+    if (saved.isNotEmpty) {
+      for (final json in saved) {
+        final notification = NotificationModel.fromJson(json);
+        final index = _notifications.indexWhere((n) => n.id == notification.id);
+        if (index != -1) {
+          _notifications[index] = notification;
+        } else {
+          _notifications.add(notification);
+        }
+      }
     }
 
     _isInitialized = true;
@@ -36,6 +97,7 @@ class NotificationRepository {
     await StorageService.saveNotifications(
       _notifications.map((n) => n.toJson()).toList(),
     );
+    await _syncNotificationsToFirestore(_notifications);
   }
 
   Future<List<NotificationModel>> getNotificationsForUser(String userId) async {
