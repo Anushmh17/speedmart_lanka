@@ -6,8 +6,7 @@ import '../../../core/services/firestore_service.dart';
 import '../../../core/storage/storage_service.dart';
 import '../models/notification_model.dart';
 
-/// Local notification repository with persisted data.
-/// TODO: Replace local notification persistence with backend API / Firebase Cloud Messaging.
+/// Notification repository — Firestore-backed.
 class NotificationRepository {
   NotificationRepository._() {
     _initFuture = _initialize();
@@ -75,28 +74,16 @@ class NotificationRepository {
       _notifications
         ..clear()
         ..addAll(firestoreNotifications.map(NotificationModel.fromJson));
-    }
-
-    final saved = await StorageService.getNotifications();
-    if (saved.isNotEmpty) {
-      for (final json in saved) {
-        final notification = NotificationModel.fromJson(json);
-        final index = _notifications.indexWhere((n) => n.id == notification.id);
-        if (index != -1) {
-          _notifications[index] = notification;
-        } else {
-          _notifications.add(notification);
-        }
-      }
+    } else {
+      // Firestore unavailable — fall back to local storage once
+      final saved = await StorageService.getNotifications();
+      _notifications.addAll(saved.map(NotificationModel.fromJson));
     }
 
     _isInitialized = true;
   }
 
   Future<void> _persistNotifications() async {
-    await StorageService.saveNotifications(
-      _notifications.map((n) => n.toJson()).toList(),
-    );
     await _syncNotificationsToFirestore(_notifications);
   }
 

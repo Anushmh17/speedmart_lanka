@@ -10,8 +10,7 @@ import '../../location/services/location_service.dart';
 import '../models/request_item.dart';
 import '../models/shopping_request.dart';
 
-/// Local shopping request repository with persisted data.
-/// TODO: Replace local request persistence with backend API.
+/// Shopping request repository — Firestore-backed.
 class RequestRepository {
   RequestRepository._() {
     _initFuture = _initialize();
@@ -72,28 +71,16 @@ class RequestRepository {
       _requests
         ..clear()
         ..addAll(firestoreRequests.map(ShoppingRequest.fromJson));
-    }
-
-    final saved = await StorageService.getShoppingRequests();
-    if (saved.isNotEmpty) {
-      for (final json in saved) {
-        final request = ShoppingRequest.fromJson(json);
-        final index = _requests.indexWhere((r) => r.id == request.id);
-        if (index != -1) {
-          _requests[index] = request;
-        } else {
-          _requests.add(request);
-        }
-      }
+    } else {
+      // Firestore unavailable — fall back to local storage once
+      final saved = await StorageService.getShoppingRequests();
+      _requests.addAll(saved.map(ShoppingRequest.fromJson));
     }
 
     _isInitialized = true;
   }
 
   Future<void> _persistRequests() async {
-    await StorageService.saveShoppingRequests(
-      _requests.map((r) => r.toJson()).toList(),
-    );
     await _syncRequestsToFirestore(_requests);
   }
 

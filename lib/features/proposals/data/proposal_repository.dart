@@ -8,8 +8,7 @@ import '../../../core/storage/storage_service.dart';
 import '../../auth/data/auth_repository.dart';
 import '../models/proposal.dart';
 
-/// Local proposal repository with persisted data.
-/// TODO: Replace local proposal persistence with backend API.
+/// Proposal repository — Firestore-backed.
 class ProposalRepository {
   ProposalRepository._() {
     _initFuture = _initialize();
@@ -66,23 +65,14 @@ class ProposalRepository {
     final firestoreProposals = await _fetchProposalsFromFirestore();
     if (firestoreProposals.isNotEmpty) {
       final proposals = firestoreProposals.map(Proposal.fromJson).toList();
-      final patched = await _patchVendorCoords(proposals);
       _proposals
         ..clear()
-        ..addAll(patched);
-    }
-
-    final saved = await StorageService.getVendorProposals();
-    if (saved.isNotEmpty) {
-      final proposals = saved.map(Proposal.fromJson).toList();
-      final patched = await _patchVendorCoords(proposals);
-      for (final proposal in patched) {
-        final index = _proposals.indexWhere((p) => p.id == proposal.id);
-        if (index != -1) {
-          _proposals[index] = proposal;
-        } else {
-          _proposals.add(proposal);
-        }
+        ..addAll(await _patchVendorCoords(proposals));
+    } else {
+      // Firestore unavailable — fall back to local storage once
+      final saved = await StorageService.getVendorProposals();
+      if (saved.isNotEmpty) {
+        _proposals.addAll(await _patchVendorCoords(saved.map(Proposal.fromJson).toList()));
       }
     }
 
@@ -119,9 +109,6 @@ class ProposalRepository {
   }
 
   Future<void> _persistProposals() async {
-    await StorageService.saveVendorProposals(
-      _proposals.map((p) => p.toJson()).toList(),
-    );
     await _syncProposalsToFirestore(_proposals);
   }
 
