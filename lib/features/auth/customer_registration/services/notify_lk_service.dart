@@ -1,78 +1,223 @@
-// ignore_for_file: avoid_print
+import 'dart:math';
+import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
+import 'otp_service.dart';
 
-/// Placeholder for the Notify.lk SMS gateway integration.
+/// Notify.lk SMS gateway OTP implementation.
 ///
-/// ## TODO — Real Integration
-/// When integrating the live Notify.lk API:
-/// 1. Add your API key to `flutter_secure_storage` (never hardcode it).
-/// 2. Use `dio` to POST to `https://app.notify.lk/api/v1/send`.
-/// 3. Implement rate-limiting and retry logic.
-/// 4. Handle Notify.lk error codes (see their API docs).
-/// 5. Wire this class into [OtpService] as [NotifyLkOtpService].
+/// ## Setup
+/// 1. Register at https://app.notify.lk
+/// 2. Get your User ID and API Key from the dashboard
+/// 3. Register a Sender ID (e.g. SPEDMART) — or use the default
+/// 4. Replace the placeholder values below with your real credentials
 ///
-/// ## API Reference
-/// - Documentation: https://notify.lk/api
-/// - Required fields: `user_id`, `api_key`, `sender_id`, `to`, `message`
-///
-/// ## Sender ID
-/// Register a sender ID (e.g. "SPEDMART") with Notify.lk to use instead
-/// of the default numeric sender. This improves delivery trust.
-class NotifyLkService {
-  // TODO: inject via constructor once DI is wired up
-  // final String _apiKey;
-  // final String _userId;
-  // final String _senderId;
+/// ## Notes
+/// - OTP is generated locally and stored in-memory with a 5-minute expiry
+/// - Email channel falls back to [LocalOtpService] behaviour (mock) since
+///   Notify.lk is SMS-only. Wire up an email provider separately if needed.
+class NotifyLkOtpService implements OtpService {
+  NotifyLkOtpService({
+    required this.userId,
+    required this.apiKey,
+    required this.senderId,
+    this.otpValidDuration = const Duration(minutes: 5),
+    this.maxVerifyAttempts = 5,
+    this.maxSendsPerDestination = 5,
+    this.baseBlockDuration = const Duration(minutes: 10),
+  });
 
-  /// Sends an OTP SMS to [phoneNumber] via Notify.lk.
-  ///
-  /// [phoneNumber] must be in international format without '+': `94XXXXXXXXX`
-  /// [otp]         is the 6-digit code to embed in the message template.
-  ///
-  /// Throws [UnimplementedError] until the real integration is in place.
-  Future<void> sendSms({
-    required String phoneNumber,
-    required String otp,
-  }) async {
-    throw UnimplementedError(
-      'NotifyLkService.sendSms() is not yet implemented.\n'
-      'Use LocalOtpService during development.\n'
-      'See notify_lk_service.dart for integration instructions.',
-    );
+  final String userId;
+  final String apiKey;
+  final String senderId;
+  final Duration otpValidDuration;
+  final int maxVerifyAttempts;
+  final int maxSendsPerDestination;
+  final Duration baseBlockDuration;
 
-    // ── Future implementation skeleton ──────────────────────────────────
-    // final response = await _dio.post(
-    //   'https://app.notify.lk/api/v1/send',
-    //   data: {
-    //     'user_id': _userId,
-    //     'api_key': _apiKey,
-    //     'sender_id': _senderId,
-    //     'to': phoneNumber,
-    //     'message': 'Your Speedmart Lanka OTP is $otp. Valid for 5 minutes.',
-    //   },
-    // );
-    // if (response.data['status'] != 'success') {
-    //   throw Exception('Notify.lk error: ${response.data['message']}');
-    // }
+  static const _apiUrl = 'https://app.notify.lk/api/v1/send';
+
+  final _dio = Dio(BaseOptions(connectTimeout: const Duration(seconds: 10)));
+
+  // In-memory OTP store: destination → {code, expiresAt}
+  final Map<String, _OtpEntry> _otpStore = {};
+
+  // Rate limiting
+  final Map<String, int> _sendCounts = {};
+  final Map<String, DateTime> _blockUntil = {};
+  final Map<String, int> _blockCount = {};
+  final Map<String, int> _verifyAttempts = {};
+
+  bool _isBlocked(String destination) {
+    final until = _blockUntil[destination];
+    if (until == null) return false;
+    if (DateTime.now().isBefore(until)) return true;
+    _blockUntil.remove(destination);
+    return false;
   }
 
-  /// Verifies an OTP code for [phoneNumber].
-  ///
-  /// NOTE: Notify.lk does not provide a server-side verification endpoint.
-  /// Verification must be handled by your own backend (compare against
-  /// stored OTP with expiry check).
-  ///
-  /// This method is a placeholder to document that pattern.
-  Future<bool> verifyOtp({
-    required String phoneNumber,
-    required String userCode,
-    required String sentCode,
-    required DateTime sentAt,
-    Duration validFor = const Duration(minutes: 5),
+  Duration _remainingBlock(String destination) {
+    final until = _blockUntil[destination];
+    if (until == null) return Duration.zero;
+    final r = until.difference(DateTime.now());
+    return r.isNegative ? Duration.zero : r;
+  }
+
+  void _block(String destination) {
+    final count = (_blockCount[destination] ?? 0) + 1;
+    _blockCount[destination] = count;
+    _blockUntil[destination] =
+        DateTime.now().add(baseBlockDuration * count);
+    _sendCounts.remove(destination);
+    _verifyAttempts.remove(destination);
+    _otpStore.remove(destination);
+  }
+
+  String _generateOtp() =>
+      (100000 + Random.secure().nextInt(900000)).toString();
+
+  String _normalizePhone(String phone) {
+    final digits = phone.replaceAll(RegExp(r'[^\d]'), '');
+    // Convert local 07XXXXXXXX → 947XXXXXXXX
+    if (digits.startsWith('0') && digits.length == 10) {
+      return '94${digits.substring(1)}';
+    }
+    // Already international without +
+    if (digits.startsWith('94') && digits.length == 11) return digits;
+    return digits;
+  }
+
+  @override
+  Future<OtpSendResult> sendOtp({
+    required OtpChannel channel,
+    required String destination,
   }) async {
-    throw UnimplementedError(
-      'NotifyLkService.verifyOtp() requires a backend OTP store.\n'
-      'Implement server-side OTP storage + expiry check.',
+    if (_isBlocked(destination)) {
+      final mins = _remainingBlock(destination).inMinutes + 1;
+      return OtpSendResult.failure(
+        'Too many OTP requests. Please try again in $mins minute${mins == 1 ? '' : 's'}.',
+      );
+    }
+
+    final sends = (_sendCounts[destination] ?? 0);
+    if (sends >= maxSendsPerDestination) {
+      _block(destination);
+      final mins = _remainingBlock(destination).inMinutes + 1;
+      return OtpSendResult.failure(
+        'Too many OTP requests. Please try again in $mins minute${mins == 1 ? '' : 's'}.',
+      );
+    }
+
+    final otp = _generateOtp();
+    _otpStore[destination] = _OtpEntry(
+      code: otp,
+      expiresAt: DateTime.now().add(otpValidDuration),
     );
+    _sendCounts[destination] = sends + 1;
+
+    if (channel == OtpChannel.phone) {
+      try {
+        final phone = _normalizePhone(destination);
+        final message =
+            'Your Speedmart Lanka OTP is $otp. Valid for ${otpValidDuration.inMinutes} minutes. Do not share this code.';
+
+        final response = await _dio.post(
+          _apiUrl,
+          data: {
+            'user_id': userId,
+            'api_key': apiKey,
+            'sender_id': senderId,
+            'to': phone,
+            'message': message,
+          },
+          options: Options(contentType: Headers.formUrlEncodedContentType),
+        );
+
+        debugPrint('[NotifyLk] Response: ${response.data}');
+
+        final status = response.data is Map
+            ? response.data['status']
+            : null;
+
+        if (status == 'success') {
+          return OtpSendResult.success(maskedContact: _maskPhone(destination));
+        } else {
+          final msg = response.data is Map
+              ? response.data['message'] ?? 'SMS delivery failed.'
+              : 'SMS delivery failed.';
+          _otpStore.remove(destination);
+          return OtpSendResult.failure(msg.toString());
+        }
+      } on DioException catch (e) {
+        _otpStore.remove(destination);
+        debugPrint('[NotifyLk] DioException: $e');
+        return OtpSendResult.failure(
+          'Failed to send OTP. Please check your connection and try again.',
+        );
+      } catch (e) {
+        _otpStore.remove(destination);
+        debugPrint('[NotifyLk] Error: $e');
+        return OtpSendResult.failure('Failed to send OTP. Please try again.');
+      }
+    } else {
+      // Email channel — OTP is stored, caller must deliver via email provider
+      debugPrint('[NotifyLk] Email OTP generated for $destination (not sent — wire up email provider)');
+      return OtpSendResult.success(maskedContact: _maskEmail(destination));
+    }
+  }
+
+  @override
+  Future<bool> verifyOtp({
+    required OtpChannel channel,
+    required String destination,
+    required String code,
+  }) async {
+    if (_isBlocked(destination)) return false;
+
+    final attempts = (_verifyAttempts[destination] ?? 0);
+    if (attempts >= maxVerifyAttempts) {
+      _block(destination);
+      return false;
+    }
+
+    final entry = _otpStore[destination];
+    if (entry == null) return false;
+
+    if (DateTime.now().isAfter(entry.expiresAt)) {
+      _otpStore.remove(destination);
+      return false;
+    }
+
+    if (code.trim() == entry.code) {
+      _otpStore.remove(destination);
+      _sendCounts.remove(destination);
+      _verifyAttempts.remove(destination);
+      return true;
+    }
+
+    final newAttempts = attempts + 1;
+    _verifyAttempts[destination] = newAttempts;
+    if (newAttempts >= maxVerifyAttempts) _block(destination);
+    return false;
+  }
+
+  String _maskPhone(String phone) {
+    final clean = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    if (clean.length < 4) return phone;
+    return '**** **** ${clean.substring(clean.length - 4)}';
+  }
+
+  String _maskEmail(String email) {
+    final parts = email.split('@');
+    if (parts.length != 2) return email;
+    final name = parts[0];
+    final masked =
+        name.length > 3 ? '${name.substring(0, 3)}***' : '${name[0]}***';
+    return '$masked@${parts[1]}';
   }
 }
 
+class _OtpEntry {
+  const _OtpEntry({required this.code, required this.expiresAt});
+  final String code;
+  final DateTime expiresAt;
+}

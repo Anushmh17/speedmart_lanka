@@ -1,6 +1,8 @@
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../core/services/firestore_service.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../location/models/delivery_location.dart';
 import '../../location/services/location_service.dart';
@@ -16,6 +18,8 @@ class RequestRepository {
 
   static final RequestRepository instance = RequestRepository._();
 
+  static const String _requestsCollectionPath = 'requests';
+
   late final Future<void> _initFuture;
   bool _isInitialized = false;
 
@@ -23,14 +27,62 @@ class RequestRepository {
 
   Future<void> ensureInitialized() => _initFuture;
 
+  CollectionReference<Map<String, dynamic>> get _requestsCollection =>
+      FirestoreService.collection(_requestsCollectionPath);
+
+  Future<List<Map<String, dynamic>>> _fetchRequestsFromFirestore() async {
+    try {
+      final query = await _requestsCollection.get();
+      return query.docs.map((doc) {
+        final data = doc.data();
+        return {
+          ...data,
+          'id': doc.id,
+        };
+      }).toList();
+    } catch (e) {
+      debugPrint('[Request] Failed to load requests from Firestore: $e');
+      return [];
+    }
+  }
+
+  Future<void> _syncRequestToFirestore(ShoppingRequest request) async {
+    await FirestoreService.runAuthenticated(() async {
+      try {
+        await _requestsCollection.doc(request.id).set(request.toJson());
+      } catch (e) {
+        debugPrint('[Request] Failed to sync request ${request.id} to Firestore: $e');
+      }
+    });
+  }
+
+  Future<void> _syncRequestsToFirestore(List<ShoppingRequest> requests) async {
+    for (final request in requests) {
+      await _syncRequestToFirestore(request);
+    }
+  }
+
   Future<void> _initialize() async {
     if (_isInitialized) return;
 
-    final saved = await StorageService.getShoppingRequests();
-    if (saved.isNotEmpty) {
+    final firestoreRequests = await _fetchRequestsFromFirestore();
+    if (firestoreRequests.isNotEmpty) {
       _requests
         ..clear()
-        ..addAll(saved.map(ShoppingRequest.fromJson));
+        ..addAll(firestoreRequests.map(ShoppingRequest.fromJson));
+    }
+
+    final saved = await StorageService.getShoppingRequests();
+    if (saved.isNotEmpty) {
+      for (final json in saved) {
+        final request = ShoppingRequest.fromJson(json);
+        final index = _requests.indexWhere((r) => r.id == request.id);
+        if (index != -1) {
+          _requests[index] = request;
+        } else {
+          _requests.add(request);
+        }
+      }
     }
 
     _isInitialized = true;
@@ -40,6 +92,7 @@ class RequestRepository {
     await StorageService.saveShoppingRequests(
       _requests.map((r) => r.toJson()).toList(),
     );
+    await _syncRequestsToFirestore(_requests);
   }
 
   Future<List<ShoppingRequest>> getCustomerRequests(String customerId) async {
