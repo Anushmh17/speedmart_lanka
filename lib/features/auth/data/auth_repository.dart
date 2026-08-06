@@ -466,14 +466,12 @@ class AuthRepository {
 
     await _createFirebaseUser(resolvedEmail, password);
     _sessionUsers.add(newUser);
-    await _persistUsers();
+    await _persistUsers(); // persists locally + syncs all users to Firestore
 
     debugPrint('[VendorLocationAudit] Stored vendor coordinates: lat=$shopLatitude, lng=$shopLongitude');
     debugPrint('[Auth] Vendor registration saved: email=$resolvedEmail, id=${newUser.id}, status=${newUser.vendorStatus}');
     debugPrint('[Auth] Shop details submitted: address=${shopAddress}, lat=$shopLatitude, lng=$shopLongitude');
     debugPrint('[Auth] Total users in memory: ${_sessionUsers.length}');
-
-    await _syncUserToFirestore(newUser);
 
     _currentToken =
         'auth_token_${newUser.id}_${DateTime.now().millisecondsSinceEpoch}';
