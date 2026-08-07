@@ -115,10 +115,17 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     _FigmaAuthPage.vendorNewPassword,
   ];
 
+  static Future<void> _hideNavBar() async {
+    try {
+      await const MethodChannel('com.speedmart.lk/system_ui').invokeMethod('hideNavBar');
+    } catch (_) {}
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _hideNavBar());
     _animCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 340),
@@ -150,6 +157,11 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     _newPasswordCtrl.dispose();
     _confirmNewPasswordCtrl.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _hideNavBar();
   }
 
   @override
