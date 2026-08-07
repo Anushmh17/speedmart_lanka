@@ -215,7 +215,6 @@ class UserModel {
       'is_verified': isVerified,
       'created_at': createdAt.toIso8601String(),
       'profile_image_url': profileImageUrl,
-      'verified_phone': verifiedPhone,
       'nic': nic,
     };
 
@@ -251,7 +250,6 @@ class UserModel {
         'shop_address': shopAddress,
         'shop_province': shopProvince,
         'shop_district': shopDistrict,
-        'shop_area': shopArea,
         'shop_latitude': shopLatitude,
         'shop_longitude': shopLongitude,
         'shop_location_accuracy_meters': shopLocationAccuracyMeters,

@@ -1,8 +1,10 @@
 import 'dart:convert';
 
+import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:speedmart_lanka/firebase_options.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:speedmart_lanka/core/routes/app_router.dart';
@@ -18,6 +20,9 @@ class FcmService {
   static Future<void> initialize() async {
     try {
       await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+      await FirebaseAppCheck.instance.activate(
+        androidProvider: kDebugMode ? AndroidProvider.debug : AndroidProvider.playIntegrity,
+      );
     } catch (_) {}
 
     // Request permission on iOS
