@@ -475,6 +475,8 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
             role: UserRole.customer,
             nic: regState.data.nic,
             verifiedPhone: true,
+            detectedCountry: 'LK',
+            detectionSource: 'app_default',
             deliveryProvince: _selectedProvince?.name ?? regState.data.province?.name,
             deliveryDistrict: _selectedDistrict?.name ?? regState.data.district?.name,
             deliveryApproxArea: regState.data.approxArea,
