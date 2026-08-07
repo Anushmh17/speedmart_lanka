@@ -578,7 +578,9 @@ class _SrilankavendorregistrationWidgetState
       );
     }
 
-    return MediaQuery(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: MediaQuery(
       data: media.copyWith(textScaler: TextScaler.noScaling),
       child: Theme(
         data: Theme.of(context).copyWith(
@@ -1020,6 +1022,7 @@ class _SrilankavendorregistrationWidgetState
           ),
         ),
       ),
+    ),
     );
   }
 }

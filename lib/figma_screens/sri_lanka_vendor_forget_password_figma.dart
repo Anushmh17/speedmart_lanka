@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class SrilankavendorforgetpasswordWidget extends StatefulWidget {
   final VoidCallback? onBack;
@@ -73,7 +74,9 @@ class _SrilankavendorforgetpasswordWidgetState
     double y(double value) => value * sy;
     double fs(double value) => value * fontScale;
 
-    return MediaQuery(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: MediaQuery(
       data: media.copyWith(textScaler: TextScaler.noScaling),
       child: Theme(
         data: Theme.of(context).copyWith(
@@ -583,6 +586,7 @@ class _SrilankavendorforgetpasswordWidgetState
           ),
         ),
       ),
+    ),
     );
   }
 }
