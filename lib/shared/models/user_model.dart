@@ -208,9 +208,10 @@ class UserModel {
     );
   }
 
-  /// Convert to JSON (for local storage)
+  /// Convert to JSON (for local storage / Firestore).
+  /// Only includes fields relevant to the user's role.
   Map<String, dynamic> toJson() {
-    return {
+    final base = <String, dynamic>{
       'id': id,
       'full_name': fullName,
       'email': email,
@@ -220,13 +221,6 @@ class UserModel {
       'is_verified': isVerified,
       'created_at': createdAt.toIso8601String(),
       'profile_image_url': profileImageUrl,
-      'business_name': businessName,
-      'vendor_status': vendorStatus?.name,
-      'vendor_approved': vendorApproved,
-      'vendor_categories': vendorCategories,
-      'allowed_categories': allowedCategories,
-      'requested_categories': requestedCategories,
-      'has_pending_category_request': hasPendingCategoryRequest,
       'detected_country': detectedCountry,
       'selected_country': selectedCountry,
       'country_override': countryOverride,
@@ -235,35 +229,54 @@ class UserModel {
       'verified_phone': verifiedPhone,
       'verified_email': verifiedEmail,
       'nic': nic,
-      'delivery_country': deliveryCountry,
-      'delivery_province': deliveryProvince,
-      'delivery_district': deliveryDistrict,
-      'delivery_approx_area': deliveryApproxArea,
-      'delivery_precise_address': deliveryPreciseAddress,
-      'delivery_note': deliveryNote,
-      'delivery_latitude': deliveryLatitude,
-      'delivery_longitude': deliveryLongitude,
-      'shop_name': shopName,
-      'shop_address': shopAddress,
-      'shop_province': shopProvince,
-      'shop_district': shopDistrict,
-      'shop_area': shopArea,
-      'shop_latitude': shopLatitude,
-      'shop_longitude': shopLongitude,
-      'shop_location_accuracy_meters': shopLocationAccuracyMeters,
-      'shop_location_detected_at': shopLocationDetectedAt?.toIso8601String(),
-      'shop_location_source': shopLocationSource,
-      'assigned_radius_km': assignedRadiusKm,
-      'is_shop_location_assigned': isShopLocationAssigned,
-      'business_registration_number': businessRegistrationNumber,
-      'commission_rate': commissionRate,
-      'bank_name': bankName,
-      'bank_branch': bankBranch,
-      'bank_account_name': bankAccountName,
-      'bank_account_number': bankAccountNumber,
-      'accepts_cash_on_delivery': acceptsCashOnDelivery,
-      'accepts_bank_transfer': acceptsBankTransfer,
     };
+
+    if (role == UserRole.customer) {
+      base.addAll({
+        'delivery_country': deliveryCountry,
+        'delivery_province': deliveryProvince,
+        'delivery_district': deliveryDistrict,
+        'delivery_approx_area': deliveryApproxArea,
+        'delivery_precise_address': deliveryPreciseAddress,
+        'delivery_note': deliveryNote,
+        'delivery_latitude': deliveryLatitude,
+        'delivery_longitude': deliveryLongitude,
+      });
+    }
+
+    if (role == UserRole.vendor) {
+      base.addAll({
+        'business_name': businessName,
+        'vendor_status': vendorStatus?.name,
+        'vendor_approved': vendorApproved,
+        'vendor_categories': vendorCategories,
+        'allowed_categories': allowedCategories,
+        'requested_categories': requestedCategories,
+        'has_pending_category_request': hasPendingCategoryRequest,
+        'shop_name': shopName,
+        'shop_address': shopAddress,
+        'shop_province': shopProvince,
+        'shop_district': shopDistrict,
+        'shop_area': shopArea,
+        'shop_latitude': shopLatitude,
+        'shop_longitude': shopLongitude,
+        'shop_location_accuracy_meters': shopLocationAccuracyMeters,
+        'shop_location_detected_at': shopLocationDetectedAt?.toIso8601String(),
+        'shop_location_source': shopLocationSource,
+        'assigned_radius_km': assignedRadiusKm,
+        'is_shop_location_assigned': isShopLocationAssigned,
+        'business_registration_number': businessRegistrationNumber,
+        'commission_rate': commissionRate,
+        'bank_name': bankName,
+        'bank_branch': bankBranch,
+        'bank_account_name': bankAccountName,
+        'bank_account_number': bankAccountNumber,
+        'accepts_cash_on_delivery': acceptsCashOnDelivery,
+        'accepts_bank_transfer': acceptsBankTransfer,
+      });
+    }
+
+    return base;
   }
 
   /// Copy with overrides

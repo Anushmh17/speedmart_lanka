@@ -18,8 +18,6 @@ class AuthRepository {
 
   static final AuthRepository instance = AuthRepository._();
 
-  static const String _usersCollectionPath = 'users';
-
   late final Future<void> _initFuture;
   bool _isInitialized = false;
   String? _currentUserId;
@@ -28,19 +26,28 @@ class AuthRepository {
   final List<UserModel> _sessionUsers = [];
   String? _currentToken;
 
-  CollectionReference<Map<String, dynamic>> get _usersCollection =>
-      FirestoreService.collection(_usersCollectionPath);
+  CollectionReference<Map<String, dynamic>> _collectionForRole(UserRole role) {
+    switch (role) {
+      case UserRole.vendor:
+        return FirestoreService.collection('users/vendors/profiles');
+      case UserRole.admin:
+        return FirestoreService.collection('users/admins/profiles');
+      case UserRole.customer:
+      default:
+        return FirestoreService.collection('users/customers/profiles');
+    }
+  }
 
   Future<List<Map<String, dynamic>>> _fetchUsersFromFirestore() async {
     try {
-      final query = await _usersCollection.get();
-      return query.docs.map((doc) {
-        final data = doc.data();
-        return {
-          ...data,
-          'id': doc.id,
-        };
-      }).toList();
+      final results = await Future.wait([
+        FirestoreService.collection('users/customers/profiles').get(),
+        FirestoreService.collection('users/vendors/profiles').get(),
+        FirestoreService.collection('users/admins/profiles').get(),
+      ]);
+      return results.expand((snapshot) => snapshot.docs.map((doc) {
+        return {...doc.data(), 'id': doc.id};
+      })).toList();
     } catch (e) {
       debugPrint('[Auth] Failed to load users from Firestore: $e');
       return [];
@@ -49,10 +56,9 @@ class AuthRepository {
 
   Future<void> _syncUserToFirestore(UserModel user) async {
     try {
-      final doc = _usersCollection.doc(user.id);
-      final userJson = user.toJson();
-      await doc.set(userJson, SetOptions(merge: true));
-      debugPrint('[Auth] Synced user ${user.id} to Firestore');
+      final doc = _collectionForRole(user.role).doc(user.id);
+      await doc.set(user.toJson(), SetOptions(merge: true));
+      debugPrint('[Auth] Synced user ${user.id} to Firestore (${user.role.name})');
     } catch (e) {
       debugPrint('[Auth] Failed to sync user ${user.id} to Firestore: $e');
       rethrow;
