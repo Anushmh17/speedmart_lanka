@@ -784,6 +784,7 @@ class _SrilankavendorregistrationWidgetState
                               hint: 'Shop Name',
                               controller: _shopNameController,
                               focusNode: _shopNameFocusNode,
+                              textCapitalization: TextCapitalization.words,
                             ),
                             darkField(
                               top: 82,
@@ -793,6 +794,7 @@ class _SrilankavendorregistrationWidgetState
                               hint: 'Business Registration Number (Optional)',
                               controller: _businessRegController,
                               focusNode: _businessRegFocusNode,
+                              textCapitalization: TextCapitalization.characters,
                             ),
                             locationBox(),
                             dropdownField(
