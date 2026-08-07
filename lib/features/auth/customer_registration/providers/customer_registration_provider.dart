@@ -6,6 +6,7 @@ import '../models/customer_registration_data.dart';
 import '../models/registration_step.dart';
 import '../services/otp_service.dart';
 import '../services/notify_lk_service.dart';
+import '../services/brevo_email_service.dart';
 
 // ── State ──────────────────────────────────────────────────────────────────
 
@@ -233,23 +234,44 @@ class CustomerRegistrationNotifier
   }
 }
 
-/// Notify.lk credentials — replace with your real values from app.notify.lk
+// ── Notify.lk credentials (SMS — phone OTP) ──────────────────────────────
+// Replace with your real values from app.notify.lk
 const _notifyLkUserId = '<your_user_id>';      // e.g. '12345'
 const _notifyLkApiKey = '<your_api_key>';      // e.g. 'aBcDeFgHiJkL'
 const _notifyLkSenderId = '<your_sender_id>'; // e.g. 'SPEDMART'
 
-/// Returns [NotifyLkOtpService] when credentials are configured,
-/// otherwise falls back to [LocalOtpService] for development.
+// ── Brevo credentials (email OTP — vendor login/register) ─────────────────
+// 1. Sign up at https://brevo.com (free — 300 emails/day)
+// 2. SMTP & API → API Keys → Generate key
+// 3. Senders & Domains → add + verify your sender email
+const _brevoApiKey = '<your_brevo_api_key>';         // e.g. 'xkeysib-abc123...'
+const _brevoSenderEmail = '<your_verified_email>';   // e.g. 'noreply@speedmart.lk'
+const _brevoSenderName = 'SpeedMart Lanka';
+
+/// Routes OTP by channel:
+/// - [OtpChannel.phone] → [NotifyLkOtpService] (or [LocalOtpService] if not configured)
+/// - [OtpChannel.email] → [BrevoEmailOtpService] (or [LocalOtpService] if not configured)
 final otpServiceProvider = Provider<OtpService>((_) {
-  const isConfigured = _notifyLkUserId != '<your_user_id>';
-  if (isConfigured) {
-    return NotifyLkOtpService(
-      userId: _notifyLkUserId,
-      apiKey: _notifyLkApiKey,
-      senderId: _notifyLkSenderId,
-    );
-  }
-  return LocalOtpService(validCode: '123456');
+  final smsConfigured = _notifyLkUserId != '<your_user_id>';
+  final emailConfigured = _brevoApiKey != '<your_brevo_api_key>';
+
+  final phoneService = smsConfigured
+      ? NotifyLkOtpService(
+          userId: _notifyLkUserId,
+          apiKey: _notifyLkApiKey,
+          senderId: _notifyLkSenderId,
+        )
+      : LocalOtpService(validCode: '123456') as OtpService;
+
+  final emailService = emailConfigured
+      ? BrevoEmailOtpService(
+          apiKey: _brevoApiKey,
+          senderEmail: _brevoSenderEmail,
+          senderName: _brevoSenderName,
+        )
+      : LocalOtpService(validCode: '123456') as OtpService;
+
+  return _RoutedOtpService(phone: phoneService, email: emailService);
 });
 
 final customerRegistrationProvider = StateNotifierProvider<
@@ -258,3 +280,27 @@ final customerRegistrationProvider = StateNotifierProvider<
     ref.watch(otpServiceProvider),
   ),
 );
+
+/// Routes OTP calls to the correct service based on channel.
+class _RoutedOtpService implements OtpService {
+  const _RoutedOtpService({required this.phone, required this.email});
+  final OtpService phone;
+  final OtpService email;
+
+  @override
+  Future<OtpSendResult> sendOtp({
+    required OtpChannel channel,
+    required String destination,
+  }) =>
+      (channel == OtpChannel.email ? email : phone)
+          .sendOtp(channel: channel, destination: destination);
+
+  @override
+  Future<bool> verifyOtp({
+    required OtpChannel channel,
+    required String destination,
+    required String code,
+  }) =>
+      (channel == OtpChannel.email ? email : phone)
+          .verifyOtp(channel: channel, destination: destination, code: code);
+}
