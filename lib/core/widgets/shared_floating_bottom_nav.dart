@@ -38,7 +38,7 @@ class SharedFloatingBottomNav extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 0, 20, safeBottom + 14),
       child: Container(
-        height: 72,
+        height: 76,
         decoration: BoxDecoration(
           color: isDark
               ? AppColors.surfaceElevatedDark
@@ -86,7 +86,7 @@ class SharedFloatingBottomNav extends StatelessWidget {
                       duration: const Duration(milliseconds: 260),
                       curve: Curves.easeInOut,
                       padding: const EdgeInsets.symmetric(
-                          vertical: 7, horizontal: 14),
+                          vertical: 6, horizontal: 8),
                       decoration: BoxDecoration(
                         color: isSelected
                             ? activeColor.withValues(
@@ -116,6 +116,8 @@ class SharedFloatingBottomNav extends StatelessWidget {
                                       : FontWeight.w500,
                                   fontSize: 10,
                                 ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),

@@ -3,7 +3,6 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart' as p;
 
 class StorageUploadService {
   StorageUploadService._();
@@ -37,7 +36,7 @@ class StorageUploadService {
     try {
       final dir = await getTemporaryDirectory();
       final targetPath =
-          p.join(dir.path, '${DateTime.now().millisecondsSinceEpoch}_c.jpg');
+          '${dir.path}/${DateTime.now().millisecondsSinceEpoch}_c.jpg';
       final result = await FlutterImageCompress.compressAndGetFile(
         file.absolute.path,
         targetPath,
