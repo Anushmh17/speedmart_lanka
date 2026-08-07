@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -113,40 +112,40 @@ class _AppLifecycleManager extends StatefulWidget {
 
 class _AppLifecycleManagerState extends State<_AppLifecycleManager>
     with WidgetsBindingObserver {
-  Timer? _hideTimer;
+  static const _channel = MethodChannel('com.speedmart.lk/system_ui');
+  bool _keyboardWasOpen = false;
 
-  static void _hideNavBar() {
-    SystemChrome.setEnabledSystemUIMode(
-      SystemUiMode.manual,
-      overlays: [SystemUiOverlay.top],
-    );
-  }
-
-  void _scheduleHide() {
-    _hideTimer?.cancel();
-    _hideTimer = Timer(const Duration(seconds: 2), _hideNavBar);
+  static Future<void> _hideNavBar() async {
+    try {
+      await _channel.invokeMethod('hideNavBar');
+    } catch (_) {}
   }
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    SystemChrome.setSystemUIChangeCallback((systemOverlaysAreVisible) async {
-      if (systemOverlaysAreVisible) _scheduleHide();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _hideNavBar());
   }
 
   @override
-  void dispose() {
-    _hideTimer?.cancel();
-    SystemChrome.setSystemUIChangeCallback(null);
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
+  void didChangeMetrics() {
+    final bottomInset = WidgetsBinding
+        .instance.platformDispatcher.views.first.viewInsets.bottom;
+    final keyboardOpen = bottomInset > 0;
+    if (_keyboardWasOpen && !keyboardOpen) _hideNavBar();
+    _keyboardWasOpen = keyboardOpen;
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) _hideNavBar();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   @override
