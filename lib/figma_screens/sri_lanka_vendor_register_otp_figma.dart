@@ -80,7 +80,9 @@ class _SrilankavendorregistrationotpWidgetState
     double y(double v) => v * sy;
     double fs(double v) => v * fontScale;
 
-    return MediaQuery(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: MediaQuery(
       data: media.copyWith(textScaler: TextScaler.noScaling),
       child: Theme(
         data: Theme.of(context).copyWith(
@@ -318,6 +320,7 @@ class _SrilankavendorregistrationotpWidgetState
           ),
         ),
       ),
+    ),
     );
   }
 }

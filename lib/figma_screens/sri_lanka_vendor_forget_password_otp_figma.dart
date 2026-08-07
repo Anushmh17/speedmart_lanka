@@ -99,7 +99,9 @@ class _SrilankavendorforgetpasswordotpWidgetState
     double y(double value) => value * sy;
     double fs(double value) => value * fontScale;
 
-    return MediaQuery(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: MediaQuery(
       data: media.copyWith(textScaler: TextScaler.noScaling),
       child: Theme(
         data: Theme.of(context).copyWith(
@@ -642,6 +644,7 @@ class _SrilankavendorforgetpasswordotpWidgetState
           ),
         ),
       ),
+    ),
     );
   }
 }
