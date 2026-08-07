@@ -318,6 +318,37 @@ class StorageService {
     );
   }
 
+  // ── Registration index (offline duplicate check) ──────────────────────────
+  // Stores a lightweight list of {email, phone, nic} for each registered user.
+  // Used when Firestore is unavailable (no internet on fresh install).
+
+  static const _registrationIndexKey = 'registration_index';
+
+  static Future<void> addToRegistrationIndex({
+    required String email,
+    required String phone,
+    required String? nic,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_registrationIndexKey);
+    final list = raw != null
+        ? (jsonDecode(raw) as List).cast<Map<String, dynamic>>()
+        : <Map<String, dynamic>>[];
+    list.add({'email': email, 'phone': phone, 'nic': nic});
+    await prefs.setString(_registrationIndexKey, jsonEncode(list));
+  }
+
+  static Future<List<Map<String, dynamic>>> getRegistrationIndex() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_registrationIndexKey);
+    if (raw == null || raw.isEmpty) return [];
+    try {
+      return (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
+    } catch (_) {
+      return [];
+    }
+  }
+
   // ── Clear session / all ───────────────────────────────────────────────────
 
   /// Clears logged-in session only. Keeps registered users, app preferences, and last role.

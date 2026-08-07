@@ -121,6 +121,10 @@ class _OtpVerificationScreenState
 
     if (!mounted) return;
     if (ok) {
+      // Brief pause so any in-flight GPS callback can write to the provider
+      // before we snapshot the coordinates for registration.
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (!mounted) return;
       final regState = ref.read(customerRegistrationProvider);
       try {
         if (regState.isLogin) {
@@ -128,6 +132,7 @@ class _OtpVerificationScreenState
             contact: regState.data.primaryContact,
           );
         } else {
+          debugPrint('[OTP] Registering with lat=${regState.data.deliveryLatitude} lng=${regState.data.deliveryLongitude}');
           await authNotifier.register(
             fullName: regState.data.fullName,
             email: regState.data.email,

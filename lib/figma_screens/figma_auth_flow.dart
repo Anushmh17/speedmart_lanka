@@ -466,6 +466,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     }
     final regState = ref.read(customerRegistrationProvider);
     try {
+      debugPrint('[FigmaAuth] Registering with lat=${regState.data.deliveryLatitude} lng=${regState.data.deliveryLongitude}');
       await ref.read(authProvider.notifier).register(
             fullName: regState.data.fullName,
             email: regState.data.email,
@@ -483,6 +484,8 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
             deliveryApproxArea: regState.data.approxArea,
             deliveryPreciseAddress: regState.data.preciseAddress,
             deliveryNote: regState.data.deliveryNote,
+            deliveryLatitude: regState.data.deliveryLatitude,
+            deliveryLongitude: regState.data.deliveryLongitude,
           );
       if (!mounted) return;
       // Save default delivery address so customer home can use it immediately
