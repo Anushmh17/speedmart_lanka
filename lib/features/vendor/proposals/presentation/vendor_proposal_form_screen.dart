@@ -21,6 +21,7 @@ import '../../../requests/providers/request_provider.dart';
 import '../../../customer/delivery_address/utils/vendor_delivery_privacy.dart';
 import '../widgets/image_gallery_viewer.dart';
 import '../../../../core/utils/permission_utils.dart';
+import '../../../../core/services/storage_upload_service.dart';
 import '../../../../core/routes/route_names.dart';
 /// Create or edit a vendor proposal (quotation) for a customer request.
 class VendorProposalFormScreen extends ConsumerStatefulWidget {
@@ -724,13 +725,24 @@ class _ItemEditorCard extends StatefulWidget {
 class _ItemEditorCardState extends State<_ItemEditorCard> {
   Future<void> _pickVendorImage() async {
     if (widget.vendorImageUrls.length >= 4) return;
-    if (!await AppPermissionUtils.ensureGalleryPermission(context)) {
-      return;
-    }
+    if (!await AppPermissionUtils.ensureGalleryPermission(context)) return;
     final picker = ImagePicker();
-    final file = await picker.pickImage(source: ImageSource.gallery);
-    if (file != null) {
-      widget.onVendorImagesChanged([...widget.vendorImageUrls, file.path]);
+    final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (file == null) return;
+    try {
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final url = await StorageUploadService.instance.uploadImage(
+        file.path,
+        'proposal_images/$ts.jpg',
+        quality: 75,
+      );
+      widget.onVendorImagesChanged([...widget.vendorImageUrls, url]);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to upload image: $e'), backgroundColor: Colors.red),
+        );
+      }
     }
   }
 
@@ -906,6 +918,11 @@ class _ItemEditorCardState extends State<_ItemEditorCard> {
 
   Widget _imagePreview(String path, Color cardColor) {
     const size = 56.0;
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return Image.network(path, width: size, height: size, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Container(width: size, height: size, color: cardColor,
+              child: const Icon(Icons.image_outlined)));
+    }
     if (!kIsWeb && File(path).existsSync()) {
       return Image.file(File(path), width: size, height: size, fit: BoxFit.cover);
     }

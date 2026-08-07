@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../../../../core/services/storage_upload_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/safe_request_image.dart';
@@ -199,7 +200,28 @@ class ImageUploadGrid extends StatelessWidget {
 
       if (image == null) return;
 
-      final newList = List<String>.from(imageUrls)..add(image.path);
+      // Upload to Firebase Storage immediately
+      String uploadedUrl;
+      try {
+        final ts = DateTime.now().millisecondsSinceEpoch;
+        uploadedUrl = await StorageUploadService.instance.uploadImage(
+          image.path,
+          'request_images/$ts.jpg',
+          quality: 75,
+        );
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to upload image: $e'),
+              backgroundColor: AppColors.error,
+            ),
+          );
+        }
+        return;
+      }
+
+      final newList = List<String>.from(imageUrls)..add(uploadedUrl);
       onImagesChanged(newList);
 
       if (context.mounted) {
