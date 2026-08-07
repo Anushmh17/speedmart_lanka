@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -37,14 +38,15 @@ void main() async {
     ]);
   }
 
-  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  await SystemChrome.setEnabledSystemUIMode(
+    SystemUiMode.manual,
+    overlays: [SystemUiOverlay.top],
+  );
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.dark,
-      systemNavigationBarColor: Colors.transparent,
-      systemNavigationBarDividerColor: Colors.transparent,
     ),
   );
 
@@ -84,18 +86,6 @@ class _SpeedmartAppState extends ConsumerState<SpeedmartApp> {
         themeMode: themeMode,
         routerConfig: router,
         builder: (context, child) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            final isDark = Theme.of(context).brightness == Brightness.dark;
-            SystemChrome.setSystemUIOverlayStyle(
-              SystemUiOverlayStyle(
-                statusBarColor: Colors.transparent,
-                statusBarIconBrightness:
-                    isDark ? Brightness.light : Brightness.dark,
-                systemNavigationBarColor: Colors.transparent,
-              ),
-            );
-          });
-
           if (child == null) return const SizedBox.shrink();
 
           return NetworkFallbackWrapper(
@@ -123,23 +113,40 @@ class _AppLifecycleManager extends StatefulWidget {
 
 class _AppLifecycleManagerState extends State<_AppLifecycleManager>
     with WidgetsBindingObserver {
+  Timer? _hideTimer;
+
+  static void _hideNavBar() {
+    SystemChrome.setEnabledSystemUIMode(
+      SystemUiMode.manual,
+      overlays: [SystemUiOverlay.top],
+    );
+  }
+
+  void _scheduleHide() {
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(seconds: 2), _hideNavBar);
+  }
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    SystemChrome.setSystemUIChangeCallback((systemOverlaysAreVisible) async {
+      if (systemOverlaysAreVisible) _scheduleHide();
+    });
   }
 
   @override
   void dispose() {
+    _hideTimer?.cancel();
+    SystemChrome.setSystemUIChangeCallback(null);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-    }
+    if (state == AppLifecycleState.resumed) _hideNavBar();
   }
 
   @override
