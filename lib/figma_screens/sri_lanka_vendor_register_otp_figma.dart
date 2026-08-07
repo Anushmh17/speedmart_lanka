@@ -36,16 +36,20 @@ class _SrilankavendorregistrationotpWidgetState
   );
 
   String _errorMessage = '';
-  String _successMessage = '';
+  bool _isSubmitting = false;
+  bool _isSuccess = false;
 
   Future<void> _handleVerifyOtp() async {
     final otp = _otpControllers.map((c) => c.text).join();
     if (otp.length < 6) {
-      setState(() { _errorMessage = 'Please enter the 6 digit OTP.'; _successMessage = ''; });
+      setState(() { _errorMessage = 'Please enter the 6 digit OTP.'; });
       return;
     }
-    setState(() { _errorMessage = ''; _successMessage = ''; });
+    if (_isSubmitting || _isSuccess) return;
+    setState(() { _errorMessage = ''; _isSubmitting = true; });
+    FocusScope.of(context).unfocus();
     widget.onVerifyOtp?.call(otp);
+    if (mounted) setState(() { _isSubmitting = false; _isSuccess = true; });
   }
 
   void _handleResend() {
@@ -235,29 +239,44 @@ class _SrilankavendorregistrationotpWidgetState
                           style: TextStyle(color: Colors.red, fontFamily: 'OpenSans',
                               fontSize: fs(13), fontWeight: FontWeight.w600, height: 1)),
                       ),
-                    if (_successMessage.isNotEmpty)
+                    if (_isSuccess)
                       Positioned(
                         top: y(600), left: x(22), right: x(22),
-                        child: Text(_successMessage,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(color: const Color(0xFF4CAF50), fontFamily: 'OpenSans',
-                              fontSize: fs(13), fontWeight: FontWeight.w600, height: 1)),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.check_circle_rounded, color: Color(0xFF4CAF50), size: 20),
+                            SizedBox(width: x(6)),
+                            Text('OTP Verified! Creating your account…',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: const Color(0xFF4CAF50), fontFamily: 'OpenSans',
+                                  fontSize: fs(13), fontWeight: FontWeight.w700, height: 1)),
+                          ],
+                        ),
                       ),
                     Positioned(
                       top: y(624), left: x(22), right: x(22),
                       child: SizedBox(
                         height: y(49),
                         child: ElevatedButton(
-                          onPressed: _successMessage.isNotEmpty ? null : _handleVerifyOtp,
+                          onPressed: (_isSubmitting || _isSuccess) ? null : _handleVerifyOtp,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFF8213),
+                            backgroundColor: _isSuccess ? const Color(0xFF4CAF50) : const Color(0xFFFF8213),
                             foregroundColor: Colors.white,
                             elevation: 0, padding: EdgeInsets.zero,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(x(20))),
                           ),
-                          child: Text('Verify OTP',
-                            style: TextStyle(color: Colors.white, fontFamily: 'OpenSans',
-                                fontSize: fs(18), fontWeight: FontWeight.w700, height: 1)),
+                          child: _isSubmitting
+                              ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+                              : _isSuccess
+                                  ? Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                                      const Icon(Icons.check_rounded, color: Colors.white, size: 22),
+                                      SizedBox(width: x(6)),
+                                      Text('Verified', style: TextStyle(color: Colors.white, fontFamily: 'OpenSans', fontSize: fs(18), fontWeight: FontWeight.w700, height: 1)),
+                                    ])
+                                  : Text('Verify OTP',
+                                      style: TextStyle(color: Colors.white, fontFamily: 'OpenSans',
+                                          fontSize: fs(18), fontWeight: FontWeight.w700, height: 1)),
                         ),
                       ),
                     ),

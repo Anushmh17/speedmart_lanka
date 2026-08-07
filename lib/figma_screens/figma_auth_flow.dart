@@ -612,6 +612,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     try {
       final reg = ref.read(customerRegistrationProvider.notifier);
       reg.setMode(isLogin: false);
+      reg.setLkUser(false);
       reg.updateEmail(email.trim());
 
       await reg.sendOtp();
@@ -667,7 +668,10 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
         shopLocationSource: 'map_pin',
         businessRegistrationNumber: data['businessRegNo']?.isNotEmpty == true ? data['businessRegNo'] : null,
         detectedCountry: 'LK',
+        detectionSource: 'app_default',
         verifiedEmail: true,
+        shopLocationAccuracyMeters: 0,
+        shopLocationDetectedAt: DateTime.now(),
       );
       if (!mounted) return;
       final authState = ref.read(authProvider);
