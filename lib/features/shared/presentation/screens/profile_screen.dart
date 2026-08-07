@@ -22,6 +22,7 @@ import '../../../../core/routes/route_names.dart';
 import '../../../../core/routes/app_router.dart';
 import 'package:speedmart_lanka/shared/providers/category_provider.dart';
 import '../../../../core/storage/storage_service.dart';
+import '../../../../core/services/storage_upload_service.dart';
 import 'package:flutter/services.dart';
 import '../../../../shared/models/sri_lanka_banks.dart';
 import '../../../../shared/utils/category_constants.dart';
@@ -249,11 +250,31 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       return;
     }
 
+    // Upload profile image to Firebase Storage if a new local file was picked
+    String? finalImageUrl = user.profileImageUrl;
+    if (_pickedImagePath != null && !_pickedImagePath!.startsWith('http')) {
+      try {
+        final ext = _pickedImagePath!.split('.').last;
+        finalImageUrl = await StorageUploadService.instance.uploadImage(
+          _pickedImagePath!,
+          'profile_images/${user.id}.$ext',
+          quality: 90,
+        );
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to upload image: $e'), backgroundColor: Colors.red),
+          );
+        }
+        return;
+      }
+    }
+
     await ref.read(authProvider.notifier).updateProfile(
       fullName: _nameCtrl.text.trim(),
       phone: _phoneCtrl.text.trim(),
       businessName: user.role == UserRole.vendor ? _businessNameCtrl.text.trim() : null,
-      profileImageUrl: _pickedImagePath ?? user.profileImageUrl,
+      profileImageUrl: finalImageUrl,
       requestedCategories: user.role == UserRole.vendor ? _requestedCategories : null,
       bankName: user.role == UserRole.vendor ? _bankNameCtrl.text.trim() : null,
       bankBranch: user.role == UserRole.vendor ? _bankBranchCtrl.text.trim() : null,
