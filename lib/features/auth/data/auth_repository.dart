@@ -263,31 +263,33 @@ class AuthRepository {
     final normEmail = email?.trim().toLowerCase();
     final normNic = nic?.trim().toLowerCase();
 
+    // If _sessionUsers is empty (offline / fresh install), fall back to local registration index.
+    final checkList = _sessionUsers.isNotEmpty
+        ? _sessionUsers.map((u) => {'email': u.email, 'phone': u.phone, 'nic': u.nic}).toList()
+        : await StorageService.getRegistrationIndex();
+
     if (normPhone != null && normPhone.isNotEmpty) {
-      final phoneExists = _sessionUsers.any(
-        (u) => _phoneMatches(normPhone, u.phone),
-      );
-      if (phoneExists) {
-        throw Exception('An account with this phone number already exists.');
-      }
+      final exists = checkList.any((e) {
+        final p = e['phone']?.toString() ?? '';
+        return _phoneMatches(normPhone, p);
+      });
+      if (exists) throw Exception('An account with this phone number already exists.');
     }
 
     if (normEmail != null && normEmail.isNotEmpty) {
-      final emailExists = _sessionUsers.any(
-        (u) => u.email.isNotEmpty && u.email.toLowerCase() == normEmail,
-      );
-      if (emailExists) {
-        throw Exception('An account with this email already exists.');
-      }
+      final exists = checkList.any((e) {
+        final em = e['email']?.toString().toLowerCase() ?? '';
+        return em.isNotEmpty && em == normEmail;
+      });
+      if (exists) throw Exception('An account with this email already exists.');
     }
 
     if (normNic != null && normNic.isNotEmpty) {
-      final nicExists = _sessionUsers.any(
-        (u) => u.nic != null && u.nic!.trim().toLowerCase() == normNic,
-      );
-      if (nicExists) {
-        throw Exception('An account with this NIC number already exists.');
-      }
+      final exists = checkList.any((e) {
+        final n = e['nic']?.toString().toLowerCase() ?? '';
+        return n.isNotEmpty && n == normNic;
+      });
+      if (exists) throw Exception('An account with this NIC number already exists.');
     }
   }
 
@@ -362,7 +364,6 @@ class AuthRepository {
     String? businessRegistrationNumber,
   }) async {
     await ensureInitialized();
-    await Future.delayed(const Duration(milliseconds: 1500));
 
     final normalizedEmail = email.trim();
     final normalizedPhone = phone.trim();
@@ -451,6 +452,12 @@ class AuthRepository {
     debugPrint('[Auth] Firebase user created, currentUser=${_firebaseAuth.currentUser?.uid}');
     _sessionUsers.add(newUser);
     await _syncUserToFirestore(newUser);
+    // Persist to local index so duplicate checks work offline on this device.
+    await StorageService.addToRegistrationIndex(
+      email: resolvedEmail,
+      phone: normalizedPhone,
+      nic: nic?.trim(),
+    );
 
     debugPrint('[VendorLocationAudit] Stored vendor coordinates: lat=$shopLatitude, lng=$shopLongitude');
     debugPrint('[Auth] Vendor registration saved: email=$resolvedEmail, id=${newUser.id}, status=${newUser.vendorStatus}');

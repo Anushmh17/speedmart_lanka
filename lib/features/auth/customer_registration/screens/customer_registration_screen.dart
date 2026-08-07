@@ -18,7 +18,7 @@ import 'package:speedmart_lanka/features/location/widgets/district_dropdown.dart
 import '../models/registration_step.dart';
 import '../providers/customer_registration_provider.dart';
 import '../../providers/auth_provider.dart';
-import '../widgets/registration_header.dart';
+import '../../../../core/services/connectivity_service.dart';
 import '../widgets/registration_section_card.dart';
 import '../widgets/nic_input_field.dart';
 import '../widgets/phone_field_lk.dart';
@@ -156,6 +156,23 @@ class _CustomerRegistrationScreenState
 
   Future<void> _submit() async {
     FocusScope.of(context).unfocus();
+
+    final isOnline = await ConnectivityService.instance.isOnline();
+    if (!isOnline) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No internet connection. Please connect to the internet to register.',
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+
     if (!_formKey.currentState!.validate()) return;
 
     final isLk = ref.read(customerRegistrationProvider).isLkUser;
@@ -249,6 +266,7 @@ class _CustomerRegistrationScreenState
     });
 
     final state = ref.watch(customerRegistrationProvider);
+    final isOnline = ref.watch(isOnlineProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isLk = state.isLkUser;
     final isLoading = state.isLoading;
@@ -274,6 +292,33 @@ class _CustomerRegistrationScreenState
                 padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
+                    // ── Offline banner ──────────────────────────────
+                    if (!isOnline) ...[
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.orange.shade300),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.wifi_off_rounded,
+                                color: Colors.orange.shade700, size: 18),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'No internet connection. Registration requires an active connection.',
+                                style: AppTextStyles.bodySmall(
+                                    Colors.orange.shade800),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
                     // ── Error banner ────────────────────────────────
                     if (state.hasError) ...[
                       _ErrorBanner(
