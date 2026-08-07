@@ -147,7 +147,6 @@ class _OtpVerificationScreenState
             verifiedPhone: regState.data.overrideInfo.verifiedPhone,
             verifiedEmail: regState.data.overrideInfo.verifiedEmail,
             nic: regState.data.nic,
-            deliveryCountry: regState.data.country,
             deliveryProvince: regState.data.province?.name,
             deliveryDistrict: regState.data.district?.name,
             deliveryApproxArea: regState.data.approxArea,

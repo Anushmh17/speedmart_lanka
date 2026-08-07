@@ -56,10 +56,8 @@ class UserModel {
   final bool? acceptsCashOnDelivery;
   final bool? acceptsBankTransfer;
 
-  /// Country override and risk fields for anti-abuse audit
+  /// Country detection and risk fields for anti-abuse audit
   final String? detectedCountry;
-  final String? selectedCountry;
-  final bool? countryOverride;
   final String? detectionSource;
   final String? riskFlag;
   final bool? verifiedPhone;
@@ -96,8 +94,6 @@ class UserModel {
     this.requestedCategories,
     this.hasPendingCategoryRequest,
     this.detectedCountry,
-    this.selectedCountry,
-    this.countryOverride,
     this.detectionSource,
     this.riskFlag,
     this.verifiedPhone,
@@ -168,8 +164,6 @@ class UserModel {
           .toList(),
       hasPendingCategoryRequest: json['has_pending_category_request'] as bool? ?? false,
       detectedCountry: json['detected_country'] as String?,
-      selectedCountry: json['selected_country'] as String?,
-      countryOverride: json['country_override'] as bool?,
       detectionSource: json['detection_source'] as String?,
       riskFlag: json['risk_flag'] as String?,
       verifiedPhone: json['verified_phone'] as bool?,
@@ -221,19 +215,15 @@ class UserModel {
       'is_verified': isVerified,
       'created_at': createdAt.toIso8601String(),
       'profile_image_url': profileImageUrl,
-      'detected_country': detectedCountry,
-      'selected_country': selectedCountry,
-      'country_override': countryOverride,
-      'detection_source': detectionSource,
-      'risk_flag': riskFlag,
       'verified_phone': verifiedPhone,
-      'verified_email': verifiedEmail,
       'nic': nic,
     };
 
     if (role == UserRole.customer) {
       base.addAll({
-        'delivery_country': deliveryCountry,
+        'detected_country': detectedCountry,
+        'detection_source': detectionSource,
+        'risk_flag': riskFlag,
         'delivery_province': deliveryProvince,
         'delivery_district': deliveryDistrict,
         'delivery_approx_area': deliveryApproxArea,
@@ -246,6 +236,10 @@ class UserModel {
 
     if (role == UserRole.vendor) {
       base.addAll({
+        'detected_country': detectedCountry,
+        'detection_source': detectionSource,
+        'risk_flag': riskFlag,
+        'verified_email': verifiedEmail,
         'business_name': businessName,
         'vendor_status': vendorStatus?.name,
         'vendor_approved': vendorApproved,
@@ -298,8 +292,6 @@ class UserModel {
     List<String>? requestedCategories,
     bool? hasPendingCategoryRequest,
     String? detectedCountry,
-    String? selectedCountry,
-    bool? countryOverride,
     String? detectionSource,
     String? riskFlag,
     bool? verifiedPhone,
@@ -353,8 +345,6 @@ class UserModel {
       requestedCategories: requestedCategories ?? this.requestedCategories,
       hasPendingCategoryRequest: hasPendingCategoryRequest ?? this.hasPendingCategoryRequest,
       detectedCountry: detectedCountry ?? this.detectedCountry,
-      selectedCountry: selectedCountry ?? this.selectedCountry,
-      countryOverride: countryOverride ?? this.countryOverride,
       detectionSource: detectionSource ?? this.detectionSource,
       riskFlag: riskFlag ?? this.riskFlag,
       verifiedPhone: verifiedPhone ?? this.verifiedPhone,

@@ -474,11 +474,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
             password: '',
             role: UserRole.customer,
             nic: regState.data.nic,
-            detectedCountry: 'LK',
-            selectedCountry: 'LK',
             verifiedPhone: true,
-            verifiedEmail: false,
-            deliveryCountry: 'Sri Lanka',
             deliveryProvince: _selectedProvince?.name ?? regState.data.province?.name,
             deliveryDistrict: _selectedDistrict?.name ?? regState.data.district?.name,
             deliveryApproxArea: regState.data.approxArea,
@@ -669,7 +665,6 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
         shopLocationSource: 'map_pin',
         businessRegistrationNumber: data['businessRegNo']?.isNotEmpty == true ? data['businessRegNo'] : null,
         detectedCountry: 'LK',
-        selectedCountry: 'LK',
         verifiedEmail: true,
       );
       if (!mounted) return;
