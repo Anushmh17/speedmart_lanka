@@ -93,15 +93,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   void _loadStatsData() {
-    final user = ref.read(currentUserProvider);
-    if (user == null) return;
-    if (user.role == UserRole.vendor) {
-      ref.read(orderProvider.notifier).loadVendorOrders();
-      ref.read(vendorRequestFeedProvider.notifier).loadFeed();
-    } else {
-      ref.read(requestProvider.notifier).loadMyRequests();
-      ref.read(orderProvider.notifier).loadCustomerOrders();
-    }
+    Future.microtask(() {
+      if (!mounted) return;
+      final user = ref.read(currentUserProvider);
+      if (user == null) return;
+      if (user.role == UserRole.vendor) {
+        ref.read(orderProvider.notifier).loadVendorOrders();
+        ref.read(vendorRequestFeedProvider.notifier).loadFeed();
+      } else {
+        ref.read(requestProvider.notifier).loadMyRequests();
+        ref.read(orderProvider.notifier).loadCustomerOrders();
+      }
+    });
   }
 
   void _initData() {
@@ -528,10 +531,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
             ),
           ),
-          if (user.selectedCountry != null) ...[  
+          if (user.detectedCountry != null) ...[  
             const SizedBox(height: 4),
             Text(
-              user.selectedCountry == 'LK' ? '🇱🇰 Sri Lanka' : '🌐 International',
+              user.detectedCountry == 'LK' ? '🇱🇰 Sri Lanka' : '🌐 International',
               style: AppTextStyles.caption(
                 isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
               ),
