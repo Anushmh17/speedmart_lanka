@@ -32,7 +32,6 @@ class AuthRepository {
       FirestoreService.collection(_usersCollectionPath);
 
   Future<List<Map<String, dynamic>>> _fetchUsersFromFirestore() async {
-    if (_firebaseAuth.currentUser == null) return [];
     try {
       final query = await _usersCollection.get();
       return query.docs.map((doc) {
@@ -53,16 +52,22 @@ class AuthRepository {
       final doc = _usersCollection.doc(user.id);
       final userJson = user.toJson();
       await doc.set(userJson, SetOptions(merge: true));
+      debugPrint('[Auth] Synced user ${user.id} to Firestore');
     } catch (e) {
       debugPrint('[Auth] Failed to sync user ${user.id} to Firestore: $e');
+      rethrow;
     }
   }
 
   Future<void> _createFirebaseUser(String email, String password) async {
+    // Customers register via OTP with no password — generate a strong one for Firebase Auth.
+    final effectivePassword = password.isNotEmpty
+        ? password
+        : 'OTP_${email.hashCode.abs()}_${DateTime.now().millisecondsSinceEpoch}';
     try {
       await _firebaseAuth.createUserWithEmailAndPassword(
         email: email,
-        password: password,
+        password: effectivePassword,
       );
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
@@ -123,7 +128,7 @@ class AuthRepository {
           }
         }
       } else {
-        // Firestore unavailable (no auth user) — fall back to local storage once
+        // Firestore unavailable (not authenticated yet) — fall back to local storage
         final savedJson = await StorageService.getRegisteredUsers();
         if (savedJson.isNotEmpty) {
           debugPrint('[Auth] Loaded ${savedJson.length} users from local storage (offline fallback)');
@@ -133,13 +138,31 @@ class AuthRepository {
         }
       }
       debugPrint('[Auth] Total users loaded: ${_sessionUsers.length}');
-
-
     } catch (e) {
       debugPrint('[Auth] Failed to load users during initialization: $e');
     }
 
     _isInitialized = true;
+  }
+
+  /// Forces a re-sync from Firestore (e.g. after registration when auth state is now set).
+  Future<void> reloadFromFirestore() async {
+    if (_firebaseAuth.currentUser == null) return;
+    try {
+      final firestoreUsers = await _fetchUsersFromFirestore();
+      for (final json in firestoreUsers) {
+        final user = UserModel.fromJson(json);
+        final index = _sessionUsers.indexWhere((u) => u.id == user.id);
+        if (index >= 0) {
+          _sessionUsers[index] = user;
+        } else {
+          _sessionUsers.add(user);
+        }
+      }
+      debugPrint('[Auth] Reloaded ${firestoreUsers.length} users from Firestore');
+    } catch (e) {
+      debugPrint('[Auth] reloadFromFirestore error: $e');
+    }
   }
 
   Future<void> _persistUsers() async {
@@ -411,8 +434,10 @@ class AuthRepository {
     );
 
     await _createFirebaseUser(resolvedEmail, password);
+    // After createUserWithEmailAndPassword, currentUser is set — Firestore writes are now authenticated.
+    debugPrint('[Auth] Firebase user created, currentUser=${_firebaseAuth.currentUser?.uid}');
     _sessionUsers.add(newUser);
-    await _persistUsers();
+    await _syncUserToFirestore(newUser);
 
     debugPrint('[VendorLocationAudit] Stored vendor coordinates: lat=$shopLatitude, lng=$shopLongitude');
     debugPrint('[Auth] Vendor registration saved: email=$resolvedEmail, id=${newUser.id}, status=${newUser.vendorStatus}');
