@@ -438,41 +438,6 @@ class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
           _buildQuickActionsRow(context, isDark, primaryText, secondaryText),
           const SizedBox(height: AppSpacing.xxxl),
 
-          // ── International Mode Warning ────────────────────────────────
-          if (user?.countryOverride == true) ...[
-            Theme3AppCard(
-              type: Theme3CardType.highlighted,
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.warning_amber_rounded,
-                    color: AppColors.warning,
-                    size: 20,
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'International Mode',
-                          style: AppTextStyles.labelMedium(AppColors.warning),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Phone verification required for some features.',
-                          style: AppTextStyles.caption(secondaryText),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppSpacing.xl)
-          ],
-
           // ── Recent Requests Section ───────────────────────────────────
           _buildRecentRequestsSection(context, ref, requestState, isDark, primaryText, secondaryText),
           const SizedBox(height: 44),

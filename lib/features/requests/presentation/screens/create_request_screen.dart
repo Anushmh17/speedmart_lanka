@@ -27,9 +27,7 @@ import '../widgets/image_upload_grid.dart';
 import '../widgets/shopping_list_builder.dart';
 import '../widgets/sticky_submit_bar.dart';
 import '../widgets/review_request_sheet.dart';
-import 'package:speedmart_lanka/features/requests/presentation/widgets/phone_verification_sheet.dart';
 import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
-import 'package:speedmart_lanka/features/requests/data/sri_lanka_delivery_detector.dart';
 import 'package:speedmart_lanka/features/customer/delivery_address/providers/customer_delivery_address_provider.dart';
 import 'package:speedmart_lanka/features/customer/delivery_address/presentation/widgets/delivery_address_summary_card.dart';
 import 'package:speedmart_lanka/features/customer/delivery_address/presentation/widgets/confirm_delivery_address_sheet.dart';
@@ -732,25 +730,6 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> with 
     final activeItems = _getActiveItems();
     if (activeItems.isEmpty || !_hasLocation()) return;
 
-    final currentUser = ref.read(currentUserProvider);
-    if (currentUser != null) {
-      final isOtherCountry = currentUser.selectedCountry == 'OTHER';
-      final needsPhoneVerification = isOtherCountry;
-
-      if (needsPhoneVerification && currentUser.verifiedPhone != true) {
-        final locationState = ref.read(deliveryLocationProvider);
-        final isSriLankanDelivery =
-            SriLankaDeliveryDetector.isSriLankanDelivery(
-                locationState.currentLocation);
-
-        if (isSriLankanDelivery) {
-          final verified = await _showPhoneVerificationGate();
-          if (!mounted) return;
-          if (!verified) return;
-        }
-      }
-    }
-
     if (!mounted) return;
     setState(() {
       _isSubmitting = true;
@@ -839,74 +818,6 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> with 
       }
     }
   }
-
-  Future<bool> _showPhoneVerificationGate() async {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
-    
-    final result = await showDialog<bool>(
-      context: context,
-      barrierDismissible: true,
-      builder: (dialogCtx) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: AppRadius.lgRadius),
-          icon: Icon(
-            Icons.phone_locked_rounded,
-            size: 40,
-            color: isDark ? AppColors.primaryDark : AppColors.primary,
-          ),
-          title: Text(
-            'Phone verification required',
-            style: TextStyle(color: primaryText, fontWeight: FontWeight.bold),
-          ),
-          content: Text(
-            'To submit shopping requests for delivery in Sri Lanka, please verify a mobile phone number.',
-            style: TextStyle(color: secondaryText),
-            textAlign: TextAlign.center,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogCtx, false),
-              style: TextButton.styleFrom(foregroundColor: secondaryText),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogCtx, true),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isDark ? AppColors.primaryDark : AppColors.primary,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: AppRadius.mdRadius),
-                elevation: 0,
-              ),
-              child: const Text('Verify Phone Number'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (result != true) return false;
-
-    if (!mounted) return false;
-    final verified = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      isDismissible: false,
-      enableDrag: false,
-      backgroundColor: Colors.transparent,
-      builder: (sheetCtx) => PhoneVerificationSheet(
-        onVerified: (_) {
-          if (Navigator.of(sheetCtx).canPop()) {
-            Navigator.of(sheetCtx).pop(true);
-          }
-        },
-      ),
-    );
-
-    return verified == true;
-  }
-
 
   Future<void> _confirmPop() async {
     if (!_isFormDirty()) {
