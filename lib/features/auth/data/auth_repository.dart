@@ -194,6 +194,12 @@ class AuthRepository {
     await Future.delayed(const Duration(milliseconds: 1200));
 
     debugPrint('[Auth] Login attempt: email=$email, role=$role');
+
+    // Sign in with Firebase first so Firestore reads are authenticated.
+    await _signInWithFirebase(email, password);
+    // Now reload users from Firestore with valid auth.
+    await reloadFromFirestore();
+
     debugPrint('[Auth] Total users available: ${_sessionUsers.length}');
 
     final match = _sessionUsers.where(
@@ -209,7 +215,6 @@ class AuthRepository {
     }
 
     final user = match.first;
-    await _signInWithFirebase(user.email, password);
     debugPrint('[Auth] Firebase auth verification succeeded for ${user.email}');
     debugPrint('[Auth] User found: ${user.email}, vendorStatus=${user.vendorStatus}, isActive=${user.isActive}');
 
@@ -283,6 +288,8 @@ class AuthRepository {
   Future<({UserModel user, String token})> loginCustomerOtp(String contact) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 1000));
+    // Reload from Firestore if already authenticated (e.g. session restore)
+    await reloadFromFirestore();
     final isEmail = contact.contains('@');
 
     final match = _sessionUsers.where((u) {
@@ -645,6 +652,8 @@ class AuthRepository {
 
     final user = match.first;
     await _signInWithFirebase(user.email, password);
+    // Reload Firestore after auth so we have the latest user data.
+    await reloadFromFirestore();
 
     if (!user.isActive) {
       throw Exception('Your account has been suspended. Contact support.');
