@@ -42,6 +42,7 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     Future.microtask(() {
+      if (!mounted) return;
       final user = ref.read(currentUserProvider);
       if (user?.role != UserRole.customer) {
         debugPrint('[CustomerHome] Skipping customer data load for non-customer user');
@@ -49,6 +50,9 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
       }
       ref.read(requestProvider.notifier).loadMyRequests();
       ref.read(orderProvider.notifier).loadCustomerOrders();
+      // Seed nav visibility immediately on mount — avoids race with postFrameCallback
+      final loc = _getTrueLocation(context);
+      ref.read(bottomNavVisibilityProvider.notifier).updateLocation(loc);
     });
   }
 
@@ -300,15 +304,19 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
 
     // Force rebuild when router location changes so nav visibility updates
     try { GoRouterState.of(context); } catch (_) {}
-    
+
     final shellLocation = _getTrueLocation(context);
-    
-    // Automatically update bottom nav visibility correctly on every frame
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        ref.read(bottomNavVisibilityProvider.notifier).updateLocation(shellLocation);
-      }
-    });
+
+    // Update nav visibility synchronously when location changes — never via
+    // postFrameCallback, which can fire with a stale route during auth transitions.
+    if (_lastSyncedLocation != shellLocation) {
+      _lastSyncedLocation = shellLocation;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref.read(bottomNavVisibilityProvider.notifier).updateLocation(shellLocation);
+        }
+      });
+    }
 
     final showBottomNav = ref.watch(bottomNavVisibilityProvider);
     final notificationState = ref.watch(notification_feature.notificationProvider);
