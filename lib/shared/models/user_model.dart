@@ -220,6 +220,7 @@ class UserModel {
 
     if (role == UserRole.customer) {
       base.addAll({
+        'verified_phone': verifiedPhone,
         'detected_country': detectedCountry,
         'detection_source': detectionSource,
         'risk_flag': riskFlag,

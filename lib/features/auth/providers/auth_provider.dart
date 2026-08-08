@@ -44,8 +44,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
       }
     } catch (_) {}
 
+    // If Firebase Auth is signed in, ensure the stored user ID matches the Firebase UID.
+    // This migrates users who registered before the Firebase UID fix.
+    final firebaseUid = AuthRepository.instance.currentFirebaseUid;
+    
     final userJson = await StorageService.getUser();
-    if (userJson != null && (tokenUserId == null || userJson['id'] == tokenUserId)) {
+    if (userJson != null && firebaseUid != null && userJson['id'] != firebaseUid) {
+      userJson['id'] = firebaseUid;
+      await StorageService.saveUser(userJson);
+    }
+    if (userJson != null && (tokenUserId == null || userJson['id'] == tokenUserId || firebaseUid == tokenUserId)) {
       debugPrint('[CategoryAudit] ===== VENDOR LOGIN RESTORE =====');
       debugPrint('[CategoryAudit] Restoring session from storage');
       debugPrint('[CategoryAudit] userJson allowed_categories (BEFORE): ${userJson['allowed_categories']}');

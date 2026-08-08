@@ -27,6 +27,8 @@ class AuthRepository {
   final List<UserModel> _sessionUsers = [];
   String? _currentToken;
 
+  String? get currentFirebaseUid => _firebaseAuth.currentUser?.uid;
+
   CollectionReference<Map<String, dynamic>> _collectionForRole(UserRole role) {
     switch (role) {
       case UserRole.vendor:
@@ -71,12 +73,22 @@ class AuthRepository {
     }
   }
 
+  /// Normalizes a phone number to +94XXXXXXXXX format for Firestore queries.
+  static String _normalizeToE164(String phone) {
+    final digits = _digitsOnly(phone.trim());
+    if (digits.length == 9) return '+94$digits';           // 771234567
+    if (digits.length == 10 && digits.startsWith('0')) return '+94${digits.substring(1)}'; // 0771234567
+    if (digits.length == 11 && digits.startsWith('94')) return '+$digits'; // 94771234567
+    if (digits.length == 12 && digits.startsWith('94')) return '+${digits.substring(0)}'; // already +94...
+    return phone.trim(); // fallback — e.g. already +94771234567
+  }
+
   /// Fetches a single customer by phone or email from Firestore.
   Future<UserModel?> _fetchCustomerByContact(String contact) async {
     try {
       final isEmail = contact.contains('@');
       final field = isEmail ? 'email' : 'phone';
-      final value = isEmail ? contact.toLowerCase().trim() : contact.trim();
+      final value = isEmail ? contact.toLowerCase().trim() : _normalizeToE164(contact);
       final snapshot = await FirestoreService.collection('users/customers/profiles')
           .where(field, isEqualTo: value)
           .limit(1)
@@ -92,9 +104,12 @@ class AuthRepository {
 
   Future<void> _syncUserToFirestore(UserModel user) async {
     try {
-      final doc = _collectionForRole(user.role).doc(user.id);
+      // Use Firebase Auth UID as the doc ID so Firestore ownership rules match.
+      final firebaseUid = _firebaseAuth.currentUser?.uid;
+      final docId = firebaseUid ?? user.id;
+      final doc = _collectionForRole(user.role).doc(docId);
       await doc.set(user.toJson(), SetOptions(merge: true));
-      debugPrint('[Auth] Synced user ${user.id} to Firestore (${user.role.name})');
+      debugPrint('[Auth] Synced user ${user.id} (doc: $docId) to Firestore (${user.role.name})');
     } catch (e) {
       debugPrint('[Auth] Failed to sync user ${user.id} to Firestore: $e');
       rethrow;
@@ -234,9 +249,8 @@ class AuthRepository {
       throw Exception('Your account has been suspended. Contact support.');
     }
 
-    _currentToken =
-        'auth_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
-    _currentUserId = user.id;
+    _currentToken = 'auth_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
+    _currentUserId = _firebaseAuth.currentUser?.uid ?? user.id;
     debugPrint('[Auth] Login success: ${user.email}');
 
     // Upload FCM token to backend (best-effort)
@@ -325,9 +339,8 @@ class AuthRepository {
       throw Exception('Your account has been suspended. Contact support.');
     }
 
-    _currentToken =
-        'auth_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
-    _currentUserId = user.id;
+    _currentToken = 'auth_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
+    _currentUserId = _firebaseAuth.currentUser?.uid ?? user.id;
     // Upload FCM token to backend (best-effort)
     _uploadDeviceTokenForUser(user);
     return (user: user, token: _currentToken!);
@@ -452,10 +465,54 @@ class AuthRepository {
     );
 
     await _createFirebaseUser(resolvedEmail, password);
-    // After createUserWithEmailAndPassword, currentUser is set — Firestore writes are now authenticated.
-    debugPrint('[Auth] Firebase user created, currentUser=${_firebaseAuth.currentUser?.uid}');
-    _sessionUsers.add(newUser);
-    await _syncUserToFirestore(newUser);
+    // After createUserWithEmailAndPassword, currentUser is set — use its UID as the doc ID.
+    final firebaseUid = _firebaseAuth.currentUser?.uid;
+    final userId = firebaseUid ?? newUser.id;
+    final userWithFirebaseId = firebaseUid != null ? UserModel(
+      id: userId,
+      fullName: newUser.fullName,
+      email: newUser.email,
+      phone: newUser.phone,
+      role: newUser.role,
+      isActive: newUser.isActive,
+      isVerified: newUser.isVerified,
+      createdAt: newUser.createdAt,
+      businessName: newUser.businessName,
+      vendorStatus: newUser.vendorStatus,
+      vendorApproved: newUser.vendorApproved,
+      vendorCategories: newUser.vendorCategories,
+      verifiedPhone: newUser.verifiedPhone,
+      verifiedEmail: newUser.verifiedEmail,
+      detectedCountry: newUser.detectedCountry,
+      detectionSource: newUser.detectionSource,
+      riskFlag: newUser.riskFlag,
+      nic: newUser.nic,
+      deliveryProvince: newUser.deliveryProvince,
+      deliveryDistrict: newUser.deliveryDistrict,
+      deliveryApproxArea: newUser.deliveryApproxArea,
+      deliveryPreciseAddress: newUser.deliveryPreciseAddress,
+      deliveryNote: newUser.deliveryNote,
+      deliveryLatitude: newUser.deliveryLatitude,
+      deliveryLongitude: newUser.deliveryLongitude,
+      shopName: newUser.shopName,
+      shopAddress: newUser.shopAddress,
+      shopProvince: newUser.shopProvince,
+      shopDistrict: newUser.shopDistrict,
+      shopArea: newUser.shopArea,
+      shopLatitude: newUser.shopLatitude,
+      shopLongitude: newUser.shopLongitude,
+      shopLocationAccuracyMeters: newUser.shopLocationAccuracyMeters,
+      shopLocationDetectedAt: newUser.shopLocationDetectedAt,
+      shopLocationSource: newUser.shopLocationSource,
+      isShopLocationAssigned: newUser.isShopLocationAssigned,
+      businessRegistrationNumber: newUser.businessRegistrationNumber,
+      assignedRadiusKm: newUser.assignedRadiusKm,
+      commissionRate: newUser.commissionRate,
+    ) : newUser;
+    debugPrint('[Auth] Firebase user created, UID=$userId');
+    _sessionUsers.add(userWithFirebaseId);
+    _currentUserId = userId;
+    await _syncUserToFirestore(userWithFirebaseId);
     // Persist to local index so duplicate checks work offline on this device.
     await StorageService.addToRegistrationIndex(
       email: resolvedEmail,
@@ -463,17 +520,12 @@ class AuthRepository {
       nic: nic?.trim(),
     );
 
-    debugPrint('[VendorLocationAudit] Stored vendor coordinates: lat=$shopLatitude, lng=$shopLongitude');
-    debugPrint('[Auth] Vendor registration saved: email=$resolvedEmail, id=${newUser.id}, status=${newUser.vendorStatus}');
-    debugPrint('[Auth] Shop details submitted: address=${shopAddress}, lat=$shopLatitude, lng=$shopLongitude');
-    debugPrint('[Auth] Total users in memory: ${_sessionUsers.length}');
+    debugPrint('[Auth] Registration saved: email=$resolvedEmail, id=$userId');
 
-    _currentToken =
-        'auth_token_${newUser.id}_${DateTime.now().millisecondsSinceEpoch}';
-    _currentUserId = newUser.id;
-    // Upload FCM token to backend (best-effort)
-    _uploadDeviceTokenForUser(newUser);
-    return (user: newUser, token: _currentToken!);
+    _currentToken = 'auth_token_${userId}_${DateTime.now().millisecondsSinceEpoch}';
+    _currentUserId = userId;
+    _uploadDeviceTokenForUser(userWithFirebaseId);
+    return (user: userWithFirebaseId, token: _currentToken!);
   }
 
   // Best-effort upload of device FCM token to backend. No-op if backend URL not configured.
@@ -763,16 +815,9 @@ class AuthRepository {
     debugPrint('[CategoryAudit] user.allowedCategories being saved: ${user.allowedCategories}');
     debugPrint('[CategoryAudit] user.vendorCategories: ${user.vendorCategories}');
     
-    final index = _sessionUsers.indexWhere((u) => u.id == user.id);
-    if (index != -1) {
-      debugPrint('[CategoryAudit] BEFORE update in _sessionUsers[${index}].allowedCategories: ${_sessionUsers[index].allowedCategories}');
-      _sessionUsers[index] = user;
-      debugPrint('[CategoryAudit] AFTER update in _sessionUsers[${index}].allowedCategories: ${_sessionUsers[index].allowedCategories}');
-    } else {
-      _sessionUsers.add(user);
-      debugPrint('[CategoryAudit] User added to _sessionUsers (new user)');
-    }
-    await _persistUsers();
+    // Always sync to Firestore directly — do not rely on _sessionUsers cache
+    // which is empty after a hot restart / cold start.
+    await _syncUserToFirestore(user);
     debugPrint('[CategoryAudit] ===== REPOSITORY UPDATE COMPLETE =====');
     return user;
   }

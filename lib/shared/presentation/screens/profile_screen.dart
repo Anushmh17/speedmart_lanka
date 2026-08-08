@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/app_state_widgets.dart';
 import '../../../features/auth/providers/auth_provider.dart';
+import '../../../features/auth/data/auth_repository.dart';
 import '../../../shared/models/user_role.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/routes/route_names.dart';
@@ -242,6 +243,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Future<void> _verifyPhoneChangeOtp({required String newPhone, required UserModel user}) async {
     setState(() => _isSaving = true);
+
+    // Check if the new phone is already registered by another customer
+    final alreadyExists = await AuthRepository.instance.checkCustomerExists(newPhone);
+    if (!mounted) return;
+    if (alreadyExists) {
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This phone number is already registered.'), backgroundColor: AppColors.error),
+      );
+      return;
+    }
+
     final otpService = ref.read(otpServiceProvider);
     final result = await otpService.sendOtp(channel: OtpChannel.phone, destination: newPhone);
     setState(() => _isSaving = false);
@@ -306,7 +319,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       decoration: BoxDecoration(
                         border: Border.all(color: AppColors.customerColor, width: 1.5),
                         borderRadius: BorderRadius.circular(12),
-                        color: isDark ? AppColors.cardDark : Colors.grey.shade50,
+                        color: isDark ? AppColors.cardDark : Colors.grey.shade100,
                       ),
                       child: TextField(
                         controller: controllers[i],
@@ -347,16 +360,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         await _saveProfile(user: user, phone: newPhone);
                         if (!mounted) return;
                         // ignore: use_build_context_synchronously
-                        await showDialog(
-                          context: context,
-                          barrierDismissible: false,
-                          builder: (_) => AlertDialog(
-                            title: const Text('Phone Updated'),
-                            content: const Text('Your phone number has been updated. Please log in again.'),
-                            actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK'))],
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Phone number updated successfully!'),
+                            backgroundColor: AppColors.customerColor,
+                            behavior: SnackBarBehavior.floating,
                           ),
                         );
-                        await ref.read(authProvider.notifier).logout();
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.customerColor,
@@ -625,6 +635,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 secondaryText: secondaryText,
                 primaryColor: primaryColor,
                 keyboardType: TextInputType.phone,
+                maxLength: 10,
                 validator: (v) => v == null || v.isEmpty ? 'Required' : null,
                 onChanged: (_) => setState(() {}),
               ),
@@ -1001,6 +1012,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     required Color secondaryText,
     required Color primaryColor,
     TextInputType? keyboardType,
+    int? maxLength,
     String? Function(String?)? validator,
     void Function(String)? onChanged,
   }) {
@@ -1017,6 +1029,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ? TextFormField(
             controller: controller,
             keyboardType: keyboardType,
+            maxLength: maxLength,
             validator: validator,
             textCapitalization: (label == 'Full Name' || label == 'Business Name')
                 ? TextCapitalization.words
