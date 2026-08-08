@@ -321,7 +321,9 @@ class _SrilankavendorloginotpWidgetState
                               focusNode: _otpFocusNodes[index],
                               onTap: () {
                                 final target = _otpControllers.indexWhere((c) => c.text.isEmpty);
-                                _otpFocusNodes[target == -1 ? 5 : target].requestFocus();
+                                final node = _otpFocusNodes[target == -1 ? 5 : target];
+                                node.requestFocus();
+                                SystemChannels.textInput.invokeMethod('TextInput.show');
                               },
                               onChanged: (value) {
                                 if (value.isNotEmpty && index < 5) {
