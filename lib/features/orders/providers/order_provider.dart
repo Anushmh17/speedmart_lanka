@@ -5,7 +5,8 @@ import 'package:speedmart_lanka/features/requests/models/shopping_request.dart';
 import 'package:speedmart_lanka/features/orders/data/order_repository.dart';
 import 'package:speedmart_lanka/features/orders/models/order_model.dart';
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
-import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart' as notification_feature;
+import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart'
+    as notification_feature;
 import 'package:speedmart_lanka/features/notifications/models/notification_type.dart';
 
 class OrderState {
@@ -82,7 +83,8 @@ class OrderNotifier extends StateNotifier<OrderState> {
     }
   }
 
-  Future<OrderModel> placeOrder(OrderModel order, {bool updateRequestStatus = true}) async {
+  Future<OrderModel> placeOrder(OrderModel order,
+      {bool updateRequestStatus = true}) async {
     await _repo.ensureInitialized();
     await _requestRepo.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
@@ -95,9 +97,15 @@ class OrderNotifier extends StateNotifier<OrderState> {
 
       // Only update request status once (first order in a multi-vendor placement)
       if (updateRequestStatus) {
-        final nextStatus = order.paymentMethod == PaymentMethod.online
-            ? RequestStatus.paid
-            : RequestStatus.cashOnDeliveryConfirmed;
+        final RequestStatus nextStatus;
+        if (order.paymentMethod == PaymentMethod.online) {
+          nextStatus = RequestStatus.paid;
+        } else if (order.paymentMethod == PaymentMethod.bankTransfer) {
+          // Bank transfer is pending until customer confirms payment outside the app
+          nextStatus = RequestStatus.cashOnDeliveryConfirmed;
+        } else {
+          nextStatus = RequestStatus.cashOnDeliveryConfirmed;
+        }
         await _requestRepo.updateRequestStatus(order.requestId, nextStatus);
       }
 
@@ -144,7 +152,9 @@ class OrderNotifier extends StateNotifier<OrderState> {
         if (order != null) {
           final statusTitle = 'Order Update';
           final statusBody = 'Order ${order.id} status: ${status.name}';
-          await ref.read(notification_feature.notificationProvider.notifier).createNotification(
+          await ref
+              .read(notification_feature.notificationProvider.notifier)
+              .createNotification(
             type: NotificationType.orderStatusUpdated,
             title: statusTitle,
             body: statusBody,
@@ -175,4 +185,3 @@ class OrderNotifier extends StateNotifier<OrderState> {
 final orderProvider = StateNotifierProvider<OrderNotifier, OrderState>((ref) {
   return OrderNotifier(ref);
 });
-

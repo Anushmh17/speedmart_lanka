@@ -24,7 +24,8 @@ extension PaymentMethodExtension on PaymentMethod {
 
 enum PaymentStatus {
   pending,
-  pendingOnDelivery, // COD payment pending until delivery
+  pendingOnDelivery, // COD — collect cash at delivery
+  pendingBankTransfer, // Bank transfer initiated, awaiting customer confirmation
   paid,
   failed,
   refunded,
@@ -38,6 +39,8 @@ extension PaymentStatusExtension on PaymentStatus {
         return 'Pending';
       case PaymentStatus.pendingOnDelivery:
         return 'Pending on Delivery';
+      case PaymentStatus.pendingBankTransfer:
+        return 'Awaiting Bank Transfer';
       case PaymentStatus.paid:
         return 'Paid';
       case PaymentStatus.failed:
@@ -60,15 +63,20 @@ class PaymentModel {
   final double amount; // Customer pays: subtotal + delivery
   final double subtotal; // Items total
   final double deliveryFee; // Delivery cost
-  final double serviceFee; // DEPRECATED: kept for compatibility, use platformCommission
-  final double platformCommission; // Commission earned by platform (typically 20%)
-  final double vendorNetAmount; // Amount vendor receives: subtotal + delivery - commission
+  final double
+      serviceFee; // DEPRECATED: kept for compatibility, use platformCommission
+  final double
+      platformCommission; // Commission earned by platform (typically 20%)
+  final double
+      vendorNetAmount; // Amount vendor receives: subtotal + delivery - commission
   final PaymentMethod paymentMethod;
   final PaymentStatus paymentStatus;
   final DateTime? paidAt;
   final DateTime createdAt;
   final String transactionReference;
   final String receiptNumber;
+  // URL of the bank transfer receipt image uploaded by the customer (optional)
+  final String? receiptImageUrl;
 
   const PaymentModel({
     required this.id,
@@ -89,6 +97,7 @@ class PaymentModel {
     required this.createdAt,
     this.transactionReference = '',
     required this.receiptNumber,
+    this.receiptImageUrl,
   });
 
   PaymentModel copyWith({
@@ -110,6 +119,7 @@ class PaymentModel {
     DateTime? createdAt,
     String? transactionReference,
     String? receiptNumber,
+    String? receiptImageUrl,
   }) {
     return PaymentModel(
       id: id ?? this.id,
@@ -130,6 +140,7 @@ class PaymentModel {
       createdAt: createdAt ?? this.createdAt,
       transactionReference: transactionReference ?? this.transactionReference,
       receiptNumber: receiptNumber ?? this.receiptNumber,
+      receiptImageUrl: receiptImageUrl ?? this.receiptImageUrl,
     );
   }
 
@@ -153,6 +164,7 @@ class PaymentModel {
       'createdAt': createdAt.toIso8601String(),
       'transactionReference': transactionReference,
       'receiptNumber': receiptNumber,
+      'receiptImageUrl': receiptImageUrl,
     };
   }
 
@@ -167,7 +179,8 @@ class PaymentModel {
       subtotal: (json['subtotal'] as num?)?.toDouble() ?? 0.0,
       deliveryFee: (json['deliveryFee'] as num?)?.toDouble() ?? 0.0,
       serviceFee: (json['serviceFee'] as num?)?.toDouble() ?? 0.0,
-      platformCommission: (json['platformCommission'] as num?)?.toDouble() ?? 0.0,
+      platformCommission:
+          (json['platformCommission'] as num?)?.toDouble() ?? 0.0,
       vendorNetAmount: (json['vendorNetAmount'] as num?)?.toDouble() ?? 0.0,
       paymentMethod: PaymentMethod.values.firstWhere(
         (m) => m.name == json['paymentMethod'],
@@ -181,10 +194,11 @@ class PaymentModel {
       paidAt: json['paidAt'] != null
           ? DateTime.tryParse(json['paidAt'] as String)
           : null,
-      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ?? DateTime.now(),
+      createdAt: DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.now(),
       transactionReference: json['transactionReference'] as String? ?? '',
       receiptNumber: json['receiptNumber'] as String? ?? '',
+      receiptImageUrl: json['receiptImageUrl'] as String?,
     );
   }
 }
-

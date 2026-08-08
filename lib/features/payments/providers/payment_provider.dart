@@ -87,7 +87,9 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
       if (updated != null) {
         state = state.copyWith(
           isLoading: false,
-          payments: state.payments.map((p) => p.id == updated.id ? updated : p).toList(),
+          payments: state.payments
+              .map((p) => p.id == updated.id ? updated : p)
+              .toList(),
         );
       } else {
         state = state.copyWith(isLoading: false);
@@ -107,7 +109,9 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
       if (updated != null) {
         state = state.copyWith(
           isLoading: false,
-          payments: state.payments.map((p) => p.id == updated.id ? updated : p).toList(),
+          payments: state.payments
+              .map((p) => p.id == updated.id ? updated : p)
+              .toList(),
         );
       } else {
         state = state.copyWith(isLoading: false);
@@ -127,7 +131,37 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
       if (updated != null) {
         state = state.copyWith(
           isLoading: false,
-          payments: state.payments.map((p) => p.id == updated.id ? updated : p).toList(),
+          payments: state.payments
+              .map((p) => p.id == updated.id ? updated : p)
+              .toList(),
+        );
+      } else {
+        state = state.copyWith(isLoading: false);
+      }
+      return updated;
+    } catch (e) {
+      state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
+    }
+  }
+
+  Future<PaymentModel?> submitBankTransferReceipt(
+    String paymentId, {
+    String? receiptImageUrl,
+  }) async {
+    await _repo.ensureInitialized();
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final updated = await _repo.markBankTransferReceiptSubmitted(
+        paymentId,
+        receiptImageUrl: receiptImageUrl,
+      );
+      if (updated != null) {
+        state = state.copyWith(
+          isLoading: false,
+          payments: state.payments
+              .map((p) => p.id == updated.id ? updated : p)
+              .toList(),
         );
       } else {
         state = state.copyWith(isLoading: false);
@@ -145,14 +179,15 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
   }
 }
 
-final paymentProvider = StateNotifierProvider<PaymentNotifier, PaymentState>((ref) {
+final paymentProvider =
+    StateNotifierProvider<PaymentNotifier, PaymentState>((ref) {
   return PaymentNotifier(ref);
 });
 
 /// Reads a vendor's custom commission rate from their user profile.
 /// Falls back to 0.0 if the vendor is not found or the profile has no rate.
-final vendorCommissionRateProvider = FutureProvider.family<double, String>((ref, vendorId) async {
+final vendorCommissionRateProvider =
+    FutureProvider.family<double, String>((ref, vendorId) async {
   final vendor = await AuthRepository.instance.getUserById(vendorId);
   return vendor?.commissionRate ?? 0.0;
 });
-

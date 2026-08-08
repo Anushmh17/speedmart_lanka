@@ -44,7 +44,8 @@ class PaymentRepository {
     try {
       await _paymentsCollection.doc(payment.id).set(payment.toJson());
     } catch (e) {
-      debugPrint('[Payment] Failed to sync payment ${payment.id} to Firestore: $e');
+      debugPrint(
+          '[Payment] Failed to sync payment ${payment.id} to Firestore: $e');
     }
   }
 
@@ -115,18 +116,14 @@ class PaymentRepository {
   Future<List<PaymentModel>> getCustomerPayments(String customerId) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 250));
-    return _payments
-        .where((p) => p.customerId == customerId)
-        .toList()
+    return _payments.where((p) => p.customerId == customerId).toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
 
   Future<List<PaymentModel>> getVendorPayments(String vendorId) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 250));
-    return _payments
-        .where((p) => p.vendorId == vendorId)
-        .toList()
+    return _payments.where((p) => p.vendorId == vendorId).toList()
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
   }
 
@@ -138,6 +135,22 @@ class PaymentRepository {
     _payments[index] = _payments[index].copyWith(
       paymentStatus: PaymentStatus.paid,
       paidAt: DateTime.now(),
+    );
+    await _persistPayments();
+    return _payments[index];
+  }
+
+  Future<PaymentModel?> markBankTransferReceiptSubmitted(
+    String paymentId, {
+    String? receiptImageUrl,
+  }) async {
+    await ensureInitialized();
+    await Future.delayed(const Duration(milliseconds: 200));
+    final index = _payments.indexWhere((p) => p.id == paymentId);
+    if (index == -1) return null;
+    _payments[index] = _payments[index].copyWith(
+      paymentStatus: PaymentStatus.pendingBankTransfer,
+      receiptImageUrl: receiptImageUrl,
     );
     await _persistPayments();
     return _payments[index];
@@ -156,7 +169,8 @@ class PaymentRepository {
     return _payments[index];
   }
 
-  Future<PaymentModel?> updatePaymentOrderId(String paymentId, String orderId) async {
+  Future<PaymentModel?> updatePaymentOrderId(
+      String paymentId, String orderId) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 200));
     final index = _payments.indexWhere((p) => p.id == paymentId);
@@ -166,17 +180,19 @@ class PaymentRepository {
     return _payments[index];
   }
 
-  Future<void> updatePaymentStatus(String paymentId, PaymentStatus status) async {
+  Future<void> updatePaymentStatus(
+      String paymentId, PaymentStatus status) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 200));
     final index = _payments.indexWhere((p) => p.id == paymentId);
     if (index != -1) {
       _payments[index] = _payments[index].copyWith(
         paymentStatus: status,
-        paidAt: status == PaymentStatus.paid ? DateTime.now() : _payments[index].paidAt,
+        paidAt: status == PaymentStatus.paid
+            ? DateTime.now()
+            : _payments[index].paidAt,
       );
       await _persistPayments();
     }
   }
 }
-

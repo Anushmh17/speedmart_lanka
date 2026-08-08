@@ -155,9 +155,11 @@ class _VendorHomeScreenState extends ConsumerState<VendorHomeScreen>
     // Watch central bottom navigation visibility provider
     final shellLocation = GoRouterState.of(context).matchedLocation;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(bottomNavVisibilityProvider.notifier).updateLocation(shellLocation);
+      ref
+          .read(bottomNavVisibilityProvider.notifier)
+          .updateLocation(shellLocation);
     });
-    
+
     final showBottomNav = ref.watch(bottomNavVisibilityProvider);
     final requestFeedState = ref.watch(vendorRequestFeedProvider);
 
@@ -276,8 +278,6 @@ class _DashboardTab extends ConsumerWidget {
         isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryText =
         isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
-    
-    
 
     final feedState = ref.watch(vendorRequestFeedProvider);
     final proposalState = ref.watch(proposalProvider);
@@ -341,11 +341,13 @@ class _DashboardTab extends ConsumerWidget {
     final proposalsSentCount = proposalState.proposals.length.toString();
 
     // Active orders: anything not in completed/cancelled/delivered state
-    final activeOrders = orderState.orders.where((o) => o.isActiveForDashboard).toList();
+    final activeOrders =
+        orderState.orders.where((o) => o.isActiveForDashboard).toList();
     final activeOrdersCount = activeOrders.length.toString();
 
     // Completed orders: successfully delivered
-    final completedOrders = orderState.orders.where((o) => o.isDeliveredOrCompleted).toList();
+    final completedOrders =
+        orderState.orders.where((o) => o.isDeliveredOrCompleted).toList();
     final completedOrdersCount = completedOrders.length.toString();
 
     final revenueSummary = _VendorRevenueSummary.fromOrders(orderState.orders);
@@ -368,7 +370,8 @@ class _DashboardTab extends ConsumerWidget {
       },
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, 100),
+        padding: EdgeInsets.fromLTRB(
+            AppSpacing.md, AppSpacing.md, AppSpacing.md, 100),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -468,7 +471,6 @@ class _DashboardTab extends ConsumerWidget {
               ),
             ),
             SizedBox(height: AppSpacing.lg),
-
             if (activeOrders.isNotEmpty) ...[
               _DashboardSectionHeader(
                 title: 'Orders in progress',
@@ -487,31 +489,31 @@ class _DashboardTab extends ConsumerWidget {
                   secondaryText: secondaryText,
                   accentColor: AppColors.vendorColor,
                   isMultipleOrders: activeOrders.length > 1,
-                  onManage: () => context.push('/vendor/orders/manage', extra: order),
+                  onManage: () =>
+                      context.push('/vendor/orders/manage', extra: order),
                 ),
               ),
               SizedBox(height: AppSpacing.md),
             ],
-
             if (completedOrders.isNotEmpty) ...[
               _DashboardSectionHeader(
                 title: 'Recently completed',
-                subtitle: 'Last ${completedOrders.length > 3 ? 3 : completedOrders.length} orders',
+                subtitle:
+                    'Last ${completedOrders.length > 3 ? 3 : completedOrders.length} orders',
                 primaryText: primaryText,
                 secondaryText: secondaryText,
               ),
               SizedBox(height: AppSpacing.sm),
               ...completedOrders.take(3).map(
-                (order) => _DashboardCompletedOrderCard(
-                  order: order,
-                  isDark: isDark,
-                  primaryText: primaryText,
-                  secondaryText: secondaryText,
-                ),
-              ),
+                    (order) => _DashboardCompletedOrderCard(
+                      order: order,
+                      isDark: isDark,
+                      primaryText: primaryText,
+                      secondaryText: secondaryText,
+                    ),
+                  ),
               SizedBox(height: AppSpacing.md),
             ],
-
             _DashboardSectionHeader(
               title: 'Nearby opportunities',
               subtitle: feedState.items.isEmpty
@@ -521,14 +523,14 @@ class _DashboardTab extends ConsumerWidget {
               secondaryText: secondaryText,
             ),
             SizedBox(height: AppSpacing.sm),
-
             if (feedState.isLoading)
               Center(
                 child: Padding(
                   padding: EdgeInsets.all(AppSpacing.xxl),
                   child: Column(
                     children: [
-                      const CircularProgressIndicator(color: AppColors.vendorColor),
+                      const CircularProgressIndicator(
+                          color: AppColors.vendorColor),
                       SizedBox(height: AppSpacing.sm),
                       Text(
                         'Scanning nearby requests...',
@@ -542,18 +544,19 @@ class _DashboardTab extends ConsumerWidget {
               Theme3EmptyState(
                 icon: Icons.location_searching_rounded,
                 title: 'No nearby requests',
-                subtitle: 'Active requests in your categories and radius will appear here.',
+                subtitle:
+                    'Active requests in your categories and radius will appear here.',
               )
             else
               ...feedState.items.take(2).map(
-                (item) => Padding(
-                  padding: EdgeInsets.only(bottom: AppSpacing.sm),
-                  child: VendorRequestCard(
-                    feedRequest: item,
-                    isDark: isDark,
+                    (item) => Padding(
+                      padding: EdgeInsets.only(bottom: AppSpacing.sm),
+                      child: VendorRequestCard(
+                        feedRequest: item,
+                        isDark: isDark,
+                      ),
+                    ),
                   ),
-                ),
-              ),
           ],
         ),
       ),
@@ -587,7 +590,8 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
 
   Future<void> _loadRequestMetadata(List<Proposal> proposals) async {
     final uniqueRequestIds = proposals.map((p) => p.requestId).toSet();
-    final missingIds = uniqueRequestIds.where((id) => !_requestCache.containsKey(id)).toList();
+    final missingIds =
+        uniqueRequestIds.where((id) => !_requestCache.containsKey(id)).toList();
     if (missingIds.isEmpty) return;
 
     if (mounted) {
@@ -622,7 +626,8 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
     }
   }
 
-  Widget _buildRequestHeader(String requestId, Color primaryText, Color secondaryText) {
+  Widget _buildRequestHeader(
+      String requestId, Color primaryText, Color secondaryText) {
     final req = _requestCache[requestId];
     if (req == null) {
       return Row(children: [
@@ -631,7 +636,8 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
         Expanded(
           child: Text(
             'Request: $requestId',
-            style: AppTextStyles.subtitle(primaryText).copyWith(fontWeight: FontWeight.bold),
+            style: AppTextStyles.subtitle(primaryText)
+                .copyWith(fontWeight: FontWeight.bold),
             overflow: TextOverflow.ellipsis,
           ),
         ),
@@ -644,11 +650,13 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(children: [
-              const Icon(Icons.receipt_long_rounded, color: AppColors.vendorColor, size: 20),
+              const Icon(Icons.receipt_long_rounded,
+                  color: AppColors.vendorColor, size: 20),
               const SizedBox(width: 8),
               Text(
                 req.customerName.isNotEmpty ? req.customerName : 'Customer',
-                style: AppTextStyles.subtitle(primaryText).copyWith(fontWeight: FontWeight.bold),
+                style: AppTextStyles.subtitle(primaryText)
+                    .copyWith(fontWeight: FontWeight.bold),
               ),
             ]),
             Container(
@@ -659,7 +667,8 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
               ),
               child: Text(
                 'REQ: ${req.id}',
-                style: AppTextStyles.caption(AppColors.vendorColor).copyWith(fontWeight: FontWeight.bold),
+                style: AppTextStyles.caption(AppColors.vendorColor)
+                    .copyWith(fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -739,15 +748,15 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: selected
-              ? AppColors.vendorColor
-              : Colors.transparent,
+          color: selected ? AppColors.vendorColor : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: selected ? Colors.white : (isDark ? Colors.white60 : Colors.black54),
+            color: selected
+                ? Colors.white
+                : (isDark ? Colors.white60 : Colors.black54),
             fontWeight: selected ? FontWeight.bold : FontWeight.normal,
             fontSize: 13,
           ),
@@ -766,7 +775,8 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
       ),
       child: Text(
         label,
-        style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
+        style:
+            TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold),
       ),
     );
   }
@@ -774,15 +784,21 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
   List<Proposal> _filterProposals(List<Proposal> proposals) {
     switch (_statusFilter) {
       case 'Accepted':
-        return proposals.where((p) => p.status == ProposalStatus.accepted).toList();
+        return proposals
+            .where((p) => p.status == ProposalStatus.accepted)
+            .toList();
       case 'Rejected':
-        return proposals.where((p) => p.status == ProposalStatus.rejected).toList();
+        return proposals
+            .where((p) => p.status == ProposalStatus.rejected)
+            .toList();
       case 'Active':
       default:
-        return proposals.where((p) =>
-            p.status == ProposalStatus.draft ||
-            p.status == ProposalStatus.submitted ||
-            p.status == ProposalStatus.updated).toList();
+        return proposals
+            .where((p) =>
+                p.status == ProposalStatus.draft ||
+                p.status == ProposalStatus.submitted ||
+                p.status == ProposalStatus.updated)
+            .toList();
     }
   }
 
@@ -797,8 +813,10 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
 
   @override
   Widget build(BuildContext context) {
-    final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final primaryText =
+        isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final secondaryText =
+        isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     final borderCol = isDark ? AppColors.borderDark : AppColors.borderLight;
 
     final proposalState = ref.watch(proposalProvider);
@@ -812,8 +830,10 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
     });
 
     // Ensure we trigger metadata loading if any missing IDs exist
-    final uniqueRequestIds = proposalState.proposals.map((p) => p.requestId).toSet();
-    final hasMissing = uniqueRequestIds.any((id) => !_requestCache.containsKey(id));
+    final uniqueRequestIds =
+        proposalState.proposals.map((p) => p.requestId).toSet();
+    final hasMissing =
+        uniqueRequestIds.any((id) => !_requestCache.containsKey(id));
     if (hasMissing) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -825,13 +845,15 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: RefreshIndicator(
-        onRefresh: () => ref.read(proposalProvider.notifier).loadVendorProposals(),
+        onRefresh: () =>
+            ref.read(proposalProvider.notifier).loadVendorProposals(),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── Header + toggle ──────────────────────────────────────────
             Padding(
-              padding: EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
+              padding: EdgeInsets.fromLTRB(
+                  AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -862,10 +884,15 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
             ),
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
-              padding: EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
+              padding: EdgeInsets.fromLTRB(
+                  AppSpacing.md, 0, AppSpacing.md, AppSpacing.sm),
               child: Row(
                 children: [
-                  for (final filter in const ['Active', 'Accepted', 'Rejected']) ...[
+                  for (final filter in const [
+                    'Active',
+                    'Accepted',
+                    'Rejected'
+                  ]) ...[
                     _buildToggleButton(
                       label: filter,
                       selected: _statusFilter == filter,
@@ -880,18 +907,22 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
             // ── Body ────────────────────────────────────────────────────
             Expanded(
               child: proposalState.isLoading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.vendorColor))
+                  ? const Center(
+                      child: CircularProgressIndicator(
+                          color: AppColors.vendorColor))
                   : filteredProposals.isEmpty
                       ? Theme3EmptyState(
                           icon: Icons.assignment_outlined,
-                          title: _statusFilter == 'Rejected' ? 'No Rejected Proposals' : 'No Proposals Found',
+                          title: _statusFilter == 'Rejected'
+                              ? 'No Rejected Proposals'
+                              : 'No Proposals Found',
                           subtitle: _statusFilter == 'Rejected'
                               ? 'Rejected proposals will appear here.'
                               : 'Submit a proposal to see it in this list.',
                         )
                       : _groupByRequest
-                          ? _buildGroupedView(
-                              filteredProposals, orders, primaryText, secondaryText, borderCol)
+                          ? _buildGroupedView(filteredProposals, orders,
+                              primaryText, secondaryText, borderCol)
                           : _buildFlatView(
                               filteredProposals, primaryText, secondaryText),
             ),
@@ -920,10 +951,17 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
         final requestProposals = groups[requestId] ?? [];
         if (requestProposals.isEmpty) return const SizedBox.shrink();
 
-        final acceptedCount = requestProposals.where((p) => p.status == ProposalStatus.accepted).length;
-        final awaitingCount = requestProposals.where((p) =>
-            p.status == ProposalStatus.submitted || p.status == ProposalStatus.updated).length;
-        final rejectedCount = requestProposals.where((p) => p.status == ProposalStatus.rejected).length;
+        final acceptedCount = requestProposals
+            .where((p) => p.status == ProposalStatus.accepted)
+            .length;
+        final awaitingCount = requestProposals
+            .where((p) =>
+                p.status == ProposalStatus.submitted ||
+                p.status == ProposalStatus.updated)
+            .length;
+        final rejectedCount = requestProposals
+            .where((p) => p.status == ProposalStatus.rejected)
+            .length;
 
         return Theme3AppCard(
           margin: EdgeInsets.only(bottom: AppSpacing.md),
@@ -941,12 +979,19 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
                 children: [
                   Text(
                     'Bids (${requestProposals.length}):',
-                    style: AppTextStyles.caption(secondaryText).copyWith(fontWeight: FontWeight.bold),
+                    style: AppTextStyles.caption(secondaryText)
+                        .copyWith(fontWeight: FontWeight.bold),
                   ),
                   Row(children: [
-                    if (acceptedCount > 0) _buildSmallBadge('✓ $acceptedCount Accepted', AppColors.success),
-                    if (awaitingCount > 0) _buildSmallBadge('⏳ $awaitingCount Pending', AppColors.vendorColor),
-                    if (rejectedCount > 0) _buildSmallBadge('✗ $rejectedCount Rejected', AppColors.error),
+                    if (acceptedCount > 0)
+                      _buildSmallBadge(
+                          '✓ $acceptedCount Accepted', AppColors.success),
+                    if (awaitingCount > 0)
+                      _buildSmallBadge(
+                          '⏳ $awaitingCount Pending', AppColors.vendorColor),
+                    if (rejectedCount > 0)
+                      _buildSmallBadge(
+                          '✗ $rejectedCount Rejected', AppColors.error),
                   ]),
                 ],
               ),
@@ -967,7 +1012,8 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
                   OrderModel? matchingOrder;
                   if (proposal.status == ProposalStatus.accepted) {
                     try {
-                      matchingOrder = orders.firstWhere((o) => o.proposalId == proposal.id);
+                      matchingOrder =
+                          orders.firstWhere((o) => o.proposalId == proposal.id);
                     } catch (_) {}
                   }
                   final isCompletedOrder = matchingOrder != null &&
@@ -977,122 +1023,161 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
                   return SizedBox(
                     width: double.infinity,
                     child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.black12 : Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: isDark ? AppColors.borderDark : AppColors.borderLight),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.black12 : Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                            color: isDark
+                                ? AppColors.borderDark
+                                : AppColors.borderLight),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                category.toUpperCase(),
+                                style: AppTextStyles.labelMedium(primaryText)
+                                    .copyWith(fontWeight: FontWeight.bold),
+                              ),
+                              StatusBadge(
+                                label: matchingOrder != null
+                                    ? matchingOrder.status.displayName
+                                    : proposal.status.displayName,
+                                color: matchingOrder != null
+                                    ? _getOrderStatusColor(matchingOrder.status)
+                                    : statusColor,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Items: ${proposal.items.length}',
+                                      style:
+                                          AppTextStyles.caption(secondaryText)),
+                                  Text(
+                                    'Date: ${_formatDateTime(matchingOrder?.createdAt ?? proposal.createdAt)}',
+                                    style: AppTextStyles.caption(secondaryText),
+                                  ),
+                                  Text(
+                                    'Rs. ${proposal.totalPrice.toStringAsFixed(2)}',
+                                    style: AppTextStyles.bodyMedium(primaryText)
+                                        .copyWith(fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                              Row(children: [
+                                if (matchingOrder != null)
+                                  ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.vendorColor,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 10, vertical: 4),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(8)),
+                                      minimumSize: const Size(0, 36),
+                                    ),
+                                    onPressed: () => context.push(
+                                        '/vendor/orders/manage',
+                                        extra: matchingOrder),
+                                    icon: Icon(
+                                      isCompletedOrder
+                                          ? Icons.receipt_long_rounded
+                                          : Icons.delivery_dining_rounded,
+                                      size: 16,
+                                    ),
+                                    label: Text(
+                                      isCompletedOrder
+                                          ? 'View Summary'
+                                          : 'Manage',
+                                      style: const TextStyle(fontSize: 11),
+                                    ),
+                                  )
+                                else if (proposal.status ==
+                                        ProposalStatus.submitted ||
+                                    proposal.status ==
+                                        ProposalStatus.updated) ...[
+                                  TextButton(
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: AppColors.vendorColor,
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8),
+                                    ),
+                                    onPressed: () async {
+                                      final req = await RequestRepository
+                                          .instance
+                                          .getRequestById(requestId);
+                                      if (req != null && context.mounted) {
+                                        context.push('/vendor/proposals/edit',
+                                            extra: {
+                                              'proposal': proposal,
+                                              'request': req
+                                            });
+                                      }
+                                    },
+                                    child: const Text('Edit',
+                                        style: TextStyle(fontSize: 12)),
+                                  ),
+                                  TextButton(
+                                    style: TextButton.styleFrom(
+                                      foregroundColor: AppColors.error,
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8),
+                                    ),
+                                    onPressed: () async {
+                                      final confirm = await showDialog<bool>(
+                                        context: context,
+                                        builder: (ctx) => AlertDialog(
+                                          title: const Text('Withdraw Bid?'),
+                                          content: const Text(
+                                              'This will remove your proposal for this category.'),
+                                          actions: [
+                                            TextButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(ctx, false),
+                                                child: const Text('Cancel')),
+                                            TextButton(
+                                                onPressed: () =>
+                                                    Navigator.pop(ctx, true),
+                                                child: const Text('Withdraw')),
+                                          ],
+                                        ),
+                                      );
+                                      if (confirm == true && context.mounted) {
+                                        await ref
+                                            .read(proposalProvider.notifier)
+                                            .withdrawProposal(proposal.id);
+                                      }
+                                    },
+                                    child: const Text('Withdraw',
+                                        style: TextStyle(fontSize: 12)),
+                                  ),
+                                ] else
+                                  TextButton(
+                                    style: TextButton.styleFrom(
+                                        foregroundColor: secondaryText),
+                                    onPressed: () => context.push(
+                                        '/vendor/proposals/detail',
+                                        extra: proposal),
+                                    child: const Text('Details',
+                                        style: TextStyle(fontSize: 12)),
+                                  ),
+                              ]),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              category.toUpperCase(),
-                              style: AppTextStyles.labelMedium(primaryText).copyWith(fontWeight: FontWeight.bold),
-                            ),
-                            StatusBadge(
-                              label: matchingOrder != null
-                                  ? matchingOrder.status.displayName
-                                  : proposal.status.displayName,
-                              color: matchingOrder != null
-                                  ? _getOrderStatusColor(matchingOrder.status)
-                                  : statusColor,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('Items: ${proposal.items.length}', style: AppTextStyles.caption(secondaryText)),
-                                Text(
-                                  'Date: ${_formatDateTime(matchingOrder?.createdAt ?? proposal.createdAt)}',
-                                  style: AppTextStyles.caption(secondaryText),
-                                ),
-                                Text(
-                                  'Rs. ${proposal.totalPrice.toStringAsFixed(2)}',
-                                  style: AppTextStyles.bodyMedium(primaryText).copyWith(fontWeight: FontWeight.bold),
-                                ),
-                              ],
-                            ),
-                            Row(children: [
-                              if (matchingOrder != null)
-                                ElevatedButton.icon(
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppColors.vendorColor,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                    minimumSize: const Size(0, 36),
-                                  ),
-                                  onPressed: () => context.push('/vendor/orders/manage', extra: matchingOrder),
-                                  icon: Icon(
-                                    isCompletedOrder
-                                        ? Icons.receipt_long_rounded
-                                        : Icons.delivery_dining_rounded,
-                                    size: 16,
-                                  ),
-                                  label: Text(
-                                    isCompletedOrder ? 'View Summary' : 'Manage',
-                                    style: const TextStyle(fontSize: 11),
-                                  ),
-                                )
-                              else if (proposal.status == ProposalStatus.submitted ||
-                                  proposal.status == ProposalStatus.updated) ...[
-                                TextButton(
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: AppColors.vendorColor,
-                                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                                  ),
-                                  onPressed: () async {
-                                    final req = await RequestRepository.instance.getRequestById(requestId);
-                                    if (req != null && context.mounted) {
-                                      context.push('/vendor/proposals/edit', extra: {'proposal': proposal, 'request': req});
-                                    }
-                                  },
-                                  child: const Text('Edit', style: TextStyle(fontSize: 12)),
-                                ),
-                                TextButton(
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: AppColors.error,
-                                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                                  ),
-                                  onPressed: () async {
-                                    final confirm = await showDialog<bool>(
-                                      context: context,
-                                      builder: (ctx) => AlertDialog(
-                                        title: const Text('Withdraw Bid?'),
-                                        content: const Text('This will remove your proposal for this category.'),
-                                        actions: [
-                                          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
-                                          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Withdraw')),
-                                        ],
-                                      ),
-                                    );
-                                    if (confirm == true && context.mounted) {
-                                      await ref.read(proposalProvider.notifier).withdrawProposal(proposal.id);
-                                    }
-                                  },
-                                  child: const Text('Withdraw', style: TextStyle(fontSize: 12)),
-                                ),
-                              ] else
-                                TextButton(
-                                  style: TextButton.styleFrom(foregroundColor: secondaryText),
-                                  onPressed: () => context.push('/vendor/proposals/detail', extra: proposal),
-                                  child: const Text('Details', style: TextStyle(fontSize: 12)),
-                                ),
-                            ]),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
                   );
                 },
               ),
@@ -1104,22 +1189,30 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
   }
 
   // ── FLAT LIST view ─────────────────────────────────────────────────────────
-  Widget _buildFlatView(List<Proposal> proposals, Color primaryText, Color secondaryText) {
+  Widget _buildFlatView(
+      List<Proposal> proposals, Color primaryText, Color secondaryText) {
     return ListView.builder(
       padding: EdgeInsets.fromLTRB(AppSpacing.md, 0, AppSpacing.md, 100),
       itemCount: proposals.length,
       itemBuilder: (context, index) {
         final proposal = proposals[index];
         final statusColor = _getStatusColor(proposal.status);
-        final availableCount = proposal.items.where((i) => i.status == ProposalItemStatus.available).length;
-        final altCount = proposal.items.where((i) => i.status == ProposalItemStatus.alternative).length;
-        final missingCount = proposal.items.where((i) => i.status == ProposalItemStatus.unavailable).length;
+        final availableCount = proposal.items
+            .where((i) => i.status == ProposalItemStatus.available)
+            .length;
+        final altCount = proposal.items
+            .where((i) => i.status == ProposalItemStatus.alternative)
+            .length;
+        final missingCount = proposal.items
+            .where((i) => i.status == ProposalItemStatus.unavailable)
+            .length;
 
         return Material(
           color: Colors.transparent,
           child: InkWell(
             borderRadius: BorderRadius.circular(AppRadius.lg),
-            onTap: () => context.push('/vendor/proposals/detail', extra: proposal),
+            onTap: () =>
+                context.push('/vendor/proposals/detail', extra: proposal),
             child: Theme3AppCard(
               margin: EdgeInsets.only(bottom: AppSpacing.sm),
               child: Column(
@@ -1128,14 +1221,19 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('BID: ${proposal.id}', style: AppTextStyles.subtitle(primaryText)),
-                      StatusBadge(label: proposal.status.displayName, color: statusColor),
+                      Text('BID: ${proposal.id}',
+                          style: AppTextStyles.subtitle(primaryText)),
+                      StatusBadge(
+                          label: proposal.status.displayName,
+                          color: statusColor),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Text('Request: ${proposal.requestId}', style: AppTextStyles.bodySmall(secondaryText)),
+                  Text('Request: ${proposal.requestId}',
+                      style: AppTextStyles.bodySmall(secondaryText)),
                   if ((proposal.categoryNormalized ?? '').isNotEmpty)
-                    Text('Category: ${proposal.categoryNormalized}', style: AppTextStyles.caption(secondaryText)),
+                    Text('Category: ${proposal.categoryNormalized}',
+                        style: AppTextStyles.caption(secondaryText)),
                   Text(
                     'Date: ${_formatDateTime(proposal.createdAt)}',
                     style: AppTextStyles.caption(secondaryText),
@@ -1149,18 +1247,28 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('Delivery Time:', style: AppTextStyles.caption(secondaryText)),
-                        Text(proposal.estimatedDeliveryTime, style: AppTextStyles.bodyMedium(primaryText)),
-                      ]),
-                      Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                        Text('Total Bid:', style: AppTextStyles.caption(secondaryText)),
-                        Text('Rs. ${proposal.totalPrice.toStringAsFixed(2)}',
-                            style: AppTextStyles.subtitle(AppColors.vendorColor)),
-                      ]),
+                      Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Delivery Time:',
+                                style: AppTextStyles.caption(secondaryText)),
+                            Text(proposal.estimatedDeliveryTime,
+                                style: AppTextStyles.bodyMedium(primaryText)),
+                          ]),
+                      Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text('Total Bid:',
+                                style: AppTextStyles.caption(secondaryText)),
+                            Text(
+                                'Rs. ${proposal.totalPrice.toStringAsFixed(2)}',
+                                style: AppTextStyles.subtitle(
+                                    AppColors.vendorColor)),
+                          ]),
                     ],
                   ),
-                  if (proposal.status == ProposalStatus.rejected && proposal.rejectionReason != null) ...[
+                  if (proposal.status == ProposalStatus.rejected &&
+                      proposal.rejectionReason != null) ...[
                     const SizedBox(height: 12),
                     Container(
                       width: double.infinity,
@@ -1170,16 +1278,19 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Row(children: [
-                        const Icon(Icons.info_outline, color: AppColors.error, size: 18),
+                        const Icon(Icons.info_outline,
+                            color: AppColors.error, size: 18),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text('Rejection Reason: ${proposal.rejectionReason}',
+                          child: Text(
+                              'Rejection Reason: ${proposal.rejectionReason}',
                               style: AppTextStyles.caption(AppColors.error)),
                         ),
                       ]),
                     ),
                   ],
-                  if (proposal.customerResponse != null || proposal.vendorResponse != null) ...[
+                  if (proposal.customerResponse != null ||
+                      proposal.vendorResponse != null) ...[
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.all(12),
@@ -1190,27 +1301,38 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Message Log:', style: AppTextStyles.caption(secondaryText)),
+                          Text('Message Log:',
+                              style: AppTextStyles.caption(secondaryText)),
                           const SizedBox(height: 8),
                           if (proposal.customerResponse != null)
-                            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Icon(Icons.person_outline, size: 16, color: primaryText),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text('Customer: ${proposal.customerResponse ?? ''}',
-                                    style: AppTextStyles.bodySmall(primaryText)),
-                              ),
-                            ]),
+                            Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Icon(Icons.person_outline,
+                                      size: 16, color: primaryText),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                        'Customer: ${proposal.customerResponse ?? ''}',
+                                        style: AppTextStyles.bodySmall(
+                                            primaryText)),
+                                  ),
+                                ]),
                           if (proposal.vendorResponse != null) ...[
                             const SizedBox(height: 8),
-                            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              const Icon(Icons.check_circle_outline, size: 16, color: AppColors.vendorColor),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text('You: ${proposal.vendorResponse ?? ''}',
-                                    style: AppTextStyles.bodySmall(AppColors.vendorColor)),
-                              ),
-                            ]),
+                            Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(Icons.check_circle_outline,
+                                      size: 16, color: AppColors.vendorColor),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                        'You: ${proposal.vendorResponse ?? ''}',
+                                        style: AppTextStyles.bodySmall(
+                                            AppColors.vendorColor)),
+                                  ),
+                                ]),
                           ],
                         ],
                       ),
@@ -1225,6 +1347,7 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
     );
   }
 }
+
 class _VendorRevenueSummary {
   const _VendorRevenueSummary({
     required this.grossSales,
@@ -1245,18 +1368,25 @@ class _VendorRevenueSummary {
   final double pendingNet;
 
   factory _VendorRevenueSummary.fromOrders(List<OrderModel> orders) {
-    final liveOrders = orders.where((o) => o.status != OrderStatus.cancelled).toList();
+    final liveOrders =
+        orders.where((o) => o.status != OrderStatus.cancelled).toList();
     final paidOrders = liveOrders.where((o) => o.isPaidForDashboard).toList();
-    final pendingOrders = liveOrders.where((o) => o.isPendingForDashboard).toList();
+    final pendingOrders =
+        liveOrders.where((o) => o.isPendingForDashboard).toList();
 
-    final paidGross = paidOrders.fold<double>(0, (sum, o) => sum + o.totalPrice);
-    final pendingGross = pendingOrders.fold<double>(0, (sum, o) => sum + o.totalPrice);
-    final paidNet = paidOrders.fold<double>(0, (sum, o) => sum + o.vendorNetAmount);
-    final pendingNet = pendingOrders.fold<double>(0, (sum, o) => sum + o.vendorNetAmount);
+    final paidGross =
+        paidOrders.fold<double>(0, (sum, o) => sum + o.totalPrice);
+    final pendingGross =
+        pendingOrders.fold<double>(0, (sum, o) => sum + o.totalPrice);
+    final paidNet =
+        paidOrders.fold<double>(0, (sum, o) => sum + o.vendorNetAmount);
+    final pendingNet =
+        pendingOrders.fold<double>(0, (sum, o) => sum + o.vendorNetAmount);
 
     return _VendorRevenueSummary(
       grossSales: paidGross + pendingGross,
-      commission: liveOrders.fold<double>(0, (sum, o) => sum + o.platformCommission),
+      commission:
+          liveOrders.fold<double>(0, (sum, o) => sum + o.platformCommission),
       netEarnings: paidNet + pendingNet,
       paidGross: paidGross,
       pendingGross: pendingGross,
@@ -1323,7 +1453,8 @@ class _DashboardHeroBanner extends StatelessWidget {
                   color: Colors.white.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: const Icon(Icons.storefront_rounded, color: Colors.white),
+                child:
+                    const Icon(Icons.storefront_rounded, color: Colors.white),
               ),
               SizedBox(width: AppSpacing.sm),
               Expanded(
@@ -1344,7 +1475,8 @@ class _DashboardHeroBanner extends StatelessWidget {
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.16),
                   borderRadius: BorderRadius.circular(20),
@@ -1578,11 +1710,10 @@ class _DashboardQuickAction extends StatelessWidget {
                           ),
                           child: Text(
                             badgeCount! > 99 ? '99+' : '$badgeCount',
-                            style: AppTextStyles.caption(Colors.white)
-                                .copyWith(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                            style: AppTextStyles.caption(Colors.white).copyWith(
+                              fontSize: 9,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ),
@@ -1680,7 +1811,8 @@ class _DashboardOrderCarousel extends StatefulWidget {
   final Color accentColor;
 
   @override
-  State<_DashboardOrderCarousel> createState() => _DashboardOrderCarouselState();
+  State<_DashboardOrderCarousel> createState() =>
+      _DashboardOrderCarouselState();
 }
 
 class _DashboardOrderCarouselState extends State<_DashboardOrderCarousel> {
@@ -1913,7 +2045,8 @@ class _DashboardCompletedOrderCard extends StatelessWidget {
               color: AppColors.success.withValues(alpha: 0.12),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.check_rounded, color: AppColors.success, size: 22),
+            child: const Icon(Icons.check_rounded,
+                color: AppColors.success, size: 22),
           ),
           SizedBox(width: AppSpacing.sm),
           Expanded(
@@ -2008,8 +2141,6 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
         isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
-    
-    
 
     final orderState = ref.watch(orderProvider);
     final revenueSummary = _VendorRevenueSummary.fromOrders(orderState.orders);
@@ -2036,10 +2167,12 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
     final now = DateTime.now();
     final startOfCurrentWeek = DateTime(now.year, now.month, now.day)
         .subtract(Duration(days: now.weekday - 1));
-    final startOfLastWeek = startOfCurrentWeek.subtract(const Duration(days: 7));
-    final selectedStartOfWeek = _selectedWeekRange == _WalletWeekRange.currentWeek
-        ? startOfCurrentWeek
-        : startOfLastWeek;
+    final startOfLastWeek =
+        startOfCurrentWeek.subtract(const Duration(days: 7));
+    final selectedStartOfWeek =
+        _selectedWeekRange == _WalletWeekRange.currentWeek
+            ? startOfCurrentWeek
+            : startOfLastWeek;
     final selectedEndOfWeek = selectedStartOfWeek.add(const Duration(days: 7));
 
     final visibleWalletOrders = allWalletOrders.where((order) {
@@ -2048,17 +2181,27 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
         order.createdAt.month,
         order.createdAt.day,
       );
-      return !orderDate.isBefore(selectedStartOfWeek) && orderDate.isBefore(selectedEndOfWeek);
+      return !orderDate.isBefore(selectedStartOfWeek) &&
+          orderDate.isBefore(selectedEndOfWeek);
     }).toList();
 
     for (final order in visibleWalletOrders) {
-      final day = const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-          [order.createdAt.weekday - 1];
+      final day = const [
+        'Mon',
+        'Tue',
+        'Wed',
+        'Thu',
+        'Fri',
+        'Sat',
+        'Sun'
+      ][order.createdAt.weekday - 1];
       weeklySales[day] = weeklySales[day]! + order.totalPrice;
     }
 
-    final double currentWeekMax = weeklySales.values.fold<double>(0.0,
-        (maxValue, dailyValue) => dailyValue > maxValue ? dailyValue : maxValue);
+    final double currentWeekMax = weeklySales.values.fold<double>(
+        0.0,
+        (maxValue, dailyValue) =>
+            dailyValue > maxValue ? dailyValue : maxValue);
     final double weeklyChartMax = currentWeekMax > 0 ? currentWeekMax : 1.0;
     final bool hasWeeklySales = weeklySales.values.any((value) => value > 0);
 
@@ -2081,12 +2224,13 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                 const Icon(Icons.account_balance_wallet_rounded,
                     color: AppColors.vendorColor, size: 28),
                 const SizedBox(width: 10),
-                Text('Shop Owner LKR Wallet', style: AppTextStyles.h1(primaryText)),
+                Text('Shop Owner LKR Wallet',
+                    style: AppTextStyles.h1(primaryText)),
               ],
             ),
             const SizedBox(height: 8),
             Text(
-              'Real-time earnings ledger — customer quote totals are shown as your sales amount. Hidden platform commission is calculated separately from item subtotal.',
+              'Real-time earnings ledger — you receive the full customer payment (including platform commission). The commission amount shown is what you owe to Speedmart monthly.',
               style: AppTextStyles.bodyMedium(secondaryText),
             ),
             const SizedBox(height: 24),
@@ -2094,12 +2238,16 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
               color: Colors.transparent,
               child: InkWell(
                 borderRadius: BorderRadius.circular(20),
-                onTap: () => _showEarningsSummary(context, cumulativeGross, cumulativeCommission, cumulativeNet),
+                onTap: () => _showEarningsSummary(context, cumulativeGross,
+                    cumulativeCommission, cumulativeNet),
                 child: Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [AppColors.vendorColor, AppColors.vendorColorDark],
+                      colors: [
+                        AppColors.vendorColor,
+                        AppColors.vendorColorDark
+                      ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -2149,10 +2297,11 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Commission Owed',
+                              Text('Commission to Pay Speedmart',
                                   style: AppTextStyles.caption(Colors.white60)),
                               const SizedBox(height: 4),
-                              Text('Rs. ${cumulativeCommission.toStringAsFixed(0)}',
+                              Text(
+                                  'Rs. ${cumulativeCommission.toStringAsFixed(0)}',
                                   style: AppTextStyles.bodyLarge(Colors.amber)
                                       .copyWith(fontWeight: FontWeight.bold)),
                             ],
@@ -2165,7 +2314,8 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
               ),
             ),
             const SizedBox(height: 28),
-            Text('Weekly Sales Distribution', style: AppTextStyles.h2(primaryText)),
+            Text('Weekly Sales Distribution',
+                style: AppTextStyles.h2(primaryText)),
             const SizedBox(height: 12),
             Align(
               alignment: Alignment.centerLeft,
@@ -2184,7 +2334,9 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                 borderRadius: BorderRadius.circular(12),
                 selectedColor: Colors.white,
                 fillColor: AppColors.vendorColor,
-                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                color: isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
                 borderColor: borderColor,
                 selectedBorderColor: AppColors.vendorColor,
                 children: const [
@@ -2217,19 +2369,28 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                             ? 'No sales recorded for this week yet.'
                             : 'No sales recorded for last week.',
                         style: AppTextStyles.bodyMedium(
-                          isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                          isDark
+                              ? AppColors.textSecondaryDark
+                              : AppColors.textSecondaryLight,
                         ),
                         textAlign: TextAlign.center,
                       ),
                     )
                   else ...[
-                    _buildChartBar('Mon', weeklySales['Mon']!, weeklyChartMax, isDark),
-                    _buildChartBar('Tue', weeklySales['Tue']!, weeklyChartMax, isDark),
-                    _buildChartBar('Wed', weeklySales['Wed']!, weeklyChartMax, isDark),
-                    _buildChartBar('Thu', weeklySales['Thu']!, weeklyChartMax, isDark),
-                    _buildChartBar('Fri', weeklySales['Fri']!, weeklyChartMax, isDark),
-                    _buildChartBar('Sat', weeklySales['Sat']!, weeklyChartMax, isDark),
-                    _buildChartBar('Sun', weeklySales['Sun']!, weeklyChartMax, isDark),
+                    _buildChartBar(
+                        'Mon', weeklySales['Mon']!, weeklyChartMax, isDark),
+                    _buildChartBar(
+                        'Tue', weeklySales['Tue']!, weeklyChartMax, isDark),
+                    _buildChartBar(
+                        'Wed', weeklySales['Wed']!, weeklyChartMax, isDark),
+                    _buildChartBar(
+                        'Thu', weeklySales['Thu']!, weeklyChartMax, isDark),
+                    _buildChartBar(
+                        'Fri', weeklySales['Fri']!, weeklyChartMax, isDark),
+                    _buildChartBar(
+                        'Sat', weeklySales['Sat']!, weeklyChartMax, isDark),
+                    _buildChartBar(
+                        'Sun', weeklySales['Sun']!, weeklyChartMax, isDark),
                   ],
                 ],
               ),
@@ -2251,12 +2412,25 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                 final orderComm = order.platformCommission;
                 final orderNet = order.vendorNetAmount;
 
-                final isCod = order.paymentStatus == PaymentStatus.pendingOnDelivery;
-                final isSettledOrder = order.status == OrderStatus.delivered || order.status == OrderStatus.completed;
+                final isCod =
+                    order.paymentStatus == PaymentStatus.pendingOnDelivery;
+                final isBankTransfer =
+                    order.paymentMethod == PaymentMethod.bankTransfer;
+                final isSettledOrder = order.status == OrderStatus.delivered ||
+                    order.status == OrderStatus.completed;
                 final settlementLabel = isSettledOrder
-                    ? (isCod ? 'COD – Settled after delivery' : 'Settled (Online)')
-                    : (isCod ? 'COD – Pending delivery' : 'Pending settlement');
-                final settlementColor = isSettledOrder ? AppColors.success : AppColors.warning;
+                    ? (isCod
+                        ? 'COD – Settled after delivery'
+                        : isBankTransfer
+                            ? 'Bank Transfer – Settled'
+                            : 'Settled (Online)')
+                    : (isCod
+                        ? 'COD – Pending delivery'
+                        : isBankTransfer
+                            ? 'Bank Transfer – Awaiting confirmation'
+                            : 'Pending settlement');
+                final settlementColor =
+                    isSettledOrder ? AppColors.success : AppColors.warning;
 
                 return Material(
                   color: Colors.transparent,
@@ -2290,7 +2464,8 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 8, vertical: 3),
                                 decoration: BoxDecoration(
-                                  color: settlementColor.withValues(alpha: 0.12),
+                                  color:
+                                      settlementColor.withValues(alpha: 0.12),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
@@ -2310,8 +2485,8 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                               Text('Customer: ${order.customerName}',
                                   style: AppTextStyles.caption(secondaryText)),
                               Text(
-                                '${order.createdAt.day}/${order.createdAt.month}/${order.createdAt.year}',
-                                style: AppTextStyles.caption(secondaryText)),
+                                  '${order.createdAt.day}/${order.createdAt.month}/${order.createdAt.year}',
+                                  style: AppTextStyles.caption(secondaryText)),
                             ],
                           ),
                           const Divider(height: 16),
@@ -2319,17 +2494,23 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Expanded(
-                                child: Text('Sales: Rs. ${orderGross.toStringAsFixed(0)}',
-                                    style: AppTextStyles.bodySmall(secondaryText)),
+                                child: Text(
+                                    'Sales: Rs. ${orderGross.toStringAsFixed(0)}',
+                                    style:
+                                        AppTextStyles.bodySmall(secondaryText)),
                               ),
                               Expanded(
-                                child: Text('Comm: Rs. ${orderComm.toStringAsFixed(0)}',
-                                    style: AppTextStyles.bodySmall(secondaryText)),
+                                child: Text(
+                                    'Comm: Rs. ${orderComm.toStringAsFixed(0)}',
+                                    style:
+                                        AppTextStyles.bodySmall(secondaryText)),
                               ),
                               Expanded(
-                                child: Text('Net: Rs. ${orderNet.toStringAsFixed(2)}',
+                                child: Text(
+                                    'Net: Rs. ${orderNet.toStringAsFixed(2)}',
                                     textAlign: TextAlign.end,
-                                    style: AppTextStyles.bodyMedium(AppColors.success)
+                                    style: AppTextStyles.bodyMedium(
+                                            AppColors.success)
                                         .copyWith(fontWeight: FontWeight.bold)),
                               ),
                             ],
@@ -2429,7 +2610,8 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
             padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
             decoration: BoxDecoration(
               color: theme.scaffoldBackgroundColor,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(24)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -2454,8 +2636,10 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                   style: AppTextStyles.bodyMedium(AppColors.textSecondaryLight),
                 ),
                 const SizedBox(height: 20),
-                _buildSummaryRow('Gross Sales', 'Rs. ${gross.toStringAsFixed(2)}'),
-                _buildSummaryRow('Platform Commission', 'Rs. ${commission.toStringAsFixed(2)}'),
+                _buildSummaryRow(
+                    'Gross Sales', 'Rs. ${gross.toStringAsFixed(2)}'),
+                _buildSummaryRow('Platform Commission (owed to Speedmart)',
+                    'Rs. ${commission.toStringAsFixed(2)}'),
                 const Divider(height: 32),
                 _buildSummaryRow(
                   'Vendor Net Earnings',
@@ -2464,7 +2648,7 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Net earnings exclude commission and represent the amount available to your wallet.',
+                  'Net earnings = Gross sales minus commission owed to Speedmart. You receive the full amount from customers and remit commission monthly.',
                   style: AppTextStyles.caption(AppColors.textSecondaryLight),
                 ),
                 const SizedBox(height: 18),
@@ -2478,10 +2662,21 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
 
   void _showOrderSettlementSummary(BuildContext context, OrderModel order) {
     final bool isCod = order.paymentStatus == PaymentStatus.pendingOnDelivery;
-    final bool isSettledOrder = order.status == OrderStatus.delivered || order.status == OrderStatus.completed;
+    final bool isBankTransfer =
+        order.paymentMethod == PaymentMethod.bankTransfer;
+    final bool isSettledOrder = order.status == OrderStatus.delivered ||
+        order.status == OrderStatus.completed;
     final String statusLabel = isSettledOrder
-        ? (isCod ? 'COD – Settled after delivery' : 'Settled (Online)')
-        : (isCod ? 'COD – Pending delivery' : 'Pending settlement');
+        ? (isCod
+            ? 'COD – Settled after delivery'
+            : isBankTransfer
+                ? 'Bank Transfer – Settled'
+                : 'Settled (Online)')
+        : (isCod
+            ? 'COD – Pending delivery'
+            : isBankTransfer
+                ? 'Bank Transfer – Awaiting confirmation'
+                : 'Pending settlement');
     final parentContext = context;
 
     showModalBottomSheet<void>(
@@ -2500,7 +2695,8 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
             padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
             decoration: BoxDecoration(
               color: theme.scaffoldBackgroundColor,
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(24)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -2521,10 +2717,12 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                     style: AppTextStyles.h2(theme.colorScheme.onBackground)),
                 const SizedBox(height: 8),
                 Text('Order ID: ${order.id}',
-                    style: AppTextStyles.bodyMedium(AppColors.textSecondaryLight)),
+                    style:
+                        AppTextStyles.bodyMedium(AppColors.textSecondaryLight)),
                 const SizedBox(height: 12),
                 Text('Product IDs',
-                    style: AppTextStyles.labelSmall(AppColors.textSecondaryLight)),
+                    style:
+                        AppTextStyles.labelSmall(AppColors.textSecondaryLight)),
                 const SizedBox(height: 8),
                 if (order.items.isNotEmpty)
                   Column(
@@ -2538,14 +2736,17 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                           child: InkWell(
                             borderRadius: BorderRadius.circular(12),
                             onTap: () async {
-                              await Clipboard.setData(ClipboardData(text: productId));
+                              await Clipboard.setData(
+                                  ClipboardData(text: productId));
                               if (!mounted) return;
-                              ref.read(notificationProvider.notifier).triggerNotification(
-                                title: 'Copied',
-                                body: 'Product ID copied',
-                                icon: Icons.copy_rounded,
-                                color: AppColors.vendorColor,
-                              );
+                              ref
+                                  .read(notificationProvider.notifier)
+                                  .triggerNotification(
+                                    title: 'Copied',
+                                    body: 'Product ID copied',
+                                    icon: Icons.copy_rounded,
+                                    color: AppColors.vendorColor,
+                                  );
                             },
                             child: Container(
                               width: double.infinity,
@@ -2554,9 +2755,11 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                                 horizontal: 14,
                               ),
                               decoration: BoxDecoration(
-                                color: theme.colorScheme.surfaceVariant.withOpacity(0.14),
+                                color: theme.colorScheme.surfaceVariant
+                                    .withOpacity(0.14),
                                 border: Border.all(
-                                  color: theme.colorScheme.onSurface.withOpacity(0.16),
+                                  color: theme.colorScheme.onSurface
+                                      .withOpacity(0.16),
                                 ),
                                 borderRadius: BorderRadius.circular(14),
                               ),
@@ -2565,14 +2768,16 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                                   Expanded(
                                     child: Text(
                                       productId,
-                                      style: AppTextStyles.bodyMedium(theme.colorScheme.onBackground),
+                                      style: AppTextStyles.bodyMedium(
+                                          theme.colorScheme.onBackground),
                                     ),
                                   ),
                                   const SizedBox(width: 8),
                                   Icon(
                                     Icons.copy_rounded,
                                     size: 18,
-                                    color: theme.colorScheme.onBackground.withOpacity(0.72),
+                                    color: theme.colorScheme.onBackground
+                                        .withOpacity(0.72),
                                   ),
                                 ],
                               ),
@@ -2583,21 +2788,28 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                     }).toList(),
                   )
                 else
-                  Text('N/A', style: AppTextStyles.bodyMedium(AppColors.textSecondaryLight)),
+                  Text('N/A',
+                      style: AppTextStyles.bodyMedium(
+                          AppColors.textSecondaryLight)),
                 const SizedBox(height: 16),
                 _buildSummaryRow('Customer', order.customerName),
                 _buildSummaryRow('Order Date',
                     '${order.createdAt.day}/${order.createdAt.month}/${order.createdAt.year}'),
                 _buildSummaryRow('Status', statusLabel,
-                    valueColor: isSettledOrder ? AppColors.success : AppColors.warning),
+                    valueColor:
+                        isSettledOrder ? AppColors.success : AppColors.warning),
                 const Divider(height: 32),
-                _buildSummaryRow('Sales', 'Rs. ${order.totalPrice.toStringAsFixed(2)}'),
-                _buildSummaryRow('Commission', 'Rs. ${order.platformCommission.toStringAsFixed(2)}'),
-                _buildSummaryRow('Net to Vendor', 'Rs. ${order.vendorNetAmount.toStringAsFixed(2)}',
+                _buildSummaryRow(
+                    'Sales', 'Rs. ${order.totalPrice.toStringAsFixed(2)}'),
+                _buildSummaryRow('Commission',
+                    'Rs. ${order.platformCommission.toStringAsFixed(2)}'),
+                _buildSummaryRow('Net to Vendor',
+                    'Rs. ${order.vendorNetAmount.toStringAsFixed(2)}',
                     valueColor: AppColors.success),
                 if (order.deliveryCharge > 0) ...[
                   const SizedBox(height: 12),
-                  _buildSummaryRow('Delivery Fee', 'Rs. ${order.deliveryCharge.toStringAsFixed(2)}'),
+                  _buildSummaryRow('Delivery Fee',
+                      'Rs. ${order.deliveryCharge.toStringAsFixed(2)}'),
                 ],
                 const SizedBox(height: 8),
                 Text(
@@ -2625,14 +2837,14 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
           ),
           const SizedBox(width: 12),
           Text(value,
-              style: AppTextStyles.bodyMedium(valueColor ?? AppColors.textSecondaryLight)
+              style: AppTextStyles.bodyMedium(
+                      valueColor ?? AppColors.textSecondaryLight)
                   .copyWith(fontWeight: FontWeight.bold)),
         ],
       ),
     );
   }
 }
-
 
 /// Animated tab switcher that fades between tabs while keeping all alive.
 class _AnimatedIndexedStack extends StatefulWidget {
@@ -2694,7 +2906,8 @@ class _AnimatedIndexedStackState extends State<_AnimatedIndexedStack>
   }
 }
 
-extension _VendorHomeScreenStateExtension on _VendorHomeScreenState {  Widget _buildVendorHeader(BuildContext context, bool isDark) {
+extension _VendorHomeScreenStateExtension on _VendorHomeScreenState {
+  Widget _buildVendorHeader(BuildContext context, bool isDark) {
     final secondaryText =
         isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
 
@@ -2734,9 +2947,7 @@ extension _VendorHomeScreenStateExtension on _VendorHomeScreenState {  Widget _b
               ref.read(themeProvider.notifier).toggleTheme();
             },
             icon: Icon(
-              isDark
-                  ? Icons.light_mode_outlined
-                  : Icons.dark_mode_outlined,
+              isDark ? Icons.light_mode_outlined : Icons.dark_mode_outlined,
               color: secondaryText,
             ),
             style: IconButton.styleFrom(
@@ -2747,7 +2958,8 @@ extension _VendorHomeScreenStateExtension on _VendorHomeScreenState {  Widget _b
           ),
           SizedBox(width: AppSpacing.xs),
           IconButton(
-            onPressed: VendorStatusGuard.shouldShowStatusScreen(ref.read(currentUserProvider))
+            onPressed: VendorStatusGuard.shouldShowStatusScreen(
+                    ref.read(currentUserProvider))
                 ? null
                 : () {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -2761,7 +2973,8 @@ extension _VendorHomeScreenStateExtension on _VendorHomeScreenState {  Widget _b
                   },
             icon: Icon(
               Icons.notifications_outlined,
-              color: VendorStatusGuard.shouldShowStatusScreen(ref.read(currentUserProvider))
+              color: VendorStatusGuard.shouldShowStatusScreen(
+                      ref.read(currentUserProvider))
                   ? secondaryText.withValues(alpha: 0.38)
                   : secondaryText,
             ),
@@ -2776,4 +2989,3 @@ extension _VendorHomeScreenStateExtension on _VendorHomeScreenState {  Widget _b
     );
   }
 }
-
