@@ -200,7 +200,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     await _saveProfile(user: user, phone: newPhone);
   }
 
-  Future<void> _saveProfile({required UserModel user, required String phone}) async {
+  Future<void> _saveProfile({required UserModel user, required String phone, bool silent = false}) async {
     setState(() => _isSaving = true);
     try {
       final imageToSave = _pickedImagePath ?? _savedImagePath ?? user.profileImageUrl;
@@ -221,15 +221,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
       });
       profileEditingNotifier.value = null;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: user.role == UserRole.vendor
-              ? const Text('Category change request sent to admin.')
-              : const Text('Profile updated successfully!'),
-          backgroundColor: user.role == UserRole.vendor ? AppColors.vendorColor : AppColors.customerColor,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      if (!silent) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: user.role == UserRole.vendor
+                ? const Text('Category change request sent to admin.')
+                : const Text('Profile updated successfully!'),
+            backgroundColor: user.role == UserRole.vendor ? AppColors.vendorColor : AppColors.customerColor,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -368,7 +370,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         if (!mounted) return;
                         // ignore: use_build_context_synchronously
                         Navigator.of(ctx).pop();
-                        await _saveProfile(user: user, phone: newPhone);
+                        await _saveProfile(user: user, phone: newPhone, silent: true);
                         if (!mounted) return;
                         // ignore: use_build_context_synchronously
                         ScaffoldMessenger.of(context).showSnackBar(
@@ -400,8 +402,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ),
     );
 
-    for (final c in controllers) c.dispose();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final c in controllers) c.dispose();
       for (final f in focusNodes) f.dispose();
     });
   }
