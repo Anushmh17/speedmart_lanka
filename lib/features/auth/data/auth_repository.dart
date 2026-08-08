@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../core/constants/app_constants.dart';
 import '../../../core/services/firestore_service.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../../core/services/fcm_service.dart';
@@ -439,6 +440,8 @@ class AuthRepository {
       shopLocationSource: shopLocationSource,
       isShopLocationAssigned: false,
       businessRegistrationNumber: businessRegistrationNumber,
+      assignedRadiusKm: role == UserRole.vendor ? AppConstants.defaultDeliveryRadius : null,
+      commissionRate: role == UserRole.vendor ? AppConstants.defaultCommissionRate : null,
     );
 
     await _createFirebaseUser(resolvedEmail, password);
@@ -719,6 +722,26 @@ class AuthRepository {
           : _sessionUsers[index].copyWith(commissionRate: rate);
       await _persistUsers();
       debugPrint('[CommissionAudit] Vendor $vendorId commission set to ${rate == null ? 'default (0%)' : '${(rate * 100).toStringAsFixed(2)}%'}');
+    }
+  }
+
+  /// Fetches the vendor's Firestore doc and refreshes the in-memory user.
+  /// Returns the refreshed user, or null if not found.
+  Future<UserModel?> refreshVendorStatus(String vendorId) async {
+    try {
+      final doc = await FirestoreService.collection('users/vendors/profiles').doc(vendorId).get();
+      if (!doc.exists) return null;
+      final user = UserModel.fromJson({...doc.data()!, 'id': doc.id});
+      final index = _sessionUsers.indexWhere((u) => u.id == vendorId);
+      if (index != -1) {
+        _sessionUsers[index] = user;
+      } else {
+        _sessionUsers.add(user);
+      }
+      return user;
+    } catch (e) {
+      debugPrint('[Auth] refreshVendorStatus error: $e');
+      return null;
     }
   }
 

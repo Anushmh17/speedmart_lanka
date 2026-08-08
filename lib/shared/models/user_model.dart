@@ -42,7 +42,7 @@ class UserModel {
   /// Additional vendor info
   final String? businessRegistrationNumber;
 
-  /// Admin-set platform commission rate for this vendor (0.0–1.0, e.g. 0.05 = 5%).
+  /// Admin-set platform commission rate for this vendor (0.0–1.0, e.g. 0.10 = 10%).
   /// Null means the platform default (treated as 0%).
   final double? commissionRate;
 
