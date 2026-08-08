@@ -12,7 +12,6 @@ import 'package:speedmart_lanka/features/proposals/providers/proposal_provider.d
 import 'package:speedmart_lanka/features/requests/models/shopping_request.dart';
 import 'package:speedmart_lanka/features/requests/models/request_category_fulfillment.dart';
 import 'package:speedmart_lanka/features/requests/providers/request_provider.dart';
-import 'package:speedmart_lanka/features/requests/data/request_repository.dart';
 import 'package:speedmart_lanka/features/notifications/models/notification_type.dart';
 import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart'
     as notification_feature;

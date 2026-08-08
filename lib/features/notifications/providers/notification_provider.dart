@@ -3,7 +3,6 @@ import '../../auth/providers/auth_provider.dart';
 import '../data/notification_repository.dart';
 import '../models/notification_model.dart';
 import '../models/notification_type.dart';
-import 'dart:convert';
 import 'package:speedmart_lanka/core/services/local_notification_service.dart';
 import 'package:speedmart_lanka/core/routes/route_names.dart';
 

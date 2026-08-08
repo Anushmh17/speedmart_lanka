@@ -6,7 +6,6 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_spacing.dart';
-import '../../../../core/theme/app_radius.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../../core/widgets/theme3/theme3_widgets.dart';
 import '../../../../core/routes/route_names.dart';
@@ -27,7 +26,7 @@ import '../widgets/image_upload_grid.dart';
 import '../widgets/shopping_list_builder.dart';
 import '../widgets/sticky_submit_bar.dart';
 import '../widgets/review_request_sheet.dart';
-import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
+
 import 'package:speedmart_lanka/features/customer/delivery_address/providers/customer_delivery_address_provider.dart';
 import 'package:speedmart_lanka/features/customer/delivery_address/presentation/widgets/delivery_address_summary_card.dart';
 import 'package:speedmart_lanka/features/customer/delivery_address/presentation/widgets/confirm_delivery_address_sheet.dart';

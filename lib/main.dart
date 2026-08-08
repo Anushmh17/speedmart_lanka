@@ -4,18 +4,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_api_availability/google_api_availability.dart';
 
-import 'package:go_router/go_router.dart';
 import 'core/routes/app_router.dart';
-import 'core/services/local_notification_service.dart';
 import 'core/services/fcm_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/widgets/network_fallback_wrapper.dart';
 import 'features/auth/providers/theme_provider.dart';
-import 'features/orders/data/order_repository.dart';
-import 'features/proposals/data/proposal_repository.dart';
-import 'features/requests/data/request_repository.dart';
-import 'core/routes/route_names.dart';
-import 'core/theme/app_colors.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

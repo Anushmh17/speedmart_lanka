@@ -319,6 +319,10 @@ class _SrilankavendorloginotpWidgetState
                               fontSize: fs(20),
                               controller: _otpControllers[index],
                               focusNode: _otpFocusNodes[index],
+                              onTap: () {
+                                final target = _otpControllers.indexWhere((c) => c.text.isEmpty);
+                                _otpFocusNodes[target == -1 ? 5 : target].requestFocus();
+                              },
                               onChanged: (value) {
                                 if (value.isNotEmpty && index < 5) {
                                   _otpFocusNodes[index + 1].requestFocus();
@@ -482,6 +486,7 @@ class _VendorOtpBox extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final ValueChanged<String> onChanged;
+  final VoidCallback onTap;
 
   const _VendorOtpBox({
     required this.width,
@@ -491,15 +496,14 @@ class _VendorOtpBox extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.onChanged,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () {
-        focusNode.requestFocus();
-      },
+      onTap: onTap,
       child: Container(
         width: width,
         height: height,
@@ -512,34 +516,36 @@ class _VendorOtpBox extends StatelessWidget {
             width: 1,
           ),
         ),
-        child: TextField(
-          controller: controller,
-          focusNode: focusNode,
-          keyboardType: TextInputType.number,
-          textInputAction: TextInputAction.next,
-          textAlign: TextAlign.center,
-          maxLength: 1,
-          inputFormatters: [
-            FilteringTextInputFormatter.digitsOnly,
-            LengthLimitingTextInputFormatter(1),
-          ],
-          cursorColor: const Color(0xFFFF8213),
-          style: TextStyle(
-            color: Colors.white,
-            fontFamily: 'Inter',
-            fontSize: fontSize,
-            fontWeight: FontWeight.w700,
-            height: 1,
+        child: IgnorePointer(
+          child: TextField(
+            controller: controller,
+            focusNode: focusNode,
+            keyboardType: TextInputType.number,
+            textInputAction: TextInputAction.next,
+            textAlign: TextAlign.center,
+            maxLength: 1,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+              LengthLimitingTextInputFormatter(1),
+            ],
+            cursorColor: const Color(0xFFFF8213),
+            style: TextStyle(
+              color: Colors.white,
+              fontFamily: 'Inter',
+              fontSize: fontSize,
+              fontWeight: FontWeight.w700,
+              height: 1,
+            ),
+            decoration: const InputDecoration(
+              counterText: '',
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              isCollapsed: true,
+              contentPadding: EdgeInsets.zero,
+            ),
+            onChanged: onChanged,
           ),
-          decoration: const InputDecoration(
-            counterText: '',
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-            isCollapsed: true,
-            contentPadding: EdgeInsets.zero,
-          ),
-          onChanged: onChanged,
         ),
       ),
     );

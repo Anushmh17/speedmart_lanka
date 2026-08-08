@@ -9,7 +9,6 @@ import 'package:speedmart_lanka/core/theme/app_text_styles.dart';
 import 'package:speedmart_lanka/core/theme/app_spacing.dart';
 import 'package:speedmart_lanka/core/theme/app_radius.dart';
 import 'package:speedmart_lanka/core/widgets/app_logo.dart';
-import 'package:speedmart_lanka/core/widgets/shared_floating_bottom_nav.dart';
 import 'package:speedmart_lanka/core/widgets/theme3/theme3_widgets.dart';
 import 'package:speedmart_lanka/core/navigation/bottom_nav_visibility.dart';
 import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
