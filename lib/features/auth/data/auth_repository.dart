@@ -104,12 +104,9 @@ class AuthRepository {
 
   Future<void> _syncUserToFirestore(UserModel user) async {
     try {
-      // Use Firebase Auth UID as the doc ID so Firestore ownership rules match.
-      final firebaseUid = _firebaseAuth.currentUser?.uid;
-      final docId = firebaseUid ?? user.id;
-      final doc = _collectionForRole(user.role).doc(docId);
+      final doc = _collectionForRole(user.role).doc(user.id);
       await doc.set(user.toJson(), SetOptions(merge: true));
-      debugPrint('[Auth] Synced user ${user.id} (doc: $docId) to Firestore (${user.role.name})');
+      debugPrint('[Auth] Synced user ${user.id} to Firestore (${user.role.name})');
     } catch (e) {
       debugPrint('[Auth] Failed to sync user ${user.id} to Firestore: $e');
       rethrow;
@@ -803,6 +800,15 @@ class AuthRepository {
     } catch (e) {
       debugPrint('[Auth] refreshVendorStatus error: $e');
       return null;
+    }
+  }
+
+  Future<void> deleteStaleDoc({required UserRole role, required String docId}) async {
+    try {
+      await _collectionForRole(role).doc(docId).delete();
+      debugPrint('[Auth] Deleted stale doc $docId');
+    } catch (e) {
+      debugPrint('[Auth] Could not delete stale doc $docId: $e');
     }
   }
 

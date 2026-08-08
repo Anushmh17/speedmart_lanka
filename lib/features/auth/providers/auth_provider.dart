@@ -49,9 +49,22 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final firebaseUid = AuthRepository.instance.currentFirebaseUid;
     
     final userJson = await StorageService.getUser();
-    if (userJson != null && firebaseUid != null && userJson['id'] != firebaseUid) {
+    // For vendors/admins signed in with Firebase Auth, ensure stored ID matches Firebase UID.
+    if (userJson != null && firebaseUid != null &&
+        userJson['id'] != firebaseUid &&
+        userJson['role'] != 'customer') {
+      final oldId = userJson['id'] as String?;
       userJson['id'] = firebaseUid;
       await StorageService.saveUser(userJson);
+      if (oldId != null && oldId != firebaseUid) {
+        try {
+          final role = UserRole.values.firstWhere(
+            (r) => r.name == (userJson['role'] as String? ?? ''),
+            orElse: () => UserRole.customer,
+          );
+          await AuthRepository.instance.deleteStaleDoc(role: role, docId: oldId);
+        } catch (_) {}
+      }
     }
     if (userJson != null && (tokenUserId == null || userJson['id'] == tokenUserId || firebaseUid == tokenUserId)) {
       debugPrint('[CategoryAudit] ===== VENDOR LOGIN RESTORE =====');

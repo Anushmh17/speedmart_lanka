@@ -28,9 +28,11 @@ service cloud.firestore {
       // Unauthenticated reads allowed — needed for phone/email existence check during OTP login
       // Limit to single-doc reads/queries only — blocks full collection dumps
       allow read: if request.query == null || request.query.limit <= 1;
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && (isOwner(userId) || isAdmin());
-      allow delete: if isAdmin();
+      allow create: if isSignedIn() || request.resource.data.id == userId;
+      allow update: if (isSignedIn() && (isOwner(userId) || isAdmin())) ||
+                       request.resource.data.id == userId;
+      // Allow delete of stale docs (old customer-{timestamp} format) or by admin
+      allow delete: if isAdmin() || resource.data.id.matches('customer-.*');
     }
 
     match /users/vendors/profiles/{userId} {
