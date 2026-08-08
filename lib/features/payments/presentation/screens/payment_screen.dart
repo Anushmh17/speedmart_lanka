@@ -25,20 +25,19 @@ class AcceptedVendorGroup {
   final Proposal proposal;
   final List<ProposalItem> acceptedItems;
   final bool waveDeliveryCharge;
-  final double commissionRate;
 
   AcceptedVendorGroup({
     required this.proposal,
     required this.acceptedItems,
     this.waveDeliveryCharge = false,
-    this.commissionRate = 0.0,
   });
 
   double get subtotal => acceptedItems.fold<double>(0.0, (sum, item) => sum + item.subtotal);
   double get deliveryCharge => waveDeliveryCharge ? 0.0 : proposal.deliveryCharge;
-  double get platformCommission => subtotal * commissionRate;
-  double get customerAmount => subtotal + deliveryCharge + platformCommission; // What customer pays for accepted items, delivery, and hidden commission
-  double get vendorNetAmount => customerAmount - platformCommission; // Vendor net receipt after hidden platform fee
+  // Commission is already baked into proposal.totalPrice — derive it rather than recalculate.
+  double get platformCommission => proposal.totalPrice - subtotal - proposal.deliveryCharge;
+  double get customerAmount => proposal.totalPrice - (waveDeliveryCharge ? proposal.deliveryCharge : 0.0);
+  double get vendorNetAmount => customerAmount - platformCommission;
 }
 
 class _VendorPaymentAvailability {
@@ -249,7 +248,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         debugPrint('[PaymentAudit] ===== PAYMENT CREATION (Group: ${group.proposal.vendorBusinessName}) =====');
         debugPrint('[PaymentAudit] Subtotal (items): $subtotal');
         debugPrint('[PaymentAudit] Delivery fee: $deliveryFee');
-        debugPrint('[PaymentAudit] Platform commission (0% - no service fee): $platformCommission');
+        debugPrint('[PaymentAudit] Platform commission (derived from proposal.totalPrice): $platformCommission');
         debugPrint('[PaymentAudit] Customer pays: $customerAmount');
         debugPrint('[PaymentAudit] Vendor receives: $vendorNetAmount');
 
@@ -324,7 +323,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           customerLongitude: customerLng,
           accuracy: _request!.deliveryLocation?.accuracy,
           detectedAt: _request!.deliveryLocation?.detectedAt,
-          commissionRate: group.commissionRate,
+          commissionRate: group.proposal.commissionRate ?? 0.0,
         );
 
         final createdOrder = await ref.read(orderProvider.notifier).placeOrder(
@@ -572,25 +571,19 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       }
 
       if (items.isNotEmpty) {
-        final rateAsync = ref.watch(vendorCommissionRateProvider(p.vendorId));
-        final rate = rateAsync.maybeWhen(data: (value) => value, orElse: () => 0.0);
         acceptedGroups.add(AcceptedVendorGroup(
           proposal: p,
           acceptedItems: items,
           waveDeliveryCharge: checkWaveDeliveryCharge(p),
-          commissionRate: rate,
         ));
       }
     }
 
     if (acceptedGroups.isEmpty) {
-      final rateAsync = ref.watch(vendorCommissionRateProvider(widget.proposal.vendorId));
-      final rate = rateAsync.maybeWhen(data: (value) => value, orElse: () => 0.0);
       acceptedGroups.add(AcceptedVendorGroup(
         proposal: widget.proposal,
         acceptedItems: widget.proposal.items.where((i) => i.status != ProposalItemStatus.unavailable).toList(),
         waveDeliveryCharge: checkWaveDeliveryCharge(widget.proposal),
-        commissionRate: rate,
       ));
     }
 

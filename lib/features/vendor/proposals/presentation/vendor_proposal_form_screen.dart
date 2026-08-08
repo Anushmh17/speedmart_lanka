@@ -287,6 +287,7 @@ class _VendorProposalFormScreenState
       vendorLatitude: vendorLatitude,
       vendorLongitude: vendorLongitude,
       categoryNormalized: proposalCategory,
+      commissionRate: commissionRate,
     );
   }
 
