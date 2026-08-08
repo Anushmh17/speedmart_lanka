@@ -111,8 +111,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  void _cancelEdit() {
+    setState(() {
+      _isEditing = false;
+      _pickedImagePath = null;
+    });
+    ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
+    profileEditingNotifier.value = null;
+    _initData();
+  }
+
   @override
   void dispose() {
+    profileEditingNotifier.value = null;
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _businessNameCtrl.dispose();
@@ -208,6 +219,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _imageVersion++;
         ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
       });
+      profileEditingNotifier.value = null;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: user.role == UserRole.vendor
@@ -461,8 +473,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final bottomPadding = showBottomNav ? 140.0 : 32.0;
 
     return Scaffold(
-        backgroundColor: Colors.transparent,
-        body: SingleChildScrollView(
+      backgroundColor: Colors.transparent,
+      body: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.fromLTRB(20, 8, 20, bottomPadding),
           child: Form(
@@ -477,17 +489,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   TextButton.icon(
                     onPressed: () {
                       if (_isEditing) {
-                        setState(() {
-                          _isEditing = false;
-                          _pickedImagePath = null;
-                          ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
-                        });
-                        _initData();
+                        _cancelEdit();
                       } else {
                         setState(() {
                           _isEditing = true;
                           ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(true);
                         });
+                        profileEditingNotifier.value = _cancelEdit;
                       }
                     },
                     icon: Icon(

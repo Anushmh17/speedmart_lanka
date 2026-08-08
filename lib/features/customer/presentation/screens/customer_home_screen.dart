@@ -103,6 +103,13 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
   Future<bool> didPopRoute() async {
     if (!mounted) return false;
 
+    // If profile screen is in edit mode, let it cancel edit instead.
+    final cancelEdit = profileEditingNotifier.value;
+    if (cancelEdit != null) {
+      cancelEdit();
+      return true;
+    }
+
     final loc = _getTrueLocation(context);
     final cleanLoc = (loc.endsWith('/') && loc.length > 1)
         ? loc.substring(0, loc.length - 1)

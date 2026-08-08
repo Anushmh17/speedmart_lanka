@@ -52,6 +52,10 @@ class BottomNavVisibilityNotifier extends AutoDisposeNotifier<bool> {
   }
 }
 
+/// Global flag the profile screen sets while in edit mode.
+/// The shell's didPopRoute() checks this before navigating away.
+final profileEditingNotifier = ValueNotifier<VoidCallback?>(null);
+
 final bottomNavVisibilityProvider = AutoDisposeNotifierProvider<BottomNavVisibilityNotifier, bool>(
   BottomNavVisibilityNotifier.new,
 );
