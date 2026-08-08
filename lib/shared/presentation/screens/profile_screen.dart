@@ -20,6 +20,7 @@ import '../../../shared/models/user_model.dart';
 import '../../../shared/providers/category_provider.dart';
 import '../../../shared/utils/category_sync_helper.dart';
 import '../../../core/utils/permission_utils.dart';
+import '../../widgets/auth_loading_overlay.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -30,6 +31,7 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _isEditing = false;
+  bool _isSaving = false;
   final _formKey = GlobalKey<FormState>();
 
   late TextEditingController _nameCtrl;
@@ -165,34 +167,49 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
 
-    final imageToSave = _pickedImagePath ?? _savedImagePath ?? user.profileImageUrl;
+    setState(() => _isSaving = true);
+    try {
+      final imageToSave = _pickedImagePath ?? _savedImagePath ?? user.profileImageUrl;
 
-    await ref.read(authProvider.notifier).updateProfile(
-      fullName: _nameCtrl.text.trim(),
-      phone: _phoneCtrl.text.trim(),
-      businessName: user.role == UserRole.vendor ? _businessNameCtrl.text.trim() : null,
-      profileImageUrl: imageToSave,
-      requestedCategories: user.role == UserRole.vendor ? _selectedCategories : null,
-    );
+      await ref.read(authProvider.notifier).updateProfile(
+        fullName: _nameCtrl.text.trim(),
+        phone: _phoneCtrl.text.trim(),
+        businessName: user.role == UserRole.vendor ? _businessNameCtrl.text.trim() : null,
+        profileImageUrl: imageToSave,
+        requestedCategories: user.role == UserRole.vendor ? _selectedCategories : null,
+      );
 
-    if (!mounted) return;
-    final newSaved = _pickedImagePath ?? _savedImagePath;
-    setState(() {
-      _isEditing = false;
-      _savedImagePath = newSaved;
-      _pickedImagePath = null;
-      _imageVersion++;
-      ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: user.role == UserRole.vendor
-            ? const Text('Category change request sent to admin.')
-            : const Text('Profile updated successfully!'),
-        backgroundColor: user.role == UserRole.vendor ? AppColors.vendorColor : AppColors.customerColor,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+      if (!mounted) return;
+      final newSaved = _pickedImagePath ?? _savedImagePath;
+      setState(() {
+        _isEditing = false;
+        _savedImagePath = newSaved;
+        _pickedImagePath = null;
+        _imageVersion++;
+        ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: user.role == UserRole.vendor
+              ? const Text('Category change request sent to admin.')
+              : const Text('Profile updated successfully!'),
+          backgroundColor: user.role == UserRole.vendor ? AppColors.vendorColor : AppColors.customerColor,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.toString().replaceAll('Exception: ', '')),
+            backgroundColor: AppColors.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   Future<void> _handleLogout() async {
@@ -271,7 +288,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final user = ref.watch(currentUserProvider);
-    final isLoading = ref.watch(authLoadingProvider);
     
     if (user == null) {
       return const Center(child: CircularProgressIndicator());
@@ -290,7 +306,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     return Scaffold(
         backgroundColor: Colors.transparent,
-        body: SingleChildScrollView(
+        body: Stack(
+          children: [
+          SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.fromLTRB(20, 8, 20, bottomPadding),
           child: Form(
@@ -458,16 +476,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: isLoading ? null : _handleSave,
+                    onPressed: _isSaving ? null : _handleSave,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryColor,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       elevation: 4,
                       shadowColor: primaryColor.withOpacity(0.5),
                     ),
-                    child: isLoading 
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : Text('Save Changes', style: AppTextStyles.button(Colors.white).copyWith(fontSize: 16)),
+                    child: Text('Save Changes', style: AppTextStyles.button(Colors.white).copyWith(fontSize: 16)),
                   ),
                 )
               else
@@ -489,6 +505,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         ),
       ),
+          if (_isSaving) const Positioned.fill(child: AuthLoadingOverlay()),
+          ],
+        ),
     );
   }
 

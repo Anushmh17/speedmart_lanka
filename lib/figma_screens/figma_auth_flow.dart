@@ -31,6 +31,7 @@ import 'sri_lanka_vendor_register_otp_figma.dart';
 import 'sri_lanka_vendor_forget_password_figma.dart';
 import 'sri_lanka_vendor_forget_password_otp_figma.dart';
 import 'new_password_update_sri_lanka_vendor_figma.dart';
+import '../shared/widgets/auth_loading_overlay.dart';
 
 
 enum FigmaAuthRole { customer, vendor }
@@ -90,7 +91,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
   // Vendor register data â€” collected from onCreateAccountWithData
   Map<String, String>? _pendingVendorRegData;
 
-  bool _isVendorLoading = false;
+  bool _isLoading = false;
 
   SriLankaProvince? _selectedProvince;
   SriLankaDistrict? _selectedDistrict;
@@ -325,162 +326,122 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     final email = (data['email'] ?? '').trim();
     final preciseAddress = (data['preciseAddress'] ?? '').trim();
 
-    if (nic.isEmpty) {
-      _showError('Please enter your NIC number.');
-      return;
-    }
-    if (nic.length != 10 && nic.length != 12) {
-      _showError('Please enter a valid 10 or 12 digit NIC number.');
-      return;
-    }
-    if (fullName.isEmpty) {
-      _showError('Please enter your full name.');
-      return;
-    }
-    if (phone.isEmpty) {
-      _showError('Please enter your phone number.');
-      return;
-    }
-    if (phone.length < 9) {
-      _showError('Please enter a valid phone number.');
-      return;
-    }
-    if (email.isEmpty || !email.contains('@')) {
-      _showError('Please enter a valid email address.');
-      return;
-    }
-    if (_detectedLatitude == null || _detectedLongitude == null) {
-      _showError('Please pin your delivery location on the map.');
-      return;
-    }
-    if (_selectedProvince == null) {
-      _showError('Please select your Province.');
-      return;
-    }
-    if (_selectedDistrict == null) {
-      _showError('Please select your District.');
-      return;
-    }
-    if (preciseAddress.isEmpty) {
-      _showError('Please enter your precise delivery address.');
-      return;
-    }
+    if (nic.isEmpty) { _showError('Please enter your NIC number.'); return; }
+    if (nic.length != 10 && nic.length != 12) { _showError('Please enter a valid 10 or 12 digit NIC number.'); return; }
+    if (fullName.isEmpty) { _showError('Please enter your full name.'); return; }
+    if (phone.isEmpty) { _showError('Please enter your phone number.'); return; }
+    if (phone.length < 9) { _showError('Please enter a valid phone number.'); return; }
+    if (email.isEmpty || !email.contains('@')) { _showError('Please enter a valid email address.'); return; }
+    if (_detectedLatitude == null || _detectedLongitude == null) { _showError('Please pin your delivery location on the map.'); return; }
+    if (_selectedProvince == null) { _showError('Please select your Province.'); return; }
+    if (_selectedDistrict == null) { _showError('Please select your District.'); return; }
+    if (preciseAddress.isEmpty) { _showError('Please enter your precise delivery address.'); return; }
 
+    setState(() => _isLoading = true);
     try {
       await ref.read(authProvider.notifier).validateCustomerRegistrationData(
         phone: phone.trim(),
         email: (data['email'] ?? '').trim(),
         nic: nic.trim(),
       );
-    } catch (e) {
+
+      final reg = ref.read(customerRegistrationProvider.notifier);
+      reg.setMode(isLogin: false);
+      reg.updateFullName(fullName.trim());
+      reg.updatePhone(phone.trim());
+      reg.updateNic(nic.trim());
+      reg.updatePreciseAddress(preciseAddress.trim());
+      reg.updateDeliveryNote(data['deliveryNote'] ?? '');
+      reg.updateEmail(data['email'] ?? '');
+      reg.updateProvince(_selectedProvince);
+      reg.updateDistrict(_selectedDistrict);
+
+      await reg.sendOtp();
       if (!mounted) return;
-      _showError(e.toString().replaceAll('Exception: ', ''));
-      return;
+      final state = ref.read(customerRegistrationProvider);
+      if (state.hasError) { _showError(state.error!); return; }
+      _go(_FigmaAuthPage.customerRegisterOtp);
+    } catch (e) {
+      if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
-
-    final reg = ref.read(customerRegistrationProvider.notifier);
-    reg.setMode(isLogin: false);
-    reg.updateFullName(fullName.trim());
-    reg.updatePhone(phone.trim());
-    reg.updateNic(nic.trim());
-    reg.updatePreciseAddress(preciseAddress.trim());
-    reg.updateDeliveryNote(data['deliveryNote'] ?? '');
-    reg.updateEmail(data['email'] ?? '');
-    reg.updateProvince(_selectedProvince);
-    reg.updateDistrict(_selectedDistrict);
-
-    await reg.sendOtp();
-
-    if (!mounted) return;
-    final state = ref.read(customerRegistrationProvider);
-    if (state.hasError) {
-      _showError(state.error!);
-      return;
-    }
-    _go(_FigmaAuthPage.customerRegisterOtp);
   }
 
   // â”€â”€ Customer login: send OTP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _onSriLankaCustomerSendOtp(bool rememberMe) async {
     final phone = _loginPhoneCtrl.text.trim();
-    if (phone.isEmpty) {
-      _showError('Please enter your phone number.');
-      return;
+    if (phone.isEmpty) { _showError('Please enter your phone number.'); return; }
+
+    setState(() => _isLoading = true);
+    try {
+      final exists = await ref.read(authProvider.notifier).checkCustomerExists(phone);
+      if (!mounted) return;
+      if (!exists) { _showError('No account found for this number. Please register.'); return; }
+
+      final wasRemembered = await StorageService.getCustomerRememberMe();
+      final reg = ref.read(customerRegistrationProvider.notifier);
+      reg.setMode(isLogin: true);
+      reg.updatePhone(phone);
+
+      if (rememberMe && wasRemembered) {
+        await _onCustomerLoginOtpSuccess('', rememberMe: rememberMe);
+        return;
+      }
+
+      final otpService = ref.read(otpServiceProvider);
+      if (otpService is LocalOtpService) otpService.resetLimits();
+
+      _pendingCustomerRememberMe = rememberMe;
+      await reg.sendOtp();
+      if (!mounted) return;
+      final state = ref.read(customerRegistrationProvider);
+      if (state.hasError) { _showError(state.error!); return; }
+      _go(_FigmaAuthPage.customerLoginOtp);
+    } catch (e) {
+      if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
-
-    final exists =
-        await ref.read(authProvider.notifier).checkCustomerExists(phone);
-    if (!mounted) return;
-    if (!exists) {
-      _showError('No account found for this number. Please register.');
-      return;
-    }
-
-    final wasRemembered = await StorageService.getCustomerRememberMe();
-
-    final reg = ref.read(customerRegistrationProvider.notifier);
-    reg.setMode(isLogin: true);
-    reg.updatePhone(phone);
-
-    // Skip OTP only if user checks remember me AND previously opted to stay signed in
-    if (rememberMe && wasRemembered) {
-      await _onCustomerLoginOtpSuccess('', rememberMe: rememberMe);
-      return;
-    }
-
-    // Reset OTP rate-limit for this destination so retries always work
-    final otpService = ref.read(otpServiceProvider);
-    if (otpService is LocalOtpService) otpService.resetLimits();
-
-    _pendingCustomerRememberMe = rememberMe;
-    await reg.sendOtp();
-
-    if (!mounted) return;
-    final state = ref.read(customerRegistrationProvider);
-    if (state.hasError) {
-      _showError(state.error!);
-      return;
-    }
-    _go(_FigmaAuthPage.customerLoginOtp);
   }
 
   // â”€â”€ OTP success handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
   Future<void> _onCustomerLoginOtpSuccess(String otp, {bool rememberMe = false}) async {
-    // Empty otp = remember-me skip path, bypass verification
-    if (otp.isNotEmpty) {
+    setState(() => _isLoading = true);
+    try {
+      if (otp.isNotEmpty) {
+        final ok = await ref.read(customerRegistrationProvider.notifier).verifyOtp(otp);
+        if (!mounted) return;
+        if (!ok) {
+          _showError(ref.read(customerRegistrationProvider).error ?? 'Incorrect OTP. Please try again.');
+          return;
+        }
+      }
+      final regState = ref.read(customerRegistrationProvider);
+      final contact = regState.data.primaryContact;
+      await ref.read(authProvider.notifier).loginCustomerOtp(contact: contact);
+      if (!mounted) return;
+      await StorageService.saveCustomerRememberMe(rememberMe);
+      context.go(RouteNames.customerHome);
+    } catch (e) {
+      if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _onCustomerRegisterOtpSuccess(String otp) async {
+    setState(() => _isLoading = true);
+    try {
       final ok = await ref.read(customerRegistrationProvider.notifier).verifyOtp(otp);
       if (!mounted) return;
       if (!ok) {
         _showError(ref.read(customerRegistrationProvider).error ?? 'Incorrect OTP. Please try again.');
         return;
       }
-    }
-    final regState = ref.read(customerRegistrationProvider);
-    final contact = regState.data.primaryContact;
-    try {
-      await ref.read(authProvider.notifier).loginCustomerOtp(contact: contact);
-      if (!mounted) return;
-      // Only persist remember-me after a successful login
-      await StorageService.saveCustomerRememberMe(rememberMe);
-      context.go(RouteNames.customerHome);
-    } catch (e) {
-      if (!mounted) return;
-      _showError(e.toString().replaceAll('Exception: ', ''));
-    }
-  }
-
-  Future<void> _onCustomerRegisterOtpSuccess(String otp) async {
-    // Real OTP verification via provider
-    final ok = await ref.read(customerRegistrationProvider.notifier).verifyOtp(otp);
-    if (!mounted) return;
-    if (!ok) {
-      _showError(ref.read(customerRegistrationProvider).error ?? 'Incorrect OTP. Please try again.');
-      return;
-    }
-    final regState = ref.read(customerRegistrationProvider);
-    try {
+      final regState = ref.read(customerRegistrationProvider);
       debugPrint('[FigmaAuth] Registering with lat=${regState.data.deliveryLatitude} lng=${regState.data.deliveryLongitude}');
       await ref.read(authProvider.notifier).register(
             fullName: regState.data.fullName,
@@ -501,7 +462,6 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
             deliveryLongitude: regState.data.deliveryLongitude,
           );
       if (!mounted) return;
-      // Save default delivery address so customer home can use it immediately
       final user = ref.read(currentUserProvider);
       if (user != null) {
         final defaultAddress = CustomerDeliveryAddress.fromUserFields(
@@ -519,15 +479,14 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
               regState.data.deliveryLongitude != null,
           isManualOverride: false,
         );
-        await ref
-            .read(customerDeliveryAddressProvider.notifier)
-            .saveDefaultAddress(defaultAddress);
+        await ref.read(customerDeliveryAddressProvider.notifier).saveDefaultAddress(defaultAddress);
       }
       if (!mounted) return;
       context.go(RouteNames.customerHome);
     } catch (e) {
-      if (!mounted) return;
-      _showError(e.toString().replaceAll('Exception: ', ''));
+      if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -559,7 +518,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     if (email.isEmpty) { _showError('Please enter your email.'); return; }
     if (password.isEmpty) { _showError('Please enter your password.'); return; }
 
-    setState(() => _isVendorLoading = true);
+    setState(() => _isLoading = true);
     try {
       // Read the previously stored flag BEFORE this login
       final wasRemembered = await StorageService.getVendorRememberMe();
@@ -585,7 +544,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     } catch (e) {
       if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
     } finally {
-      if (mounted) setState(() => _isVendorLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -622,7 +581,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     // Store form data and send OTP â€” registration happens after OTP verified
     _pendingVendorRegData = data;
 
-    setState(() => _isVendorLoading = true);
+    setState(() => _isLoading = true);
     try {
       final reg = ref.read(customerRegistrationProvider.notifier);
       reg.setMode(isLogin: false);
@@ -642,7 +601,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     } catch (e) {
       if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
     } finally {
-      if (mounted) setState(() => _isVendorLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -657,7 +616,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       return;
     }
 
-    setState(() => _isVendorLoading = true);
+    setState(() => _isLoading = true);
     try {
       final email = data['email'] ?? '';
       final shopName = data['shopName'] ?? '';
@@ -698,7 +657,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     } catch (e) {
       if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
     } finally {
-      if (mounted) setState(() => _isVendorLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -721,7 +680,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       _showError('Please enter a valid email address.');
       return;
     }
-    setState(() => _isVendorLoading = true);
+    setState(() => _isLoading = true);
     try {
       final otp = await ref.read(authProvider.notifier).generateResetOtp(email);
       if (!mounted) return;
@@ -732,7 +691,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     } catch (e) {
       if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
     } finally {
-      if (mounted) setState(() => _isVendorLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -763,7 +722,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       _showError('Session expired. Please restart the reset process.');
       return;
     }
-    setState(() => _isVendorLoading = true);
+    setState(() => _isLoading = true);
     try {
       await ref.read(authProvider.notifier).resetPassword(
             email: _resetEmail!,
@@ -786,14 +745,14 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     } catch (e) {
       if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
     } finally {
-      if (mounted) setState(() => _isVendorLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _onVendorOtpSuccess(String otp, {bool rememberMe = false}) async {
     final email = _vendorLoginEmailCtrl.text.trim();
     final password = _vendorLoginPasswordCtrl.text;
-    setState(() => _isVendorLoading = true);
+    setState(() => _isLoading = true);
     try {
       await ref.read(authProvider.notifier).login(
         email: email,
@@ -812,7 +771,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     } catch (e) {
       if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
     } finally {
-      if (mounted) setState(() => _isVendorLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -937,6 +896,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
                   Offstage(child: TickerMode(enabled: false, child: slvReg)),
                 if (showPrev) buildSlide(_prevPage!, false),
                 buildSlide(_page, true),
+                if (_isLoading) const Positioned.fill(child: AuthLoadingOverlay()),
               ],
             );
           },
@@ -994,8 +954,8 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
         return SrilankavendorloginWidget(
           emailController: _vendorLoginEmailCtrl,
           passwordController: _vendorLoginPasswordCtrl,
-          onSignIn: _isVendorLoading ? null : _onVendorSignIn,
-          isLoading: _isVendorLoading,
+          onSignIn: _isLoading ? null : _onVendorSignIn,
+          isLoading: _isLoading,
           onRegister: () => _go(_FigmaAuthPage.vendorRegister),
           onCustomerLogin: () => _go(_FigmaAuthPage.customerLogin),
           onForgotPassword: () => _go(_FigmaAuthPage.vendorForgotPassword),
@@ -1012,7 +972,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
         return SrilankavendorregistrationWidget(
           onBack: () => _go(_FigmaAuthPage.vendorLogin, back: true),
           onSignIn: () => _go(_FigmaAuthPage.vendorLogin, back: true),
-          onCreateAccountWithData: _isVendorLoading ? null : _onVendorCreateAccount,
+          onCreateAccountWithData: _isLoading ? null : _onVendorCreateAccount,
           onProvinceTap: _showProvincePicker,
           onDistrictTap: _showDistrictPicker,
           onUseCurrentLocation: _isDetectingGps ? null : _autoDetectLocation,
@@ -1022,7 +982,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
           initialLatitude: _detectedLatitude,
           initialLongitude: _detectedLongitude,
           externalPinPoint: _vendorPinPoint,
-          isLoading: _isVendorLoading,
+          isLoading: _isLoading,
           onLocationPinChanged: (lat, lng) => setState(() {
             _detectedLatitude = lat;
             _detectedLongitude = lng;
@@ -1041,10 +1001,10 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       case _FigmaAuthPage.vendorForgotPassword:
         return SrilankavendorforgetpasswordWidget(
           emailController: _forgotPasswordEmailCtrl,
-          isLoading: _isVendorLoading,
+          isLoading: _isLoading,
           onBack: () => _go(_FigmaAuthPage.vendorLogin, back: true),
           onSignIn: () => _go(_FigmaAuthPage.vendorLogin, back: true),
-          onSendResetCode: _isVendorLoading
+          onSendResetCode: _isLoading
               ? null
               : () => _onVendorForgotPasswordSendCode(_FigmaAuthPage.vendorForgotPasswordOtp),
         );
@@ -1061,10 +1021,10 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
         return NewpasswordupdatesrilankavendorWidget(
           passwordController: _newPasswordCtrl,
           confirmPasswordController: _confirmNewPasswordCtrl,
-          isLoading: _isVendorLoading,
+          isLoading: _isLoading,
           previousPassword: _previousPassword,
           onBack: () => _go(_FigmaAuthPage.vendorForgotPasswordOtp, back: true),
-          onUpdatePassword: _isVendorLoading
+          onUpdatePassword: _isLoading
               ? null
               : () => _onVendorUpdatePassword(
                     _newPasswordCtrl,
