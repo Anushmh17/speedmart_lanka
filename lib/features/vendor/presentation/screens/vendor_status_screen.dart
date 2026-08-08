@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/routes/route_names.dart';
@@ -208,12 +209,47 @@ class VendorStatusScreen extends ConsumerWidget {
   }
 
   void _launchSupport(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Support contact: support@speedmart.lk'),
-        duration: Duration(seconds: 3),
+    showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Contact Support'),
+        content: const Text(
+          'This will open your mail app to send an email to support@speedmart.lk.\n\nDo you want to continue?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.customerColor,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Open Mail', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
-    );
+    ).then((confirmed) async {
+      if (confirmed != true) return;
+      final uri = Uri(
+        scheme: 'mailto',
+        path: 'support@speedmart.lk',
+        queryParameters: {'subject': 'Shop Account Support'},
+      );
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri);
+      } else if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No mail app found. Please email support@speedmart.lk directly.'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    });
   }
 
   void _backToLogin(BuildContext context, WidgetRef ref) async {
