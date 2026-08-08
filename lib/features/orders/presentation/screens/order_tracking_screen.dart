@@ -503,7 +503,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                       const Icon(Icons.qr_code_2_rounded, size: 80, color: Colors.black),
                 ),
                 const SizedBox(height: 8),
-                Text('Scan to verify digital signature',
+                Text('Scan to view order details',
                     style: TextStyle(
                         fontSize: 8,
                         color:
@@ -755,7 +755,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                                 fontWeight: pw.FontWeight.bold,
                                 color: PdfColors.grey800)),
                         pw.SizedBox(height: 6),
-                        pw.Text('Scan to verify this receipt and order details.',
+                        pw.Text('Scan to view order details.',
                             style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
                       ],
                     ),
@@ -770,7 +770,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                     ),
                     child: pw.BarcodeWidget(
                       barcode: pw.Barcode.qrCode(),
-                      data: 'https://speedmart.lk/verify/${activeOrder.id}',
+                      data: 'ORDER:${activeOrder.id}\nCUSTOMER:${activeOrder.customerName}\nAMOUNT:Rs.${activeOrder.totalPrice.toStringAsFixed(2)}\nDATE:${activeOrder.createdAt.day}/${activeOrder.createdAt.month}/${activeOrder.createdAt.year}\nSTATUS:${activeOrder.paymentStatus.name.toUpperCase()}',
                       width: 70,
                       height: 70,
                       drawText: false,
