@@ -55,6 +55,41 @@ class AuthRepository {
     }
   }
 
+  /// Fetches a single user by email from the correct role subcollection.
+  Future<UserModel?> _fetchUserByEmail(String email, UserRole role) async {
+    try {
+      final snapshot = await _collectionForRole(role)
+          .where('email', isEqualTo: email.toLowerCase().trim())
+          .limit(1)
+          .get();
+      if (snapshot.docs.isEmpty) return null;
+      final doc = snapshot.docs.first;
+      return UserModel.fromJson({...doc.data(), 'id': doc.id});
+    } catch (e) {
+      debugPrint('[Auth] _fetchUserByEmail error: $e');
+      return null;
+    }
+  }
+
+  /// Fetches a single customer by phone or email from Firestore.
+  Future<UserModel?> _fetchCustomerByContact(String contact) async {
+    try {
+      final isEmail = contact.contains('@');
+      final field = isEmail ? 'email' : 'phone';
+      final value = isEmail ? contact.toLowerCase().trim() : contact.trim();
+      final snapshot = await FirestoreService.collection('users/customers/profiles')
+          .where(field, isEqualTo: value)
+          .limit(1)
+          .get();
+      if (snapshot.docs.isEmpty) return null;
+      final doc = snapshot.docs.first;
+      return UserModel.fromJson({...doc.data(), 'id': doc.id});
+    } catch (e) {
+      debugPrint('[Auth] _fetchCustomerByContact error: $e');
+      return null;
+    }
+  }
+
   Future<void> _syncUserToFirestore(UserModel user) async {
     try {
       final doc = _collectionForRole(user.role).doc(user.id);
@@ -118,37 +153,9 @@ class AuthRepository {
 
   Future<void> _initialize() async {
     if (_isInitialized) return;
-
     _sessionUsers.clear();
-
-    try {
-      final firestoreUsers = await _fetchUsersFromFirestore();
-      if (firestoreUsers.isNotEmpty) {
-        debugPrint('[Auth] Loaded ${firestoreUsers.length} users from Firestore');
-        for (final json in firestoreUsers) {
-          final user = UserModel.fromJson(json);
-          final index = _sessionUsers.indexWhere((u) => u.id == user.id);
-          if (index >= 0) {
-            _sessionUsers[index] = user;
-          } else {
-            _sessionUsers.add(user);
-          }
-        }
-      } else {
-        // Firestore unavailable (not authenticated yet) — fall back to local storage
-        final savedJson = await StorageService.getRegisteredUsers();
-        if (savedJson.isNotEmpty) {
-          debugPrint('[Auth] Loaded ${savedJson.length} users from local storage (offline fallback)');
-          for (final json in savedJson) {
-            _sessionUsers.add(UserModel.fromJson(json));
-          }
-        }
-      }
-      debugPrint('[Auth] Total users loaded: ${_sessionUsers.length}');
-    } catch (e) {
-      debugPrint('[Auth] Failed to load users during initialization: $e');
-    }
-
+    // Do NOT fetch from Firestore here — no user is authenticated yet.
+    // Users are loaded on-demand during login/OTP after Firebase Auth signs in.
     _isInitialized = true;
   }
 
@@ -204,25 +211,23 @@ class AuthRepository {
 
     // Sign in with Firebase first so Firestore reads are authenticated.
     await _signInWithFirebase(email, password);
-    // Now reload users from Firestore with valid auth.
-    await reloadFromFirestore();
 
-    debugPrint('[Auth] Total users available: ${_sessionUsers.length}');
-
-    final match = _sessionUsers.where(
-      (u) =>
-          u.email.toLowerCase() == email.toLowerCase() &&
-          u.role == role,
-    );
-
-    if (match.isEmpty) {
-      debugPrint('[Auth] No user found with email=$email and role=$role');
-      debugPrint('[Auth] Available users: ${_sessionUsers.map((u) => '${u.email}(${u.role.name})').join(', ')}');
+    // Fetch this specific user from Firestore now that we're authenticated.
+    final fetchedUser = await _fetchUserByEmail(email, role);
+    if (fetchedUser == null) {
+      await _firebaseAuth.signOut();
       throw Exception('No account found with this email for the selected role.');
     }
 
-    final user = match.first;
-    debugPrint('[Auth] Firebase auth verification succeeded for ${user.email}');
+    // Merge into session cache
+    final index = _sessionUsers.indexWhere((u) => u.id == fetchedUser.id);
+    if (index >= 0) {
+      _sessionUsers[index] = fetchedUser;
+    } else {
+      _sessionUsers.add(fetchedUser);
+    }
+
+    final user = fetchedUser;
     debugPrint('[Auth] User found: ${user.email}, vendorStatus=${user.vendorStatus}, isActive=${user.isActive}');
 
     if (!user.isActive) {
@@ -240,18 +245,19 @@ class AuthRepository {
   }
 
   // ── Customer OTP Authentication ──────────────────────────────────────────
+
   Future<bool> checkCustomerExists(String contact) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 600));
     final isEmail = contact.contains('@');
-
-    return _sessionUsers.any((u) {
+    final inCache = _sessionUsers.any((u) {
       if (u.role != UserRole.customer) return false;
-      if (isEmail) {
-        return u.email.toLowerCase() == contact.toLowerCase().trim();
-      }
+      if (isEmail) return u.email.toLowerCase() == contact.toLowerCase().trim();
       return _phoneMatches(contact, u.phone);
     });
+    if (inCache) return true;
+    final fetched = await _fetchCustomerByContact(contact);
+    return fetched != null;
   }
 
   Future<void> validateCustomerRegistrationData({
@@ -297,22 +303,23 @@ class AuthRepository {
   Future<({UserModel user, String token})> loginCustomerOtp(String contact) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 1000));
-    // Reload from Firestore if already authenticated (e.g. session restore)
-    await reloadFromFirestore();
-    final isEmail = contact.contains('@');
 
-    final match = _sessionUsers.where((u) {
-      if (u.role != UserRole.customer) return false;
-      if (isEmail) {
-        return u.email.toLowerCase() == contact.toLowerCase().trim();
-      }
-      return _phoneMatches(contact, u.phone);
-    });
-
-    if (match.isEmpty) {
+    // Fetch the customer directly from Firestore by contact
+    final fetchedUser = await _fetchCustomerByContact(contact);
+    if (fetchedUser == null) {
+      final isEmail = contact.contains('@');
       throw Exception('No account found for this ${isEmail ? 'email' : 'phone number'}. Please register.');
     }
-    final user = match.first;
+
+    // Merge into session cache
+    final index = _sessionUsers.indexWhere((u) => u.id == fetchedUser.id);
+    if (index >= 0) {
+      _sessionUsers[index] = fetchedUser;
+    } else {
+      _sessionUsers.add(fetchedUser);
+    }
+
+    final user = fetchedUser;
 
     if (!user.isActive) {
       throw Exception('Your account has been suspended. Contact support.');
@@ -650,26 +657,26 @@ class AuthRepository {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 1200));
 
-    final match = _sessionUsers.where(
-      (u) =>
-          u.role == UserRole.vendor &&
-          u.email.toLowerCase() == email.toLowerCase().trim(),
-    );
-
-    if (match.isEmpty) {
+    // Sign in first, then fetch the vendor doc
+    await _signInWithFirebase(email, password);
+    final fetchedUser = await _fetchUserByEmail(email, UserRole.vendor);
+    if (fetchedUser == null) {
+      await _firebaseAuth.signOut();
       throw Exception('No vendor account found with this email.');
     }
 
-    final user = match.first;
-    await _signInWithFirebase(user.email, password);
-    // Reload Firestore after auth so we have the latest user data.
-    await reloadFromFirestore();
+    final index = _sessionUsers.indexWhere((u) => u.id == fetchedUser.id);
+    if (index >= 0) {
+      _sessionUsers[index] = fetchedUser;
+    } else {
+      _sessionUsers.add(fetchedUser);
+    }
 
-    if (!user.isActive) {
+    if (!fetchedUser.isActive) {
       throw Exception('Your account has been suspended. Contact support.');
     }
 
-    return user;
+    return fetchedUser;
   }
 
   // ── Password Reset ──────────────────────────────────────────────────────
@@ -681,13 +688,15 @@ class AuthRepository {
   Future<String> generateResetOtp(String email) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 800));
-    final exists = _sessionUsers.any(
-      (u) =>
-          u.role == UserRole.vendor &&
-          u.email.toLowerCase() == email.toLowerCase().trim(),
+    // Check cache first, then query Firestore anonymously (vendors collection is readable when signed in)
+    final inCache = _sessionUsers.any(
+      (u) => u.role == UserRole.vendor && u.email.toLowerCase() == email.toLowerCase().trim(),
     );
-    if (!exists) throw Exception('No vendor account found with this email.');
-    // In a real app this would send an email; here we return a fixed mock OTP.
+    if (!inCache) {
+      // Try Firestore directly — will only work if already signed in
+      final fetched = await _fetchUserByEmail(email, UserRole.vendor);
+      if (fetched == null) throw Exception('No vendor account found with this email.');
+    }
     return '123456';
   }
 
