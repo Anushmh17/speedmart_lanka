@@ -33,7 +33,7 @@ class RequestRepository {
   Future<List<Map<String, dynamic>>> _fetchRequestsFromFirestore() async {
     if (FirebaseAuth.instance.currentUser == null) return [];
     try {
-      final query = await _requestsCollection.get();
+      final query = await _requestsCollection.limit(500).get();
       return query.docs.map((doc) {
         final data = doc.data();
         return {

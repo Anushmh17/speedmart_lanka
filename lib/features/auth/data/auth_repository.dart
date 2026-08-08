@@ -42,9 +42,9 @@ class AuthRepository {
   Future<List<Map<String, dynamic>>> _fetchUsersFromFirestore() async {
     try {
       final results = await Future.wait([
-        FirestoreService.collection('users/customers/profiles').get(),
-        FirestoreService.collection('users/vendors/profiles').get(),
-        FirestoreService.collection('users/admins/profiles').get(),
+        FirestoreService.collection('users/customers/profiles').limit(500).get(),
+        FirestoreService.collection('users/vendors/profiles').limit(500).get(),
+        FirestoreService.collection('users/admins/profiles').limit(500).get(),
       ]);
       return results.expand((snapshot) => snapshot.docs.map((doc) {
         return {...doc.data(), 'id': doc.id};

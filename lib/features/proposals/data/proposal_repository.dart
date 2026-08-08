@@ -32,7 +32,7 @@ class ProposalRepository {
   Future<List<Map<String, dynamic>>> _fetchProposalsFromFirestore() async {
     if (FirebaseAuth.instance.currentUser == null) return [];
     try {
-      final query = await _proposalsCollection.get();
+      final query = await _proposalsCollection.limit(500).get();
       return query.docs.map((doc) => {
             ...doc.data(),
             'id': doc.id,
