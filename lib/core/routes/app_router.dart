@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:speedmart_lanka/features/auth/domain/auth_state.dart';
 import 'package:speedmart_lanka/features/auth/presentation/screens/splash_screen.dart';
-import 'package:speedmart_lanka/features/auth/presentation/screens/login_screen.dart';
 import 'package:speedmart_lanka/features/customer/presentation/screens/customer_home_screen.dart';
 import 'package:speedmart_lanka/features/requests/presentation/screens/create_request_screen.dart';
 import 'package:speedmart_lanka/features/requests/models/shopping_request.dart';
@@ -21,9 +20,7 @@ import 'package:speedmart_lanka/features/orders/presentation/screens/vendor_orde
 import 'package:speedmart_lanka/features/vendor/presentation/screens/vendor_home_screen.dart';
 import 'package:speedmart_lanka/features/vendor/request_feed/presentation/vendor_request_feed_screen.dart';
 import 'package:speedmart_lanka/features/vendor/presentation/screens/vendor_shopfront_screen.dart';
-import 'package:speedmart_lanka/features/vendor/proposals/presentation/vendor_request_detail_screen.dart';
 import 'package:speedmart_lanka/features/vendor/proposals/presentation/vendor_proposal_form_screen.dart';
-import 'package:speedmart_lanka/features/vendor/proposals/presentation/vendor_proposal_detail_screen.dart';
 import 'package:speedmart_lanka/features/chat/presentation/screens/chat_screen.dart';
 import 'package:speedmart_lanka/features/chat/presentation/screens/chat_list_screen.dart';
 import 'package:speedmart_lanka/features/requests/presentation/screens/request_list_screen.dart';
@@ -34,7 +31,6 @@ import 'package:speedmart_lanka/features/notifications/presentation/customer_not
 import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
 import 'package:speedmart_lanka/shared/models/user_role.dart';
 import 'package:speedmart_lanka/core/routes/route_names.dart';
-import 'package:speedmart_lanka/core/storage/storage_service.dart';
 import 'package:speedmart_lanka/figma_screens/figma_auth_flow.dart';
 
 final rootNavigatorKey = GlobalKey<NavigatorState>(debugLabel: 'root');

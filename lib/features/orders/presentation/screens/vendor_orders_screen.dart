@@ -10,8 +10,6 @@ import 'package:speedmart_lanka/core/widgets/theme3/theme3_app_card.dart';
 import 'package:speedmart_lanka/core/widgets/theme3/theme3_empty_state.dart';
 import 'package:speedmart_lanka/features/orders/models/order_model.dart';
 import 'package:speedmart_lanka/features/orders/providers/order_provider.dart';
-import 'package:speedmart_lanka/features/auth/providers/theme_provider.dart';
-import 'package:speedmart_lanka/core/widgets/app_state_widgets.dart';
 
 class VendorOrdersScreen extends ConsumerStatefulWidget {
   const VendorOrdersScreen({super.key, this.initialTabIndex = 0});

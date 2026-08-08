@@ -12,7 +12,6 @@ import 'package:go_router/go_router.dart';
 import '../../../core/routes/route_names.dart';
 import '../../../core/routes/app_router.dart';
 import '../../../core/storage/storage_service.dart';
-import '../../../features/customer/delivery_address/models/customer_delivery_address.dart';
 import '../../../features/customer/delivery_address/providers/customer_delivery_address_provider.dart';
 import '../../../features/auth/customer_registration/providers/customer_registration_provider.dart';
 import '../../../features/location/providers/location_provider.dart';
