@@ -43,9 +43,26 @@ class _SrilankacustomerloginotpWidgetState
   void initState() {
     super.initState();
     _startResendTimer();
+    _addBackspaceListeners();
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _otpFocusNodes[0].requestFocus(),
     );
+  }
+
+  void _addBackspaceListeners() {
+    for (int i = 0; i < 6; i++) {
+      final index = i;
+      _otpFocusNodes[index].onKeyEvent = (node, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.backspace &&
+            _otpControllers[index].text.isEmpty &&
+            index > 0) {
+          _otpFocusNodes[index - 1].requestFocus();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      };
+    }
   }
 
   @override

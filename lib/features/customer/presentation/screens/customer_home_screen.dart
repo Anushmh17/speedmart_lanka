@@ -770,9 +770,7 @@ class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
       ('Categories', Icons.category_outlined, () => context.push(RouteNames.customerCreateRequest, extra: {'openCategoryPicker': true}), const Color(0xFF8B5CF6)),
       ('Orders', Icons.shopping_bag_outlined, () => context.go(RouteNames.customerOrders), const Color(0xFF0EA5E9)),
       ('Offers', Icons.local_offer_outlined, () => context.go(RouteNames.customerRequests), const Color(0xFF10B981)),
-      ('Messages', Icons.mail_outline_rounded, () => ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Messages coming soon'), behavior: SnackBarBehavior.floating),
-      ), const Color(0xFFF59E0B)),
+      ('Messages', Icons.mail_outline_rounded, () => context.push('/chats'), const Color(0xFFF59E0B)),
     ];
 
     return Column(

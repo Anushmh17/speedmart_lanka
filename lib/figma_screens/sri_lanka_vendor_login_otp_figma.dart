@@ -38,6 +38,28 @@ class _SrilankavendorloginotpWidgetState
   String _errorMessage = '';
   String _successMessage = '';
 
+  @override
+  void initState() {
+    super.initState();
+    _addBackspaceListeners();
+  }
+
+  void _addBackspaceListeners() {
+    for (int i = 0; i < 6; i++) {
+      final index = i;
+      _otpFocusNodes[index].onKeyEvent = (node, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.backspace &&
+            _otpControllers[index].text.isEmpty &&
+            index > 0) {
+          _otpFocusNodes[index - 1].requestFocus();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      };
+    }
+  }
+
   Future<void> _handleVerifyOtp() async {
     final otp = _otpControllers.map((controller) => controller.text).join();
 
