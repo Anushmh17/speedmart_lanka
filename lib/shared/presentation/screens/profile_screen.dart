@@ -14,13 +14,13 @@ import '../../../core/routes/app_router.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../../features/customer/delivery_address/providers/customer_delivery_address_provider.dart';
 import '../../../features/auth/customer_registration/providers/customer_registration_provider.dart';
+import '../../../features/auth/customer_registration/services/otp_service.dart';
 import '../../../features/location/providers/location_provider.dart';
 import '../../../core/navigation/bottom_nav_visibility.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/providers/category_provider.dart';
 import '../../../shared/utils/category_sync_helper.dart';
 import '../../../core/utils/permission_utils.dart';
-import '../../widgets/auth_loading_overlay.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -31,7 +31,6 @@ class ProfileScreen extends ConsumerStatefulWidget {
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _isEditing = false;
-  bool _isSaving = false;
   final _formKey = GlobalKey<FormState>();
 
   late TextEditingController _nameCtrl;
@@ -42,6 +41,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   String? _pickedImagePath;  // unsaved pick — never overwritten by _initData
   String? _savedImagePath;   // last persisted local path from user model
   int _imageVersion = 0;
+
+  bool _isSaving = false;
+
+  bool get _hasChanges {
+    final user = ref.read(currentUserProvider);
+    if (user == null) return false;
+    return _nameCtrl.text.trim() != user.fullName ||
+        _phoneCtrl.text.trim() != user.phone ||
+        _businessNameCtrl.text.trim() != (user.businessName ?? '') ||
+        _pickedImagePath != null;
+  }
 
   bool _deliveryAddressLoadScheduled = false;
   bool _dataInitialized = false;
@@ -167,18 +177,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
 
+    final newPhone = _phoneCtrl.text.trim();
+
+    // Customer changing phone → OTP verification required
+    if (user.role == UserRole.customer && newPhone != user.phone) {
+      await _verifyPhoneChangeOtp(newPhone: newPhone, user: user);
+      return;
+    }
+
+    await _saveProfile(user: user, phone: newPhone);
+  }
+
+  Future<void> _saveProfile({required UserModel user, required String phone}) async {
     setState(() => _isSaving = true);
     try {
       final imageToSave = _pickedImagePath ?? _savedImagePath ?? user.profileImageUrl;
-
       await ref.read(authProvider.notifier).updateProfile(
         fullName: _nameCtrl.text.trim(),
-        phone: _phoneCtrl.text.trim(),
+        phone: phone,
         businessName: user.role == UserRole.vendor ? _businessNameCtrl.text.trim() : null,
         profileImageUrl: imageToSave,
         requestedCategories: user.role == UserRole.vendor ? _selectedCategories : null,
       );
-
       if (!mounted) return;
       final newSaved = _pickedImagePath ?? _savedImagePath;
       setState(() {
@@ -197,19 +217,154 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           behavior: SnackBarBehavior.floating,
         ),
       );
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(e.toString().replaceAll('Exception: ', '')),
-            backgroundColor: AppColors.error,
-            behavior: SnackBarBehavior.floating,
-          ),
+          const SnackBar(content: Text('Failed to save profile. Please try again.'), backgroundColor: AppColors.error),
         );
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
     }
+  }
+
+  Future<void> _verifyPhoneChangeOtp({required String newPhone, required UserModel user}) async {
+    setState(() => _isSaving = true);
+    final otpService = ref.read(otpServiceProvider);
+    final result = await otpService.sendOtp(channel: OtpChannel.phone, destination: newPhone);
+    setState(() => _isSaving = false);
+
+    if (!mounted) return;
+    if (!result.success) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.message ?? 'Failed to send OTP.'), backgroundColor: AppColors.error),
+      );
+      return;
+    }
+
+    await _showPhoneOtpSheet(newPhone: newPhone, user: user, otpService: otpService);
+  }
+
+  Future<void> _showPhoneOtpSheet({
+    required String newPhone,
+    required UserModel user,
+    required OtpService otpService,
+  }) async {
+    final controllers = List.generate(6, (_) => TextEditingController());
+    final focusNodes = List.generate(6, (_) => FocusNode());
+    bool sheetSaving = false;
+    String? sheetError;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) {
+          final isDark = Theme.of(ctx).brightness == Brightness.dark;
+          final bg = isDark ? AppColors.cardDark : Colors.white;
+          final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+          final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+
+          final screenHeight = MediaQuery.of(ctx).size.height;
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            child: Container(
+              constraints: BoxConstraints(minHeight: screenHeight * 0.55),
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+                  const SizedBox(height: 20),
+                  Text('Verify New Number', style: AppTextStyles.h3(primaryText)),
+                  const SizedBox(height: 8),
+                  Text('Enter the OTP sent to $newPhone', style: AppTextStyles.bodyMedium(secondaryText), textAlign: TextAlign.center),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(6, (i) => Container(
+                      width: 44,
+                      height: 52,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: AppColors.customerColor, width: 1.5),
+                        borderRadius: BorderRadius.circular(12),
+                        color: isDark ? AppColors.cardDark : Colors.grey.shade50,
+                      ),
+                      child: TextField(
+                        controller: controllers[i],
+                        focusNode: focusNodes[i],
+                        textAlign: TextAlign.center,
+                        keyboardType: TextInputType.number,
+                        maxLength: 1,
+                        style: AppTextStyles.h3(primaryText),
+                        decoration: const InputDecoration(counterText: '', border: InputBorder.none),
+                        onChanged: (v) {
+                          if (v.isNotEmpty && i < 5) focusNodes[i + 1].requestFocus();
+                          if (v.isEmpty && i > 0) focusNodes[i - 1].requestFocus();
+                        },
+                      ),
+                    )),
+                  ),
+                  if (sheetError != null) ...[const SizedBox(height: 12), Text(sheetError!, style: AppTextStyles.bodySmall(AppColors.error))],
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: sheetSaving ? null : () async {
+                        final code = controllers.map((c) => c.text).join();
+                        if (code.length < 6) {
+                          setSheet(() => sheetError = 'Please enter all 6 digits.');
+                          return;
+                        }
+                        setSheet(() { sheetSaving = true; sheetError = null; });
+                        final ok = await otpService.verifyOtp(channel: OtpChannel.phone, destination: newPhone, code: code);
+                        if (!ok) {
+                          setSheet(() { sheetSaving = false; sheetError = 'Incorrect OTP. Please try again.'; });
+                          return;
+                        }
+                        if (!mounted) return;
+                        // ignore: use_build_context_synchronously
+                        Navigator.of(ctx).pop();
+                        await _saveProfile(user: user, phone: newPhone);
+                        if (!mounted) return;
+                        // ignore: use_build_context_synchronously
+                        await showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (_) => AlertDialog(
+                            title: const Text('Phone Updated'),
+                            content: const Text('Your phone number has been updated. Please log in again.'),
+                            actions: [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('OK'))],
+                          ),
+                        );
+                        await ref.read(authProvider.notifier).logout();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.customerColor,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      child: sheetSaving
+                          ? const CircularProgressIndicator(color: Colors.white)
+                          : Text('Verify & Save', style: AppTextStyles.button(Colors.white)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+
+    for (final c in controllers) c.dispose();
+    for (final f in focusNodes) f.dispose();
   }
 
   Future<void> _handleLogout() async {
@@ -288,6 +443,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final user = ref.watch(currentUserProvider);
+    final isLoading = ref.watch(authLoadingProvider);
     
     if (user == null) {
       return const Center(child: CircularProgressIndicator());
@@ -306,9 +462,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     return Scaffold(
         backgroundColor: Colors.transparent,
-        body: Stack(
-          children: [
-          SingleChildScrollView(
+        body: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.fromLTRB(20, 8, 20, bottomPadding),
           child: Form(
@@ -448,6 +602,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 secondaryText: secondaryText,
                 primaryColor: primaryColor,
                 validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+                onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 12),
               
@@ -463,6 +618,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 primaryColor: primaryColor,
                 keyboardType: TextInputType.phone,
                 validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+                onChanged: (_) => setState(() {}),
               ),
 
               if (user.role == UserRole.customer) ...createCustomerSection(context, primaryText, cardColor, borderColor, primaryColor, secondaryText),
@@ -476,14 +632,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: _isSaving ? null : _handleSave,
+                    onPressed: (_isSaving || isLoading || !_hasChanges) ? null : _handleSave,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryColor,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       elevation: 4,
                       shadowColor: primaryColor.withOpacity(0.5),
                     ),
-                    child: Text('Save Changes', style: AppTextStyles.button(Colors.white).copyWith(fontSize: 16)),
+                    child: (_isSaving || isLoading)
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : Text('Save Changes', style: AppTextStyles.button(!_hasChanges ? Colors.white54 : Colors.white).copyWith(fontSize: 16)),
                   ),
                 )
               else
@@ -505,14 +663,68 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         ),
       ),
-          if (_isSaving) const Positioned.fill(child: AuthLoadingOverlay()),
-          ],
-        ),
     );
   }
 
   List<Widget> createCustomerSection(BuildContext context, Color primaryText, Color cardColor, Color borderColor, Color primaryColor, Color secondaryText) {
+    final user = ref.read(currentUserProvider);
     return [
+      const SizedBox(height: 16),
+      Text('Account Details', style: AppTextStyles.subtitle(primaryText)),
+      const SizedBox(height: 12),
+      // Email — read-only
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.email_outlined, color: secondaryText, size: 22),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Email', style: AppTextStyles.labelSmall(secondaryText)),
+                  const SizedBox(height: 2),
+                  Text(user?.email ?? '', style: AppTextStyles.bodyLarge(primaryText)),
+                ],
+              ),
+            ),
+            Icon(Icons.lock_outline_rounded, color: secondaryText, size: 16),
+          ],
+        ),
+      ),
+      const SizedBox(height: 12),
+      // NIC — read-only
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.badge_outlined, color: secondaryText, size: 22),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('NIC Number', style: AppTextStyles.labelSmall(secondaryText)),
+                  const SizedBox(height: 2),
+                  Text(user?.nic ?? 'Not provided', style: AppTextStyles.bodyLarge(primaryText)),
+                ],
+              ),
+            ),
+            Icon(Icons.lock_outline_rounded, color: secondaryText, size: 16),
+          ],
+        ),
+      ),
       const SizedBox(height: 16),
       Text('Delivery Address', style: AppTextStyles.subtitle(primaryText)),
       const SizedBox(height: 12),
@@ -573,6 +785,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         secondaryText: secondaryText,
         primaryColor: primaryColor,
         validator: (v) => v == null || v.isEmpty ? 'Required' : null,
+        onChanged: (_) => setState(() {}),
       ),
       const SizedBox(height: 16),
       
@@ -781,6 +994,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     required Color primaryColor,
     TextInputType? keyboardType,
     String? Function(String?)? validator,
+    void Function(String)? onChanged,
   }) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -800,6 +1014,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ? TextCapitalization.words
                 : TextCapitalization.none,
             style: AppTextStyles.bodyLarge(primaryText),
+            onChanged: onChanged,
             decoration: InputDecoration(
               labelText: label,
               labelStyle: AppTextStyles.bodyMedium(secondaryText),

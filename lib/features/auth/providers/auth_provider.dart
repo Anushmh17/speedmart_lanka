@@ -317,7 +317,11 @@ class AuthNotifier extends StateNotifier<AuthState> {
         await StorageService.saveUser(currentUser.toJson());
       }
     } catch (e) {
-      state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
+      // Preserve the authenticated user — only attach the error message.
+      // Using AuthState.withError would set user=null and trigger a router
+      // redirect to the login screen.
+      state = state.copyWith(error: e.toString().replaceAll('Exception: ', ''));
+      rethrow;
     }
   }
 
