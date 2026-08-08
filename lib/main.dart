@@ -19,15 +19,10 @@ import 'core/theme/app_colors.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase must be initialized before any Firestore access
+  // Only Firebase must be initialized before the first frame.
+  // Everything else is deferred to the splash screen so the native
+  // loading screen disappears immediately and Flutter takes over.
   await FcmService.initialize();
-
-  await Future.wait([
-    LocalNotificationService.initialize(),
-    RequestRepository.instance.ensureInitialized(),
-    ProposalRepository.instance.ensureInitialized(),
-    OrderRepository.instance.ensureInitialized(),
-  ]);
 
   // Lock to portrait on mobile only; web/desktop should be free.
   if (!kIsWeb) {
