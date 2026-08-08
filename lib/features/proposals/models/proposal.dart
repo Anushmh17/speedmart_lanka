@@ -219,6 +219,8 @@ class Proposal {
   
   // Category-specific proposal tracking (for multi-category requests)
   final String? categoryNormalized; // The specific category this proposal addresses
+  // Commission rate applied at submission time (e.g. 0.10 = 10%)
+  final double? commissionRate;
 
   Proposal({
     required this.id,
@@ -242,6 +244,7 @@ class Proposal {
     this.vendorLatitude = 6.9145,
     this.vendorLongitude = 79.8510,
     this.categoryNormalized,
+    this.commissionRate,
   });
 
   double get subtotal => items.fold<double>(0, (sum, i) => sum + i.subtotal);
@@ -274,6 +277,7 @@ class Proposal {
     double? vendorLatitude,
     double? vendorLongitude,
     String? categoryNormalized,
+    double? commissionRate,
   }) {
     return Proposal(
       id: id ?? this.id,
@@ -298,6 +302,7 @@ class Proposal {
       vendorLatitude: vendorLatitude ?? this.vendorLatitude,
       vendorLongitude: vendorLongitude ?? this.vendorLongitude,
       categoryNormalized: categoryNormalized ?? this.categoryNormalized,
+      commissionRate: commissionRate ?? this.commissionRate,
     );
   }
 
@@ -325,6 +330,7 @@ class Proposal {
       'vendorLatitude': vendorLatitude,
       'vendorLongitude': vendorLongitude,
       'categoryNormalized': categoryNormalized,
+      'commissionRate': commissionRate,
     };
   }
 
@@ -376,6 +382,7 @@ class Proposal {
       vendorLatitude: (json['vendorLatitude'] as num?)?.toDouble() ?? 6.9145,
       vendorLongitude: (json['vendorLongitude'] as num?)?.toDouble() ?? 79.8510,
       categoryNormalized: json['categoryNormalized'] as String?,
+      commissionRate: (json['commissionRate'] as num?)?.toDouble(),
     );
   }
 }
