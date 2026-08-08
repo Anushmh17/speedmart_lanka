@@ -321,18 +321,29 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         borderRadius: BorderRadius.circular(12),
                         color: isDark ? AppColors.cardDark : Colors.grey.shade100,
                       ),
-                      child: TextField(
-                        controller: controllers[i],
-                        focusNode: focusNodes[i],
-                        textAlign: TextAlign.center,
-                        keyboardType: TextInputType.number,
-                        maxLength: 1,
-                        style: AppTextStyles.h3(primaryText),
-                        decoration: const InputDecoration(counterText: '', border: InputBorder.none),
-                        onChanged: (v) {
-                          if (v.isNotEmpty && i < 5) focusNodes[i + 1].requestFocus();
-                          if (v.isEmpty && i > 0) focusNodes[i - 1].requestFocus();
-                        },
+                      child: Center(
+                        child: TextField(
+                          controller: controllers[i],
+                          focusNode: focusNodes[i],
+                          textAlign: TextAlign.center,
+                          keyboardType: TextInputType.number,
+                          maxLength: 1,
+                          style: AppTextStyles.h3(primaryText).copyWith(fontSize: 20),
+                          decoration: const InputDecoration(
+                            counterText: '',
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            filled: true,
+                            fillColor: Colors.transparent,
+                            contentPadding: EdgeInsets.zero,
+                            isCollapsed: true,
+                          ),
+                          onChanged: (v) {
+                            if (v.isNotEmpty && i < 5) focusNodes[i + 1].requestFocus();
+                            if (v.isEmpty && i > 0) focusNodes[i - 1].requestFocus();
+                          },
+                        ),
                       ),
                     )),
                   ),
@@ -373,7 +384,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                       ),
                       child: sheetSaving
-                          ? const CircularProgressIndicator(color: Colors.white)
+                          ? const SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                            )
                           : Text('Verify & Save', style: AppTextStyles.button(Colors.white)),
                     ),
                   ),
@@ -386,7 +401,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
 
     for (final c in controllers) c.dispose();
-    for (final f in focusNodes) f.dispose();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      for (final f in focusNodes) f.dispose();
+    });
   }
 
   Future<void> _handleLogout() async {
@@ -659,7 +676,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       shadowColor: primaryColor.withOpacity(0.5),
                     ),
                     child: (_isSaving || isLoading)
-                      ? const CircularProgressIndicator(color: Colors.white)
+                      ? const SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                        )
                       : Text('Save Changes', style: AppTextStyles.button(!_hasChanges ? Colors.white54 : Colors.white).copyWith(fontSize: 16)),
                   ),
                 )
@@ -1075,5 +1096,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 }
+
 
 
