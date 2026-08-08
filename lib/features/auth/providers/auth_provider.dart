@@ -449,6 +449,16 @@ class AuthNotifier extends StateNotifier<AuthState> {
     }
   }
 
+  // ── Refresh vendor status from Firestore ─────────────────────────────────
+  Future<void> refreshVendorStatus() async {
+    final currentUser = state.user;
+    if (currentUser == null || currentUser.role != UserRole.vendor) return;
+    final refreshed = await _repo.refreshVendorStatus(currentUser.id);
+    if (refreshed == null) return;
+    await StorageService.saveUser(refreshed.toJson());
+    state = AuthState.authenticated(refreshed);
+  }
+
   // ── Clear error ────────────────────────────────────────────────────────────
   void clearError() {
     state = state.copyWith(clearError: true);

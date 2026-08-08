@@ -8,8 +8,11 @@ class AppConstants {
   static const String appVersion = '1.0.0';
   static const int buildNumber = 1;
 
-  /// Delivery radius in kilometers (configurable from admin)
+  /// Default delivery radius in km applied to every new vendor (admin can override)
   static const double defaultDeliveryRadius = 5.0;
+
+  /// Default platform commission rate applied to every new vendor (admin can override, 0.0–1.0)
+  static const double defaultCommissionRate = 0.10;
 
   /// Cooldown in minutes before same vendor can accept the same rejected item
   static const int vendorCooldownMinutes = 120;

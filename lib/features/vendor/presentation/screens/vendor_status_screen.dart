@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/routes/route_names.dart';
@@ -8,6 +9,14 @@ import '../../../../shared/models/user_model.dart';
 import '../../../../shared/models/vendor_status.dart';
 import '../../../../core/guards/vendor_status_guard.dart';
 import '../../../../features/auth/providers/auth_provider.dart';
+
+/// Streams the vendor's Firestore doc so status changes are reflected in real-time.
+final _vendorStatusStreamProvider = StreamProvider.family<DocumentSnapshot<Map<String, dynamic>>, String>(
+  (ref, vendorId) => FirebaseFirestore.instance
+      .collection('users/vendors/profiles')
+      .doc(vendorId)
+      .snapshots(),
+);
 
 class VendorStatusScreen extends ConsumerWidget {
   const VendorStatusScreen({
@@ -24,6 +33,17 @@ class VendorStatusScreen extends ConsumerWidget {
         isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryText =
         isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+
+    // When blocked (pending, approved-but-unassigned), listen to Firestore in real-time
+    // and refresh auth state on any change.
+    if (VendorStatusGuard.shouldShowStatusScreen(user)) {
+      ref.listen(_vendorStatusStreamProvider(user.id), (_, next) {
+        next.whenData((snapshot) {
+          if (!snapshot.exists) return;
+          ref.read(authProvider.notifier).refreshVendorStatus();
+        });
+      });
+    }
 
     final statusTitle = VendorStatusGuard.getStatusScreenTitle(user);
     final statusMessage = VendorStatusGuard.getBlockedReason(user);
