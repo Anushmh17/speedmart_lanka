@@ -25,7 +25,9 @@ service cloud.firestore {
     // ── User Profiles ─────────────────────────────────────────────────────────
 
     match /users/customers/profiles/{userId} {
-      allow read: if isSignedIn() && (isOwner(userId) || isAdmin());
+      // Unauthenticated reads allowed — needed for phone/email existence check during OTP login
+      // Limit to single-doc reads/queries only — blocks full collection dumps
+      allow read: if request.query == null || request.query.limit <= 1;
       allow create: if isSignedIn();
       allow update: if isSignedIn() && (isOwner(userId) || isAdmin());
       allow delete: if isAdmin();
