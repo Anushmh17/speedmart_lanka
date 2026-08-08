@@ -105,6 +105,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       debugPrint('[Router] isOnAuthRoute: $isOnAuthRoute');
 
+      // Splash screen manages its own navigation — never redirect away from it.
+      if (location == RouteNames.splash) {
+        debugPrint('[Router] → Action: On splash, let splash handle navigation');
+        return null;
+      }
+
       if (auth.isLoading) {
         debugPrint('[Router] → Action: Loading, STAY ON CURRENT ROUTE');
         return null;
@@ -153,14 +159,19 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // ── Core ─────────────────────────────────────────────────────────────
       GoRoute(
         path: RouteNames.splash,
-        pageBuilder: (context, state) => _buildPage(context, state, const SplashScreen()),
+        pageBuilder: (context, state) => NoTransitionPage(
+          key: state.pageKey,
+          child: const SplashScreen(),
+        ),
       ),
 
       // ── Auth Routes ──────────────────────────────────────────────────────
       GoRoute(
         path: RouteNames.customerLogin,
-        pageBuilder: (context, state) => _buildPage(context, state,
-            const FigmaAuthFlow(role: FigmaAuthRole.customer)),
+        pageBuilder: (context, state) => NoTransitionPage(
+          key: state.pageKey,
+          child: const FigmaAuthFlow(role: FigmaAuthRole.customer),
+        ),
       ),
       GoRoute(
         path: RouteNames.customerRegister,

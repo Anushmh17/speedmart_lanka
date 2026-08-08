@@ -909,31 +909,34 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
           }
         });
       },
-      child: AnimatedBuilder(
-        animation: _animCtrl,
-        builder: (context, _) {
-          final showPrev = _prevPage != null && _animCtrl.value < 1.0;
+      child: Scaffold(
+        backgroundColor: const Color(0xFF0A1628),
+        body: AnimatedBuilder(
+          animation: _animCtrl,
+          builder: (context, _) {
+            final showPrev = _prevPage != null && _animCtrl.value < 1.0;
 
-          Widget buildSlide(_FigmaAuthPage page, bool isInbound) {
-            final child = page == _FigmaAuthPage.vendorRegister
-                ? slvReg
-                : _buildPageFor(page);
-            return SlideTransition(
-              position: isInbound ? _inSlide : _outSlide,
-              child: RepaintBoundary(child: child),
+            Widget buildSlide(_FigmaAuthPage page, bool isInbound) {
+              final child = page == _FigmaAuthPage.vendorRegister
+                  ? slvReg
+                  : _buildPageFor(page);
+              return SlideTransition(
+                position: isInbound ? _inSlide : _outSlide,
+                child: RepaintBoundary(child: child),
+              );
+            }
+
+            return Stack(
+              children: [
+                if (_page != _FigmaAuthPage.vendorRegister &&
+                    !(_prevPage == _FigmaAuthPage.vendorRegister && showPrev))
+                  Offstage(child: TickerMode(enabled: false, child: slvReg)),
+                if (showPrev) buildSlide(_prevPage!, false),
+                buildSlide(_page, true),
+              ],
             );
-          }
-
-          return Stack(
-            children: [
-              if (_page != _FigmaAuthPage.vendorRegister &&
-                  !(_prevPage == _FigmaAuthPage.vendorRegister && showPrev))
-                Offstage(child: TickerMode(enabled: false, child: slvReg)),
-              if (showPrev) buildSlide(_prevPage!, false),
-              buildSlide(_page, true),
-            ],
-          );
-        },
+          },
+        ),
       ),
     );
   }
