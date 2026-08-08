@@ -37,10 +37,11 @@ class ChatListScreen extends ConsumerWidget {
       ),
       body: convoEntries.isEmpty
           ? SafeArea(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(height: 40),
+              child: Align(
+                alignment: const Alignment(0, -0.2),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                   Icon(Icons.chat_bubble_outline, size: 72, color: AppColors.primary.withOpacity(0.9)),
                   SizedBox(height: AppSpacing.md),
                   Padding(
@@ -48,20 +49,23 @@ class ChatListScreen extends ConsumerWidget {
                     child: Text(
                       "Once you start a new conversation with a seller about a product, you'll see it listed here.",
                       textAlign: TextAlign.center,
-                      style: AppTextStyles.bodySmall(AppColors.textSecondaryLight),
+                      style: AppTextStyles.bodyMedium(AppColors.textSecondaryLight),
                     ),
                   ),
-                  SizedBox(height: AppSpacing.lg),
+                  SizedBox(height: AppSpacing.xl * 2),
                   ElevatedButton(
                     onPressed: () => context.go(RouteNames.customerHome),
                     style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 14),
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       backgroundColor: AppColors.primary,
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    child: Text('START SHOPPING', style: AppTextStyles.bodyMedium(Colors.white)),
+                    child: Text('Start Shopping', style: AppTextStyles.bodyMedium(Colors.white)),
                   ),
                 ],
+                ),
               ),
             )
           : ListView.separated(
