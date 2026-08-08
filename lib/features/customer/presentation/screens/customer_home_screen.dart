@@ -69,8 +69,6 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
     return RouteNames.customerHome;
   }
 
-
-
   void _showExitDialog(BuildContext context) {
     if (_isExitDialogShowing) return;
     _isExitDialogShowing = true;
@@ -125,7 +123,6 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
     _showExitDialog(context);
     return true;
   }
-
 
   @override
   void dispose() {
@@ -330,8 +327,8 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
       currentIndex = 3;
     }
 
-    final cleanLoc = (shellLocation.endsWith('/') && shellLocation.length > 1) 
-        ? shellLocation.substring(0, shellLocation.length - 1) 
+    final cleanLoc = (shellLocation.endsWith('/') && shellLocation.length > 1)
+        ? shellLocation.substring(0, shellLocation.length - 1)
         : shellLocation;
 
     final isStrictShellTab = cleanLoc == RouteNames.customerHome ||
@@ -343,12 +340,10 @@ class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
       canPop: !isStrictShellTab,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-
         if (currentIndex != 0) {
           context.go(RouteNames.customerHome);
           return;
         }
-
         _showExitDialog(context);
       },
       child: Scaffold(
