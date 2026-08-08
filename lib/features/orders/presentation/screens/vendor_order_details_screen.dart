@@ -12,6 +12,9 @@ import 'package:speedmart_lanka/features/orders/models/order_model.dart';
 import 'package:speedmart_lanka/features/orders/providers/order_provider.dart';
 import 'package:speedmart_lanka/features/orders/services/vendor_delivery_access_service.dart';
 import 'package:speedmart_lanka/core/providers/notification_provider.dart';
+import 'package:speedmart_lanka/features/notifications/models/notification_type.dart';
+import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart'
+    as notification_feature;
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
 import 'package:speedmart_lanka/features/payments/data/payment_repository.dart';
 import 'package:speedmart_lanka/features/requests/models/request_category_fulfillment.dart';
@@ -1137,6 +1140,18 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                           icon: Icons.task_alt_rounded,
                           color: AppColors.customerColor,
                         );
+                        // For bank transfer orders, notify customer that vendor confirmed delivery
+                        if (activeOrder.paymentMethod == PaymentMethod.bankTransfer) {
+                          await ref
+                              .read(notification_feature.notificationProvider.notifier)
+                              .createNotification(
+                                type: NotificationType.orderDelivered,
+                                title: 'Order Delivered & Bank Transfer Verified ✅',
+                                body: 'Your bank transfer was verified and order ${activeOrder.id} has been delivered.',
+                                userId: activeOrder.customerId,
+                                relatedId: activeOrder.id,
+                              );
+                        }
                       }
 
                       if (context.mounted) {
