@@ -26,7 +26,7 @@ class PaymentRepository {
 
   Future<List<Map<String, dynamic>>> _fetchPaymentsFromFirestore() async {
     try {
-      final query = await _paymentsCollection.get();
+      final query = await _paymentsCollection.limit(500).get();
       return query.docs.map((doc) {
         final data = doc.data();
         return {

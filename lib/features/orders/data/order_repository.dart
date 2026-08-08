@@ -32,7 +32,7 @@ class OrderRepository {
   Future<List<Map<String, dynamic>>> _fetchOrdersFromFirestore() async {
     if (FirebaseAuth.instance.currentUser == null) return [];
     try {
-      final query = await _ordersCollection.get();
+      final query = await _ordersCollection.limit(500).get();
       return query.docs.map((doc) {
         final data = doc.data();
         return {
