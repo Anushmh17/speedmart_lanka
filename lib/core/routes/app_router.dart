@@ -400,6 +400,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
 
       // ── Vendor ───────────────────────────────────────────────────────────
       GoRoute(
+        path: RouteNames.vendorNotifications,
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) => _buildPage(
+            context, state, const CustomerNotificationCenterScreen()),
+      ),
+      GoRoute(
         path: RouteNames.vendorHome,
         pageBuilder: (context, state) =>
             _buildPage(context, state, const VendorHomeScreen()),

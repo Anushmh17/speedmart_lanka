@@ -2961,16 +2961,7 @@ extension _VendorHomeScreenStateExtension on _VendorHomeScreenState {
             onPressed: VendorStatusGuard.shouldShowStatusScreen(
                     ref.read(currentUserProvider))
                 ? null
-                : () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Notifications are fully set up for proposals and orders.',
-                        ),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
+                : () => context.push('/vendor/notifications'),
             icon: Icon(
               Icons.notifications_outlined,
               color: VendorStatusGuard.shouldShowStatusScreen(

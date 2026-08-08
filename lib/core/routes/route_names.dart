@@ -52,7 +52,8 @@ class RouteNames {
   static const String vendorEarnings = '/vendor/earnings';
   static const String vendorProfile = '/vendor/profile';
 
-  // ── Admin ─────────────────────────────────────────────────────────────────
+  static const String vendorNotifications = '/vendor/notifications';
+
   static const String adminHome = '/admin';
   static const String adminDashboard = '/admin';
   static const String adminRegister = '/auth/admin/register';

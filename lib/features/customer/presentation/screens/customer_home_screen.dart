@@ -447,15 +447,41 @@ class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
           const SizedBox(height: AppSpacing.xxxl),
 
           // ── Recent Requests Section ───────────────────────────────────
-          _buildRecentRequestsSection(context, ref, requestState, isDark, primaryText, secondaryText),
+          if (requestState.isLoading && requestState.requests.isEmpty)
+            _buildSectionSkeleton('Recent Requests', isDark, primaryText, secondaryText)
+          else
+            _buildRecentRequestsSection(context, ref, requestState, isDark, primaryText, secondaryText),
           const SizedBox(height: 44),
 
           // ── Recent Orders Section ─────────────────────────────────────
-          _buildRecentOrdersSection(context, ref, orderState, isDark, primaryText, secondaryText),
+          if (orderState.isLoading && orderState.orders.isEmpty)
+            _buildSectionSkeleton('Recent Orders', isDark, primaryText, secondaryText)
+          else
+            _buildRecentOrdersSection(context, ref, orderState, isDark, primaryText, secondaryText),
           const SizedBox(height: AppSpacing.lg),
         ],
       ),
     ),
+    );
+  }
+
+  Widget _buildSectionSkeleton(String title, bool isDark, Color primaryText, Color secondaryText) {
+    final shimmerBase = isDark ? AppColors.cardDark : AppColors.cardLight;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: AppTextStyles.h2(primaryText)),
+        const SizedBox(height: AppSpacing.md),
+        ...List.generate(2, (i) => Container(
+          margin: const EdgeInsets.only(bottom: AppSpacing.sm),
+          height: 80,
+          decoration: BoxDecoration(
+            color: shimmerBase,
+            borderRadius: BorderRadius.circular(AppRadius.lg),
+          ),
+          child: const Center(child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)),
+        )),
+      ],
     );
   }
 
