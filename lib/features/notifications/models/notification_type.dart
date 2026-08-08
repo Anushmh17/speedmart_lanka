@@ -5,6 +5,7 @@ enum NotificationType {
   proposalRejected,
   orderStatusUpdated,
   cashOnDeliveryConfirmed,
+  bankTransferReceiptSubmitted,
   receiptGenerated,
   paymentFailed,
   orderReadyForPickup,
@@ -27,6 +28,8 @@ extension NotificationTypeExtension on NotificationType {
         return 'Order Status Updated';
       case NotificationType.cashOnDeliveryConfirmed:
         return 'COD Confirmed';
+      case NotificationType.bankTransferReceiptSubmitted:
+        return 'Bank Transfer Receipt Submitted';
       case NotificationType.receiptGenerated:
         return 'Receipt Generated';
       case NotificationType.paymentFailed:
@@ -54,6 +57,8 @@ extension NotificationTypeExtension on NotificationType {
         return '📦';
       case NotificationType.cashOnDeliveryConfirmed:
         return '💵';
+      case NotificationType.bankTransferReceiptSubmitted:
+        return '🏦';
       case NotificationType.receiptGenerated:
         return '🧾';
       case NotificationType.paymentFailed:
@@ -67,4 +72,3 @@ extension NotificationTypeExtension on NotificationType {
     }
   }
 }
-

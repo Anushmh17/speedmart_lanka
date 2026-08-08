@@ -14,7 +14,8 @@ import 'package:speedmart_lanka/features/requests/models/request_category_fulfil
 import 'package:speedmart_lanka/features/requests/providers/request_provider.dart';
 import 'package:speedmart_lanka/features/requests/data/request_repository.dart';
 import 'package:speedmart_lanka/features/notifications/models/notification_type.dart';
-import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart' as notification_feature;
+import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart'
+    as notification_feature;
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
 import 'package:speedmart_lanka/features/payments/providers/payment_provider.dart';
 import 'package:speedmart_lanka/features/auth/data/auth_repository.dart';
@@ -32,11 +33,18 @@ class AcceptedVendorGroup {
     this.waveDeliveryCharge = false,
   });
 
-  double get subtotal => acceptedItems.fold<double>(0.0, (sum, item) => sum + item.subtotal);
-  double get deliveryCharge => waveDeliveryCharge ? 0.0 : proposal.deliveryCharge;
+  double get subtotal =>
+      acceptedItems.fold<double>(0.0, (sum, item) => sum + item.subtotal);
+  double get deliveryCharge =>
+      waveDeliveryCharge ? 0.0 : proposal.deliveryCharge;
   // Commission is already baked into proposal.totalPrice — derive it rather than recalculate.
-  double get platformCommission => proposal.totalPrice - subtotal - proposal.deliveryCharge;
-  double get customerAmount => proposal.totalPrice - (waveDeliveryCharge ? proposal.deliveryCharge : 0.0);
+  // Always use proposal.deliveryCharge (original) so commission is not affected by waived delivery.
+  double get platformCommission =>
+      proposal.totalPrice - subtotal - proposal.deliveryCharge;
+  double get customerAmount =>
+      proposal.totalPrice -
+      (waveDeliveryCharge ? proposal.deliveryCharge : 0.0);
+  // Vendor net = what customer pays minus commission owed to Speedmart.
   double get vendorNetAmount => customerAmount - platformCommission;
 }
 
@@ -101,8 +109,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     } catch (_) {}
 
     // Block payment if no delivery address
-    if (_request == null || (_request!.deliveryAddress.trim().isEmpty && _request!.deliveryLocation == null)) {
-      _missingAddressError = 'Delivery address missing. Please update your request delivery address.';
+    if (_request == null ||
+        (_request!.deliveryAddress.trim().isEmpty &&
+            _request!.deliveryLocation == null)) {
+      _missingAddressError =
+          'Delivery address missing. Please update your request delivery address.';
     }
 
     final initialPhone = _request?.customerPhone ?? user?.phone ?? '';
@@ -150,8 +161,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final acceptsCod = vendor.acceptsCashOnDelivery ?? true;
     final acceptsBank = vendor.acceptsBankTransfer ?? true;
     final unavailable = <String>[];
-    if (!acceptsCod) unavailable.add('Cash on Delivery is unavailable for this vendor.');
-    if (!acceptsBank) unavailable.add('Bank Transfer is unavailable for this vendor.');
+    if (!acceptsCod)
+      unavailable.add('Cash on Delivery is unavailable for this vendor.');
+    if (!acceptsBank)
+      unavailable.add('Bank Transfer is unavailable for this vendor.');
     return _VendorPaymentAvailability(
       acceptsCashOnDelivery: acceptsCod,
       acceptsBankTransfer: acceptsBank,
@@ -159,8 +172,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     );
   }
 
-  Future<_VendorPaymentAvailability> _loadGlobalVendorAvailability(List<AcceptedVendorGroup> groups) async {
-    final repository = AuthRepository.instance;
+  Future<_VendorPaymentAvailability> _loadGlobalVendorAvailability(
+      List<AcceptedVendorGroup> groups) async {
     bool acceptsCod = true;
     bool acceptsBank = true;
     final unavailableMessages = <String>[];
@@ -193,7 +206,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     // Block if no delivery address
     if (_missingAddressError != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(_missingAddressError!), backgroundColor: Colors.red),
+        SnackBar(
+            content: Text(_missingAddressError!), backgroundColor: Colors.red),
       );
       return;
     }
@@ -228,7 +242,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       OrderModel? firstOrder;
       PaymentModel? firstPayment;
 
-      final updatedFulfillments = Map<String, RequestCategoryFulfillment>.from(_request!.categoryFulfillments);
+      final updatedFulfillments = Map<String, RequestCategoryFulfillment>.from(
+          _request!.categoryFulfillments);
 
       for (final group in groups) {
         final subtotal = group.subtotal;
@@ -240,15 +255,17 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         final groupIndex = groups.indexOf(group);
         final receiptNumber = 'RCPT-${ts.toString().substring(7)}-$groupIndex';
         final transactionReference = _selectedMethod == PaymentMethod.online
-          ? 'ONLINE-$ts-$groupIndex'
-          : _selectedMethod == PaymentMethod.bankTransfer
-            ? 'BANK-$ts-$groupIndex'
-            : 'COD-$ts-$groupIndex';
+            ? 'ONLINE-$ts-$groupIndex'
+            : _selectedMethod == PaymentMethod.bankTransfer
+                ? 'BANK-$ts-$groupIndex'
+                : 'COD-$ts-$groupIndex';
 
-        debugPrint('[PaymentAudit] ===== PAYMENT CREATION (Group: ${group.proposal.vendorBusinessName}) =====');
+        debugPrint(
+            '[PaymentAudit] ===== PAYMENT CREATION (Group: ${group.proposal.vendorBusinessName}) =====');
         debugPrint('[PaymentAudit] Subtotal (items): $subtotal');
         debugPrint('[PaymentAudit] Delivery fee: $deliveryFee');
-        debugPrint('[PaymentAudit] Platform commission (derived from proposal.totalPrice): $platformCommission');
+        debugPrint(
+            '[PaymentAudit] Platform commission (derived from proposal.totalPrice): $platformCommission');
         debugPrint('[PaymentAudit] Customer pays: $customerAmount');
         debugPrint('[PaymentAudit] Vendor receives: $vendorNetAmount');
 
@@ -280,12 +297,17 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           receiptNumber: receiptNumber,
         );
 
-        PaymentModel createdPayment = await ref.read(paymentProvider.notifier).createPayment(pendingPayment);
+        PaymentModel createdPayment = await ref
+            .read(paymentProvider.notifier)
+            .createPayment(pendingPayment);
         PaymentModel finalPayment = createdPayment;
 
         if (_selectedMethod == PaymentMethod.online) {
           await Future.delayed(const Duration(seconds: 1));
-          finalPayment = await ref.read(paymentProvider.notifier).markPaid(createdPayment.id) ?? createdPayment;
+          finalPayment = await ref
+                  .read(paymentProvider.notifier)
+                  .markPaid(createdPayment.id) ??
+              createdPayment;
         }
 
         final order = OrderModel(
@@ -295,14 +317,16 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           customerId: customer.id,
           vendorId: group.proposal.vendorId,
           vendorBusinessName: group.proposal.vendorBusinessName,
-          vendorPhone: '+94 77 555 4321',
+          vendorPhone: (await _loadVendorProfile(group.proposal))?.phone ??
+              '', // loaded from vendor profile
           customerName: customer.fullName,
           customerPhone: _phoneController.text,
           deliveryAddress: deliveryAddress,
           customerProvince: _request!.deliveryLocation?.province ?? '',
           customerDistrict: _request!.deliveryLocation?.district ?? '',
           customerCity: _request!.deliveryLocation?.city ?? '',
-          customerSuburb: _request!.deliveryLocation?.suburb ?? _request!.customerArea,
+          customerSuburb:
+              _request!.deliveryLocation?.suburb ?? _request!.customerArea,
           customerFormattedAddress:
               _request!.deliveryLocation?.formattedAddress.isNotEmpty == true
                   ? _request!.deliveryLocation!.formattedAddress
@@ -312,7 +336,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           totalPrice: customerAmount,
           paymentId: finalPayment.id,
           paymentMethod: _selectedMethod,
-          paymentStatus: finalPayment.paymentStatus,
+          // Bank transfer stays pending until customer confirms outside the app
+          paymentStatus: _selectedMethod == PaymentMethod.bankTransfer
+              ? PaymentStatus.pendingBankTransfer
+              : finalPayment.paymentStatus,
           isAddressReleased: true,
           addressReleasedAt: DateTime.now(),
           status: OrderStatus.accepted,
@@ -327,10 +354,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         );
 
         final createdOrder = await ref.read(orderProvider.notifier).placeOrder(
-          order,
-          updateRequestStatus: groupIndex == 0,
-        );
-        finalPayment = await ref.read(paymentProvider.notifier).assignOrderId(createdPayment.id, createdOrder.id) ?? finalPayment;
+              order,
+              updateRequestStatus: groupIndex == 0,
+            );
+        finalPayment = await ref
+                .read(paymentProvider.notifier)
+                .assignOrderId(createdPayment.id, createdOrder.id) ??
+            finalPayment;
 
         if (firstOrder == null) {
           firstOrder = createdOrder;
@@ -339,47 +369,63 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
         // Send Notifications
         if (_selectedMethod == PaymentMethod.online) {
-          await ref.read(notification_feature.notificationProvider.notifier).createNotification(
-            type: NotificationType.orderStatusUpdated,
-            title: 'Payment Confirmed',
-            body: 'Payment for order ${createdOrder.id} has been confirmed.',
-            userId: group.proposal.vendorId,
-            relatedId: createdOrder.id,
-          );
+          await ref
+              .read(notification_feature.notificationProvider.notifier)
+              .createNotification(
+                type: NotificationType.orderStatusUpdated,
+                title: 'Payment Confirmed',
+                body:
+                    'Payment for order ${createdOrder.id} has been confirmed.',
+                userId: group.proposal.vendorId,
+                relatedId: createdOrder.id,
+              );
         } else if (_selectedMethod == PaymentMethod.bankTransfer) {
-          await ref.read(notification_feature.notificationProvider.notifier).createNotification(
-            type: NotificationType.orderStatusUpdated,
-            title: 'Bank Transfer Order Confirmed',
-            body: 'Bank transfer details are ready for order ${createdOrder.id}.',
-            userId: group.proposal.vendorId,
-            relatedId: createdOrder.id,
-          );
+          // Vendor notified that a bank transfer order is placed — awaiting customer payment confirmation
+          await ref
+              .read(notification_feature.notificationProvider.notifier)
+              .createNotification(
+                type: NotificationType.orderStatusUpdated,
+                title: 'New Bank Transfer Order',
+                body:
+                    'Order ${createdOrder.id} placed. Awaiting customer bank transfer confirmation.',
+                userId: group.proposal.vendorId,
+                relatedId: createdOrder.id,
+              );
         } else {
-          await ref.read(notification_feature.notificationProvider.notifier).createNotification(
-            type: NotificationType.cashOnDeliveryConfirmed,
-            title: 'COD Order Confirmed',
-            body: 'Customer confirmed COD for order ${createdOrder.id}.',
-            userId: group.proposal.vendorId,
-            relatedId: createdOrder.id,
-          );
+          await ref
+              .read(notification_feature.notificationProvider.notifier)
+              .createNotification(
+                type: NotificationType.cashOnDeliveryConfirmed,
+                title: 'New COD Order',
+                body:
+                    'Customer confirmed COD for order ${createdOrder.id}. Collect payment on delivery.',
+                userId: group.proposal.vendorId,
+                relatedId: createdOrder.id,
+              );
         }
 
         // Update category fulfillment based on payment method
-        if (group.proposal.categoryNormalized != null && group.proposal.categoryNormalized!.isNotEmpty) {
+        if (group.proposal.categoryNormalized != null &&
+            group.proposal.categoryNormalized!.isNotEmpty) {
           final category = group.proposal.categoryNormalized!;
           final currentFulfillment = updatedFulfillments[category];
-          
+
           if (currentFulfillment != null) {
             if (_selectedMethod == PaymentMethod.cashOnDelivery) {
               updatedFulfillments[category] = currentFulfillment.copyWith(
                 status: RequestCategoryStatus.codConfirmed,
                 codConfirmedAt: DateTime.now(),
               );
-            } else if (_selectedMethod == PaymentMethod.online ||
-              _selectedMethod == PaymentMethod.bankTransfer) {
+            } else if (_selectedMethod == PaymentMethod.online) {
               updatedFulfillments[category] = currentFulfillment.copyWith(
                 status: RequestCategoryStatus.paid,
                 paidAt: DateTime.now(),
+              );
+            } else if (_selectedMethod == PaymentMethod.bankTransfer) {
+              // Bank transfer is pending external confirmation — treat same as COD for now
+              updatedFulfillments[category] = currentFulfillment.copyWith(
+                status: RequestCategoryStatus.codConfirmed,
+                codConfirmedAt: DateTime.now(),
               );
             }
           }
@@ -390,35 +436,42 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         categoryFulfillments: updatedFulfillments,
         updatedAt: DateTime.now(),
       );
-      
+
       await ref.read(requestProvider.notifier).updateRequest(updatedRequest);
 
       // Create notifications for customer
       if (firstOrder != null) {
         if (_selectedMethod == PaymentMethod.online) {
-          await ref.read(notification_feature.notificationProvider.notifier).createNotification(
-            type: NotificationType.receiptGenerated,
-            title: 'Receipt Generated',
-            body: 'Your payment was successful and receipt is ready.',
-            userId: customer.id,
-            relatedId: firstOrder.id,
-          );
+          await ref
+              .read(notification_feature.notificationProvider.notifier)
+              .createNotification(
+                type: NotificationType.receiptGenerated,
+                title: 'Receipt Generated',
+                body: 'Your payment was successful and receipt is ready.',
+                userId: customer.id,
+                relatedId: firstOrder.id,
+              );
         } else if (_selectedMethod == PaymentMethod.bankTransfer) {
-          await ref.read(notification_feature.notificationProvider.notifier).createNotification(
-            type: NotificationType.receiptGenerated,
-            title: 'Bank Transfer Details Ready',
-            body: 'Bank transfer details are available for order ${firstOrder.id}.',
-            userId: customer.id,
-            relatedId: firstOrder.id,
-          );
+          await ref
+              .read(notification_feature.notificationProvider.notifier)
+              .createNotification(
+                type: NotificationType.receiptGenerated,
+                title: 'Bank Transfer Details Ready',
+                body:
+                    'Bank transfer details are available for order ${firstOrder.id}.',
+                userId: customer.id,
+                relatedId: firstOrder.id,
+              );
         } else {
-          await ref.read(notification_feature.notificationProvider.notifier).createNotification(
-            type: NotificationType.receiptGenerated,
-            title: 'COD Receipt Ready',
-            body: 'Your COD order has been confirmed successfully.',
-            userId: customer.id,
-            relatedId: firstOrder.id,
-          );
+          await ref
+              .read(notification_feature.notificationProvider.notifier)
+              .createNotification(
+                type: NotificationType.receiptGenerated,
+                title: 'COD Receipt Ready',
+                body: 'Your COD order has been confirmed successfully.',
+                userId: customer.id,
+                relatedId: firstOrder.id,
+              );
         }
       }
 
@@ -432,10 +485,18 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       });
 
       if (firstOrder != null && firstPayment != null) {
-        context.pushReplacement(RouteNames.customerPaymentReceipt, extra: {
-          'order': firstOrder,
-          'payment': firstPayment,
-        });
+        if (_selectedMethod == PaymentMethod.bankTransfer) {
+          // Navigate to bank transfer confirmation screen where customer uploads receipt
+          context.pushReplacement('/customer/bank-transfer-confirm', extra: {
+            'order': firstOrder,
+            'payment': firstPayment,
+          });
+        } else {
+          context.pushReplacement(RouteNames.customerPaymentReceipt, extra: {
+            'order': firstOrder,
+            'payment': firstPayment,
+          });
+        }
       }
     } catch (e) {
       setState(() {
@@ -454,13 +515,16 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
       final failedCustomer = ref.read(currentUserProvider);
       if (failedCustomer != null) {
-        await ref.read(notification_feature.notificationProvider.notifier).createNotification(
-          type: NotificationType.paymentFailed,
-          title: 'Payment Failed',
-          body: 'Your payment attempt for the selected proposals failed. Please try again.',
-          userId: failedCustomer.id,
-          relatedId: widget.proposal.id,
-        );
+        await ref
+            .read(notification_feature.notificationProvider.notifier)
+            .createNotification(
+              type: NotificationType.paymentFailed,
+              title: 'Payment Failed',
+              body:
+                  'Your payment attempt for the selected proposals failed. Please try again.',
+              userId: failedCustomer.id,
+              relatedId: widget.proposal.id,
+            );
       }
     }
   }
@@ -468,15 +532,18 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final primaryText =
+        isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final secondaryText =
+        isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
 
     // If no delivery address, show error and block payment
     if (_missingAddressError != null) {
       return Scaffold(
-        backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+        backgroundColor:
+            isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
         appBar: AppBar(
           title: const Text('Checkout & Payment'),
           leading: IconButton(
@@ -490,7 +557,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.location_off_rounded, size: 64, color: Colors.red.withOpacity(0.6)),
+                Icon(Icons.location_off_rounded,
+                    size: 64, color: Colors.red.withOpacity(0.6)),
                 const SizedBox(height: 16),
                 Text(
                   _missingAddressError!,
@@ -512,7 +580,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
     if (_request == null) {
       return Scaffold(
-        backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+        backgroundColor:
+            isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
         appBar: AppBar(
           title: const Text('Checkout & Payment'),
           leading: IconButton(
@@ -528,21 +597,25 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final proposals = ref.watch(proposalProvider).proposals;
     final customerOrders = ref.watch(orderProvider).orders;
     final acceptedGroups = <AcceptedVendorGroup>[];
-    
+
     // Check if there are any explicitly accepted items across any proposal for this request
     bool hasExplicitAcceptedItems = false;
     for (final p in proposals) {
-      if (p.requestId == widget.requestId && p.items.any((i) => i.customerDecision == ProposalItemDecision.accepted)) {
+      if (p.requestId == widget.requestId &&
+          p.items.any(
+              (i) => i.customerDecision == ProposalItemDecision.accepted)) {
         hasExplicitAcceptedItems = true;
         break;
       }
     }
 
     bool checkWaveDeliveryCharge(Proposal proposal) {
-      final existingOrdersForVendor = customerOrders.where((o) =>
-          o.requestId == widget.requestId &&
-          o.vendorId == proposal.vendorId &&
-          o.status != OrderStatus.cancelled).toList();
+      final existingOrdersForVendor = customerOrders
+          .where((o) =>
+              o.requestId == widget.requestId &&
+              o.vendorId == proposal.vendorId &&
+              o.status != OrderStatus.cancelled)
+          .toList();
 
       if (existingOrdersForVendor.isNotEmpty) {
         final hasDispatchedOrder = existingOrdersForVendor.any((o) =>
@@ -558,13 +631,17 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
     for (final p in proposals) {
       if (p.requestId != widget.requestId) continue;
-      
+
       final List<ProposalItem> items;
       if (hasExplicitAcceptedItems) {
-        items = p.items.where((i) => i.customerDecision == ProposalItemDecision.accepted).toList();
+        items = p.items
+            .where((i) => i.customerDecision == ProposalItemDecision.accepted)
+            .toList();
       } else {
         if (p.status == ProposalStatus.accepted || p.id == widget.proposal.id) {
-          items = p.items.where((i) => i.status != ProposalItemStatus.unavailable).toList();
+          items = p.items
+              .where((i) => i.status != ProposalItemStatus.unavailable)
+              .toList();
         } else {
           items = [];
         }
@@ -582,16 +659,20 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     if (acceptedGroups.isEmpty) {
       acceptedGroups.add(AcceptedVendorGroup(
         proposal: widget.proposal,
-        acceptedItems: widget.proposal.items.where((i) => i.status != ProposalItemStatus.unavailable).toList(),
+        acceptedItems: widget.proposal.items
+            .where((i) => i.status != ProposalItemStatus.unavailable)
+            .toList(),
         waveDeliveryCharge: checkWaveDeliveryCharge(widget.proposal),
       ));
     }
 
-    final grandTotal = acceptedGroups.fold<double>(0.0, (sum, g) => sum + g.customerAmount);
+    final grandTotal =
+        acceptedGroups.fold<double>(0.0, (sum, g) => sum + g.customerAmount);
     _vendorAvailabilityFuture ??= _loadGlobalVendorAvailability(acceptedGroups);
 
     return Scaffold(
-      backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+      backgroundColor:
+          isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
       appBar: AppBar(
         title: const Text('Checkout & Payment'),
         leading: IconButton(
@@ -606,7 +687,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 children: [
                   CircularProgressIndicator(color: AppColors.customerColor),
                   SizedBox(height: 16),
-                  Text('Processing Payment securely...', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text('Processing Payment securely...',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                 ],
               ),
             )
@@ -618,7 +700,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Delivery Details Section (Read-only)
-                    Text('Delivery Details', style: AppTextStyles.h2(primaryText)),
+                    Text('Delivery Details',
+                        style: AppTextStyles.h2(primaryText)),
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.all(16),
@@ -633,19 +716,28 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                           // Approximate Area (Read-only)
                           Row(
                             children: [
-                              Icon(Icons.location_on_rounded, color: AppColors.customerColor, size: 20),
+                              Icon(Icons.location_on_rounded,
+                                  color: AppColors.customerColor, size: 20),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('Approximate Area', style: AppTextStyles.labelMedium(secondaryText)),
+                                    Text('Approximate Area',
+                                        style: AppTextStyles.labelMedium(
+                                            secondaryText)),
                                     const SizedBox(height: 4),
                                     Text(
-                                      _request!.deliveryLocation?.approximateAreaText.isNotEmpty == true
-                                          ? _request!.deliveryLocation!.approximateAreaText
+                                      _request!
+                                                  .deliveryLocation
+                                                  ?.approximateAreaText
+                                                  .isNotEmpty ==
+                                              true
+                                          ? _request!.deliveryLocation!
+                                              .approximateAreaText
                                           : _request!.customerArea,
-                                      style: AppTextStyles.bodyMedium(primaryText),
+                                      style:
+                                          AppTextStyles.bodyMedium(primaryText),
                                     ),
                                   ],
                                 ),
@@ -657,19 +749,25 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                           // District (Read-only)
                           Row(
                             children: [
-                              Icon(Icons.public_rounded, color: AppColors.customerColor, size: 20),
+                              Icon(Icons.public_rounded,
+                                  color: AppColors.customerColor, size: 20),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('District', style: AppTextStyles.labelMedium(secondaryText)),
+                                    Text('District',
+                                        style: AppTextStyles.labelMedium(
+                                            secondaryText)),
                                     const SizedBox(height: 4),
                                     Text(
-                                      _request!.deliveryLocation?.district.isNotEmpty == true
+                                      _request!.deliveryLocation?.district
+                                                  .isNotEmpty ==
+                                              true
                                           ? _request!.deliveryLocation!.district
                                           : 'Not specified',
-                                      style: AppTextStyles.bodyMedium(primaryText),
+                                      style:
+                                          AppTextStyles.bodyMedium(primaryText),
                                     ),
                                   ],
                                 ),
@@ -682,17 +780,22 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                           if (_request!.deliveryAddress.isNotEmpty) ...[
                             Row(
                               children: [
-                                Icon(Icons.home_rounded, color: AppColors.customerColor, size: 20),
+                                Icon(Icons.home_rounded,
+                                    color: AppColors.customerColor, size: 20),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Text('Precise Street Address', style: AppTextStyles.labelMedium(secondaryText)),
+                                      Text('Precise Street Address',
+                                          style: AppTextStyles.labelMedium(
+                                              secondaryText)),
                                       const SizedBox(height: 4),
                                       Text(
                                         _request!.deliveryAddress,
-                                        style: AppTextStyles.bodyMedium(primaryText),
+                                        style: AppTextStyles.bodyMedium(
+                                            primaryText),
                                       ),
                                     ],
                                   ),
@@ -703,20 +806,28 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                           ],
 
                           // Delivery Note (if available)
-                          if (_request!.deliveryLocation?.deliveryNote.isNotEmpty == true) ...[
+                          if (_request!
+                                  .deliveryLocation?.deliveryNote.isNotEmpty ==
+                              true) ...[
                             Row(
                               children: [
-                                Icon(Icons.note_rounded, color: AppColors.customerColor, size: 20),
+                                Icon(Icons.note_rounded,
+                                    color: AppColors.customerColor, size: 20),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Text('Delivery Note', style: AppTextStyles.labelMedium(secondaryText)),
+                                      Text('Delivery Note',
+                                          style: AppTextStyles.labelMedium(
+                                              secondaryText)),
                                       const SizedBox(height: 4),
                                       Text(
-                                        _request!.deliveryLocation!.deliveryNote,
-                                        style: AppTextStyles.bodySmall(primaryText),
+                                        _request!
+                                            .deliveryLocation!.deliveryNote,
+                                        style: AppTextStyles.bodySmall(
+                                            primaryText),
                                       ),
                                     ],
                                   ),
@@ -732,11 +843,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                             keyboardType: TextInputType.phone,
                             decoration: InputDecoration(
                               labelText: 'Contact Phone Number',
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12)),
                               prefixIcon: const Icon(Icons.phone_outlined),
                             ),
                             validator: (val) {
-                              if (val == null || val.isEmpty) return 'Enter contact number';
+                              if (val == null || val.isEmpty)
+                                return 'Enter contact number';
                               return null;
                             },
                           ),
@@ -752,17 +865,20 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                     const SizedBox(height: 24),
 
                     // Payment Method Section
-                    Text('Choose Payment Method', style: AppTextStyles.h2(primaryText)),
+                    Text('Choose Payment Method',
+                        style: AppTextStyles.h2(primaryText)),
                     const SizedBox(height: 12),
                     FutureBuilder<_VendorPaymentAvailability>(
                       future: _vendorAvailabilityFuture,
                       builder: (context, snapshot) {
-                        final availability = snapshot.data ?? _VendorPaymentAvailability(
-                          acceptsCashOnDelivery: true,
-                          acceptsBankTransfer: true,
-                          unavailableMessages: [],
-                        );
-                        final isLoadingAvailability = snapshot.connectionState == ConnectionState.waiting;
+                        final availability = snapshot.data ??
+                            _VendorPaymentAvailability(
+                              acceptsCashOnDelivery: true,
+                              acceptsBankTransfer: true,
+                              unavailableMessages: [],
+                            );
+                        final isLoadingAvailability =
+                            snapshot.connectionState == ConnectionState.waiting;
                         return Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
@@ -779,9 +895,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                               RadioListTile<PaymentMethod>(
                                 title: Row(
                                   children: [
-                                    const Icon(Icons.local_shipping_outlined, color: AppColors.customerColor),
+                                    const Icon(Icons.local_shipping_outlined,
+                                        color: AppColors.customerColor),
                                     const SizedBox(width: 12),
-                                    Text('Cash on Delivery (COD)', style: AppTextStyles.bodyMedium(primaryText)),
+                                    Text('Cash on Delivery (COD)',
+                                        style: AppTextStyles.bodyMedium(
+                                            primaryText)),
                                   ],
                                 ),
                                 value: PaymentMethod.cashOnDelivery,
@@ -795,16 +914,21 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                                       }
                                     : null,
                                 subtitle: !availability.acceptsCashOnDelivery
-                                    ? Text('Unavailable for this vendor', style: AppTextStyles.caption(AppColors.error))
+                                    ? Text('Unavailable for this vendor',
+                                        style: AppTextStyles.caption(
+                                            AppColors.error))
                                     : null,
                               ),
                               const Divider(height: 1),
                               RadioListTile<PaymentMethod>(
                                 title: Row(
                                   children: [
-                                    const Icon(Icons.payment_outlined, color: AppColors.customerColor),
+                                    const Icon(Icons.payment_outlined,
+                                        color: AppColors.customerColor),
                                     const SizedBox(width: 12),
-                                    Text('Online Payment', style: AppTextStyles.bodyMedium(primaryText)),
+                                    Text('Online Payment',
+                                        style: AppTextStyles.bodyMedium(
+                                            primaryText)),
                                   ],
                                 ),
                                 value: PaymentMethod.online,
@@ -820,9 +944,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                               RadioListTile<PaymentMethod>(
                                 title: Row(
                                   children: [
-                                    const Icon(Icons.account_balance_outlined, color: AppColors.customerColor),
+                                    const Icon(Icons.account_balance_outlined,
+                                        color: AppColors.customerColor),
                                     const SizedBox(width: 12),
-                                    Text('Bank Transfer', style: AppTextStyles.bodyMedium(primaryText)),
+                                    Text('Bank Transfer',
+                                        style: AppTextStyles.bodyMedium(
+                                            primaryText)),
                                   ],
                                 ),
                                 value: PaymentMethod.bankTransfer,
@@ -836,16 +963,21 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                                       }
                                     : null,
                                 subtitle: !availability.acceptsBankTransfer
-                                    ? Text('Unavailable for this vendor', style: AppTextStyles.caption(AppColors.error))
+                                    ? Text('Unavailable for this vendor',
+                                        style: AppTextStyles.caption(
+                                            AppColors.error))
                                     : null,
                               ),
                               const Divider(height: 1),
                               RadioListTile<PaymentMethod>(
                                 title: Row(
                                   children: [
-                                    const Icon(Icons.credit_card_outlined, color: AppColors.customerColor),
+                                    const Icon(Icons.credit_card_outlined,
+                                        color: AppColors.customerColor),
                                     const SizedBox(width: 12),
-                                    Text('Card Payment (Placeholder)', style: AppTextStyles.bodyMedium(primaryText)),
+                                    Text('Card Payment (Placeholder)',
+                                        style: AppTextStyles.bodyMedium(
+                                            primaryText)),
                                   ],
                                 ),
                                 value: PaymentMethod.cardPlaceholder,
@@ -866,7 +998,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
                     // Card Fields (Conditional)
                     if (_selectedMethod == PaymentMethod.cardPlaceholder) ...[
-                      Text('Card Information', style: AppTextStyles.h2(primaryText)),
+                      Text('Card Information',
+                          style: AppTextStyles.h2(primaryText)),
                       const SizedBox(height: 12),
                       Container(
                         padding: const EdgeInsets.all(16),
@@ -883,10 +1016,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                               decoration: InputDecoration(
                                 labelText: 'Card Number',
                                 hintText: 'xxxx xxxx xxxx xxxx',
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12)),
                               ),
                               validator: (val) {
-                                if (val == null || val.isEmpty) return 'Enter card number';
+                                if (val == null || val.isEmpty)
+                                  return 'Enter card number';
                                 return null;
                               },
                             ),
@@ -899,10 +1034,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                                     decoration: InputDecoration(
                                       labelText: 'Expiry Date',
                                       hintText: 'MM/YY',
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                      border: OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12)),
                                     ),
                                     validator: (val) {
-                                      if (val == null || val.isEmpty) return 'Enter expiry';
+                                      if (val == null || val.isEmpty)
+                                        return 'Enter expiry';
                                       return null;
                                     },
                                   ),
@@ -915,10 +1053,13 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                                     obscureText: true,
                                     decoration: InputDecoration(
                                       labelText: 'CVV',
-                                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                      border: OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12)),
                                     ),
                                     validator: (val) {
-                                      if (val == null || val.isEmpty) return 'Enter CVV';
+                                      if (val == null || val.isEmpty)
+                                        return 'Enter CVV';
                                       return null;
                                     },
                                   ),
@@ -930,10 +1071,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                               controller: _cardNameController,
                               decoration: InputDecoration(
                                 labelText: 'Cardholder Name',
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                                border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12)),
                               ),
                               validator: (val) {
-                                if (val == null || val.isEmpty) return 'Enter cardholder name';
+                                if (val == null || val.isEmpty)
+                                  return 'Enter cardholder name';
                                 return null;
                               },
                             ),
@@ -951,7 +1094,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                           future: _loadVendorProfile(group.proposal),
                           builder: (context, snapshot) {
                             final vendor = snapshot.data;
-                            if (snapshot.connectionState == ConnectionState.waiting) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
                               return const Padding(
                                 padding: EdgeInsets.only(bottom: 12),
                                 child: LinearProgressIndicator(),
@@ -962,7 +1106,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                                 ((vendor.bankName ?? '').isNotEmpty ||
                                     (vendor.bankBranch ?? '').isNotEmpty ||
                                     (vendor.bankAccountName ?? '').isNotEmpty ||
-                                    (vendor.bankAccountNumber ?? '').isNotEmpty);
+                                    (vendor.bankAccountNumber ?? '')
+                                        .isNotEmpty);
 
                             return Container(
                               width: double.infinity,
@@ -975,17 +1120,31 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                               ),
                               child: hasDetails
                                   ? Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
-                                        _summaryRow('Bank Name', vendor!.bankName ?? '—', primaryText),
-                                        _summaryRow('Branch', vendor.bankBranch ?? '—', primaryText),
-                                        _summaryRow('Account Holder', vendor.bankAccountName ?? '—', primaryText),
-                                        _summaryRow('Account Number', vendor.bankAccountNumber ?? '—', primaryText),
+                                        _summaryRow(
+                                            'Bank Name',
+                                            vendor!.bankName ?? '—',
+                                            primaryText),
+                                        _summaryRow(
+                                            'Branch',
+                                            vendor.bankBranch ?? '—',
+                                            primaryText),
+                                        _summaryRow(
+                                            'Account Holder',
+                                            vendor.bankAccountName ?? '—',
+                                            primaryText),
+                                        _summaryRow(
+                                            'Account Number',
+                                            vendor.bankAccountNumber ?? '—',
+                                            primaryText),
                                       ],
                                     )
                                   : Text(
                                       'Bank details are not available for this proposal.',
-                                      style: AppTextStyles.bodyMedium(secondaryText),
+                                      style: AppTextStyles.bodyMedium(
+                                          secondaryText),
                                     ),
                             );
                           },
@@ -1005,7 +1164,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Order Summary', style: AppTextStyles.subtitle(primaryText).copyWith(fontWeight: FontWeight.bold)),
+                          Text('Order Summary',
+                              style: AppTextStyles.subtitle(primaryText)
+                                  .copyWith(fontWeight: FontWeight.bold)),
                           const Divider(height: 20),
                           ...acceptedGroups.map((group) {
                             return Padding(
@@ -1015,14 +1176,24 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                                 children: [
                                   Text(
                                     group.proposal.vendorBusinessName,
-                                    style: AppTextStyles.bodyMedium(primaryText).copyWith(fontWeight: FontWeight.bold),
+                                    style: AppTextStyles.bodyMedium(primaryText)
+                                        .copyWith(fontWeight: FontWeight.bold),
                                   ),
                                   const SizedBox(height: 4),
-                                  _summaryRow('  Subtotal (${group.acceptedItems.length} items)', 'Rs. ${group.subtotal.toStringAsFixed(2)}', primaryText),
+                                  _summaryRow(
+                                      '  Subtotal (${group.acceptedItems.length} items)',
+                                      'Rs. ${group.subtotal.toStringAsFixed(2)}',
+                                      primaryText),
                                   const SizedBox(height: 4),
-                                  _summaryRow('  Delivery Fee', 'Rs. ${group.deliveryCharge.toStringAsFixed(2)}', primaryText),
+                                  _summaryRow(
+                                      '  Delivery Fee',
+                                      'Rs. ${group.deliveryCharge.toStringAsFixed(2)}',
+                                      primaryText),
                                   const SizedBox(height: 4),
-                                  _summaryRow('  Vendor Total', 'Rs. ${group.customerAmount.toStringAsFixed(2)}', primaryText),
+                                  _summaryRow(
+                                      '  Vendor Total',
+                                      'Rs. ${group.customerAmount.toStringAsFixed(2)}',
+                                      primaryText),
                                   const Divider(height: 12),
                                 ],
                               ),
@@ -1046,16 +1217,22 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.customerColor,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16)),
                           elevation: 0,
                         ),
-                        onPressed: _isProcessing ? null : () => _handleConfirmPayment(acceptedGroups),
+                        onPressed: _isProcessing
+                            ? null
+                            : () => _handleConfirmPayment(acceptedGroups),
                         child: Text(
                           _selectedMethod == PaymentMethod.cashOnDelivery
                               ? 'Confirm Cash on Delivery'
                               : _selectedMethod == PaymentMethod.online
-                                  ? 'Confirm & Pay Online Payment'
-                                  : 'Placeholder payment method',
+                                  ? 'Confirm & Pay Online'
+                                  : _selectedMethod ==
+                                          PaymentMethod.bankTransfer
+                                      ? 'Proceed to Bank Transfer'
+                                      : 'Placeholder payment method',
                           style: AppTextStyles.button(Colors.white),
                         ),
                       ),
@@ -1074,9 +1251,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label, style: AppTextStyles.bodyMedium(color)),
-        Text(value, style: AppTextStyles.subtitle(color).copyWith(fontWeight: FontWeight.bold)),
+        Text(value,
+            style: AppTextStyles.subtitle(color)
+                .copyWith(fontWeight: FontWeight.bold)),
       ],
     );
   }
 }
-

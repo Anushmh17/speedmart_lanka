@@ -62,7 +62,7 @@ class OrderModel {
   final String requestId;
   final String customerId;
   final String vendorId;
-  
+
   // Confirmed Revealed Contact Info (Anti-bypass & Reveal logic)
   final String vendorBusinessName;
   final String vendorPhone;
@@ -101,11 +101,13 @@ class OrderModel {
   double get itemSubtotal =>
       items.fold<double>(0.0, (sum, item) => sum + item.subtotal);
 
-  double get platformCommission => itemSubtotal * commissionRate;
+  /// Commission is baked into totalPrice at proposal time.
+  /// Derive it here the same way AcceptedVendorGroup does.
+  double get platformCommission => totalPrice - itemSubtotal - deliveryCharge;
 
-  /// Vendor net amount is the subtotal plus delivery fee.
-  /// The hidden platform commission is charged separately on item subtotal.
-  double get vendorNetAmount => itemSubtotal + deliveryCharge;
+  /// Vendor receives the full totalPrice from the customer (cash or bank).
+  /// They owe platformCommission to Speedmart monthly.
+  double get vendorNetAmount => totalPrice - platformCommission;
 
   /// Orders that have reached a settled/finished state from the vendor dashboard viewpoint.
   bool get isDeliveredOrCompleted =>
@@ -128,7 +130,8 @@ class OrderModel {
       isActiveForDashboard ||
       (isDeliveredOrCompleted &&
           (paymentStatus == PaymentStatus.pending ||
-              paymentStatus == PaymentStatus.pendingOnDelivery));
+              paymentStatus == PaymentStatus.pendingOnDelivery ||
+              paymentStatus == PaymentStatus.pendingBankTransfer));
 
   OrderModel({
     required this.id,
@@ -297,7 +300,8 @@ class OrderModel {
       customerFormattedAddress:
           json['customerFormattedAddress'] as String? ?? '',
       items: (json['items'] as List<dynamic>? ?? [])
-          .map((e) => ProposalItem.fromJson(Map<String, dynamic>.from(e as Map)))
+          .map(
+              (e) => ProposalItem.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList(),
       deliveryCharge: (json['deliveryCharge'] as num?)?.toDouble() ?? 0.0,
       totalPrice: (json['totalPrice'] as num?)?.toDouble() ?? 0.0,
@@ -328,9 +332,10 @@ class OrderModel {
       customerLatitude: (json['customerLatitude'] as num?)?.toDouble() ?? 0.0,
       customerLongitude: (json['customerLongitude'] as num?)?.toDouble() ?? 0.0,
       accuracy: (json['accuracy'] as num?)?.toDouble(),
-      detectedAt: json['detectedAt'] != null ? DateTime.tryParse(json['detectedAt'] as String) : null,
+      detectedAt: json['detectedAt'] != null
+          ? DateTime.tryParse(json['detectedAt'] as String)
+          : null,
       commissionRate: (json['commissionRate'] as num?)?.toDouble() ?? 0.0,
     );
   }
 }
-
