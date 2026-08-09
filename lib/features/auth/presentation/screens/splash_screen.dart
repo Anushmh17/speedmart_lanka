@@ -45,7 +45,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     super.initState();
 
     _introController = AnimationController(
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 1400),
       vsync: this,
     );
     _introScale = Tween<double>(begin: 0.55, end: 1.0).animate(
@@ -68,11 +68,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     );
 
     _fadeOutController = AnimationController(
-      duration: const Duration(milliseconds: 150),
+      duration: const Duration(milliseconds: 180),
       vsync: this,
     );
     _fadeOutOpacity = Tween<double>(begin: 1.0, end: 0.0).animate(
-      CurvedAnimation(parent: _fadeOutController, curve: Curves.linear),
+      CurvedAnimation(parent: _fadeOutController, curve: Curves.easeOut),
     );
 
     // Infinite pulsing for loading dots
@@ -91,7 +91,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       _initServices();
     });
     // Minimum 2.5s so services have time to fully warm up
-    Future.delayed(const Duration(milliseconds: 3000), () {
+    Future.delayed(const Duration(milliseconds: 4100), () {
       _minDelayDone = true;
       _tryFadeOut();
     });
@@ -129,12 +129,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   void _tryFadeOut() {
     if (!_introSequenceDone || !_authReady || !_assetsPreloaded || !_minDelayDone || !mounted) return;
     _dotsController.stop();
-    _fadeOutController.forward().then((_) {
-      if (!mounted) return;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _navigate();
-      });
-    });
+    _navigate(); // start navigation immediately
+    _fadeOutController.forward();
   }
 
   @override
@@ -166,7 +162,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     const splashBg = Color(0xFF0A1628);
 
     return Scaffold(
-      backgroundColor: splashBg,
+      backgroundColor: const Color(0xFF0A1628),
       body: AnimatedBuilder(
         animation: _fadeOutController,
         builder: (context, child) => Opacity(
