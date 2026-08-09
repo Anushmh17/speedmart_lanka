@@ -23,13 +23,14 @@ class SrilankacustomerloginWidget extends StatefulWidget {
 }
 
 class _SrilankacustomerloginWidgetState
-    extends State<SrilankacustomerloginWidget> {
+    extends State<SrilankacustomerloginWidget> with WidgetsBindingObserver {
   bool _rememberMe = true;
 
   late final TextEditingController _phoneController;
   late final bool _ownsController;
 
   final FocusNode _phoneFocusNode = FocusNode();
+  double _keyboardHeight = 0;
 
   static const String _assetBase =
       'assets/images/figma/sri_lanka_customer_login/';
@@ -39,10 +40,19 @@ class _SrilankacustomerloginWidgetState
     super.initState();
     _ownsController = widget.phoneController == null;
     _phoneController = widget.phoneController ?? TextEditingController();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeMetrics() {
+    final bottomInset = WidgetsBinding.instance.platformDispatcher.views.first.viewInsets.bottom /
+        WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+    if (mounted) setState(() => _keyboardHeight = bottomInset);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _phoneFocusNode.dispose();
 
     if (_ownsController) {
@@ -67,7 +77,7 @@ class _SrilankacustomerloginWidgetState
     final w = media.size.width;
     final h = media.size.height;
 
-    final keyboardOpen = media.viewInsets.bottom > 0;
+    final keyboardHeight = _keyboardHeight;
 
     final sx = w / 360;
     final sy = h / 820;
@@ -76,6 +86,15 @@ class _SrilankacustomerloginWidgetState
     double x(double value) => value * sx;
     double y(double value) => value * sy;
     double fs(double value) => value * fontScale;
+
+    // Input field top position in pixels
+    final inputFieldTop = y(510) + y(46);
+    final inputFieldBottom = inputFieldTop + y(50);
+    // How much the keyboard covers the input field
+    final coveredBy = (inputFieldBottom - (h - keyboardHeight)).clamp(0.0, double.infinity);
+    // Clamp so the field never slides above the screen top
+    final maxSlide = inputFieldTop - 8.0;
+    final slidePixels = coveredBy.clamp(0.0, maxSlide);
 
     return MediaQuery(
       data: media.copyWith(textScaler: TextScaler.noScaling),
@@ -103,12 +122,19 @@ class _SrilankacustomerloginWidgetState
             child: SizedBox(
               width: w,
               height: h,
-              child: AnimatedSlide(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOut,
-                offset: Offset(0, keyboardOpen ? -0.08 : 0),
-                child: Stack(
-                  children: [
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOut,
+                    top: -slidePixels,
+                    left: 0,
+                    right: 0,
+                    height: h,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
                     Positioned(
                       top: 0,
                       left: 0,
@@ -523,6 +549,8 @@ class _SrilankacustomerloginWidgetState
                     ),
                   ],
                 ),
+              ),
+                ],
               ),
             ),
           ),

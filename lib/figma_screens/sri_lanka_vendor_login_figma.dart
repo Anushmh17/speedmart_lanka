@@ -28,7 +28,8 @@ class SrilankavendorloginWidget extends StatefulWidget {
       _SrilankavendorloginWidgetState();
 }
 
-class _SrilankavendorloginWidgetState extends State<SrilankavendorloginWidget> {
+class _SrilankavendorloginWidgetState extends State<SrilankavendorloginWidget>
+    with WidgetsBindingObserver {
   late final TextEditingController _emailController;
   late final TextEditingController _passwordController;
   late final bool _ownsEmailController;
@@ -36,6 +37,7 @@ class _SrilankavendorloginWidgetState extends State<SrilankavendorloginWidget> {
 
   final FocusNode _emailFocusNode = FocusNode();
   final FocusNode _passwordFocusNode = FocusNode();
+  double _keyboardHeight = 0;
 
   bool _rememberMe = true;
   bool _passwordVisible = false;
@@ -52,10 +54,19 @@ class _SrilankavendorloginWidgetState extends State<SrilankavendorloginWidget> {
 
     _emailController = widget.emailController ?? TextEditingController();
     _passwordController = widget.passwordController ?? TextEditingController();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeMetrics() {
+    final bottomInset = WidgetsBinding.instance.platformDispatcher.views.first.viewInsets.bottom /
+        WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+    if (mounted) setState(() => _keyboardHeight = bottomInset);
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _emailFocusNode.dispose();
     _passwordFocusNode.dispose();
 
@@ -86,7 +97,7 @@ class _SrilankavendorloginWidgetState extends State<SrilankavendorloginWidget> {
     final w = media.size.width;
     final h = media.size.height;
 
-    final keyboardOpen = media.viewInsets.bottom > 0;
+    final keyboardHeight = _keyboardHeight;
 
     final sx = w / 360;
     final sy = h / 850;
@@ -95,6 +106,28 @@ class _SrilankavendorloginWidgetState extends State<SrilankavendorloginWidget> {
     double x(double value) => value * sx;
     double y(double value) => value * sy;
     double fs(double value) => value * fontScale;
+
+    // Use the focused field's bottom edge, or password field as fallback
+    final emailFieldTop = y(461) + y(31);
+    final emailFieldBottom = emailFieldTop + y(45);
+    final passwordFieldTop = y(551) + y(30);
+    final passwordFieldBottom = passwordFieldTop + y(45);
+
+    final double activeFieldTop;
+    final double activeFieldBottom;
+    if (_passwordFocusNode.hasFocus) {
+      activeFieldTop = passwordFieldTop;
+      activeFieldBottom = passwordFieldBottom;
+    } else {
+      activeFieldTop = emailFieldTop;
+      activeFieldBottom = emailFieldBottom;
+    }
+
+    // How much the keyboard covers the active field
+    final coveredBy = (activeFieldBottom - (h - keyboardHeight)).clamp(0.0, double.infinity);
+    // Clamp so the field never slides above the screen top
+    final maxSlide = activeFieldTop - 8.0;
+    final slidePixels = coveredBy.clamp(0.0, maxSlide);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
@@ -124,12 +157,19 @@ class _SrilankavendorloginWidgetState extends State<SrilankavendorloginWidget> {
             child: SizedBox(
               width: w,
               height: h,
-              child: AnimatedSlide(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOut,
-                offset: Offset(0, keyboardOpen ? -0.08 : 0),
-                child: Stack(
-                  children: [
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOut,
+                    top: -slidePixels,
+                    left: 0,
+                    right: 0,
+                    height: h,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
                     Positioned(
                       top: 0,
                       left: 0,
@@ -525,6 +565,8 @@ class _SrilankavendorloginWidgetState extends State<SrilankavendorloginWidget> {
                     ),
                   ],
                 ),
+              ),
+                ],
               ),
             ),
           ),
