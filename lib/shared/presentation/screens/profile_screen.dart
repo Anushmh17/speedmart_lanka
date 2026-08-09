@@ -677,9 +677,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final primaryColor = user.role == UserRole.vendor
         ? AppColors.vendorColor
         : AppColors.customerColor;
-    final primaryColorDark = user.role == UserRole.vendor
-        ? AppColors.vendorColorDark
-        : AppColors.customerColorDark;
 
     final primaryText =
         isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
@@ -735,31 +732,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               const SizedBox(height: 20),
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      primaryColor.withOpacity(isDark ? 0.2 : 0.8),
-                      primaryColorDark.withOpacity(isDark ? 0.3 : 1.0)
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: primaryColor.withOpacity(0.2),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
+                  color: isDark
+                      ? primaryColor.withValues(alpha: 0.12)
+                      : primaryColor.withValues(alpha: 0.07),
+                  borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.15),
-                    width: 1.5,
+                    color: primaryColor.withValues(alpha: isDark ? 0.25 : 0.18),
                   ),
                 ),
-                child: Column(
+                child: Row(
                   children: [
+                    // Avatar
                     Stack(
                       alignment: Alignment.bottomRight,
                       children: [
@@ -810,70 +795,89 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             );
                           },
                           child: CircleAvatar(
-                            radius: 48,
-                            backgroundColor: Colors.white,
-                            child: CircleAvatar(
-                              key: ValueKey(_imageVersion),
-                              radius: 45,
-                              backgroundColor: primaryColor.withOpacity(0.1),
-                              backgroundImage: _pickedImagePath != null
-                                  ? FileImage(File(_pickedImagePath!))
-                                      as ImageProvider
-                                  : _savedImagePath != null
-                                      ? FileImage(File(_savedImagePath!))
-                                          as ImageProvider
-                                      : user.profileImageUrl != null &&
-                                              !_isLocalPath(user.profileImageUrl)
-                                          ? NetworkImage(user.profileImageUrl!)
-                                              as ImageProvider
-                                          : null,
-                              child: (_pickedImagePath == null &&
-                                      _savedImagePath == null &&
-                                      user.profileImageUrl == null)
-                                  ? Text(user.initials,
-                                      style: AppTextStyles.h1(primaryColor))
-                                  : null,
-                            ),
+                            radius: 44,
+                            backgroundColor: primaryColor.withValues(alpha: 0.15),
+                            backgroundImage: _pickedImagePath != null
+                                ? FileImage(File(_pickedImagePath!)) as ImageProvider
+                                : _savedImagePath != null
+                                    ? FileImage(File(_savedImagePath!)) as ImageProvider
+                                    : user.profileImageUrl != null &&
+                                            !_isLocalPath(user.profileImageUrl)
+                                        ? NetworkImage(user.profileImageUrl!) as ImageProvider
+                                        : null,
+                            child: (_pickedImagePath == null &&
+                                    _savedImagePath == null &&
+                                    user.profileImageUrl == null)
+                                ? Text(user.initials,
+                                    style: AppTextStyles.h2(primaryColor))
+                                : null,
                           ),
                         ),
                         if (_isEditing)
                           GestureDetector(
                             onTap: _pickImage,
                             child: Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: primaryColor,
                                 shape: BoxShape.circle,
-                                boxShadow: [
-                                  BoxShadow(
-                                      color: Colors.black12, blurRadius: 4)
-                                ],
+                                border: Border.all(color: Colors.white, width: 1.5),
                               ),
-                              child: Icon(Icons.camera_alt_rounded,
-                                  color: primaryColor, size: 20),
+                              child: const Icon(Icons.camera_alt_rounded,
+                                  color: Colors.white, size: 16),
                             ),
                           ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      user.role.label,
-                      style: AppTextStyles.labelSmall(
-                              isDark ? Colors.white70 : Colors.white70)
-                          .copyWith(
-                        letterSpacing: 1.5,
-                        fontWeight: FontWeight.w600,
+                    const SizedBox(width: 20),
+                    // Info
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: primaryColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              user.role.label.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: primaryColor,
+                                letterSpacing: 1.2,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Member since ${user.createdAt?.year ?? DateTime.now().year}',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: secondaryText,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Icon(Icons.verified_rounded,
+                                  size: 15,
+                                  color: user.isVerified ? AppColors.success : secondaryText),
+                              const SizedBox(width: 4),
+                              Text(
+                                user.isVerified ? 'Verified Account' : 'Unverified',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: user.isVerified ? AppColors.success : secondaryText,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      user.fullName,
-                      style: AppTextStyles.h2(Colors.white),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      user.email,
-                      style: AppTextStyles.bodyMedium(Colors.white70),
                     ),
                   ],
                 ),
@@ -1338,69 +1342,47 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     String? Function(String?)? validator,
     void Function(String)? onChanged,
   }) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-      padding: EdgeInsets.all(isEditing ? 8 : 16),
-      decoration: BoxDecoration(
-        color: isEditing ? Colors.transparent : cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isEditing ? Colors.transparent : borderColor),
+    final displayValue = label == 'Phone Number'
+        ? '+94 ${_toLocalDigits(controller.text)}'
+        : controller.text;
+
+    return TextFormField(
+      controller: isEditing ? controller : TextEditingController(text: displayValue),
+      enabled: isEditing,
+      keyboardType: keyboardType,
+      maxLength: isEditing ? maxLength : null,
+      validator: isEditing ? validator : null,
+      textCapitalization: (label == 'Full Name' || label == 'Business Name')
+          ? TextCapitalization.words
+          : TextCapitalization.none,
+      style: AppTextStyles.bodyMedium(primaryText),
+      onChanged: isEditing ? onChanged : null,
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: TextStyle(color: secondaryText, fontSize: 13),
+        floatingLabelStyle: TextStyle(color: isEditing ? primaryColor : secondaryText, fontSize: 12),
+        prefixIcon: Icon(icon, color: isEditing ? primaryColor : secondaryText, size: 20),
+        filled: true,
+        fillColor: cardColor,
+        counterText: '',
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: borderColor),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: borderColor),
+        ),
+        disabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: borderColor),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: primaryColor, width: 2),
+        ),
       ),
-      child: isEditing
-          ? TextFormField(
-              controller: controller,
-              keyboardType: keyboardType,
-              maxLength: maxLength,
-              validator: validator,
-              textCapitalization:
-                  (label == 'Full Name' || label == 'Business Name')
-                      ? TextCapitalization.words
-                      : TextCapitalization.none,
-              style: AppTextStyles.bodyLarge(primaryText),
-              onChanged: onChanged,
-              decoration: InputDecoration(
-                labelText: label,
-                labelStyle: AppTextStyles.bodyMedium(secondaryText),
-                prefixIcon: Icon(icon, color: primaryColor),
-                filled: true,
-                fillColor: cardColor,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: borderColor),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: borderColor),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: primaryColor, width: 2),
-                ),
-              ),
-            )
-          : Row(
-              children: [
-                Icon(icon, color: secondaryText, size: 22),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(label,
-                          style: AppTextStyles.labelSmall(secondaryText)),
-                      const SizedBox(height: 2),
-                      Text(
-                        label == 'Phone Number'
-                            ? '+94 ${_toLocalDigits(controller.text)}'
-                            : controller.text,
-                        style: AppTextStyles.bodyLarge(primaryText),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
     );
   }
 }
