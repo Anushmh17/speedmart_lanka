@@ -25,27 +25,28 @@ service cloud.firestore {
     // ── User Profiles ─────────────────────────────────────────────────────────
 
     match /users/customers/profiles/{userId} {
-      // Unauthenticated reads allowed — needed for phone/email existence check during OTP login
-      // Limit to single-doc reads/queries only — blocks full collection dumps
-      allow read: if request.query == null || request.query.limit <= 1;
-      allow create: if isSignedIn() || request.resource.data.id == userId;
-      allow update: if (isSignedIn() && (isOwner(userId) || isAdmin())) ||
-                       request.resource.data.id == userId;
-      // Allow delete of stale docs (old customer-{timestamp} format) or by admin
-      allow delete: if isAdmin() || resource.data.id.matches('customer-.*');
+      // Only authenticated users can read — unauthenticated OTP existence checks
+      // should be handled via a Cloud Function, not direct Firestore reads.
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isSignedIn() && uid() == userId;
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
     }
 
     match /users/vendors/profiles/{userId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() && (isOwner(userId) || isAdmin());
+      // Only the vendor themselves or an admin can read the full profile.
+      // Customers should never see vendor NIC, bank details, etc.
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
     }
 
     match /users/admins/profiles/{userId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn();
+      // Admin accounts must only be created via Firebase Console or a trusted Cloud Function.
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if false;
+      allow update: if isOwner(userId) || isAdmin();
       allow delete: if false;
     }
 
@@ -55,7 +56,8 @@ service cloud.firestore {
       allow read: if isSignedIn();
       allow create: if isSignedIn() &&
         request.resource.data.customerId == uid();
-      allow update: if isSignedIn();
+      allow update: if isSignedIn() &&
+        (resource.data.customerId == uid() || isAdmin());
       allow delete: if isAdmin();
     }
 
@@ -64,35 +66,48 @@ service cloud.firestore {
     match /proposals/{proposalId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
+      allow update: if isSignedIn() &&
+        (resource.data.vendorId == uid() ||
+         resource.data.customerId == uid() ||
+         isAdmin());
       allow delete: if isAdmin();
     }
 
     // ── Orders ────────────────────────────────────────────────────────────────
 
     match /orders/{orderId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() &&
+        (resource.data.customerId == uid() ||
+         resource.data.vendorId == uid() ||
+         isAdmin());
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
+      allow update: if isSignedIn() &&
+        (resource.data.customerId == uid() ||
+         resource.data.vendorId == uid() ||
+         isAdmin());
       allow delete: if isAdmin();
     }
 
     // ── Payments ─────────────────────────────────────────────────────────────
 
     match /payments/{paymentId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() &&
+        (resource.data.customerId == uid() ||
+         resource.data.vendorId == uid() ||
+         isAdmin());
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
+      // Only admins can update payment records to prevent tampering
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 
     // ── Notifications ─────────────────────────────────────────────────────────
 
     match /notifications/{notificationId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && resource.data.userId == uid();
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
-      allow delete: if isSignedIn();
+      allow update: if isSignedIn() && resource.data.userId == uid();
+      allow delete: if isSignedIn() && resource.data.userId == uid();
     }
 
     // ── Reviews ──────────────────────────────────────────────────────────────
@@ -100,7 +115,8 @@ service cloud.firestore {
     match /reviews/{reviewId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isSignedIn();
+      allow update: if isSignedIn() &&
+        (resource.data.customerId == uid() || isAdmin());
       allow delete: if isAdmin();
     }
 
@@ -108,13 +124,13 @@ service cloud.firestore {
 
     match /delivery_areas/{areaId} {
       allow read: if isSignedIn();
-      allow write: if isSignedIn();
+      allow write: if isAdmin();
     }
 
     // ── Activity Logs ─────────────────────────────────────────────────────────
 
     match /activity_logs/{logId} {
-      allow read: if isSignedIn();
+      allow read: if isAdmin();
       allow create: if isSignedIn();
       allow update, delete: if false;
     }

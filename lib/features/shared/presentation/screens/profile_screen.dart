@@ -130,8 +130,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           _selectedBank = null;
         }
       }
+      // Only restore local path if the file still exists; otherwise ignore it
+      // so the stale cache path doesn't get passed to FileImage.
       if (_isLocalPath(user.profileImageUrl)) {
-        _pickedImagePath = user.profileImageUrl;
+        if (File(user.profileImageUrl!).existsSync()) {
+          _pickedImagePath = user.profileImageUrl;
+        }
+        // Stale local path — clear it from the profile so it stops being used
+        else {
+          Future.microtask(() {
+            if (mounted) {
+              ref.read(authProvider.notifier).updateProfile(
+                fullName: user.fullName,
+                phone: user.phone,
+                profileImageUrl: '',
+              );
+            }
+          });
+        }
       }
     }
   }
@@ -154,7 +170,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Future<void> _recoverCroppedImage() async {
     final recovered = await ImageCropper().recoverImage();
-    if (recovered != null && mounted) {
+    if (recovered != null && mounted && File(recovered.path).existsSync()) {
       setState(() => _pickedImagePath = recovered.path);
     }
   }
@@ -265,6 +281,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         );
       } catch (e) {
         if (mounted) {
+          setState(() => _pickedImagePath = null);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Failed to upload image: $e'), backgroundColor: Colors.red),
           );
@@ -477,14 +494,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               CircleAvatar(
                 radius: 54,
                 backgroundColor: AppColors.primary.withValues(alpha: 0.2),
-                backgroundImage: _pickedImagePath != null
+                backgroundImage: _pickedImagePath != null && File(_pickedImagePath!).existsSync()
                     ? FileImage(File(_pickedImagePath!))
-                    : _isLocalPath(user.profileImageUrl)
+                    : _isLocalPath(user.profileImageUrl) && File(user.profileImageUrl!).existsSync()
                         ? FileImage(File(user.profileImageUrl!)) as ImageProvider
-                        : user.profileImageUrl != null
+                        : user.profileImageUrl != null && !_isLocalPath(user.profileImageUrl)
                             ? NetworkImage(user.profileImageUrl!) as ImageProvider
                             : null,
-                child: (_pickedImagePath == null && user.profileImageUrl == null)
+                child: (_pickedImagePath == null && (user.profileImageUrl == null || _isLocalPath(user.profileImageUrl)))
                     ? Text(
                         user.initials,
                         style: AppTextStyles.h1(

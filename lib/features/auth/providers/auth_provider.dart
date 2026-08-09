@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/storage/storage_service.dart';
@@ -66,6 +67,18 @@ class AuthNotifier extends StateNotifier<AuthState> {
         } catch (_) {}
       }
     }
+    // Strip stale local image paths before restoring session — they cause
+    // PathNotFoundException in FileImage when the cache file no longer exists.
+    if (userJson != null) {
+      final imgUrl = userJson['profile_image_url'] as String?;
+      if (imgUrl != null &&
+          (imgUrl.startsWith('/') || imgUrl.contains(':\\') || imgUrl.contains(':/')) &&
+          !File(imgUrl).existsSync()) {
+        userJson['profile_image_url'] = null;
+        await StorageService.saveUser(userJson);
+      }
+    }
+
     if (userJson != null && (tokenUserId == null || userJson['id'] == tokenUserId || firebaseUid == tokenUserId)) {
       debugPrint('[CategoryAudit] ===== VENDOR LOGIN RESTORE =====');
       debugPrint('[CategoryAudit] Restoring session from storage');

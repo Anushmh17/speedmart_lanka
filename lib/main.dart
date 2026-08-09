@@ -1,4 +1,5 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:firebase_app_check/firebase_app_check.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,6 +29,15 @@ void main() async {
   // Everything else is deferred to the splash screen so the native
   // loading screen disappears immediately and Flutter takes over.
   await FcmService.initialize();
+
+  // App Check — blocks requests from non-genuine app installs.
+  // TODO: Re-enable before release. Disabled in debug due to broken GMS on dev device.
+  if (!kDebugMode) {
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: AndroidProvider.playIntegrity,
+      appleProvider: AppleProvider.deviceCheck,
+    );
+  }
 
   // Lock to portrait on mobile only; web/desktop should be free.
   if (!kIsWeb) {
