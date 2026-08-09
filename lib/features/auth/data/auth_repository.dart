@@ -7,6 +7,7 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/services/firestore_service.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../../core/services/fcm_service.dart';
+import '../../../core/utils/sri_lanka_phone_helper.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/models/user_role.dart';
 import '../../../shared/models/vendor_status.dart';
@@ -44,13 +45,17 @@ class AuthRepository {
   Future<List<Map<String, dynamic>>> _fetchUsersFromFirestore() async {
     try {
       final results = await Future.wait([
-        FirestoreService.collection('users/customers/profiles').limit(500).get(),
+        FirestoreService.collection('users/customers/profiles')
+            .limit(500)
+            .get(),
         FirestoreService.collection('users/vendors/profiles').limit(500).get(),
         FirestoreService.collection('users/admins/profiles').limit(500).get(),
       ]);
-      return results.expand((snapshot) => snapshot.docs.map((doc) {
-        return {...doc.data(), 'id': doc.id};
-      })).toList();
+      return results
+          .expand((snapshot) => snapshot.docs.map((doc) {
+                return {...doc.data(), 'id': doc.id};
+              }))
+          .toList();
     } catch (e) {
       debugPrint('[Auth] Failed to load users from Firestore: $e');
       return [];
@@ -76,10 +81,13 @@ class AuthRepository {
   /// Normalizes a phone number to +94XXXXXXXXX format for Firestore queries.
   static String _normalizeToE164(String phone) {
     final digits = _digitsOnly(phone.trim());
-    if (digits.length == 9) return '+94$digits';           // 771234567
-    if (digits.length == 10 && digits.startsWith('0')) return '+94${digits.substring(1)}'; // 0771234567
-    if (digits.length == 11 && digits.startsWith('94')) return '+$digits'; // 94771234567
-    if (digits.length == 12 && digits.startsWith('94')) return '+${digits.substring(0)}'; // already +94...
+    if (digits.length == 9) return '+94$digits'; // 771234567
+    if (digits.length == 10 && digits.startsWith('0'))
+      return '+94${digits.substring(1)}'; // 0771234567
+    if (digits.length == 11 && digits.startsWith('94'))
+      return '+$digits'; // 94771234567
+    if (digits.length == 12 && digits.startsWith('94'))
+      return '+${digits.substring(0)}'; // already +94...
     return phone.trim(); // fallback — e.g. already +94771234567
   }
 
@@ -88,11 +96,13 @@ class AuthRepository {
     try {
       final isEmail = contact.contains('@');
       final field = isEmail ? 'email' : 'phone';
-      final value = isEmail ? contact.toLowerCase().trim() : _normalizeToE164(contact);
-      final snapshot = await FirestoreService.collection('users/customers/profiles')
-          .where(field, isEqualTo: value)
-          .limit(1)
-          .get();
+      final value =
+          isEmail ? contact.toLowerCase().trim() : _normalizeToE164(contact);
+      final snapshot =
+          await FirestoreService.collection('users/customers/profiles')
+              .where(field, isEqualTo: value)
+              .limit(1)
+              .get();
       if (snapshot.docs.isEmpty) return null;
       final doc = snapshot.docs.first;
       return UserModel.fromJson({...doc.data(), 'id': doc.id});
@@ -106,7 +116,8 @@ class AuthRepository {
     try {
       final doc = _collectionForRole(user.role).doc(user.id);
       await doc.set(user.toJson(), SetOptions(merge: true));
-      debugPrint('[Auth] Synced user ${user.id} to Firestore (${user.role.name})');
+      debugPrint(
+          '[Auth] Synced user ${user.id} to Firestore (${user.role.name})');
     } catch (e) {
       debugPrint('[Auth] Failed to sync user ${user.id} to Firestore: $e');
       rethrow;
@@ -185,7 +196,8 @@ class AuthRepository {
           _sessionUsers.add(user);
         }
       }
-      debugPrint('[Auth] Reloaded ${firestoreUsers.length} users from Firestore');
+      debugPrint(
+          '[Auth] Reloaded ${firestoreUsers.length} users from Firestore');
     } catch (e) {
       debugPrint('[Auth] reloadFromFirestore error: $e');
     }
@@ -193,7 +205,8 @@ class AuthRepository {
 
   Future<void> _persistUsers() async {
     await _syncUsersToFirestore(_sessionUsers);
-    debugPrint('[Auth] Users synced to Firestore: ${_sessionUsers.length} users');
+    debugPrint(
+        '[Auth] Users synced to Firestore: ${_sessionUsers.length} users');
   }
 
   static String _digitsOnly(String value) =>
@@ -228,7 +241,8 @@ class AuthRepository {
     final fetchedUser = await _fetchUserByEmail(email, role);
     if (fetchedUser == null) {
       await _firebaseAuth.signOut();
-      throw Exception('No account found with this email for the selected role.');
+      throw Exception(
+          'No account found with this email for the selected role.');
     }
 
     // Merge into session cache
@@ -240,13 +254,15 @@ class AuthRepository {
     }
 
     final user = fetchedUser;
-    debugPrint('[Auth] User found: ${user.email}, vendorStatus=${user.vendorStatus}, isActive=${user.isActive}');
+    debugPrint(
+        '[Auth] User found: ${user.email}, vendorStatus=${user.vendorStatus}, isActive=${user.isActive}');
 
     if (!user.isActive) {
       throw Exception('Your account has been suspended. Contact support.');
     }
 
-    _currentToken = 'auth_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
+    _currentToken =
+        'auth_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
     _currentUserId = _firebaseAuth.currentUser?.uid ?? user.id;
     debugPrint('[Auth] Login success: ${user.email}');
 
@@ -283,7 +299,9 @@ class AuthRepository {
 
     // If _sessionUsers is empty (offline / fresh install), fall back to local registration index.
     final checkList = _sessionUsers.isNotEmpty
-        ? _sessionUsers.map((u) => {'email': u.email, 'phone': u.phone, 'nic': u.nic}).toList()
+        ? _sessionUsers
+            .map((u) => {'email': u.email, 'phone': u.phone, 'nic': u.nic})
+            .toList()
         : await StorageService.getRegistrationIndex();
 
     if (normPhone != null && normPhone.isNotEmpty) {
@@ -291,7 +309,8 @@ class AuthRepository {
         final p = e['phone']?.toString() ?? '';
         return _phoneMatches(normPhone, p);
       });
-      if (exists) throw Exception('An account with this phone number already exists.');
+      if (exists)
+        throw Exception('An account with this phone number already exists.');
     }
 
     if (normEmail != null && normEmail.isNotEmpty) {
@@ -307,11 +326,13 @@ class AuthRepository {
         final n = e['nic']?.toString().toLowerCase() ?? '';
         return n.isNotEmpty && n == normNic;
       });
-      if (exists) throw Exception('An account with this NIC number already exists.');
+      if (exists)
+        throw Exception('An account with this NIC number already exists.');
     }
   }
 
-  Future<({UserModel user, String token})> loginCustomerOtp(String contact) async {
+  Future<({UserModel user, String token})> loginCustomerOtp(
+      String contact) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 1000));
 
@@ -319,7 +340,8 @@ class AuthRepository {
     final fetchedUser = await _fetchCustomerByContact(contact);
     if (fetchedUser == null) {
       final isEmail = contact.contains('@');
-      throw Exception('No account found for this ${isEmail ? 'email' : 'phone number'}. Please register.');
+      throw Exception(
+          'No account found for this ${isEmail ? 'email' : 'phone number'}. Please register.');
     }
 
     // Merge into session cache
@@ -336,7 +358,8 @@ class AuthRepository {
       throw Exception('Your account has been suspended. Contact support.');
     }
 
-    _currentToken = 'auth_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
+    _currentToken =
+        'auth_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
     _currentUserId = _firebaseAuth.currentUser?.uid ?? user.id;
     // Upload FCM token to backend (best-effort)
     _uploadDeviceTokenForUser(user);
@@ -381,7 +404,10 @@ class AuthRepository {
     await ensureInitialized();
 
     final normalizedEmail = email.trim();
-    final normalizedPhone = phone.trim();
+    final rawPhone = phone.trim();
+    final normalizedPhone = rawPhone.isNotEmpty
+        ? SriLankaPhoneHelper.normalizeSriLankaPhoneForStorage(rawPhone)
+        : rawPhone;
 
     if (normalizedEmail.isNotEmpty) {
       final emailExists = _sessionUsers.any(
@@ -406,7 +432,9 @@ class AuthRepository {
     final normalizedNic = nic?.trim();
     if (normalizedNic != null && normalizedNic.isNotEmpty) {
       final nicExists = _sessionUsers.any(
-        (u) => u.nic != null && u.nic!.trim().toLowerCase() == normalizedNic.toLowerCase(),
+        (u) =>
+            u.nic != null &&
+            u.nic!.trim().toLowerCase() == normalizedNic.toLowerCase(),
       );
       if (nicExists) {
         throw Exception('An account with this NIC number already exists.');
@@ -429,7 +457,8 @@ class AuthRepository {
       isVerified: role != UserRole.vendor,
       createdAt: DateTime.now(),
       businessName: businessName,
-      vendorStatus: role == UserRole.vendor ? VendorStatus.pendingApproval : null,
+      vendorStatus:
+          role == UserRole.vendor ? VendorStatus.pendingApproval : null,
       vendorApproved: role == UserRole.vendor ? false : null,
       vendorCategories: categories,
       verifiedPhone: verifiedPhone,
@@ -457,55 +486,59 @@ class AuthRepository {
       shopLocationSource: shopLocationSource,
       isShopLocationAssigned: false,
       businessRegistrationNumber: businessRegistrationNumber,
-      assignedRadiusKm: role == UserRole.vendor ? AppConstants.defaultDeliveryRadius : null,
-      commissionRate: role == UserRole.vendor ? AppConstants.defaultCommissionRate : null,
+      assignedRadiusKm:
+          role == UserRole.vendor ? AppConstants.defaultDeliveryRadius : null,
+      commissionRate:
+          role == UserRole.vendor ? AppConstants.defaultCommissionRate : null,
     );
 
     await _createFirebaseUser(resolvedEmail, password);
     // After createUserWithEmailAndPassword, currentUser is set — use its UID as the doc ID.
     final firebaseUid = _firebaseAuth.currentUser?.uid;
     final userId = firebaseUid ?? newUser.id;
-    final userWithFirebaseId = firebaseUid != null ? UserModel(
-      id: userId,
-      fullName: newUser.fullName,
-      email: newUser.email,
-      phone: newUser.phone,
-      role: newUser.role,
-      isActive: newUser.isActive,
-      isVerified: newUser.isVerified,
-      createdAt: newUser.createdAt,
-      businessName: newUser.businessName,
-      vendorStatus: newUser.vendorStatus,
-      vendorApproved: newUser.vendorApproved,
-      vendorCategories: newUser.vendorCategories,
-      verifiedPhone: newUser.verifiedPhone,
-      verifiedEmail: newUser.verifiedEmail,
-      detectedCountry: newUser.detectedCountry,
-      detectionSource: newUser.detectionSource,
-      riskFlag: newUser.riskFlag,
-      nic: newUser.nic,
-      deliveryProvince: newUser.deliveryProvince,
-      deliveryDistrict: newUser.deliveryDistrict,
-      deliveryApproxArea: newUser.deliveryApproxArea,
-      deliveryPreciseAddress: newUser.deliveryPreciseAddress,
-      deliveryNote: newUser.deliveryNote,
-      deliveryLatitude: newUser.deliveryLatitude,
-      deliveryLongitude: newUser.deliveryLongitude,
-      shopName: newUser.shopName,
-      shopAddress: newUser.shopAddress,
-      shopProvince: newUser.shopProvince,
-      shopDistrict: newUser.shopDistrict,
-      shopArea: newUser.shopArea,
-      shopLatitude: newUser.shopLatitude,
-      shopLongitude: newUser.shopLongitude,
-      shopLocationAccuracyMeters: newUser.shopLocationAccuracyMeters,
-      shopLocationDetectedAt: newUser.shopLocationDetectedAt,
-      shopLocationSource: newUser.shopLocationSource,
-      isShopLocationAssigned: newUser.isShopLocationAssigned,
-      businessRegistrationNumber: newUser.businessRegistrationNumber,
-      assignedRadiusKm: newUser.assignedRadiusKm,
-      commissionRate: newUser.commissionRate,
-    ) : newUser;
+    final userWithFirebaseId = firebaseUid != null
+        ? UserModel(
+            id: userId,
+            fullName: newUser.fullName,
+            email: newUser.email,
+            phone: newUser.phone,
+            role: newUser.role,
+            isActive: newUser.isActive,
+            isVerified: newUser.isVerified,
+            createdAt: newUser.createdAt,
+            businessName: newUser.businessName,
+            vendorStatus: newUser.vendorStatus,
+            vendorApproved: newUser.vendorApproved,
+            vendorCategories: newUser.vendorCategories,
+            verifiedPhone: newUser.verifiedPhone,
+            verifiedEmail: newUser.verifiedEmail,
+            detectedCountry: newUser.detectedCountry,
+            detectionSource: newUser.detectionSource,
+            riskFlag: newUser.riskFlag,
+            nic: newUser.nic,
+            deliveryProvince: newUser.deliveryProvince,
+            deliveryDistrict: newUser.deliveryDistrict,
+            deliveryApproxArea: newUser.deliveryApproxArea,
+            deliveryPreciseAddress: newUser.deliveryPreciseAddress,
+            deliveryNote: newUser.deliveryNote,
+            deliveryLatitude: newUser.deliveryLatitude,
+            deliveryLongitude: newUser.deliveryLongitude,
+            shopName: newUser.shopName,
+            shopAddress: newUser.shopAddress,
+            shopProvince: newUser.shopProvince,
+            shopDistrict: newUser.shopDistrict,
+            shopArea: newUser.shopArea,
+            shopLatitude: newUser.shopLatitude,
+            shopLongitude: newUser.shopLongitude,
+            shopLocationAccuracyMeters: newUser.shopLocationAccuracyMeters,
+            shopLocationDetectedAt: newUser.shopLocationDetectedAt,
+            shopLocationSource: newUser.shopLocationSource,
+            isShopLocationAssigned: newUser.isShopLocationAssigned,
+            businessRegistrationNumber: newUser.businessRegistrationNumber,
+            assignedRadiusKm: newUser.assignedRadiusKm,
+            commissionRate: newUser.commissionRate,
+          )
+        : newUser;
     debugPrint('[Auth] Firebase user created, UID=$userId');
     _sessionUsers.add(userWithFirebaseId);
     _currentUserId = userId;
@@ -519,7 +552,8 @@ class AuthRepository {
 
     debugPrint('[Auth] Registration saved: email=$resolvedEmail, id=$userId');
 
-    _currentToken = 'auth_token_${userId}_${DateTime.now().millisecondsSinceEpoch}';
+    _currentToken =
+        'auth_token_${userId}_${DateTime.now().millisecondsSinceEpoch}';
     _currentUserId = userId;
     _uploadDeviceTokenForUser(userWithFirebaseId);
     return (user: userWithFirebaseId, token: _currentToken!);
@@ -528,7 +562,8 @@ class AuthRepository {
   // Best-effort upload of device FCM token to backend. No-op if backend URL not configured.
   static const String _backendBaseUrl = '';
 
-  Future<void> _uploadDeviceTokenForUser(UserModel user, {String? token}) async {
+  Future<void> _uploadDeviceTokenForUser(UserModel user,
+      {String? token}) async {
     try {
       if (_backendBaseUrl.isEmpty) {
         debugPrint('[Auth] No backend URL configured; skipping token upload');
@@ -555,7 +590,8 @@ class AuthRepository {
   Future<void> handleFcmTokenRefresh(String token) async {
     try {
       if (_currentUserId == null) {
-        debugPrint('[Auth] No logged-in user; skipping token upload on refresh');
+        debugPrint(
+            '[Auth] No logged-in user; skipping token upload on refresh');
         return;
       }
       final user = await getUserById(_currentUserId!);
@@ -642,17 +678,20 @@ class AuthRepository {
     final index = _sessionUsers.indexWhere((u) => u.id == vendorId);
     if (index != -1) {
       final vendor = _sessionUsers[index];
-      debugPrint('[VendorStatusFix] Suspend vendor before: status=${vendor.vendorStatus}, isActive=${vendor.isActive}, approved=${vendor.vendorApproved}');
-      
+      debugPrint(
+          '[VendorStatusFix] Suspend vendor before: status=${vendor.vendorStatus}, isActive=${vendor.isActive}, approved=${vendor.vendorApproved}');
+
       _sessionUsers[index] = vendor.copyWith(
         vendorStatus: VendorStatus.suspended,
         isActive: false,
         vendorApproved: true, // Keep approval status
       );
-      
-      debugPrint('[VendorStatusFix] Suspend vendor after: status=${_sessionUsers[index].vendorStatus}, isActive=${_sessionUsers[index].isActive}, approved=${_sessionUsers[index].vendorApproved}');
+
+      debugPrint(
+          '[VendorStatusFix] Suspend vendor after: status=${_sessionUsers[index].vendorStatus}, isActive=${_sessionUsers[index].isActive}, approved=${_sessionUsers[index].vendorApproved}');
       await _persistUsers();
-      debugPrint('[VendorStatusFix] Persisted vendorStatus: ${_sessionUsers[index].vendorStatus}');
+      debugPrint(
+          '[VendorStatusFix] Persisted vendorStatus: ${_sessionUsers[index].vendorStatus}');
     }
   }
 
@@ -663,9 +702,10 @@ class AuthRepository {
     if (index != -1) {
       final user = _sessionUsers[index];
       final newIsActive = !user.isActive;
-      
-      debugPrint('[VendorStatusFix] Toggle before: status=${user.vendorStatus}, isActive=${user.isActive}, approved=${user.vendorApproved}');
-      
+
+      debugPrint(
+          '[VendorStatusFix] Toggle before: status=${user.vendorStatus}, isActive=${user.isActive}, approved=${user.vendorApproved}');
+
       // If activating a suspended vendor, restore approved status
       if (newIsActive && user.vendorStatus == VendorStatus.suspended) {
         _sessionUsers[index] = user.copyWith(
@@ -673,7 +713,8 @@ class AuthRepository {
           isActive: true,
           vendorApproved: true,
         );
-        debugPrint('[VendorStatusFix] Activate vendor after: status=${_sessionUsers[index].vendorStatus}, isActive=${_sessionUsers[index].isActive}, approved=${_sessionUsers[index].vendorApproved}');
+        debugPrint(
+            '[VendorStatusFix] Activate vendor after: status=${_sessionUsers[index].vendorStatus}, isActive=${_sessionUsers[index].isActive}, approved=${_sessionUsers[index].vendorApproved}');
       } else if (!newIsActive && user.role == UserRole.vendor) {
         // If deactivating, set to suspended
         _sessionUsers[index] = user.copyWith(
@@ -681,17 +722,20 @@ class AuthRepository {
           isActive: false,
           vendorApproved: true,
         );
-        debugPrint('[VendorStatusFix] Suspend vendor after: status=${_sessionUsers[index].vendorStatus}, isActive=${_sessionUsers[index].isActive}, approved=${_sessionUsers[index].vendorApproved}');
+        debugPrint(
+            '[VendorStatusFix] Suspend vendor after: status=${_sessionUsers[index].vendorStatus}, isActive=${_sessionUsers[index].isActive}, approved=${_sessionUsers[index].vendorApproved}');
       } else {
         // For non-vendors, just toggle isActive
         _sessionUsers[index] = user.copyWith(
           isActive: newIsActive,
         );
-        debugPrint('[VendorStatusFix] Toggle after: isActive=${_sessionUsers[index].isActive}');
+        debugPrint(
+            '[VendorStatusFix] Toggle after: isActive=${_sessionUsers[index].isActive}');
       }
-      
+
       await _persistUsers();
-      debugPrint('[VendorStatusFix] Persisted vendorStatus: ${_sessionUsers[index].vendorStatus}');
+      debugPrint(
+          '[VendorStatusFix] Persisted vendorStatus: ${_sessionUsers[index].vendorStatus}');
     }
   }
 
@@ -739,12 +783,15 @@ class AuthRepository {
     await Future.delayed(const Duration(milliseconds: 800));
     // Check cache first, then query Firestore anonymously (vendors collection is readable when signed in)
     final inCache = _sessionUsers.any(
-      (u) => u.role == UserRole.vendor && u.email.toLowerCase() == email.toLowerCase().trim(),
+      (u) =>
+          u.role == UserRole.vendor &&
+          u.email.toLowerCase() == email.toLowerCase().trim(),
     );
     if (!inCache) {
       // Try Firestore directly — will only work if already signed in
       final fetched = await _fetchUserByEmail(email, UserRole.vendor);
-      if (fetched == null) throw Exception('No vendor account found with this email.');
+      if (fetched == null)
+        throw Exception('No vendor account found with this email.');
     }
     return '123456';
   }
@@ -758,7 +805,8 @@ class AuthRepository {
     await Future.delayed(const Duration(milliseconds: 600));
     final normalizedEmail = email.toLowerCase().trim();
     final exists = _sessionUsers.any(
-      (u) => u.role == UserRole.vendor && u.email.toLowerCase() == normalizedEmail,
+      (u) =>
+          u.role == UserRole.vendor && u.email.toLowerCase() == normalizedEmail,
     );
     if (!exists) throw Exception('No vendor account found with this email.');
     try {
@@ -779,7 +827,8 @@ class AuthRepository {
           ? _sessionUsers[index].copyWith(clearCommissionRate: true)
           : _sessionUsers[index].copyWith(commissionRate: rate);
       await _persistUsers();
-      debugPrint('[CommissionAudit] Vendor $vendorId commission set to ${rate == null ? 'default (0%)' : '${(rate * 100).toStringAsFixed(2)}%'}');
+      debugPrint(
+          '[CommissionAudit] Vendor $vendorId commission set to ${rate == null ? 'default (0%)' : '${(rate * 100).toStringAsFixed(2)}%'}');
     }
   }
 
@@ -787,7 +836,9 @@ class AuthRepository {
   /// Returns the refreshed user, or null if not found.
   Future<UserModel?> refreshVendorStatus(String vendorId) async {
     try {
-      final doc = await FirestoreService.collection('users/vendors/profiles').doc(vendorId).get();
+      final doc = await FirestoreService.collection('users/vendors/profiles')
+          .doc(vendorId)
+          .get();
       if (!doc.exists) return null;
       final user = UserModel.fromJson({...doc.data()!, 'id': doc.id});
       final index = _sessionUsers.indexWhere((u) => u.id == vendorId);
@@ -803,7 +854,8 @@ class AuthRepository {
     }
   }
 
-  Future<void> deleteStaleDoc({required UserRole role, required String docId}) async {
+  Future<void> deleteStaleDoc(
+      {required UserRole role, required String docId}) async {
     try {
       await _collectionForRole(role).doc(docId).delete();
       debugPrint('[Auth] Deleted stale doc $docId');
@@ -815,12 +867,14 @@ class AuthRepository {
   Future<UserModel> updateUser(UserModel user) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 500));
-    
+
     debugPrint('[CategoryAudit] ===== REPOSITORY UPDATE START =====');
     debugPrint('[CategoryAudit] updateUser called for userId: ${user.id}');
-    debugPrint('[CategoryAudit] user.allowedCategories being saved: ${user.allowedCategories}');
-    debugPrint('[CategoryAudit] user.vendorCategories: ${user.vendorCategories}');
-    
+    debugPrint(
+        '[CategoryAudit] user.allowedCategories being saved: ${user.allowedCategories}');
+    debugPrint(
+        '[CategoryAudit] user.vendorCategories: ${user.vendorCategories}');
+
     // Always sync to Firestore directly — do not rely on _sessionUsers cache
     // which is empty after a hot restart / cold start.
     await _syncUserToFirestore(user);
@@ -832,15 +886,15 @@ class AuthRepository {
   /// Optimized for category sync: update only affected users and persist once
   Future<void> batchUpdateUsers(List<UserModel> users) async {
     await ensureInitialized();
-    
+
     if (users.isEmpty) {
       debugPrint('[CategorySync] Batch update: 0 users, skipping');
       return;
     }
-    
+
     debugPrint('[CategorySync] ===== BATCH UPDATE START =====');
     debugPrint('[CategorySync] Updating ${users.length} users in single batch');
-    
+
     try {
       // Update all users in memory
       for (final user in users) {
@@ -853,14 +907,14 @@ class AuthRepository {
           debugPrint('[CategorySync] Added new user ${user.id} in memory');
         }
       }
-      
+
       // Persist all users only once after batch update completes
       await _persistUsers();
-      debugPrint('[CategorySync] ===== BATCH UPDATE COMPLETE: ${users.length} users persisted =====');
+      debugPrint(
+          '[CategorySync] ===== BATCH UPDATE COMPLETE: ${users.length} users persisted =====');
     } catch (e) {
       debugPrint('[CategorySync] ERROR in batch update: $e');
       rethrow;
     }
   }
 }
-

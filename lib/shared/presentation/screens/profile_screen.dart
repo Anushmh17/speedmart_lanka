@@ -22,6 +22,7 @@ import '../../../shared/models/user_model.dart';
 import '../../../shared/providers/category_provider.dart';
 import '../../../shared/utils/category_sync_helper.dart';
 import '../../../core/utils/permission_utils.dart';
+import '../../../core/utils/sri_lanka_phone_helper.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -37,10 +38,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late TextEditingController _nameCtrl;
   late TextEditingController _phoneCtrl;
   late TextEditingController _businessNameCtrl;
-  
+
   List<String> _selectedCategories = [];
-  String? _pickedImagePath;  // unsaved pick — never overwritten by _initData
-  String? _savedImagePath;   // last persisted local path from user model
+  String? _pickedImagePath; // unsaved pick — never overwritten by _initData
+  String? _savedImagePath; // last persisted local path from user model
   int _imageVersion = 0;
 
   bool _isSaving = false;
@@ -48,8 +49,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool get _hasChanges {
     final user = ref.read(currentUserProvider);
     if (user == null) return false;
+    final normalizedPhone =
+        SriLankaPhoneHelper.normalizeSriLankaPhoneForStorage(
+            _phoneCtrl.text.trim());
     return _nameCtrl.text.trim() != user.fullName ||
-        _phoneCtrl.text.trim() != user.phone ||
+        normalizedPhone != user.phone ||
         _businessNameCtrl.text.trim() != (user.businessName ?? '') ||
         _pickedImagePath != null;
   }
@@ -93,22 +97,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     });
   }
 
-
-
   bool _isLocalPath(String? path) =>
-      path != null && (path.startsWith('/') || path.contains(':\\') || path.contains(':/'));
+      path != null &&
+      (path.startsWith('/') || path.contains(':\\') || path.contains(':/'));
 
   void _initData() {
     final user = ref.read(currentUserProvider);
     if (user != null) {
       _nameCtrl.text = user.fullName;
-      _phoneCtrl.text = user.phone;
+      _phoneCtrl.text = _toLocalDigits(user.phone);
       _businessNameCtrl.text = user.businessName ?? '';
-      _selectedCategories = List.from(user.requestedCategories?.isNotEmpty == true
-          ? user.requestedCategories!
-          : user.allowedCategories ?? []);
+      _selectedCategories = List.from(
+          user.requestedCategories?.isNotEmpty == true
+              ? user.requestedCategories!
+              : user.allowedCategories ?? []);
       // Sync saved path from user model (local file paths only)
-      _savedImagePath = _isLocalPath(user.profileImageUrl) ? user.profileImageUrl : null;
+      _savedImagePath =
+          _isLocalPath(user.profileImageUrl) ? user.profileImageUrl : null;
     }
   }
 
@@ -142,11 +147,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
 
     final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
+    final picked =
+        await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
     if (picked == null || !mounted) return;
 
     final user = ref.read(currentUserProvider);
-    final primaryColor = user?.role == UserRole.vendor ? AppColors.vendorColor : AppColors.customerColor;
+    final primaryColor = user?.role == UserRole.vendor
+        ? AppColors.vendorColor
+        : AppColors.customerColor;
 
     final cropped = await ImageCropper().cropImage(
       sourcePath: picked.path,
@@ -183,13 +191,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
+  /// Strips +94 / 94 prefix so the field shows local 9-digit format.
+  String _toLocalDigits(String phone) {
+    final digits = SriLankaPhoneHelper.digitsOnly(phone);
+    if (digits.startsWith('94') && digits.length == 11)
+      return digits.substring(2);
+    if (digits.startsWith('0') && digits.length == 10)
+      return digits.substring(1);
+    return digits;
+  }
+
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
 
     final user = ref.read(currentUserProvider);
     if (user == null) return;
 
-    final newPhone = _phoneCtrl.text.trim();
+    final rawPhone = _phoneCtrl.text.trim();
+    final newPhone = rawPhone.isNotEmpty
+        ? SriLankaPhoneHelper.normalizeSriLankaPhoneForStorage(rawPhone)
+        : rawPhone;
 
     // Customer changing phone → OTP verification required
     if (user.role == UserRole.customer && newPhone != user.phone) {
@@ -200,17 +221,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     await _saveProfile(user: user, phone: newPhone);
   }
 
-  Future<void> _saveProfile({required UserModel user, required String phone, bool silent = false}) async {
+  Future<void> _saveProfile(
+      {required UserModel user,
+      required String phone,
+      bool silent = false}) async {
     setState(() => _isSaving = true);
     try {
-      final imageToSave = _pickedImagePath ?? _savedImagePath ?? user.profileImageUrl;
+      final imageToSave =
+          _pickedImagePath ?? _savedImagePath ?? user.profileImageUrl;
       await ref.read(authProvider.notifier).updateProfile(
-        fullName: _nameCtrl.text.trim(),
-        phone: phone,
-        businessName: user.role == UserRole.vendor ? _businessNameCtrl.text.trim() : null,
-        profileImageUrl: imageToSave,
-        requestedCategories: user.role == UserRole.vendor ? _selectedCategories : null,
-      );
+            fullName: _nameCtrl.text.trim(),
+            phone: phone,
+            businessName: user.role == UserRole.vendor
+                ? _businessNameCtrl.text.trim()
+                : null,
+            profileImageUrl: imageToSave,
+            requestedCategories:
+                user.role == UserRole.vendor ? _selectedCategories : null,
+          );
       if (!mounted) return;
       final newSaved = _pickedImagePath ?? _savedImagePath;
       setState(() {
@@ -227,7 +255,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             content: user.role == UserRole.vendor
                 ? const Text('Category change request sent to admin.')
                 : const Text('Profile updated successfully!'),
-            backgroundColor: user.role == UserRole.vendor ? AppColors.vendorColor : AppColors.customerColor,
+            backgroundColor: user.role == UserRole.vendor
+                ? AppColors.vendorColor
+                : AppColors.customerColor,
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -235,7 +265,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to save profile. Please try again.'), backgroundColor: AppColors.error),
+          const SnackBar(
+              content: Text('Failed to save profile. Please try again.'),
+              backgroundColor: AppColors.error),
         );
       }
     } finally {
@@ -243,33 +275,40 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
   }
 
-  Future<void> _verifyPhoneChangeOtp({required String newPhone, required UserModel user}) async {
+  Future<void> _verifyPhoneChangeOtp(
+      {required String newPhone, required UserModel user}) async {
     setState(() => _isSaving = true);
 
-    // Check if the new phone is already registered by another customer
-    final alreadyExists = await AuthRepository.instance.checkCustomerExists(newPhone);
+    final alreadyExists =
+        await AuthRepository.instance.checkCustomerExists(newPhone);
     if (!mounted) return;
     if (alreadyExists) {
       setState(() => _isSaving = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('This phone number is already registered.'), backgroundColor: AppColors.error),
+        const SnackBar(
+            content: Text('This phone number is already registered.'),
+            backgroundColor: AppColors.error),
       );
       return;
     }
 
     final otpService = ref.read(otpServiceProvider);
-    final result = await otpService.sendOtp(channel: OtpChannel.phone, destination: newPhone);
+    final result = await otpService.sendOtp(
+        channel: OtpChannel.phone, destination: newPhone);
     setState(() => _isSaving = false);
 
     if (!mounted) return;
     if (!result.success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result.message ?? 'Failed to send OTP.'), backgroundColor: AppColors.error),
+        SnackBar(
+            content: Text(result.message ?? 'Failed to send OTP.'),
+            backgroundColor: AppColors.error),
       );
       return;
     }
 
-    await _showPhoneOtpSheet(newPhone: newPhone, user: user, otpService: otpService);
+    await _showPhoneOtpSheet(
+        newPhone: newPhone, user: user, otpService: otpService);
   }
 
   Future<void> _showPhoneOtpSheet({
@@ -290,108 +329,152 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         builder: (ctx, setSheet) {
           final isDark = Theme.of(ctx).brightness == Brightness.dark;
           final bg = isDark ? AppColors.cardDark : Colors.white;
-          final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-          final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+          final primaryText =
+              isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+          final secondaryText = isDark
+              ? AppColors.textSecondaryDark
+              : AppColors.textSecondaryLight;
 
           final screenHeight = MediaQuery.of(ctx).size.height;
           return Padding(
-            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            padding:
+                EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
             child: Container(
               constraints: BoxConstraints(minHeight: screenHeight * 0.55),
               decoration: BoxDecoration(
                 color: bg,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(24)),
               ),
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))),
+                  Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2))),
                   const SizedBox(height: 20),
-                  Text('Verify New Number', style: AppTextStyles.h3(primaryText)),
+                  Text('Verify New Number',
+                      style: AppTextStyles.h3(primaryText)),
                   const SizedBox(height: 8),
-                  Text('Enter the OTP sent to $newPhone', style: AppTextStyles.bodyMedium(secondaryText), textAlign: TextAlign.center),
+                  Text('Enter the OTP sent to $newPhone',
+                      style: AppTextStyles.bodyMedium(secondaryText),
+                      textAlign: TextAlign.center),
                   const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: List.generate(6, (i) => Container(
-                      width: 44,
-                      height: 52,
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: AppColors.customerColor, width: 1.5),
-                        borderRadius: BorderRadius.circular(12),
-                        color: isDark ? AppColors.cardDark : Colors.grey.shade100,
-                      ),
-                      child: Center(
-                        child: TextField(
-                          controller: controllers[i],
-                          focusNode: focusNodes[i],
-                          textAlign: TextAlign.center,
-                          keyboardType: TextInputType.number,
-                          maxLength: 1,
-                          style: AppTextStyles.h3(primaryText).copyWith(fontSize: 20),
-                          decoration: const InputDecoration(
-                            counterText: '',
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            filled: true,
-                            fillColor: Colors.transparent,
-                            contentPadding: EdgeInsets.zero,
-                            isCollapsed: true,
-                          ),
-                          onChanged: (v) {
-                            if (v.isNotEmpty && i < 5) focusNodes[i + 1].requestFocus();
-                            if (v.isEmpty && i > 0) focusNodes[i - 1].requestFocus();
-                          },
-                        ),
-                      ),
-                    )),
+                    children: List.generate(
+                        6,
+                        (i) => Container(
+                              width: 44,
+                              height: 52,
+                              margin: const EdgeInsets.symmetric(horizontal: 4),
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                    color: AppColors.customerColor, width: 1.5),
+                                borderRadius: BorderRadius.circular(12),
+                                color: isDark
+                                    ? AppColors.cardDark
+                                    : Colors.grey.shade100,
+                              ),
+                              child: Center(
+                                child: TextField(
+                                  controller: controllers[i],
+                                  focusNode: focusNodes[i],
+                                  textAlign: TextAlign.center,
+                                  keyboardType: TextInputType.number,
+                                  maxLength: 1,
+                                  style: AppTextStyles.h3(primaryText)
+                                      .copyWith(fontSize: 20),
+                                  decoration: const InputDecoration(
+                                    counterText: '',
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    filled: true,
+                                    fillColor: Colors.transparent,
+                                    contentPadding: EdgeInsets.zero,
+                                    isCollapsed: true,
+                                  ),
+                                  onChanged: (v) {
+                                    if (v.isNotEmpty && i < 5)
+                                      focusNodes[i + 1].requestFocus();
+                                    if (v.isEmpty && i > 0)
+                                      focusNodes[i - 1].requestFocus();
+                                  },
+                                ),
+                              ),
+                            )),
                   ),
-                  if (sheetError != null) ...[const SizedBox(height: 12), Text(sheetError!, style: AppTextStyles.bodySmall(AppColors.error))],
+                  if (sheetError != null) ...[
+                    const SizedBox(height: 12),
+                    Text(sheetError!,
+                        style: AppTextStyles.bodySmall(AppColors.error))
+                  ],
                   const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton(
-                      onPressed: sheetSaving ? null : () async {
-                        final code = controllers.map((c) => c.text).join();
-                        if (code.length < 6) {
-                          setSheet(() => sheetError = 'Please enter all 6 digits.');
-                          return;
-                        }
-                        setSheet(() { sheetSaving = true; sheetError = null; });
-                        final ok = await otpService.verifyOtp(channel: OtpChannel.phone, destination: newPhone, code: code);
-                        if (!ok) {
-                          setSheet(() { sheetSaving = false; sheetError = 'Incorrect OTP. Please try again.'; });
-                          return;
-                        }
-                        if (!mounted) return;
-                        // ignore: use_build_context_synchronously
-                        Navigator.of(ctx).pop();
-                        await _saveProfile(user: user, phone: newPhone, silent: true);
-                        if (!mounted) return;
-                        // ignore: use_build_context_synchronously
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Phone number updated successfully!'),
-                            backgroundColor: AppColors.customerColor,
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                      },
+                      onPressed: sheetSaving
+                          ? null
+                          : () async {
+                              final code =
+                                  controllers.map((c) => c.text).join();
+                              if (code.length < 6) {
+                                setSheet(() =>
+                                    sheetError = 'Please enter all 6 digits.');
+                                return;
+                              }
+                              setSheet(() {
+                                sheetSaving = true;
+                                sheetError = null;
+                              });
+                              final ok = await otpService.verifyOtp(
+                                  channel: OtpChannel.phone,
+                                  destination: newPhone,
+                                  code: code);
+                              if (!ok) {
+                                setSheet(() {
+                                  sheetSaving = false;
+                                  sheetError =
+                                      'Incorrect OTP. Please try again.';
+                                });
+                                return;
+                              }
+                              if (!mounted) return;
+                              // ignore: use_build_context_synchronously
+                              Navigator.of(ctx).pop();
+                              await _saveProfile(
+                                  user: user, phone: newPhone, silent: true);
+                              if (!mounted) return;
+                              // ignore: use_build_context_synchronously
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                      'Phone number updated successfully!'),
+                                  backgroundColor: AppColors.customerColor,
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.customerColor,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14)),
                       ),
                       child: sheetSaving
                           ? const SizedBox(
                               width: 24,
                               height: 24,
-                              child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2.5),
                             )
-                          : Text('Verify & Save', style: AppTextStyles.button(Colors.white)),
+                          : Text('Verify & Save',
+                              style: AppTextStyles.button(Colors.white)),
                     ),
                   ),
                 ],
@@ -418,7 +501,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       barrierDismissible: false,
       builder: (_) => AlertDialog(
         title: const Text('Log out?'),
-        content: const Text('Are you sure you want to log out of your account?'),
+        content:
+            const Text('Are you sure you want to log out of your account?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(rootCtx).pop(false),
@@ -485,16 +569,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final user = ref.watch(currentUserProvider);
     final isLoading = ref.watch(authLoadingProvider);
-    
+
     if (user == null) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final primaryColor = user.role == UserRole.vendor ? AppColors.vendorColor : AppColors.customerColor;
-    final primaryColorDark = user.role == UserRole.vendor ? AppColors.vendorColorDark : AppColors.customerColorDark;
-    
-    final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final primaryColor = user.role == UserRole.vendor
+        ? AppColors.vendorColor
+        : AppColors.customerColor;
+    final primaryColorDark = user.role == UserRole.vendor
+        ? AppColors.vendorColorDark
+        : AppColors.customerColorDark;
+
+    final primaryText =
+        isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final secondaryText =
+        isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
 
@@ -504,17 +594,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.fromLTRB(20, 8, 20, bottomPadding),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.fromLTRB(20, 8, 20, bottomPadding),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Profile Settings', style: AppTextStyles.h2(primaryText)),
+                  Text('Profile Settings',
+                      style: AppTextStyles.h2(primaryText)),
                   TextButton.icon(
                     onPressed: () {
                       if (_isEditing) {
@@ -522,7 +613,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       } else {
                         setState(() {
                           _isEditing = true;
-                          ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(true);
+                          ref
+                              .read(bottomNavVisibilityProvider.notifier)
+                              .setManualHidden(true);
                         });
                         profileEditingNotifier.value = _cancelEdit;
                       }
@@ -540,13 +633,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ],
               ),
               const SizedBox(height: 20),
-
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [primaryColor.withOpacity(isDark ? 0.2 : 0.8), primaryColorDark.withOpacity(isDark ? 0.3 : 1.0)],
+                    colors: [
+                      primaryColor.withOpacity(isDark ? 0.2 : 0.8),
+                      primaryColorDark.withOpacity(isDark ? 0.3 : 1.0)
+                    ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -576,14 +671,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             radius: 45,
                             backgroundColor: primaryColor.withOpacity(0.1),
                             backgroundImage: _pickedImagePath != null
-                                ? FileImage(File(_pickedImagePath!)) as ImageProvider
+                                ? FileImage(File(_pickedImagePath!))
+                                    as ImageProvider
                                 : _savedImagePath != null
-                                    ? FileImage(File(_savedImagePath!)) as ImageProvider
-                                    : user.profileImageUrl != null && !_isLocalPath(user.profileImageUrl)
-                                        ? NetworkImage(user.profileImageUrl!) as ImageProvider
+                                    ? FileImage(File(_savedImagePath!))
+                                        as ImageProvider
+                                    : user.profileImageUrl != null &&
+                                            !_isLocalPath(user.profileImageUrl)
+                                        ? NetworkImage(user.profileImageUrl!)
+                                            as ImageProvider
                                         : null,
-                            child: (_pickedImagePath == null && _savedImagePath == null && user.profileImageUrl == null)
-                                ? Text(user.initials, style: AppTextStyles.h1(primaryColor))
+                            child: (_pickedImagePath == null &&
+                                    _savedImagePath == null &&
+                                    user.profileImageUrl == null)
+                                ? Text(user.initials,
+                                    style: AppTextStyles.h1(primaryColor))
                                 : null,
                           ),
                         ),
@@ -595,9 +697,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               decoration: const BoxDecoration(
                                 color: Colors.white,
                                 shape: BoxShape.circle,
-                                boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
+                                boxShadow: [
+                                  BoxShadow(
+                                      color: Colors.black12, blurRadius: 4)
+                                ],
                               ),
-                              child: Icon(Icons.camera_alt_rounded, color: primaryColor, size: 20),
+                              child: Icon(Icons.camera_alt_rounded,
+                                  color: primaryColor, size: 20),
                             ),
                           ),
                       ],
@@ -605,7 +711,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     const SizedBox(height: 16),
                     Text(
                       user.role.label,
-                      style: AppTextStyles.labelSmall(isDark ? Colors.white70 : Colors.white70).copyWith(
+                      style: AppTextStyles.labelSmall(
+                              isDark ? Colors.white70 : Colors.white70)
+                          .copyWith(
                         letterSpacing: 1.5,
                         fontWeight: FontWeight.w600,
                       ),
@@ -624,10 +732,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-
-              Text('Personal Information', style: AppTextStyles.subtitle(primaryText)),
+              Text('Personal Information',
+                  style: AppTextStyles.subtitle(primaryText)),
               const SizedBox(height: 16),
-
               _buildFieldCard(
                 cardColor: cardColor,
                 borderColor: borderColor,
@@ -642,7 +749,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 12),
-              
               _buildFieldCard(
                 cardColor: cardColor,
                 borderColor: borderColor,
@@ -658,32 +764,40 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 validator: (v) => v == null || v.isEmpty ? 'Required' : null,
                 onChanged: (_) => setState(() {}),
               ),
-
-              if (user.role == UserRole.customer) ...createCustomerSection(context, primaryText, cardColor, borderColor, primaryColor, secondaryText),
-
-              if (user.role == UserRole.vendor) ...createVendorSection(user, primaryText, secondaryText, cardColor, borderColor, primaryColor, isDark),
-
+              if (user.role == UserRole.customer)
+                ...createCustomerSection(context, primaryText, cardColor,
+                    borderColor, primaryColor, secondaryText),
+              if (user.role == UserRole.vendor)
+                ...createVendorSection(user, primaryText, secondaryText,
+                    cardColor, borderColor, primaryColor, isDark),
               const SizedBox(height: 32),
-              
               if (_isEditing)
                 SizedBox(
                   width: double.infinity,
                   height: 56,
                   child: ElevatedButton(
-                    onPressed: (_isSaving || isLoading || !_hasChanges) ? null : _handleSave,
+                    onPressed: (_isSaving || isLoading || !_hasChanges)
+                        ? null
+                        : _handleSave,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryColor,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
                       elevation: 4,
                       shadowColor: primaryColor.withOpacity(0.5),
                     ),
                     child: (_isSaving || isLoading)
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
-                        )
-                      : Text('Save Changes', style: AppTextStyles.button(!_hasChanges ? Colors.white54 : Colors.white).copyWith(fontSize: 16)),
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2.5),
+                          )
+                        : Text('Save Changes',
+                            style: AppTextStyles.button(!_hasChanges
+                                    ? Colors.white54
+                                    : Colors.white)
+                                .copyWith(fontSize: 16)),
                   ),
                 )
               else
@@ -695,10 +809,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.error,
                       side: const BorderSide(color: AppColors.error),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16)),
                     ),
                     icon: const Icon(Icons.logout_rounded),
-                    label: Text('Logout from Account', style: AppTextStyles.button(AppColors.error).copyWith(fontSize: 16)),
+                    label: Text('Logout from Account',
+                        style: AppTextStyles.button(AppColors.error)
+                            .copyWith(fontSize: 16)),
                   ),
                 ),
             ],
@@ -708,7 +825,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  List<Widget> createCustomerSection(BuildContext context, Color primaryText, Color cardColor, Color borderColor, Color primaryColor, Color secondaryText) {
+  List<Widget> createCustomerSection(
+      BuildContext context,
+      Color primaryText,
+      Color cardColor,
+      Color borderColor,
+      Color primaryColor,
+      Color secondaryText) {
     final user = ref.read(currentUserProvider);
     return [
       const SizedBox(height: 16),
@@ -732,7 +855,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 children: [
                   Text('Email', style: AppTextStyles.labelSmall(secondaryText)),
                   const SizedBox(height: 2),
-                  Text(user?.email ?? '', style: AppTextStyles.bodyLarge(primaryText)),
+                  Text(user?.email ?? '',
+                      style: AppTextStyles.bodyLarge(primaryText)),
                 ],
               ),
             ),
@@ -757,9 +881,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('NIC Number', style: AppTextStyles.labelSmall(secondaryText)),
+                  Text('NIC Number',
+                      style: AppTextStyles.labelSmall(secondaryText)),
                   const SizedBox(height: 2),
-                  Text(user?.nic ?? 'Not provided', style: AppTextStyles.bodyLarge(primaryText)),
+                  Text(user?.nic ?? 'Not provided',
+                      style: AppTextStyles.bodyLarge(primaryText)),
                 ],
               ),
             ),
@@ -791,24 +917,36 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             border: Border.all(color: borderColor),
           ),
           child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             leading: Icon(Icons.history_rounded, color: primaryColor),
-            title: Text('View Payment History', style: AppTextStyles.bodyMedium(primaryText)),
-            subtitle: Text('See your past COD and online payments.', style: AppTextStyles.caption(secondaryText)),
-            trailing: Icon(Icons.arrow_forward_ios_rounded, size: 18, color: secondaryText),
+            title: Text('View Payment History',
+                style: AppTextStyles.bodyMedium(primaryText)),
+            subtitle: Text('See your past COD and online payments.',
+                style: AppTextStyles.caption(secondaryText)),
+            trailing: Icon(Icons.arrow_forward_ios_rounded,
+                size: 18, color: secondaryText),
           ),
         ),
       ),
     ];
   }
 
-  List<Widget> createVendorSection(UserModel user, Color primaryText, Color secondaryText, Color cardColor, Color borderColor, Color primaryColor, bool isDark) {
+  List<Widget> createVendorSection(
+      UserModel user,
+      Color primaryText,
+      Color secondaryText,
+      Color cardColor,
+      Color borderColor,
+      Color primaryColor,
+      bool isDark) {
     return [
       const SizedBox(height: 32),
       Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text('Business Information', style: AppTextStyles.subtitle(primaryText)),
+          Text('Business Information',
+              style: AppTextStyles.subtitle(primaryText)),
           if (user.isVerified)
             StatusBadge(label: 'Verified', color: AppColors.success)
           else
@@ -830,7 +968,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         onChanged: (_) => setState(() {}),
       ),
       const SizedBox(height: 16),
-      
       Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
@@ -843,13 +980,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           children: [
             Row(
               children: [
-                Icon(Icons.verified_rounded, color: AppColors.success, size: 20),
+                Icon(Icons.verified_rounded,
+                    color: AppColors.success, size: 20),
                 const SizedBox(width: 12),
-                Text('Approved Categories', style: AppTextStyles.labelLarge(secondaryText)),
+                Text('Approved Categories',
+                    style: AppTextStyles.labelLarge(secondaryText)),
               ],
             ),
             const SizedBox(height: 12),
-            if (user.allowedCategories != null && user.allowedCategories!.isNotEmpty)
+            if (user.allowedCategories != null &&
+                user.allowedCategories!.isNotEmpty)
               Consumer(
                 builder: (context, ref, _) {
                   final allCategories = ref.watch(activeCategoriesProvider);
@@ -862,11 +1002,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     runSpacing: 8,
                     children: displayNames
                         .map((displayName) => Chip(
-                          label: Text(displayName),
-                          backgroundColor: AppColors.success.withValues(alpha: 0.12),
-                          labelStyle: AppTextStyles.bodySmall(AppColors.success)
-                              .copyWith(fontWeight: FontWeight.w600),
-                        ))
+                              label: Text(displayName),
+                              backgroundColor:
+                                  AppColors.success.withValues(alpha: 0.12),
+                              labelStyle:
+                                  AppTextStyles.bodySmall(AppColors.success)
+                                      .copyWith(fontWeight: FontWeight.w600),
+                            ))
                         .toList(),
                   );
                 },
@@ -877,117 +1019,125 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 style: AppTextStyles.bodySmall(secondaryText),
               ),
             const SizedBox(height: 16),
-            
-            if (!_isEditing && user.hasPendingCategoryRequest == true && user.requestedCategories != null && user.requestedCategories!.isNotEmpty) ...
-              [
-                Row(
-                  children: [
-                    Icon(Icons.pending_outlined, color: AppColors.warning, size: 20),
-                    const SizedBox(width: 12),
-                    Text('Pending Request', style: AppTextStyles.labelLarge(AppColors.warning)),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Waiting for admin approval',
-                  style: AppTextStyles.caption(secondaryText),
-                ),
-                const SizedBox(height: 12),
-                Consumer(
-                  builder: (context, ref, _) {
-                    final allCategories = ref.watch(activeCategoriesProvider);
-                    final displayNames = CategorySyncHelper.getDisplayNames(
-                      user.requestedCategories ?? [],
-                      allCategories,
+            if (!_isEditing &&
+                user.hasPendingCategoryRequest == true &&
+                user.requestedCategories != null &&
+                user.requestedCategories!.isNotEmpty) ...[
+              Row(
+                children: [
+                  Icon(Icons.pending_outlined,
+                      color: AppColors.warning, size: 20),
+                  const SizedBox(width: 12),
+                  Text('Pending Request',
+                      style: AppTextStyles.labelLarge(AppColors.warning)),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Waiting for admin approval',
+                style: AppTextStyles.caption(secondaryText),
+              ),
+              const SizedBox(height: 12),
+              Consumer(
+                builder: (context, ref, _) {
+                  final allCategories = ref.watch(activeCategoriesProvider);
+                  final displayNames = CategorySyncHelper.getDisplayNames(
+                    user.requestedCategories ?? [],
+                    allCategories,
+                  );
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: displayNames
+                        .map((displayName) => Chip(
+                              label: Text(displayName),
+                              backgroundColor:
+                                  AppColors.warning.withValues(alpha: 0.12),
+                              labelStyle:
+                                  AppTextStyles.bodySmall(AppColors.warning)
+                                      .copyWith(fontWeight: FontWeight.w600),
+                            ))
+                        .toList(),
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+            if (_isEditing) ...[
+              Row(
+                children: [
+                  Icon(Icons.category_outlined, color: secondaryText, size: 20),
+                  const SizedBox(width: 12),
+                  Text('Request Categories',
+                      style: AppTextStyles.labelLarge(secondaryText)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Consumer(
+                builder: (context, ref, _) {
+                  final allCategories = ref.watch(activeCategoriesProvider);
+                  final approvedSet = (user.allowedCategories ?? []).toSet();
+                  final requestable = allCategories
+                      .where((cat) =>
+                          cat.isActive &&
+                          !approvedSet.contains(cat.normalizedKey))
+                      .toList();
+
+                  if (requestable.isEmpty) {
+                    return Text(
+                      'All active categories are already approved for your account.',
+                      style: AppTextStyles.bodySmall(secondaryText),
                     );
-                    return Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: displayNames
-                          .map((displayName) => Chip(
-                            label: Text(displayName),
-                            backgroundColor: AppColors.warning.withValues(alpha: 0.12),
-                            labelStyle: AppTextStyles.bodySmall(AppColors.warning)
-                                .copyWith(fontWeight: FontWeight.w600),
-                          ))
-                          .toList(),
-                    );
-                  },
-                ),
-                const SizedBox(height: 16),
-              ],
-            
-            if (_isEditing)
-              ...
-              [
-                Row(
-                  children: [
-                    Icon(Icons.category_outlined, color: secondaryText, size: 20),
-                    const SizedBox(width: 12),
-                    Text('Request Categories', style: AppTextStyles.labelLarge(secondaryText)),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Consumer(
-                  builder: (context, ref, _) {
-                    final allCategories = ref.watch(activeCategoriesProvider);
-                    final approvedSet = (user.allowedCategories ?? []).toSet();
-                    final requestable = allCategories
-                        .where((cat) => cat.isActive && !approvedSet.contains(cat.normalizedKey))
-                        .toList();
-                    
-                    if (requestable.isEmpty) {
-                      return Text(
-                        'All active categories are already approved for your account.',
-                        style: AppTextStyles.bodySmall(secondaryText),
-                      );
-                    }
-                    
-                    return Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: requestable.map((cat) {
-                        final isSelected = _selectedCategories.contains(cat.normalizedKey);
-                        return FilterChip(
-                          label: Text(cat.name),
-                          selected: isSelected,
-                          onSelected: (selected) {
-                            setState(() {
-                              if (selected) {
-                                if (!_selectedCategories.contains(cat.normalizedKey)) {
-                                  _selectedCategories.add(cat.normalizedKey);
-                                }
-                              } else {
-                                _selectedCategories.remove(cat.normalizedKey);
+                  }
+
+                  return Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: requestable.map((cat) {
+                      final isSelected =
+                          _selectedCategories.contains(cat.normalizedKey);
+                      return FilterChip(
+                        label: Text(cat.name),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          setState(() {
+                            if (selected) {
+                              if (!_selectedCategories
+                                  .contains(cat.normalizedKey)) {
+                                _selectedCategories.add(cat.normalizedKey);
                               }
-                            });
-                          },
-                          selectedColor: primaryColor.withValues(alpha: 0.15),
-                          checkmarkColor: primaryColor,
-                          labelStyle: AppTextStyles.bodySmall(
-                            isSelected ? primaryColor : secondaryText,
-                          ).copyWith(
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                            } else {
+                              _selectedCategories.remove(cat.normalizedKey);
+                            }
+                          });
+                        },
+                        selectedColor: primaryColor.withValues(alpha: 0.15),
+                        checkmarkColor: primaryColor,
+                        labelStyle: AppTextStyles.bodySmall(
+                          isSelected ? primaryColor : secondaryText,
+                        ).copyWith(
+                          fontWeight:
+                              isSelected ? FontWeight.w600 : FontWeight.normal,
+                        ),
+                        backgroundColor: isDark
+                            ? Colors.grey.withValues(alpha: 0.1)
+                            : Colors.grey.shade50,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: BorderSide(
+                            color: isSelected
+                                ? primaryColor
+                                : (isDark
+                                    ? Colors.grey.withValues(alpha: 0.2)
+                                    : Colors.grey.shade200),
                           ),
-                          backgroundColor: isDark
-                              ? Colors.grey.withValues(alpha: 0.1)
-                              : Colors.grey.shade50,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                            side: BorderSide(
-                              color: isSelected
-                                  ? primaryColor
-                                  : (isDark
-                                      ? Colors.grey.withValues(alpha: 0.2)
-                                      : Colors.grey.shade200),
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                    );
-                  },
-                ),
-              ],
+                        ),
+                      );
+                    }).toList(),
+                  );
+                },
+              ),
+            ],
           ],
         ),
       ),
@@ -1012,17 +1162,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           border: Border.all(color: borderColor),
         ),
         child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           leading: Icon(Icons.location_on_outlined, color: primaryColor),
-          title: Text('Delivery Address', style: AppTextStyles.bodyMedium(primaryText)),
-          subtitle: Text('Manage your delivery location', style: AppTextStyles.caption(secondaryText)),
-          trailing: Icon(Icons.arrow_forward_ios_rounded, size: 18, color: secondaryText),
+          title: Text('Delivery Address',
+              style: AppTextStyles.bodyMedium(primaryText)),
+          subtitle: Text('Manage your delivery location',
+              style: AppTextStyles.caption(secondaryText)),
+          trailing: Icon(Icons.arrow_forward_ios_rounded,
+              size: 18, color: secondaryText),
         ),
       ),
     );
   }
-
-
 
   Widget _buildFieldCard({
     required Color cardColor,
@@ -1049,55 +1201,59 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         border: Border.all(color: isEditing ? Colors.transparent : borderColor),
       ),
       child: isEditing
-        ? TextFormField(
-            controller: controller,
-            keyboardType: keyboardType,
-            maxLength: maxLength,
-            validator: validator,
-            textCapitalization: (label == 'Full Name' || label == 'Business Name')
-                ? TextCapitalization.words
-                : TextCapitalization.none,
-            style: AppTextStyles.bodyLarge(primaryText),
-            onChanged: onChanged,
-            decoration: InputDecoration(
-              labelText: label,
-              labelStyle: AppTextStyles.bodyMedium(secondaryText),
-              prefixIcon: Icon(icon, color: primaryColor),
-              filled: true,
-              fillColor: cardColor,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: borderColor),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: borderColor),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide(color: primaryColor, width: 2),
-              ),
-            ),
-          )
-        : Row(
-            children: [
-              Icon(icon, color: secondaryText, size: 22),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(label, style: AppTextStyles.labelSmall(secondaryText)),
-                    const SizedBox(height: 2),
-                    Text(controller.text, style: AppTextStyles.bodyLarge(primaryText)),
-                  ],
+          ? TextFormField(
+              controller: controller,
+              keyboardType: keyboardType,
+              maxLength: maxLength,
+              validator: validator,
+              textCapitalization:
+                  (label == 'Full Name' || label == 'Business Name')
+                      ? TextCapitalization.words
+                      : TextCapitalization.none,
+              style: AppTextStyles.bodyLarge(primaryText),
+              onChanged: onChanged,
+              decoration: InputDecoration(
+                labelText: label,
+                labelStyle: AppTextStyles.bodyMedium(secondaryText),
+                prefixIcon: Icon(icon, color: primaryColor),
+                filled: true,
+                fillColor: cardColor,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: borderColor),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: borderColor),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: primaryColor, width: 2),
                 ),
               ),
-            ],
-          ),
+            )
+          : Row(
+              children: [
+                Icon(icon, color: secondaryText, size: 22),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(label,
+                          style: AppTextStyles.labelSmall(secondaryText)),
+                      const SizedBox(height: 2),
+                      Text(
+                        label == 'Phone Number'
+                            ? '+94 ${_toLocalDigits(controller.text)}'
+                            : controller.text,
+                        style: AppTextStyles.bodyLarge(primaryText),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
     );
   }
 }
-
-
-
