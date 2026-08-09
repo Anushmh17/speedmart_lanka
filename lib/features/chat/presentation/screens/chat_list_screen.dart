@@ -28,11 +28,16 @@ class ChatListScreen extends ConsumerWidget {
         return bTs.compareTo(aTs);
       });
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryText = isDark ? Colors.white : Colors.black;
+    final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final surfaceColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Chats'),
-        backgroundColor: AppColors.surfaceLight,
-        foregroundColor: Colors.black,
+        backgroundColor: surfaceColor,
+        foregroundColor: primaryText,
         elevation: 1,
       ),
       body: convoEntries.isEmpty
@@ -49,7 +54,7 @@ class ChatListScreen extends ConsumerWidget {
                     child: Text(
                       "Once you start a new conversation with a seller about a product, you'll see it listed here.",
                       textAlign: TextAlign.center,
-                      style: AppTextStyles.bodyMedium(AppColors.textSecondaryLight),
+                      style: AppTextStyles.bodyMedium(secondaryText),
                     ),
                   ),
                   SizedBox(height: AppSpacing.xl * 2),
@@ -89,11 +94,11 @@ class ChatListScreen extends ConsumerWidget {
                     });
                   },
                   leading: CircleAvatar(child: Icon(Icons.storefront_rounded, color: AppColors.customerColor)),
-                  title: Text(vendorName ?? 'Shop', style: AppTextStyles.bodyMedium(Colors.black)),
+                  title: Text(vendorName ?? 'Shop', style: AppTextStyles.bodyMedium(primaryText)),
                   subtitle: Text((lastMsg.text ?? '').toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
                   trailing: Text(
                     '${(lastMsg.timestamp as DateTime).hour.toString().padLeft(2, '0')}:${(lastMsg.timestamp as DateTime).minute.toString().padLeft(2, '0')}',
-                    style: AppTextStyles.caption(AppColors.textSecondaryLight),
+                    style: AppTextStyles.caption(secondaryText),
                   ),
                 );
               },
