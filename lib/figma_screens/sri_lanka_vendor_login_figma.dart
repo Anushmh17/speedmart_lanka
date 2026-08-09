@@ -424,7 +424,7 @@ class _SrilankavendorloginWidgetState extends State<SrilankavendorloginWidget>
                             ),
                           ),
                           Positioned(
-                            top: y(642),
+                            top: y(638),
                             right: x(21),
                             child: GestureDetector(
                               onTap: widget.onForgotPassword ??
