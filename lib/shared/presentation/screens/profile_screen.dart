@@ -142,13 +142,85 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Future<void> _pickImage() async {
-    if (!await AppPermissionUtils.ensureGalleryPermission(context)) {
-      return;
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        final isDark = Theme.of(sheetCtx).brightness == Brightness.dark;
+        final bg = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+        final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+        final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+        return Container(
+          decoration: BoxDecoration(
+            color: bg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40, height: 4,
+                decoration: BoxDecoration(
+                  color: borderColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Text('Profile Photo', style: AppTextStyles.h3(primaryText)),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  Expanded(
+                    child: _sourceOption(
+                      ctx: sheetCtx,
+                      icon: Icons.camera_alt_rounded,
+                      label: 'Camera',
+                      color: AppColors.customerColor,
+                      onTap: () => Navigator.of(sheetCtx).pop(ImageSource.camera),
+                      isDark: isDark,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: _sourceOption(
+                      ctx: sheetCtx,
+                      icon: Icons.photo_library_rounded,
+                      label: 'Gallery',
+                      color: const Color(0xFF8B5CF6),
+                      onTap: () => Navigator.of(sheetCtx).pop(ImageSource.gallery),
+                      isDark: isDark,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () => Navigator.of(sheetCtx).pop(),
+                child: Text('Cancel', style: AppTextStyles.bodyMedium(AppColors.textSecondaryLight)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (source == null || !mounted) return;
+
+    // Check permissions based on source
+    if (source == ImageSource.camera) {
+      if (!await AppPermissionUtils.ensureCameraPermission(context)) return;
+    } else {
+      if (!await AppPermissionUtils.ensureGalleryPermission(context)) return;
     }
 
+    if (!mounted) return;
+
     final picker = ImagePicker();
-    final picked =
-        await picker.pickImage(source: ImageSource.gallery, imageQuality: 90);
+    final picked = await picker.pickImage(
+      source: source,
+      imageQuality: 90,
+    );
     if (picked == null || !mounted) return;
 
     final user = ref.read(currentUserProvider);
@@ -189,6 +261,34 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         _imageVersion++;
       });
     }
+  }
+
+  Widget _sourceOption({
+    required BuildContext ctx,
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+    required bool isDark,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 20),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: isDark ? 0.15 : 0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 32),
+            const SizedBox(height: 8),
+            Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 14)),
+          ],
+        ),
+      ),
+    );
   }
 
   /// Strips +94 / 94 prefix so the field shows local 9-digit format.
@@ -663,30 +763,77 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     Stack(
                       alignment: Alignment.bottomRight,
                       children: [
-                        CircleAvatar(
-                          radius: 48,
-                          backgroundColor: Colors.white,
+                        GestureDetector(
+                          onTap: () {
+                            final ImageProvider? previewImage =
+                                _pickedImagePath != null
+                                    ? FileImage(File(_pickedImagePath!))
+                                    : _savedImagePath != null
+                                        ? FileImage(File(_savedImagePath!))
+                                        : user.profileImageUrl != null &&
+                                                !_isLocalPath(user.profileImageUrl)
+                                            ? NetworkImage(user.profileImageUrl!)
+                                            : null;
+                            if (previewImage == null) return;
+                            showDialog(
+                              context: context,
+                              builder: (imgCtx) => Dialog(
+                                backgroundColor: Colors.black,
+                                insetPadding: EdgeInsets.zero,
+                                child: Stack(
+                                  children: [
+                                    InteractiveViewer(
+                                      child: SizedBox(
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                        child: Image(image: previewImage, fit: BoxFit.contain),
+                                      ),
+                                    ),
+                                    Positioned(
+                                      top: 48,
+                                      right: 12,
+                                      child: GestureDetector(
+                                        onTap: () => Navigator.of(imgCtx).pop(),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(6),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withValues(alpha: 0.5),
+                                            shape: BoxShape.circle,
+                                          ),
+                                          child: const Icon(Icons.close, color: Colors.white, size: 20),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
                           child: CircleAvatar(
-                            key: ValueKey(_imageVersion),
-                            radius: 45,
-                            backgroundColor: primaryColor.withOpacity(0.1),
-                            backgroundImage: _pickedImagePath != null
-                                ? FileImage(File(_pickedImagePath!))
-                                    as ImageProvider
-                                : _savedImagePath != null
-                                    ? FileImage(File(_savedImagePath!))
-                                        as ImageProvider
-                                    : user.profileImageUrl != null &&
-                                            !_isLocalPath(user.profileImageUrl)
-                                        ? NetworkImage(user.profileImageUrl!)
-                                            as ImageProvider
-                                        : null,
-                            child: (_pickedImagePath == null &&
-                                    _savedImagePath == null &&
-                                    user.profileImageUrl == null)
-                                ? Text(user.initials,
-                                    style: AppTextStyles.h1(primaryColor))
-                                : null,
+                            radius: 48,
+                            backgroundColor: Colors.white,
+                            child: CircleAvatar(
+                              key: ValueKey(_imageVersion),
+                              radius: 45,
+                              backgroundColor: primaryColor.withOpacity(0.1),
+                              backgroundImage: _pickedImagePath != null
+                                  ? FileImage(File(_pickedImagePath!))
+                                      as ImageProvider
+                                  : _savedImagePath != null
+                                      ? FileImage(File(_savedImagePath!))
+                                          as ImageProvider
+                                      : user.profileImageUrl != null &&
+                                              !_isLocalPath(user.profileImageUrl)
+                                          ? NetworkImage(user.profileImageUrl!)
+                                              as ImageProvider
+                                          : null,
+                              child: (_pickedImagePath == null &&
+                                      _savedImagePath == null &&
+                                      user.profileImageUrl == null)
+                                  ? Text(user.initials,
+                                      style: AppTextStyles.h1(primaryColor))
+                                  : null,
+                            ),
                           ),
                         ),
                         if (_isEditing)

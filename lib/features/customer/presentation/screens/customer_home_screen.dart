@@ -528,7 +528,7 @@ class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
           ],
         ),
         GestureDetector(
-          onTap: () => context.go(RouteNames.customerProfile),
+          onTap: () => _showProfilePreview(context, user, avatarImage, primaryColor),
           child: CircleAvatar(
             radius: 24,
             backgroundColor: primaryColor.withValues(alpha: 0.15),
@@ -542,6 +542,207 @@ class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
           ),
         ),
       ],
+    );
+  }
+
+  void _showProfilePreview(BuildContext context, dynamic user, ImageProvider? avatarImage, Color primaryColor) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        child: Container(
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.5 : 0.18),
+                blurRadius: 32,
+                spreadRadius: 0,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ── Header band with avatar ──────────────────────────────
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 28),
+                decoration: BoxDecoration(
+                  color: primaryColor.withValues(alpha: isDark ? 0.18 : 0.08),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  border: Border(
+                    bottom: BorderSide(color: primaryColor.withValues(alpha: 0.15), width: 1),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    GestureDetector(
+                      onTap: avatarImage == null ? null : () {
+                        showDialog(
+                          context: ctx,
+                          builder: (imgCtx) => Dialog(
+                            backgroundColor: Colors.black,
+                            insetPadding: EdgeInsets.zero,
+                            child: Stack(
+                              children: [
+                                InteractiveViewer(
+                                  child: SizedBox(
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    child: Image(image: avatarImage!, fit: BoxFit.contain),
+                                  ),
+                                ),
+                                Positioned(
+                                  top: 48,
+                                  right: 12,
+                                  child: GestureDetector(
+                                    onTap: () => Navigator.of(imgCtx).pop(),
+                                    child: Container(
+                                      padding: const EdgeInsets.all(6),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withValues(alpha: 0.5),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(Icons.close, color: Colors.white, size: 20),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: primaryColor.withValues(alpha: 0.35), width: 3),
+                          boxShadow: [
+                            BoxShadow(
+                              color: primaryColor.withValues(alpha: 0.2),
+                              blurRadius: 16,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: Stack(
+                          alignment: Alignment.bottomRight,
+                          children: [
+                            CircleAvatar(
+                              radius: 44,
+                              backgroundColor: primaryColor.withValues(alpha: 0.15),
+                              backgroundImage: avatarImage,
+                              child: avatarImage == null
+                                  ? Text(
+                                      user?.initials ?? 'C',
+                                      style: TextStyle(
+                                        fontSize: 32,
+                                        fontWeight: FontWeight.w700,
+                                        color: primaryColor,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            if (avatarImage != null)
+                              Container(
+                                padding: const EdgeInsets.all(3),
+                                decoration: const BoxDecoration(
+                                  color: Colors.black54,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.zoom_in, color: Colors.white, size: 14),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      user?.fullName ?? 'Customer',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: primaryText),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      user?.email ?? '',
+                      style: TextStyle(fontSize: 12, color: secondaryText),
+                    ),
+                  ],
+                ),
+              ),
+              // ── Info row ─────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Row(
+                  children: [
+                    Icon(Icons.phone_outlined, size: 14, color: secondaryText),
+                    const SizedBox(width: 6),
+                    Text(
+                      user?.phone ?? 'No phone added',
+                      style: TextStyle(fontSize: 13, color: secondaryText),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withValues(alpha: 0.12),
+                        border: Border.all(color: AppColors.success.withValues(alpha: 0.3)),
+                      ),
+                      child: Text(
+                        'Customer',
+                        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.success),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Divider(color: borderColor, height: 1),
+              // ── Buttons ───────────────────────────────────────────────
+              IntrinsicHeight(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        style: TextButton.styleFrom(
+                          foregroundColor: secondaryText,
+                          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.only(bottomLeft: Radius.circular(16))),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: const Text('Cancel', style: TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                    VerticalDivider(color: borderColor, width: 1),
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () {
+                          Navigator.of(ctx).pop();
+                          context.go(RouteNames.customerProfile);
+                        },
+                        style: TextButton.styleFrom(
+                          foregroundColor: primaryColor,
+                          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.only(bottomRight: Radius.circular(16))),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                        child: const Text('View Profile', style: TextStyle(fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
