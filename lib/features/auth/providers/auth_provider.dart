@@ -139,6 +139,23 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   // ── Login ──────────────────────────────────────────────────────────────────
+  /// Completes vendor session after OTP — Firebase is already signed in
+  /// from [verifyVendorCredentials], so no redundant signIn call.
+  Future<void> loginVendorAfterOtp(String email) async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    try {
+      final result = await _repo.loginVendorAfterOtp(email);
+      final cleanedUser = await _cleanUserCategoriesOnLogin(result.user);
+      await StorageService.saveToken(result.token);
+      await StorageService.saveUser(cleanedUser.toJson());
+      await StorageService.saveRole(cleanedUser.role.name);
+      NotificationRepository.instance.resetForNewSession();
+      state = AuthState.authenticated(cleanedUser);
+    } catch (e) {
+      state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
+    }
+  }
+
   Future<void> login({
     required String email,
     required String password,

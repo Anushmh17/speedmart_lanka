@@ -237,15 +237,24 @@ class AuthRepository {
     // Sign in with Firebase first so Firestore reads are authenticated.
     await _signInWithFirebase(email, password);
 
-    // Fetch this specific user from Firestore now that we're authenticated.
+    return _completeVendorLogin(email, role);
+  }
+
+  /// Completes vendor login using the already-authenticated Firebase session.
+  /// Called after OTP verification to avoid a redundant signInWithEmailAndPassword.
+  Future<({UserModel user, String token})> loginVendorAfterOtp(String email) async {
+    await ensureInitialized();
+    return _completeVendorLogin(email, UserRole.vendor);
+  }
+
+  Future<({UserModel user, String token})> _completeVendorLogin(
+      String email, UserRole role) async {
     final fetchedUser = await _fetchUserByEmail(email, role);
     if (fetchedUser == null) {
       await _firebaseAuth.signOut();
-      throw Exception(
-          'No account found with this email for the selected role.');
+      throw Exception('No account found with this email for the selected role.');
     }
 
-    // Merge into session cache
     final index = _sessionUsers.indexWhere((u) => u.id == fetchedUser.id);
     if (index >= 0) {
       _sessionUsers[index] = fetchedUser;
@@ -253,22 +262,18 @@ class AuthRepository {
       _sessionUsers.add(fetchedUser);
     }
 
-    final user = fetchedUser;
-    debugPrint(
-        '[Auth] User found: ${user.email}, vendorStatus=${user.vendorStatus}, isActive=${user.isActive}');
+    debugPrint('[Auth] User found: ${fetchedUser.email}, vendorStatus=${fetchedUser.vendorStatus}, isActive=${fetchedUser.isActive}');
 
-    if (!user.isActive) {
+    if (!fetchedUser.isActive) {
       throw Exception('Your account has been suspended. Contact support.');
     }
 
-    _currentToken =
-        'auth_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
-    _currentUserId = _firebaseAuth.currentUser?.uid ?? user.id;
-    debugPrint('[Auth] Login success: ${user.email}');
+    _currentToken = 'auth_token_${fetchedUser.id}_${DateTime.now().millisecondsSinceEpoch}';
+    _currentUserId = _firebaseAuth.currentUser?.uid ?? fetchedUser.id;
+    debugPrint('[Auth] Login success: ${fetchedUser.email}');
 
-    // Upload FCM token to backend (best-effort)
-    _uploadDeviceTokenForUser(user);
-    return (user: user, token: _currentToken!);
+    _uploadDeviceTokenForUser(fetchedUser);
+    return (user: fetchedUser, token: _currentToken!);
   }
 
   // ── Customer OTP Authentication ──────────────────────────────────────────

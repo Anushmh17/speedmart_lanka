@@ -757,21 +757,15 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
 
   Future<void> _onVendorOtpSuccess(String otp, {bool rememberMe = false}) async {
     final email = _vendorLoginEmailCtrl.text.trim();
-    final password = _vendorLoginPasswordCtrl.text;
     setState(() => _isLoading = true);
     try {
-      await ref.read(authProvider.notifier).login(
-        email: email,
-        password: password,
-        role: UserRole.vendor,
-      );
+      await ref.read(authProvider.notifier).loginVendorAfterOtp(email);
       if (!mounted) return;
       final authState = ref.read(authProvider);
       if (authState.hasError) {
         _showError(authState.error!);
         return;
       }
-      // Only persist remember-me after a successful login
       await StorageService.saveVendorRememberMe(rememberMe);
       context.go(RouteNames.vendorHome);
     } catch (e) {
