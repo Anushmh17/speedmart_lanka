@@ -22,7 +22,8 @@ class SrilankavendorforgetpasswordotpWidget extends StatefulWidget {
 }
 
 class _SrilankavendorforgetpasswordotpWidgetState
-    extends State<SrilankavendorforgetpasswordotpWidget> {
+    extends State<SrilankavendorforgetpasswordotpWidget>
+    with WidgetsBindingObserver {
   static const String _assetBase =
       'assets/images/figma/sri_lanka_vendor_forget_password_otp/';
 
@@ -39,10 +40,21 @@ class _SrilankavendorforgetpasswordotpWidgetState
   String _errorMessage = '';
   bool _isSuccess = false;
 
+  double _keyboardHeight = 0;
+
   @override
   void initState() {
     super.initState();
     _addBackspaceListeners();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeMetrics() {
+    final bottomInset = WidgetsBinding
+            .instance.platformDispatcher.views.first.viewInsets.bottom /
+        WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+    if (mounted) setState(() => _keyboardHeight = bottomInset);
   }
 
   void _addBackspaceListeners() {
@@ -94,14 +106,13 @@ class _SrilankavendorforgetpasswordotpWidgetState
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     for (final controller in _otpControllers) {
       controller.dispose();
     }
-
     for (final focusNode in _otpFocusNodes) {
       focusNode.dispose();
     }
-
     super.dispose();
   }
 
@@ -111,7 +122,7 @@ class _SrilankavendorforgetpasswordotpWidgetState
     final w = media.size.width;
     final h = media.size.height;
 
-    final keyboardOpen = media.viewInsets.bottom > 0;
+    final keyboardHeight = _keyboardHeight;
 
     final sx = w / 360;
     final sy = h / 850;
@@ -121,545 +132,572 @@ class _SrilankavendorforgetpasswordotpWidgetState
     double y(double value) => value * sy;
     double fs(double value) => value * fontScale;
 
+    // OTP boxes: top = y(395) + y(45)
+    final otpBoxTop = y(395) + y(45);
+    final otpBoxBottom = otpBoxTop + y(48);
+    final coveredBy = (otpBoxBottom + 10.0 - (h - keyboardHeight))
+        .clamp(0.0, double.infinity);
+    final maxSlide = otpBoxTop - 8.0;
+    final slidePixels = coveredBy.clamp(0.0, maxSlide);
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: MediaQuery(
-      data: media.copyWith(textScaler: TextScaler.noScaling),
-      child: Theme(
-        data: Theme.of(context).copyWith(
-          brightness: Brightness.dark,
-          textSelectionTheme: const TextSelectionThemeData(
-            cursorColor: Color(0xFFFF8213),
-            selectionColor: Color.fromRGBO(255, 130, 19, 0.25),
-            selectionHandleColor: Color(0xFFFF8213),
+        data: media.copyWith(textScaler: TextScaler.noScaling),
+        child: Theme(
+          data: Theme.of(context).copyWith(
+            brightness: Brightness.dark,
+            textSelectionTheme: const TextSelectionThemeData(
+              cursorColor: Color(0xFFFF8213),
+              selectionColor: Color.fromRGBO(255, 130, 19, 0.25),
+              selectionHandleColor: Color(0xFFFF8213),
+            ),
+            inputDecorationTheme: const InputDecorationTheme(
+              filled: false,
+              fillColor: Colors.transparent,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+            ),
           ),
-          inputDecorationTheme: const InputDecorationTheme(
-            filled: false,
-            fillColor: Colors.transparent,
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-          ),
-        ),
-        child: Scaffold(
-          backgroundColor: const Color(0xFF040504),
-          resizeToAvoidBottomInset: false,
-          body: GestureDetector(
-            onTap: () => FocusScope.of(context).unfocus(),
-            child: SizedBox(
-              width: w,
-              height: h,
-              child: AnimatedSlide(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOut,
-                offset: Offset(0, keyboardOpen ? -0.10 : 0),
+          child: Scaffold(
+            backgroundColor: const Color(0xFF040504),
+            resizeToAvoidBottomInset: false,
+            body: GestureDetector(
+              onTap: () => FocusScope.of(context).unfocus(),
+              child: SizedBox(
+                width: w,
+                height: h,
                 child: Stack(
+                  clipBehavior: Clip.none,
                   children: [
-                    Positioned(
-                      top: 0,
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOut,
+                      top: -slidePixels,
                       left: 0,
                       right: 0,
-                      height: y(240),
-                      child: Image.asset(
-                        '${_assetBase}Vendorforgetpasswordotpscreenheroimage1.png',
-                        fit: BoxFit.fill,
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(35),
-                      left: x(15),
-                      child: GestureDetector(
-                        onTap:
-                            widget.onBack ?? () => Navigator.maybePop(context),
-                        child: Container(
-                          width: x(30),
-                          height: x(30),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white,
-                              width: x(2.5),
+                      height: h,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: y(240),
+                            child: Image.asset(
+                              '${_assetBase}Vendorforgetpasswordotpscreenheroimage1.png',
+                              fit: BoxFit.fill,
                             ),
                           ),
-                          child: Icon(
-                            Icons.arrow_back_rounded,
-                            color: Colors.white,
-                            size: x(20),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(248),
-                      left: x(32),
-                      child: SizedBox(
-                        width: x(296),
-                        height: y(119),
-                        child: Stack(
-                          children: [
-                            _StepCircle(
-                              top: 0,
-                              left: x(15),
-                              size: x(45),
-                              active: false,
-                              icon: Icons.email_outlined,
-                              iconSize: x(23),
-                            ),
-
-                            Positioned(
-                              top: y(11),
-                              left: x(68),
-                              child: Text(
-                                '-----------',
-                                style: TextStyle(
-                                  color: const Color(0xFF373737),
-                                  fontFamily: 'OpenSans',
-                                  fontSize: fs(14),
-                                  fontWeight: FontWeight.w600,
-                                  height: 1,
-                                ),
-                              ),
-                            ),
-
-                            Positioned(
-                              top: 0,
-                              left: x(125),
+                          Positioned(
+                            top: y(35),
+                            left: x(15),
+                            child: GestureDetector(
+                              onTap: widget.onBack ??
+                                  () => Navigator.maybePop(context),
                               child: Container(
-                                width: x(45),
-                                height: x(45),
+                                width: x(30),
+                                height: x(30),
                                 decoration: BoxDecoration(
-                                  color:
-                                      const Color.fromRGBO(224, 105, 0, 0.05),
-                                  border: Border.all(
-                                    color: const Color(0xFFFF8D28),
-                                    width: x(1.4),
-                                  ),
                                   shape: BoxShape.circle,
-                                ),
-                                child: Center(
-                                  child: Transform.rotate(
-                                    angle: 0.18,
-                                    child: Image.asset(
-                                      '${_assetBase}Paperplaneicon.png',
-                                      width: x(25),
-                                      height: x(20),
-                                      fit: BoxFit.contain,
-                                    ),
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: x(2.5),
                                   ),
                                 ),
-                              ),
-                            ),
-
-                            Positioned(
-                              top: y(11),
-                              left: x(178),
-                              child: Text(
-                                '-----------',
-                                style: TextStyle(
-                                  color: const Color(0xFF373737),
-                                  fontFamily: 'OpenSans',
-                                  fontSize: fs(14),
-                                  fontWeight: FontWeight.w600,
-                                  height: 1,
+                                child: Icon(
+                                  Icons.arrow_back_rounded,
+                                  color: Colors.white,
+                                  size: x(20),
                                 ),
                               ),
-                            ),
-
-                            _StepCircle(
-                              top: 0,
-                              left: x(235),
-                              size: x(45),
-                              active: false,
-                              icon: Icons.verified_user_outlined,
-                              iconSize: x(23),
-                            ),
-
-                            Positioned(
-                              top: y(52),
-                              left: 0,
-                              right: 0,
-                              child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  _StepLabel(
-                                    number: '1.',
-                                    label: 'Enter Email',
-                                    fontSize: fs(12),
-                                  ),
-                                  _StepLabel(
-                                    number: '2.',
-                                    label: 'Check Email',
-                                    fontSize: fs(12),
-                                  ),
-                                  _StepLabel(
-                                    number: '3.',
-                                    label: 'Reset Password',
-                                    fontSize: fs(12),
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                            Positioned(
-                              top: y(87),
-                              left: x(6),
-                              right: x(6),
-                              child: Text(
-                                'We sent a 6 digit verification code to\nyour registered email. Enter it below to continue.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: const Color(0xFFBBBABB),
-                                  fontFamily: 'OpenSans',
-                                  fontSize: fs(14),
-                                  fontWeight: FontWeight.w600,
-                                  height: 1.2,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(395),
-                      left: x(19),
-                      child: SizedBox(
-                        width: x(321),
-                        height: y(127),
-                        child: Stack(
-                          children: [
-                            Positioned(
-                              top: 0,
-                              left: 0,
-                              child: Row(
-                                children: [
-                                  Image.asset(
-                                    '${_assetBase}Approvedlockicon.png',
-                                    width: x(24),
-                                    height: x(20),
-                                    fit: BoxFit.contain,
-                                  ),
-                                  SizedBox(width: x(9)),
-                                  Text(
-                                    'Verification Code',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontFamily: 'OpenSans',
-                                      fontSize: fs(14),
-                                      fontWeight: FontWeight.w800,
-                                      height: 1,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-
-                            Positioned(
-                              top: y(45),
-                              left: 0,
-                              right: 0,
-                              child: SizedBox(
-                                height: y(48),
-                                child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: List.generate(6, (index) {
-                                    return _OtpBox(
-                                      width: x(46),
-                                      height: y(48),
-                                      radius: x(10),
-                                      fontSize: fs(20),
-                                      controller: _otpControllers[index],
-                                      focusNode: _otpFocusNodes[index],
-                                      onTap: () {
-                                        final target = _otpControllers.indexWhere((c) => c.text.isEmpty);
-                                        final node = _otpFocusNodes[target == -1 ? 5 : target];
-                                        node.requestFocus();
-                                        SystemChannels.textInput.invokeMethod('TextInput.show');
-                                      },
-                                      onChanged: (value) {
-                                        if (value.isNotEmpty && index < 5) {
-                                          _otpFocusNodes[index + 1]
-                                              .requestFocus();
-                                        }
-
-                                        if (value.isEmpty && index > 0) {
-                                          _otpFocusNodes[index - 1]
-                                              .requestFocus();
-                                        }
-                                      },
-                                    );
-                                  }),
-                                ),
-                              ),
-                            ),
-
-                            Positioned(
-                              top: y(111),
-                              left: 0,
-                              right: 0,
-                              child: GestureDetector(
-                                onTap: _handleResendCode,
-                                child: RichText(
-                                  textAlign: TextAlign.center,
-                                  text: TextSpan(
-                                    children: [
-                                      TextSpan(
-                                        text:
-                                            'Didn’t receive the code? Resend code in ',
-                                        style: TextStyle(
-                                          color: const Color(0xFFBBBABB),
-                                          fontFamily: 'OpenSans',
-                                          fontSize: fs(12.5),
-                                          fontWeight: FontWeight.w600,
-                                          height: 1,
-                                        ),
-                                      ),
-                                      TextSpan(
-                                        text: '24s',
-                                        style: TextStyle(
-                                          color: const Color(0xFFEEB556),
-                                          fontFamily: 'OpenSans',
-                                          fontSize: fs(12),
-                                          fontWeight: FontWeight.w800,
-                                          height: 1,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(544),
-                      left: x(18),
-                      child: Container(
-                        width: x(325),
-                        height: y(87),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(x(10)),
-                          border: Border.all(
-                            color: const Color(0xFFFF8213),
-                            width: x(1),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            SizedBox(width: x(18)),
-                            Container(
-                              width: x(45),
-                              height: x(45),
-                              decoration: BoxDecoration(
-                                color:
-                                    const Color.fromRGBO(224, 105, 0, 0.05),
-                                border: Border.all(
-                                  color: const Color(0xFFFF8D28),
-                                  width: x(1.4),
-                                ),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Center(
-                                child: Image.asset(
-                                  '${_assetBase}Shopicon.png',
-                                  width: x(35),
-                                  height: x(25),
-                                  fit: BoxFit.contain,
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: x(14)),
-                            Expanded(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'For Shop Owners',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontFamily: 'OpenSans',
-                                      fontSize: fs(14),
-                                      fontWeight: FontWeight.w800,
-                                      height: 1,
-                                    ),
-                                  ),
-                                  SizedBox(height: y(9)),
-                                  Text(
-                                    'Use the code sent to your registered\nshop email address.',
-                                    style: TextStyle(
-                                      color: const Color(0xFFBBBABB),
-                                      fontFamily: 'OpenSans',
-                                      fontSize: fs(14),
-                                      fontWeight: FontWeight.w600,
-                                      height: 1.15,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            SizedBox(width: x(10)),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    if (_errorMessage.isNotEmpty)
-                      Positioned(
-                        top: y(635),
-                        left: x(22),
-                        right: x(22),
-                        child: Text(
-                          _errorMessage,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontFamily: 'OpenSans',
-                            fontSize: fs(13),
-                            fontWeight: FontWeight.w600,
-                            height: 1,
-                          ),
-                        ),
-                      ),
-                    if (_isSuccess)
-                      Positioned(
-                        top: y(630),
-                        left: x(22),
-                        right: x(22),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(Icons.check_circle_rounded, color: Color(0xFF4CAF50), size: 20),
-                            SizedBox(width: x(6)),
-                            Text('Code Verified! Redirecting…',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: const Color(0xFF4CAF50),
-                                fontFamily: 'OpenSans', fontSize: fs(13),
-                                fontWeight: FontWeight.w700, height: 1,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-
-                    Positioned(
-                      top: y(660),
-                      left: x(22),
-                      right: x(22),
-                      child: SizedBox(
-                        height: y(49),
-                        child: ElevatedButton(
-                          onPressed: _isSuccess ? null : _handleVerifyCode,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: _isSuccess ? const Color(0xFF4CAF50) : const Color(0xFFFB6F02),
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            padding: EdgeInsets.zero,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(x(20)),
                             ),
                           ),
-                          child: _isSuccess
-                              ? Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    const Icon(Icons.check_rounded, color: Colors.white, size: 22),
-                                    SizedBox(width: x(8)),
-                                    Text('Verified', style: TextStyle(color: Colors.white, fontFamily: 'OpenSans', fontSize: fs(18), fontWeight: FontWeight.w700, height: 1)),
-                                  ],
-                                )
-                              : Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Image.asset(
-                                      '${_assetBase}Protect.png',
-                                      width: x(20),
-                                      height: x(20),
-                                      fit: BoxFit.contain,
-                                    ),
-                                    SizedBox(width: x(10)),
-                                    Text(
-                                      'Verify Code',
+                          Positioned(
+                            top: y(248),
+                            left: x(32),
+                            child: SizedBox(
+                              width: x(296),
+                              height: y(119),
+                              child: Stack(
+                                children: [
+                                  _StepCircle(
+                                    top: 0,
+                                    left: x(15),
+                                    size: x(45),
+                                    active: false,
+                                    icon: Icons.email_outlined,
+                                    iconSize: x(23),
+                                  ),
+                                  Positioned(
+                                    top: y(11),
+                                    left: x(68),
+                                    child: Text(
+                                      '-----------',
                                       style: TextStyle(
-                                        color: Colors.white,
+                                        color: const Color(0xFF373737),
                                         fontFamily: 'OpenSans',
-                                        fontSize: fs(18),
-                                        fontWeight: FontWeight.w700,
+                                        fontSize: fs(14),
+                                        fontWeight: FontWeight.w600,
                                         height: 1,
                                       ),
                                     ),
-                                  ],
-                                ),
-                        ),
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(739),
-                      left: 0,
-                      right: 0,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Remember your password?',
-                            style: TextStyle(
-                              color: const Color(0xFFBBBABB),
-                              fontFamily: 'OpenSans',
-                              fontSize: fs(13),
-                              fontWeight: FontWeight.w600,
-                              height: 1,
-                            ),
-                          ),
-                          SizedBox(width: x(6)),
-                          GestureDetector(
-                            onTap: widget.onSignIn ??
-                                () => debugPrint('Vendor Sign In clicked'),
-                            child: Text(
-                              'Sign In',
-                              style: TextStyle(
-                                color: const Color(0xFFEEB556),
-                                fontFamily: 'OpenSans',
-                                fontSize: fs(13),
-                                fontWeight: FontWeight.w800,
-                                height: 1,
+                                  ),
+                                  Positioned(
+                                    top: 0,
+                                    left: x(125),
+                                    child: Container(
+                                      width: x(45),
+                                      height: x(45),
+                                      decoration: BoxDecoration(
+                                        color: const Color.fromRGBO(
+                                            224, 105, 0, 0.05),
+                                        border: Border.all(
+                                          color: const Color(0xFFFF8D28),
+                                          width: x(1.4),
+                                        ),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Center(
+                                        child: Transform.rotate(
+                                          angle: 0.18,
+                                          child: Image.asset(
+                                            '${_assetBase}Paperplaneicon.png',
+                                            width: x(25),
+                                            height: x(20),
+                                            fit: BoxFit.contain,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: y(11),
+                                    left: x(178),
+                                    child: Text(
+                                      '-----------',
+                                      style: TextStyle(
+                                        color: const Color(0xFF373737),
+                                        fontFamily: 'OpenSans',
+                                        fontSize: fs(14),
+                                        fontWeight: FontWeight.w600,
+                                        height: 1,
+                                      ),
+                                    ),
+                                  ),
+                                  _StepCircle(
+                                    top: 0,
+                                    left: x(235),
+                                    size: x(45),
+                                    active: false,
+                                    icon: Icons.verified_user_outlined,
+                                    iconSize: x(23),
+                                  ),
+                                  Positioned(
+                                    top: y(52),
+                                    left: 0,
+                                    right: 0,
+                                    child: Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        _StepLabel(
+                                          number: '1.',
+                                          label: 'Enter Email',
+                                          fontSize: fs(12),
+                                        ),
+                                        _StepLabel(
+                                          number: '2.',
+                                          label: 'Check Email',
+                                          fontSize: fs(12),
+                                        ),
+                                        _StepLabel(
+                                          number: '3.',
+                                          label: 'Reset Password',
+                                          fontSize: fs(12),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: y(87),
+                                    left: x(6),
+                                    right: x(6),
+                                    child: Text(
+                                      'We sent a 6 digit verification code to\nyour registered email. Enter it below to continue.',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: const Color(0xFFBBBABB),
+                                        fontFamily: 'OpenSans',
+                                        fontSize: fs(14),
+                                        fontWeight: FontWeight.w600,
+                                        height: 1.2,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
+                          Positioned(
+                            top: y(395),
+                            left: x(19),
+                            child: SizedBox(
+                              width: x(321),
+                              height: y(127),
+                              child: Stack(
+                                children: [
+                                  Positioned(
+                                    top: 0,
+                                    left: 0,
+                                    child: Row(
+                                      children: [
+                                        Image.asset(
+                                          '${_assetBase}Approvedlockicon.png',
+                                          width: x(24),
+                                          height: x(20),
+                                          fit: BoxFit.contain,
+                                        ),
+                                        SizedBox(width: x(9)),
+                                        Text(
+                                          'Verification Code',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontFamily: 'OpenSans',
+                                            fontSize: fs(14),
+                                            fontWeight: FontWeight.w800,
+                                            height: 1,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: y(45),
+                                    left: 0,
+                                    right: 0,
+                                    child: SizedBox(
+                                      height: y(48),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: List.generate(6, (index) {
+                                          return _OtpBox(
+                                            width: x(46),
+                                            height: y(48),
+                                            radius: x(10),
+                                            fontSize: fs(20),
+                                            controller: _otpControllers[index],
+                                            focusNode: _otpFocusNodes[index],
+                                            onTap: () {
+                                              final target =
+                                                  _otpControllers.indexWhere(
+                                                      (c) => c.text.isEmpty);
+                                              final node = _otpFocusNodes[
+                                                  target == -1 ? 5 : target];
+                                              node.requestFocus();
+                                              SystemChannels.textInput
+                                                  .invokeMethod(
+                                                      'TextInput.show');
+                                            },
+                                            onChanged: (value) {
+                                              if (value.isNotEmpty &&
+                                                  index < 5) {
+                                                _otpFocusNodes[index + 1]
+                                                    .requestFocus();
+                                              }
 
-                    Positioned(
-                      top: y(777),
-                      left: 0,
-                      right: 0,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.verified_user_outlined,
-                            color: const Color(0xFFBBBABB),
-                            size: x(16),
+                                              if (value.isEmpty && index > 0) {
+                                                _otpFocusNodes[index - 1]
+                                                    .requestFocus();
+                                              }
+                                            },
+                                          );
+                                        }),
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: y(111),
+                                    left: 0,
+                                    right: 0,
+                                    child: GestureDetector(
+                                      onTap: _handleResendCode,
+                                      child: RichText(
+                                        textAlign: TextAlign.center,
+                                        text: TextSpan(
+                                          children: [
+                                            TextSpan(
+                                              text:
+                                                  'Didn’t receive the code? Resend code in ',
+                                              style: TextStyle(
+                                                color: const Color(0xFFBBBABB),
+                                                fontFamily: 'OpenSans',
+                                                fontSize: fs(12.5),
+                                                fontWeight: FontWeight.w600,
+                                                height: 1,
+                                              ),
+                                            ),
+                                            TextSpan(
+                                              text: '24s',
+                                              style: TextStyle(
+                                                color: const Color(0xFFEEB556),
+                                                fontFamily: 'OpenSans',
+                                                fontSize: fs(12),
+                                                fontWeight: FontWeight.w800,
+                                                height: 1,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
-                          SizedBox(width: x(6)),
-                          Text(
-                            'Secure and encrypted login',
-                            style: TextStyle(
-                              color: const Color(0xFFBBBABB),
-                              fontFamily: 'OpenSans',
-                              fontSize: fs(13),
-                              fontWeight: FontWeight.w500,
-                              height: 1,
+                          Positioned(
+                            top: y(544),
+                            left: x(18),
+                            child: Container(
+                              width: x(325),
+                              height: y(87),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(x(10)),
+                                border: Border.all(
+                                  color: const Color(0xFFFF8213),
+                                  width: x(1),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  SizedBox(width: x(18)),
+                                  Container(
+                                    width: x(45),
+                                    height: x(45),
+                                    decoration: BoxDecoration(
+                                      color: const Color.fromRGBO(
+                                          224, 105, 0, 0.05),
+                                      border: Border.all(
+                                        color: const Color(0xFFFF8D28),
+                                        width: x(1.4),
+                                      ),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: Image.asset(
+                                        '${_assetBase}Shopicon.png',
+                                        width: x(35),
+                                        height: x(25),
+                                        fit: BoxFit.contain,
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(width: x(14)),
+                                  Expanded(
+                                    child: Column(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.center,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          'For Shop Owners',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontFamily: 'OpenSans',
+                                            fontSize: fs(14),
+                                            fontWeight: FontWeight.w800,
+                                            height: 1,
+                                          ),
+                                        ),
+                                        SizedBox(height: y(9)),
+                                        Text(
+                                          'Use the code sent to your registered\nshop email address.',
+                                          style: TextStyle(
+                                            color: const Color(0xFFBBBABB),
+                                            fontFamily: 'OpenSans',
+                                            fontSize: fs(14),
+                                            fontWeight: FontWeight.w600,
+                                            height: 1.15,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  SizedBox(width: x(10)),
+                                ],
+                              ),
+                            ),
+                          ),
+                          if (_errorMessage.isNotEmpty)
+                            Positioned(
+                              top: y(635),
+                              left: x(22),
+                              right: x(22),
+                              child: Text(
+                                _errorMessage,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontFamily: 'OpenSans',
+                                  fontSize: fs(13),
+                                  fontWeight: FontWeight.w600,
+                                  height: 1,
+                                ),
+                              ),
+                            ),
+                          if (_isSuccess)
+                            Positioned(
+                              top: y(630),
+                              left: x(22),
+                              right: x(22),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.check_circle_rounded,
+                                      color: Color(0xFF4CAF50), size: 20),
+                                  SizedBox(width: x(6)),
+                                  Text(
+                                    'Code Verified! Redirecting…',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      color: const Color(0xFF4CAF50),
+                                      fontFamily: 'OpenSans',
+                                      fontSize: fs(13),
+                                      fontWeight: FontWeight.w700,
+                                      height: 1,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          Positioned(
+                            top: y(660),
+                            left: x(22),
+                            right: x(22),
+                            child: SizedBox(
+                              height: y(49),
+                              child: ElevatedButton(
+                                onPressed:
+                                    _isSuccess ? null : _handleVerifyCode,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: _isSuccess
+                                      ? const Color(0xFF4CAF50)
+                                      : const Color(0xFFFB6F02),
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  padding: EdgeInsets.zero,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(x(20)),
+                                  ),
+                                ),
+                                child: _isSuccess
+                                    ? Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(Icons.check_rounded,
+                                              color: Colors.white, size: 22),
+                                          SizedBox(width: x(8)),
+                                          Text('Verified',
+                                              style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontFamily: 'OpenSans',
+                                                  fontSize: fs(18),
+                                                  fontWeight: FontWeight.w700,
+                                                  height: 1)),
+                                        ],
+                                      )
+                                    : Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Image.asset(
+                                            '${_assetBase}Protect.png',
+                                            width: x(20),
+                                            height: x(20),
+                                            fit: BoxFit.contain,
+                                          ),
+                                          SizedBox(width: x(10)),
+                                          Text(
+                                            'Verify Code',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontFamily: 'OpenSans',
+                                              fontSize: fs(18),
+                                              fontWeight: FontWeight.w700,
+                                              height: 1,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: y(739),
+                            left: 0,
+                            right: 0,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  'Remember your password?',
+                                  style: TextStyle(
+                                    color: const Color(0xFFBBBABB),
+                                    fontFamily: 'OpenSans',
+                                    fontSize: fs(13),
+                                    fontWeight: FontWeight.w600,
+                                    height: 1,
+                                  ),
+                                ),
+                                SizedBox(width: x(6)),
+                                GestureDetector(
+                                  onTap: widget.onSignIn ??
+                                      () =>
+                                          debugPrint('Vendor Sign In clicked'),
+                                  child: Text(
+                                    'Sign In',
+                                    style: TextStyle(
+                                      color: const Color(0xFFEEB556),
+                                      fontFamily: 'OpenSans',
+                                      fontSize: fs(13),
+                                      fontWeight: FontWeight.w800,
+                                      height: 1,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Positioned(
+                            top: y(777),
+                            left: 0,
+                            right: 0,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.verified_user_outlined,
+                                  color: const Color(0xFFBBBABB),
+                                  size: x(16),
+                                ),
+                                SizedBox(width: x(6)),
+                                Text(
+                                  'Secure and encrypted login',
+                                  style: TextStyle(
+                                    color: const Color(0xFFBBBABB),
+                                    fontFamily: 'OpenSans',
+                                    fontSize: fs(13),
+                                    fontWeight: FontWeight.w500,
+                                    height: 1,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -672,7 +710,6 @@ class _SrilankavendorforgetpasswordotpWidgetState
           ),
         ),
       ),
-    ),
     );
   }
 }

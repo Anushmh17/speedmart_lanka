@@ -45,7 +45,8 @@ class _SrilankacustomerloginWidgetState
 
   @override
   void didChangeMetrics() {
-    final bottomInset = WidgetsBinding.instance.platformDispatcher.views.first.viewInsets.bottom /
+    final bottomInset = WidgetsBinding
+            .instance.platformDispatcher.views.first.viewInsets.bottom /
         WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
     if (mounted) setState(() => _keyboardHeight = bottomInset);
   }
@@ -66,7 +67,8 @@ class _SrilankacustomerloginWidgetState
       widget.onSendOtp!(_rememberMe);
       return;
     }
-    debugPrint('Sri Lanka customer Send OTP clicked: +94 ${_phoneController.text}');
+    debugPrint(
+        'Sri Lanka customer Send OTP clicked: +94 ${_phoneController.text}');
   }
 
   void _handleCountryTap() => widget.onCountryTap?.call();
@@ -91,7 +93,8 @@ class _SrilankacustomerloginWidgetState
     final inputFieldTop = y(510) + y(46);
     final inputFieldBottom = inputFieldTop + y(50);
     // How much the keyboard covers the input field
-    final coveredBy = (inputFieldBottom - (h - keyboardHeight)).clamp(0.0, double.infinity);
+    final coveredBy = (inputFieldBottom + 10.0 - (h - keyboardHeight))
+        .clamp(0.0, double.infinity);
     // Clamp so the field never slides above the screen top
     final maxSlide = inputFieldTop - 8.0;
     final slidePixels = coveredBy.clamp(0.0, maxSlide);
@@ -135,421 +138,429 @@ class _SrilankacustomerloginWidgetState
                     child: Stack(
                       clipBehavior: Clip.none,
                       children: [
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      height: y(336),
-                      child: Image.asset(
-                        '${_assetBase}Customerheroimagespeedmart1.png',
-                        fit: BoxFit.fill,
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(57.5),
-                      left: 0,
-                      right: 0,
-                      child: Center(
-                        child: Container(
-                          width: x(199),
-                          height: y(42),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF161616),
-                            borderRadius: BorderRadius.circular(x(10)),
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          height: y(336),
+                          child: Image.asset(
+                            '${_assetBase}Customerheroimagespeedmart1.png',
+                            fit: BoxFit.fill,
                           ),
                         ),
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(66.5),
-                      left: 0,
-                      right: 0,
-                      child: Center(
-                        child: Image.asset(
-                          '${_assetBase}Speedmart_lk_transparent_logo_cropped1.png',
-                          width: x(173),
-                          height: y(24),
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(347),
-                      left: 0,
-                      right: 0,
-                      child: Column(
-                        children: [
-                          Text(
-                            'Welcome back',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontFamily: 'Montserrat',
-                              color: Colors.black,
-                              fontSize: fs(33),
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.4,
-                              height: 1,
-                            ),
-                          ),
-                          SizedBox(height: y(17)),
-                          Text(
-                            'Sign in as Customer',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontFamily: 'Montserrat',
-                              color: const Color(0xFFFF8213),
-                              fontSize: fs(18),
-                              fontWeight: FontWeight.w700,
-                              height: 1,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(436),
-                      left: x(42),
-                      child: Container(
-                        width: x(275),
-                        height: y(60),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFF8F5F1),
-                          borderRadius: BorderRadius.circular(x(10)),
-                          border: Border.all(
-                            color: const Color(0xFFFF8213),
-                            width: x(2),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            SizedBox(width: x(15)),
-                            Container(
-                              width: x(45),
-                              height: x(45),
+                        Positioned(
+                          top: y(57.5),
+                          left: 0,
+                          right: 0,
+                          child: Center(
+                            child: Container(
+                              width: x(199),
+                              height: y(42),
                               decoration: BoxDecoration(
-                                color: const Color.fromRGBO(255, 141, 40, 0.11),
-                                border: Border.all(
-                                  color: const Color(0xFFFF8213),
-                                  width: x(2),
-                                ),
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                Icons.phone_android_rounded,
-                                color: const Color(0xFFFF8213),
-                                size: x(22),
+                                color: const Color(0xFF161616),
+                                borderRadius: BorderRadius.circular(x(10)),
                               ),
                             ),
-                            SizedBox(width: x(12)),
-                            Expanded(
-                              child: Text(
-                                'Enter your mobile number\nand we’ll send you an OTP',
-                                textAlign: TextAlign.left,
-                                style: TextStyle(
-                                  color: const Color(0xFF373737),
-                                  fontFamily: 'OpenSans',
-                                  fontSize: fs(16),
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.15,
-                                ),
-                              ),
-                            ),
-                            SizedBox(width: x(8)),
-                          ],
+                          ),
                         ),
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(510),
-                      left: x(16),
-                      right: x(15),
-                      child: SizedBox(
-                        height: y(96),
-                        child: Stack(
-                          children: [
-                            Positioned(
-                              top: y(18),
-                              left: x(4),
-                              child: Text(
-                                'Mobile Number',
+                        Positioned(
+                          top: y(66.5),
+                          left: 0,
+                          right: 0,
+                          child: Center(
+                            child: Image.asset(
+                              '${_assetBase}Speedmart_lk_transparent_logo_cropped1.png',
+                              width: x(173),
+                              height: y(24),
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: y(347),
+                          left: 0,
+                          right: 0,
+                          child: Column(
+                            children: [
+                              Text(
+                                'Welcome back',
+                                textAlign: TextAlign.center,
                                 style: TextStyle(
+                                  fontFamily: 'Montserrat',
                                   color: Colors.black,
+                                  fontSize: fs(33),
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.4,
+                                  height: 1,
+                                ),
+                              ),
+                              SizedBox(height: y(17)),
+                              Text(
+                                'Sign in as Customer',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontFamily: 'Montserrat',
+                                  color: const Color(0xFFFF8213),
+                                  fontSize: fs(18),
+                                  fontWeight: FontWeight.w700,
+                                  height: 1,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Positioned(
+                          top: y(436),
+                          left: x(42),
+                          child: Container(
+                            width: x(275),
+                            height: y(60),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFF8F5F1),
+                              borderRadius: BorderRadius.circular(x(10)),
+                              border: Border.all(
+                                color: const Color(0xFFFF8213),
+                                width: x(2),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                SizedBox(width: x(15)),
+                                Container(
+                                  width: x(45),
+                                  height: x(45),
+                                  decoration: BoxDecoration(
+                                    color: const Color.fromRGBO(
+                                        255, 141, 40, 0.11),
+                                    border: Border.all(
+                                      color: const Color(0xFFFF8213),
+                                      width: x(2),
+                                    ),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    Icons.phone_android_rounded,
+                                    color: const Color(0xFFFF8213),
+                                    size: x(22),
+                                  ),
+                                ),
+                                SizedBox(width: x(12)),
+                                Expanded(
+                                  child: Text(
+                                    'Enter your mobile number\nand we’ll send you an OTP',
+                                    textAlign: TextAlign.left,
+                                    style: TextStyle(
+                                      color: const Color(0xFF373737),
+                                      fontFamily: 'OpenSans',
+                                      fontSize: fs(16),
+                                      fontWeight: FontWeight.w700,
+                                      height: 1.15,
+                                    ),
+                                  ),
+                                ),
+                                SizedBox(width: x(8)),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: y(510),
+                          left: x(16),
+                          right: x(15),
+                          child: SizedBox(
+                            height: y(96),
+                            child: Stack(
+                              children: [
+                                Positioned(
+                                  top: y(18),
+                                  left: x(4),
+                                  child: Text(
+                                    'Mobile Number',
+                                    style: TextStyle(
+                                      color: Colors.black,
+                                      fontFamily: 'OpenSans',
+                                      fontSize: fs(15),
+                                      fontWeight: FontWeight.w700,
+                                      height: 1,
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  top: 0,
+                                  right: 0,
+                                  child: GestureDetector(
+                                    onTap: _handleCountryTap,
+                                    child: Container(
+                                      width: x(130),
+                                      height: y(40),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.only(
+                                          topLeft: Radius.circular(x(11)),
+                                          bottomRight: Radius.circular(x(11)),
+                                        ),
+                                        border: Border.all(
+                                          color: const Color(0xFF17A2F8),
+                                          width: x(2),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Text(
+                                            'Sri Lanka',
+                                            style: TextStyle(
+                                              color: const Color(0xFF0042D2),
+                                              fontFamily: 'OpenSans',
+                                              fontSize: fs(15),
+                                              fontWeight: FontWeight.w700,
+                                              height: 1,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  top: y(46),
+                                  left: 0,
+                                  right: x(4),
+                                  child: GestureDetector(
+                                    behavior: HitTestBehavior.opaque,
+                                    onTap: () {
+                                      _phoneFocusNode.requestFocus();
+                                    },
+                                    child: Container(
+                                      height: y(50),
+                                      decoration: BoxDecoration(
+                                        color: const Color.fromRGBO(
+                                            255, 141, 40, 0.05),
+                                        borderRadius:
+                                            BorderRadius.circular(x(11)),
+                                        border: Border.all(
+                                          color: const Color(0xFFFF8213),
+                                          width: x(1),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          SizedBox(width: x(14)),
+                                          Text(
+                                            '+94',
+                                            style: TextStyle(
+                                              color: Colors.black,
+                                              fontFamily: 'Inter',
+                                              fontSize: fs(16),
+                                              fontWeight: FontWeight.w700,
+                                              height: 1,
+                                            ),
+                                          ),
+                                          SizedBox(width: x(18)),
+                                          Expanded(
+                                            child: Material(
+                                              color: Colors.transparent,
+                                              child: TextField(
+                                                focusNode: _phoneFocusNode,
+                                                controller: _phoneController,
+                                                keyboardType:
+                                                    TextInputType.phone,
+                                                textInputAction:
+                                                    TextInputAction.done,
+                                                inputFormatters: [
+                                                  FilteringTextInputFormatter
+                                                      .digitsOnly,
+                                                  LengthLimitingTextInputFormatter(
+                                                      10),
+                                                ],
+                                                cursorColor:
+                                                    const Color(0xFFFF8213),
+                                                cursorWidth: 2,
+                                                style: TextStyle(
+                                                  color: Colors.black,
+                                                  fontFamily: 'Inter',
+                                                  fontSize: fs(16),
+                                                  fontWeight: FontWeight.w600,
+                                                  height: 1,
+                                                ),
+                                                decoration: InputDecoration(
+                                                  hintText:
+                                                      'Enter your mobile number',
+                                                  hintStyle: TextStyle(
+                                                    color:
+                                                        const Color(0xFF4F4F4F),
+                                                    fontFamily: 'Inter',
+                                                    fontSize: fs(16),
+                                                    fontWeight: FontWeight.w500,
+                                                    height: 1,
+                                                  ),
+                                                  border: InputBorder.none,
+                                                  enabledBorder:
+                                                      InputBorder.none,
+                                                  focusedBorder:
+                                                      InputBorder.none,
+                                                  isDense: true,
+                                                  contentPadding:
+                                                      EdgeInsets.zero,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          SizedBox(width: x(14)),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: y(610),
+                          left: x(22),
+                          child: GestureDetector(
+                            onTap: () =>
+                                setState(() => _rememberMe = !_rememberMe),
+                            child: Row(
+                              children: [
+                                SizedBox(
+                                  width: x(20),
+                                  height: y(26),
+                                  child: Checkbox(
+                                    value: _rememberMe,
+                                    onChanged: (v) => setState(
+                                        () => _rememberMe = v ?? false),
+                                    activeColor: const Color(0xFF2E8CFF),
+                                    checkColor: Colors.white,
+                                    side: const BorderSide(
+                                        color: Color(0xFF373737), width: 1),
+                                    materialTapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                                ),
+                                SizedBox(width: x(5)),
+                                Text(
+                                  'Remember me',
+                                  style: TextStyle(
+                                    color: const Color(0xFF373737),
+                                    fontFamily: 'OpenSans',
+                                    fontSize: fs(14),
+                                    fontWeight: FontWeight.w600,
+                                    height: 1,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          top: y(640),
+                          left: x(22),
+                          right: x(22),
+                          child: SizedBox(
+                            height: y(49),
+                            child: ElevatedButton(
+                              onPressed: _handleSendOtp,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFFF8213),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                padding: EdgeInsets.zero,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(x(20)),
+                                ),
+                              ),
+                              child: Text(
+                                'Send OTP',
+                                style: TextStyle(
+                                  color: Colors.white,
                                   fontFamily: 'OpenSans',
-                                  fontSize: fs(15),
+                                  fontSize: fs(20),
                                   fontWeight: FontWeight.w700,
                                   height: 1,
                                 ),
                               ),
                             ),
-
-                            Positioned(
-                              top: 0,
-                              right: 0,
-                              child: GestureDetector(
-                                onTap: _handleCountryTap,
-                                child: Container(
-                                  width: x(130),
-                                  height: y(40),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    borderRadius: BorderRadius.only(
-                                      topLeft: Radius.circular(x(11)),
-                                      bottomRight: Radius.circular(x(11)),
-                                    ),
-                                    border: Border.all(
-                                      color: const Color(0xFF17A2F8),
-                                      width: x(2),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Text(
-                                        'Sri Lanka',
-                                        style: TextStyle(
-                                          color: const Color(0xFF0042D2),
-                                          fontFamily: 'OpenSans',
-                                          fontSize: fs(15),
-                                          fontWeight: FontWeight.w700,
-                                          height: 1,
-                                        ),
-                                      ),
-
-                                    ],
+                          ),
+                        ),
+                        Positioned(
+                          top: y(719),
+                          left: 0,
+                          right: 0,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'Don’t have an account?',
+                                style: TextStyle(
+                                  color: const Color(0xFF373737),
+                                  fontFamily: 'OpenSans',
+                                  fontSize: fs(15),
+                                  fontWeight: FontWeight.w600,
+                                  height: 1,
+                                ),
+                              ),
+                              SizedBox(width: x(8)),
+                              GestureDetector(
+                                onTap: widget.onRegister ??
+                                    () => debugPrint(
+                                        'Sri Lanka Register Now clicked'),
+                                child: Text(
+                                  'Register Now',
+                                  style: TextStyle(
+                                    color: const Color(0xFF0D1B56),
+                                    fontFamily: 'OpenSans',
+                                    fontSize: fs(15),
+                                    fontWeight: FontWeight.w800,
+                                    height: 1,
                                   ),
                                 ),
                               ),
-                            ),
-
-                            Positioned(
-                              top: y(46),
-                              left: 0,
-                              right: x(4),
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: () {
-                                  _phoneFocusNode.requestFocus();
-                                },
-                                child: Container(
-                                  height: y(50),
-                                  decoration: BoxDecoration(
-                                    color: const Color.fromRGBO(255, 141, 40, 0.05),
-                                    borderRadius: BorderRadius.circular(x(11)),
-                                    border: Border.all(
-                                      color: const Color(0xFFFF8213),
-                                      width: x(1),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      SizedBox(width: x(14)),
-                                      Text(
-                                        '+94',
-                                        style: TextStyle(
-                                          color: Colors.black,
-                                          fontFamily: 'Inter',
-                                          fontSize: fs(16),
-                                          fontWeight: FontWeight.w700,
-                                          height: 1,
-                                        ),
-                                      ),
-                                      SizedBox(width: x(18)),
-                                      Expanded(
-                                        child: Material(
-                                          color: Colors.transparent,
-                                          child: TextField(
-                                            focusNode: _phoneFocusNode,
-                                            controller: _phoneController,
-                                            keyboardType: TextInputType.phone,
-                                            textInputAction: TextInputAction.done,
-                                            inputFormatters: [
-                                              FilteringTextInputFormatter.digitsOnly,
-                                              LengthLimitingTextInputFormatter(10),
-                                            ],
-                                            cursorColor: const Color(0xFFFF8213),
-                                            cursorWidth: 2,
-                                            style: TextStyle(
-                                              color: Colors.black,
-                                              fontFamily: 'Inter',
-                                              fontSize: fs(16),
-                                              fontWeight: FontWeight.w600,
-                                              height: 1,
-                                            ),
-                                            decoration: InputDecoration(
-                                              hintText: 'Enter your mobile number',
-                                              hintStyle: TextStyle(
-                                                color: const Color(0xFF4F4F4F),
-                                                fontFamily: 'Inter',
-                                                fontSize: fs(16),
-                                                fontWeight: FontWeight.w500,
-                                                height: 1,
-                                              ),
-                                              border: InputBorder.none,
-                                              enabledBorder: InputBorder.none,
-                                              focusedBorder: InputBorder.none,
-                                              isDense: true,
-                                              contentPadding: EdgeInsets.zero,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      SizedBox(width: x(14)),
-                                    ],
+                            ],
+                          ),
+                        ),
+                        Positioned(
+                          top: y(753),
+                          left: 0,
+                          right: 0,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                'Are you a shop owner?',
+                                style: TextStyle(
+                                  color: const Color(0xFF373737),
+                                  fontFamily: 'OpenSans',
+                                  fontSize: fs(15),
+                                  fontWeight: FontWeight.w600,
+                                  height: 1,
+                                ),
+                              ),
+                              SizedBox(width: x(8)),
+                              GestureDetector(
+                                onTap: widget.onVendorLogin ??
+                                    () => debugPrint(
+                                        'Sri Lanka vendor login clicked'),
+                                child: Text(
+                                  'Click here',
+                                  style: TextStyle(
+                                    color: const Color(0xFF0D1B56),
+                                    fontFamily: 'OpenSans',
+                                    fontSize: fs(15),
+                                    fontWeight: FontWeight.w800,
+                                    height: 1,
                                   ),
                                 ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(606),
-                      left: x(22),
-                      child: GestureDetector(
-                        onTap: () => setState(() => _rememberMe = !_rememberMe),
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: x(20),
-                              height: y(26),
-                              child: Checkbox(
-                                value: _rememberMe,
-                                onChanged: (v) => setState(() => _rememberMe = v ?? false),
-                                activeColor: const Color(0xFF2E8CFF),
-                                checkColor: Colors.white,
-                                side: const BorderSide(color: Color(0xFF373737), width: 1),
-                                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                visualDensity: VisualDensity.compact,
-                              ),
-                            ),
-                            SizedBox(width: x(5)),
-                            Text(
-                              'Remember me',
-                              style: TextStyle(
-                                color: const Color(0xFF373737),
-                                fontFamily: 'OpenSans',
-                                fontSize: fs(14),
-                                fontWeight: FontWeight.w600,
-                                height: 1,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(640),
-                      left: x(22),
-                      right: x(22),
-                      child: SizedBox(
-                        height: y(49),
-                        child: ElevatedButton(
-                          onPressed: _handleSendOtp,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFF8213),
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            padding: EdgeInsets.zero,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(x(20)),
-                            ),
-                          ),
-                          child: Text(
-                            'Send OTP',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontFamily: 'OpenSans',
-                              fontSize: fs(20),
-                              fontWeight: FontWeight.w700,
-                              height: 1,
-                            ),
+                            ],
                           ),
                         ),
-                      ),
+                      ],
                     ),
-
-                    Positioned(
-                      top: y(719),
-                      left: 0,
-                      right: 0,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Don’t have an account?',
-                            style: TextStyle(
-                              color: const Color(0xFF373737),
-                              fontFamily: 'OpenSans',
-                              fontSize: fs(15),
-                              fontWeight: FontWeight.w600,
-                              height: 1,
-                            ),
-                          ),
-                          SizedBox(width: x(8)),
-                          GestureDetector(
-                            onTap: widget.onRegister ??
-                                () => debugPrint('Sri Lanka Register Now clicked'),
-                            child: Text(
-                              'Register Now',
-                              style: TextStyle(
-                                color: const Color(0xFF0D1B56),
-                                fontFamily: 'OpenSans',
-                                fontSize: fs(15),
-                                fontWeight: FontWeight.w800,
-                                height: 1,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(753),
-                      left: 0,
-                      right: 0,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Are you a shop owner?',
-                            style: TextStyle(
-                              color: const Color(0xFF373737),
-                              fontFamily: 'OpenSans',
-                              fontSize: fs(15),
-                              fontWeight: FontWeight.w600,
-                              height: 1,
-                            ),
-                          ),
-                          SizedBox(width: x(8)),
-                          GestureDetector(
-                            onTap: widget.onVendorLogin ??
-                                () => debugPrint('Sri Lanka vendor login clicked'),
-                            child: Text(
-                              'Click here',
-                              style: TextStyle(
-                                color: const Color(0xFF0D1B56),
-                                fontFamily: 'OpenSans',
-                                fontSize: fs(15),
-                                fontWeight: FontWeight.w800,
-                                height: 1,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                  ),
                 ],
               ),
             ),
@@ -559,4 +570,3 @@ class _SrilankacustomerloginWidgetState
     );
   }
 }
-

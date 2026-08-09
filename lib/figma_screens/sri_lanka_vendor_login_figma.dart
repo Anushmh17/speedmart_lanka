@@ -59,7 +59,8 @@ class _SrilankavendorloginWidgetState extends State<SrilankavendorloginWidget>
 
   @override
   void didChangeMetrics() {
-    final bottomInset = WidgetsBinding.instance.platformDispatcher.views.first.viewInsets.bottom /
+    final bottomInset = WidgetsBinding
+            .instance.platformDispatcher.views.first.viewInsets.bottom /
         WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
     if (mounted) setState(() => _keyboardHeight = bottomInset);
   }
@@ -124,7 +125,8 @@ class _SrilankavendorloginWidgetState extends State<SrilankavendorloginWidget>
     }
 
     // How much the keyboard covers the active field
-    final coveredBy = (activeFieldBottom - (h - keyboardHeight)).clamp(0.0, double.infinity);
+    final coveredBy = (activeFieldBottom + 10.0 - (h - keyboardHeight))
+        .clamp(0.0, double.infinity);
     // Clamp so the field never slides above the screen top
     final maxSlide = activeFieldTop - 8.0;
     final slidePixels = coveredBy.clamp(0.0, maxSlide);
@@ -132,432 +134,426 @@ class _SrilankavendorloginWidgetState extends State<SrilankavendorloginWidget>
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: MediaQuery(
-      data: media.copyWith(textScaler: TextScaler.noScaling),
-      child: Theme(
-        data: Theme.of(context).copyWith(
-          brightness: Brightness.dark,
-          textSelectionTheme: const TextSelectionThemeData(
-            cursorColor: Color(0xFFFF8213),
-            selectionColor: Color.fromRGBO(255, 130, 19, 0.25),
-            selectionHandleColor: Color(0xFFFF8213),
+        data: media.copyWith(textScaler: TextScaler.noScaling),
+        child: Theme(
+          data: Theme.of(context).copyWith(
+            brightness: Brightness.dark,
+            textSelectionTheme: const TextSelectionThemeData(
+              cursorColor: Color(0xFFFF8213),
+              selectionColor: Color.fromRGBO(255, 130, 19, 0.25),
+              selectionHandleColor: Color(0xFFFF8213),
+            ),
+            inputDecorationTheme: const InputDecorationTheme(
+              filled: false,
+              fillColor: Colors.transparent,
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+            ),
           ),
-          inputDecorationTheme: const InputDecorationTheme(
-            filled: false,
-            fillColor: Colors.transparent,
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-          ),
-        ),
-        child: Scaffold(
-          backgroundColor: const Color(0xFF020201),
-          resizeToAvoidBottomInset: false,
-          body: GestureDetector(
-            onTap: () => FocusScope.of(context).unfocus(),
-            child: SizedBox(
-              width: w,
-              height: h,
-              child: Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  AnimatedPositioned(
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOut,
-                    top: -slidePixels,
-                    left: 0,
-                    right: 0,
-                    height: h,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                    Positioned(
-                      top: 0,
+          child: Scaffold(
+            backgroundColor: const Color(0xFF020201),
+            resizeToAvoidBottomInset: false,
+            body: GestureDetector(
+              onTap: () => FocusScope.of(context).unfocus(),
+              child: SizedBox(
+                width: w,
+                height: h,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOut,
+                      top: -slidePixels,
                       left: 0,
                       right: 0,
-                      height: y(360),
-                      child: Image.asset(
-                        '${_assetBase}Vendorloginuinewhero1.png',
-                        fit: BoxFit.fill,
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(37.5),
-                      left: 0,
-                      right: 0,
-                      child: Center(
-                        child: Container(
-                          width: x(213),
-                          height: y(45),
-                          decoration: BoxDecoration(
-                            color: Colors.black,
-                            borderRadius: BorderRadius.circular(x(10)),
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(58),
-                      left: 0,
-                      right: 0,
-                      child: Center(
-                        child: Image.asset(
-                          '${_assetBase}Speedmart_lk_transparent_logo_cropped1.png',
-                          width: x(185),
-                          height: y(26),
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(359),
-                      left: 0,
-                      right: 0,
-                      child: Column(
+                      height: h,
+                      child: Stack(
+                        clipBehavior: Clip.none,
                         children: [
-                          Text(
-                            'Welcome back',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontFamily: 'Montserrat',
-                              color: const Color(0xFFFFEBFF),
-                              fontSize: fs(33),
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.4,
-                              height: 1,
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: y(360),
+                            child: Image.asset(
+                              '${_assetBase}Vendorloginuinewhero1.png',
+                              fit: BoxFit.fill,
                             ),
                           ),
-                          SizedBox(height: y(13)),
-                          Text(
-                            'Sign in as Shop Owner',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontFamily: 'Montserrat',
-                              color: const Color(0xFFEEB556),
-                              fontSize: fs(18),
-                              fontWeight: FontWeight.w700,
-                              height: 1,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(445),
-                      right: x(14),
-                      child: GestureDetector(
-                        onTap: _handleCountryTap,
-                        child: Container(
-                          width: x(130),
-                          height: y(40),
-                          decoration: BoxDecoration(
-                            color: const Color.fromRGBO(0, 0, 0, 0.05),
-                            borderRadius: BorderRadius.only(
-                              topLeft: Radius.circular(x(11)),
-                              bottomRight: Radius.circular(x(11)),
-                            ),
-                            border: Border.all(
-                              color: const Color(0xFF17A2F8),
-                              width: x(1.5),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Text(
-                                'Sri Lanka',
-                                style: TextStyle(
-                                  color: const Color(0xFFCACACA),
-                                  fontFamily: 'Inter',
-                                  fontSize: fs(15),
-                                  fontWeight: FontWeight.w700,
-                                  height: 1,
-                                ),
-                              ),
-
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(461),
-                      left: x(17),
-                      right: x(18),
-                      child: SizedBox(
-                        height: y(76),
-                        child: Stack(
-                          children: [
-                            Positioned(
-                              top: 0,
-                              left: x(3),
-                              child: Text(
-                                'Email Address',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontFamily: 'OpenSans',
-                                  fontSize: fs(14),
-                                  fontWeight: FontWeight.w700,
-                                  height: 1,
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              top: y(31),
-                              left: 0,
-                              right: 0,
-                              child: _DarkInputField(
+                          Positioned(
+                            top: y(37.5),
+                            left: 0,
+                            right: 0,
+                            child: Center(
+                              child: Container(
+                                width: x(213),
                                 height: y(45),
-                                icon: Icons.email_outlined,
-                                hint: 'Enter your email',
-                                controller: _emailController,
-                                focusNode: _emailFocusNode,
-                                keyboardType: TextInputType.emailAddress,
-                                fontSize: fs(15),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(551),
-                      left: x(17),
-                      right: x(18),
-                      child: SizedBox(
-                        height: y(75),
-                        child: Stack(
-                          children: [
-                            Positioned(
-                              top: 0,
-                              left: x(4),
-                              child: Text(
-                                'Password',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontFamily: 'OpenSans',
-                                  fontSize: fs(14),
-                                  fontWeight: FontWeight.w700,
-                                  height: 1,
+                                decoration: BoxDecoration(
+                                  color: Colors.black,
+                                  borderRadius: BorderRadius.circular(x(10)),
                                 ),
                               ),
-                            ),
-                            Positioned(
-                              top: y(30),
-                              left: 0,
-                              right: 0,
-                              child: _DarkInputField(
-                                height: y(45),
-                                icon: Icons.lock_outline_rounded,
-                                hint: 'Enter your password',
-                                controller: _passwordController,
-                                focusNode: _passwordFocusNode,
-                                obscureText: !_passwordVisible,
-                                obscuringCharacter: '●',
-                                fontSize: fs(15),
-                                suffix: GestureDetector(
-                                  onTap: () {
-                                    setState(() {
-                                      _passwordVisible = !_passwordVisible;
-                                    });
-                                  },
-                                  child: Icon(
-                                    _passwordVisible
-                                        ? Icons.visibility_outlined
-                                        : Icons.visibility_off_outlined,
-                                    color: const Color(0xFFCACACA),
-                                    size: x(18),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(638),
-                      left: x(21),
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _rememberMe = !_rememberMe;
-                          });
-                        },
-                        child: Row(
-                          children: [
-                            SizedBox(
-                              width: x(20),
-                              height: y(26),
-                              child: Checkbox(
-                                value: _rememberMe,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _rememberMe = value ?? false;
-                                  });
-                                },
-                                activeColor: const Color(0xFF2E8CFF),
-                                checkColor: Colors.white,
-                                side: const BorderSide(
-                                  color: Colors.white,
-                                  width: 1,
-                                ),
-                                materialTapTargetSize:
-                                    MaterialTapTargetSize.shrinkWrap,
-                                visualDensity: VisualDensity.compact,
-                              ),
-                            ),
-                            SizedBox(width: x(5)),
-                            Text(
-                              'Remember me',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontFamily: 'OpenSans',
-                                fontSize: fs(14),
-                                fontWeight: FontWeight.w600,
-                                height: 1,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(642),
-                      right: x(21),
-                      child: GestureDetector(
-                        onTap: widget.onForgotPassword ??
-                            () => debugPrint(
-                                  'Sri Lanka vendor forgot password clicked',
-                                ),
-                        child: Text(
-                          'Forgot Password?',
-                          style: TextStyle(
-                            color: const Color(0xFFEEB556),
-                            fontFamily: 'OpenSans',
-                            fontSize: fs(13),
-                            fontWeight: FontWeight.w700,
-                            height: 1,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(684),
-                      left: x(21),
-                      right: x(21),
-                      child: SizedBox(
-                        height: y(50),
-                        child: ElevatedButton(
-                          onPressed: widget.isLoading ? null : _handleSignIn,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFF8213),
-                            foregroundColor: Colors.white,
-                            elevation: 0,
-                            padding: EdgeInsets.zero,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(x(19)),
                             ),
                           ),
-                          child: widget.isLoading
-                              ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : Text(
-                                  'Sign In',
+                          Positioned(
+                            top: y(58),
+                            left: 0,
+                            right: 0,
+                            child: Center(
+                              child: Image.asset(
+                                '${_assetBase}Speedmart_lk_transparent_logo_cropped1.png',
+                                width: x(185),
+                                height: y(26),
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: y(359),
+                            left: 0,
+                            right: 0,
+                            child: Column(
+                              children: [
+                                Text(
+                                  'Welcome back',
+                                  textAlign: TextAlign.center,
                                   style: TextStyle(
-                                    color: Colors.white,
-                                    fontFamily: 'OpenSans',
-                                    fontSize: fs(20),
+                                    fontFamily: 'Montserrat',
+                                    color: const Color(0xFFFFEBFF),
+                                    fontSize: fs(33),
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: -0.4,
+                                    height: 1,
+                                  ),
+                                ),
+                                SizedBox(height: y(13)),
+                                Text(
+                                  'Sign in as Shop Owner',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontFamily: 'Montserrat',
+                                    color: const Color(0xFFEEB556),
+                                    fontSize: fs(18),
                                     fontWeight: FontWeight.w700,
                                     height: 1,
                                   ),
                                 ),
-                        ),
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(764),
-                      left: 0,
-                      right: 0,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Don’t have an account?',
-                            style: TextStyle(
-                              color: const Color(0xFFBBBABB),
-                              fontFamily: 'OpenSans',
-                              fontSize: fs(14),
-                              fontWeight: FontWeight.w600,
-                              height: 1,
+                              ],
                             ),
                           ),
-                          SizedBox(width: x(8)),
-                          GestureDetector(
-                            onTap: widget.onRegister ??
-                                () => debugPrint(
-                                      'Sri Lanka vendor Register Now clicked',
+                          Positioned(
+                            top: y(445),
+                            right: x(14),
+                            child: GestureDetector(
+                              onTap: _handleCountryTap,
+                              child: Container(
+                                width: x(130),
+                                height: y(40),
+                                decoration: BoxDecoration(
+                                  color: const Color.fromRGBO(0, 0, 0, 0.05),
+                                  borderRadius: BorderRadius.only(
+                                    topLeft: Radius.circular(x(11)),
+                                    bottomRight: Radius.circular(x(11)),
+                                  ),
+                                  border: Border.all(
+                                    color: const Color(0xFF17A2F8),
+                                    width: x(1.5),
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      'Sri Lanka',
+                                      style: TextStyle(
+                                        color: const Color(0xFFCACACA),
+                                        fontFamily: 'Inter',
+                                        fontSize: fs(15),
+                                        fontWeight: FontWeight.w700,
+                                        height: 1,
+                                      ),
                                     ),
-                            child: Text(
-                              'Register Now',
-                              style: TextStyle(
-                                color: const Color(0xFFEEB556),
-                                fontFamily: 'OpenSans',
-                                fontSize: fs(14),
-                                fontWeight: FontWeight.w800,
-                                height: 1,
+                                  ],
+                                ),
                               ),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-
-                    Positioned(
-                      top: y(802),
-                      left: 0,
-                      right: 0,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            'Are you a Customer?',
-                            style: TextStyle(
-                              color: const Color(0xFFBBBABB),
-                              fontFamily: 'OpenSans',
-                              fontSize: fs(14),
-                              fontWeight: FontWeight.w600,
-                              height: 1,
+                          Positioned(
+                            top: y(461),
+                            left: x(17),
+                            right: x(18),
+                            child: SizedBox(
+                              height: y(76),
+                              child: Stack(
+                                children: [
+                                  Positioned(
+                                    top: 0,
+                                    left: x(3),
+                                    child: Text(
+                                      'Email Address',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontFamily: 'OpenSans',
+                                        fontSize: fs(14),
+                                        fontWeight: FontWeight.w700,
+                                        height: 1,
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: y(31),
+                                    left: 0,
+                                    right: 0,
+                                    child: _DarkInputField(
+                                      height: y(45),
+                                      icon: Icons.email_outlined,
+                                      hint: 'Enter your email',
+                                      controller: _emailController,
+                                      focusNode: _emailFocusNode,
+                                      keyboardType: TextInputType.emailAddress,
+                                      fontSize: fs(15),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          SizedBox(width: x(8)),
-                          GestureDetector(
-                            onTap: widget.onCustomerLogin ??
-                                () => debugPrint('Customer login clicked'),
-                            child: Text(
-                              'Click here',
-                              style: TextStyle(
-                                color: const Color(0xFFEEB556),
-                                fontFamily: 'OpenSans',
-                                fontSize: fs(14),
-                                fontWeight: FontWeight.w800,
-                                height: 1,
+                          Positioned(
+                            top: y(551),
+                            left: x(17),
+                            right: x(18),
+                            child: SizedBox(
+                              height: y(75),
+                              child: Stack(
+                                children: [
+                                  Positioned(
+                                    top: 0,
+                                    left: x(4),
+                                    child: Text(
+                                      'Password',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontFamily: 'OpenSans',
+                                        fontSize: fs(14),
+                                        fontWeight: FontWeight.w700,
+                                        height: 1,
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: y(30),
+                                    left: 0,
+                                    right: 0,
+                                    child: _DarkInputField(
+                                      height: y(45),
+                                      icon: Icons.lock_outline_rounded,
+                                      hint: 'Enter your password',
+                                      controller: _passwordController,
+                                      focusNode: _passwordFocusNode,
+                                      obscureText: !_passwordVisible,
+                                      obscuringCharacter: '●',
+                                      fontSize: fs(15),
+                                      suffix: GestureDetector(
+                                        onTap: () {
+                                          setState(() {
+                                            _passwordVisible =
+                                                !_passwordVisible;
+                                          });
+                                        },
+                                        child: Icon(
+                                          _passwordVisible
+                                              ? Icons.visibility_outlined
+                                              : Icons.visibility_off_outlined,
+                                          color: const Color(0xFFCACACA),
+                                          size: x(18),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
+                            ),
+                          ),
+                          Positioned(
+                            top: y(638),
+                            left: x(21),
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _rememberMe = !_rememberMe;
+                                });
+                              },
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    width: x(20),
+                                    height: y(26),
+                                    child: Checkbox(
+                                      value: _rememberMe,
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _rememberMe = value ?? false;
+                                        });
+                                      },
+                                      activeColor: const Color(0xFF2E8CFF),
+                                      checkColor: Colors.white,
+                                      side: const BorderSide(
+                                        color: Colors.white,
+                                        width: 1,
+                                      ),
+                                      materialTapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  ),
+                                  SizedBox(width: x(5)),
+                                  Text(
+                                    'Remember me',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontFamily: 'OpenSans',
+                                      fontSize: fs(14),
+                                      fontWeight: FontWeight.w600,
+                                      height: 1,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: y(642),
+                            right: x(21),
+                            child: GestureDetector(
+                              onTap: widget.onForgotPassword ??
+                                  () => debugPrint(
+                                        'Sri Lanka vendor forgot password clicked',
+                                      ),
+                              child: Text(
+                                'Forgot Password?',
+                                style: TextStyle(
+                                  color: const Color(0xFFEEB556),
+                                  fontFamily: 'OpenSans',
+                                  fontSize: fs(13),
+                                  fontWeight: FontWeight.w700,
+                                  height: 1,
+                                ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: y(684),
+                            left: x(21),
+                            right: x(21),
+                            child: SizedBox(
+                              height: y(50),
+                              child: ElevatedButton(
+                                onPressed:
+                                    widget.isLoading ? null : _handleSignIn,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFFFF8213),
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  padding: EdgeInsets.zero,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(x(19)),
+                                  ),
+                                ),
+                                child: widget.isLoading
+                                    ? const SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : Text(
+                                        'Sign In',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontFamily: 'OpenSans',
+                                          fontSize: fs(20),
+                                          fontWeight: FontWeight.w700,
+                                          height: 1,
+                                        ),
+                                      ),
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: y(764),
+                            left: 0,
+                            right: 0,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  'Don’t have an account?',
+                                  style: TextStyle(
+                                    color: const Color(0xFFBBBABB),
+                                    fontFamily: 'OpenSans',
+                                    fontSize: fs(14),
+                                    fontWeight: FontWeight.w600,
+                                    height: 1,
+                                  ),
+                                ),
+                                SizedBox(width: x(8)),
+                                GestureDetector(
+                                  onTap: widget.onRegister ??
+                                      () => debugPrint(
+                                            'Sri Lanka vendor Register Now clicked',
+                                          ),
+                                  child: Text(
+                                    'Register Now',
+                                    style: TextStyle(
+                                      color: const Color(0xFFEEB556),
+                                      fontFamily: 'OpenSans',
+                                      fontSize: fs(14),
+                                      fontWeight: FontWeight.w800,
+                                      height: 1,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Positioned(
+                            top: y(802),
+                            left: 0,
+                            right: 0,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  'Are you a Customer?',
+                                  style: TextStyle(
+                                    color: const Color(0xFFBBBABB),
+                                    fontFamily: 'OpenSans',
+                                    fontSize: fs(14),
+                                    fontWeight: FontWeight.w600,
+                                    height: 1,
+                                  ),
+                                ),
+                                SizedBox(width: x(8)),
+                                GestureDetector(
+                                  onTap: widget.onCustomerLogin ??
+                                      () =>
+                                          debugPrint('Customer login clicked'),
+                                  child: Text(
+                                    'Click here',
+                                    style: TextStyle(
+                                      color: const Color(0xFFEEB556),
+                                      fontFamily: 'OpenSans',
+                                      fontSize: fs(14),
+                                      fontWeight: FontWeight.w800,
+                                      height: 1,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -566,13 +562,10 @@ class _SrilankavendorloginWidgetState extends State<SrilankavendorloginWidget>
                   ],
                 ),
               ),
-                ],
-              ),
             ),
           ),
         ),
       ),
-    ),
     );
   }
 }
@@ -676,5 +669,3 @@ class _DarkInputField extends StatelessWidget {
     );
   }
 }
-
-
