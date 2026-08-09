@@ -989,59 +989,52 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       Text('Account Details', style: AppTextStyles.subtitle(primaryText)),
       const SizedBox(height: 12),
       // Email — read-only
-      Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: cardColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.email_outlined, color: secondaryText, size: 22),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Email', style: AppTextStyles.labelSmall(secondaryText)),
-                  const SizedBox(height: 2),
-                  Text(user?.email ?? '',
-                      style: AppTextStyles.bodyLarge(primaryText)),
-                ],
-              ),
-            ),
-            Icon(Icons.lock_outline_rounded, color: secondaryText, size: 16),
-          ],
+      TextFormField(
+        initialValue: user?.email ?? '',
+        enabled: false,
+        style: AppTextStyles.bodyLarge(primaryText),
+        decoration: InputDecoration(
+          labelText: 'Email',
+          labelStyle: TextStyle(color: secondaryText, fontSize: 14),
+          floatingLabelStyle: TextStyle(color: secondaryText, fontSize: 13),
+          prefixIcon: Icon(Icons.email_outlined, color: secondaryText, size: 22),
+          suffixIcon: Icon(Icons.lock_outline_rounded, color: secondaryText, size: 18),
+          filled: true,
+          fillColor: cardColor.withValues(alpha: 0.5),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+          disabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: borderColor.withValues(alpha: 0.75)),
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: borderColor),
+          ),
         ),
       ),
       const SizedBox(height: 12),
       // NIC — read-only
-      Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: cardColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor),
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.badge_outlined, color: secondaryText, size: 22),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('NIC Number',
-                      style: AppTextStyles.labelSmall(secondaryText)),
-                  const SizedBox(height: 2),
-                  Text(user?.nic ?? 'Not provided',
-                      style: AppTextStyles.bodyLarge(primaryText)),
-                ],
-              ),
-            ),
-            Icon(Icons.lock_outline_rounded, color: secondaryText, size: 16),
-          ],
+      TextFormField(
+        initialValue: user?.nic ?? 'Not provided',
+        enabled: false,
+        style: AppTextStyles.bodyLarge(primaryText),
+        decoration: InputDecoration(
+          labelText: 'NIC Number',
+          labelStyle: TextStyle(color: secondaryText, fontSize: 14),
+          floatingLabelStyle: TextStyle(color: secondaryText, fontSize: 13),
+          prefixIcon: Icon(Icons.badge_outlined, color: secondaryText, size: 22),
+          suffixIcon: Icon(Icons.lock_outline_rounded, color: secondaryText, size: 18),
+          filled: true,
+          fillColor: cardColor.withValues(alpha: 0.5),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+          disabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: borderColor.withValues(alpha: 0.75)),
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: BorderSide(color: borderColor),
+          ),
         ),
       ),
       const SizedBox(height: 16),
@@ -1054,32 +1047,35 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         primaryText: primaryText,
         secondaryText: secondaryText,
         primaryColor: primaryColor,
+        isEditing: _isEditing,
       ),
-      const SizedBox(height: 16),
-      Text('Payment History', style: AppTextStyles.subtitle(primaryText)),
-      const SizedBox(height: 12),
-      GestureDetector(
-        onTap: () => context.push(RouteNames.customerPaymentHistory),
-        child: Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: cardColor,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: borderColor),
-          ),
-          child: ListTile(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            leading: Icon(Icons.history_rounded, color: primaryColor),
-            title: Text('View Payment History',
-                style: AppTextStyles.bodyMedium(primaryText)),
-            subtitle: Text('See your past COD and online payments.',
-                style: AppTextStyles.caption(secondaryText)),
-            trailing: Icon(Icons.arrow_forward_ios_rounded,
-                size: 18, color: secondaryText),
+      if (!_isEditing) ...[
+        const SizedBox(height: 16),
+        Text('Payment History', style: AppTextStyles.subtitle(primaryText)),
+        const SizedBox(height: 12),
+        GestureDetector(
+          onTap: () => context.push(RouteNames.customerPaymentHistory),
+          child: Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: const Color(0xFF3B82F6).withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFF3B82F6).withValues(alpha: 0.45)),
+            ),
+            child: ListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              leading: const Icon(Icons.history_rounded, color: Color(0xFF3B82F6)),
+              title: Text('View Payment History',
+                  style: AppTextStyles.bodyMedium(primaryText)),
+              subtitle: Text('See your past COD and online payments.',
+                  style: AppTextStyles.caption(secondaryText)),
+              trailing: const Icon(Icons.arrow_forward_ios_rounded,
+                  size: 18, color: Color(0xFF3B82F6)),
+            ),
           ),
         ),
-      ),
+      ],
     ];
   }
 
@@ -1302,26 +1298,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     required Color primaryText,
     required Color secondaryText,
     required Color primaryColor,
+    required bool isEditing,
   }) {
     return GestureDetector(
-      onTap: () => context.push(RouteNames.customerDeliveryAddress),
+      onTap: isEditing ? () => context.push(RouteNames.customerDeliveryAddress) : null,
       child: Container(
         width: double.infinity,
         decoration: BoxDecoration(
-          color: cardColor,
+          color: isEditing ? cardColor : cardColor.withValues(alpha: 0.5),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor),
+          border: Border.all(
+            color: isEditing ? borderColor.withValues(alpha: 1.0) : borderColor.withValues(alpha: 0.75),
+            width: isEditing ? 1.5 : 1.0,
+          ),
         ),
         child: ListTile(
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          leading: Icon(Icons.location_on_outlined, color: primaryColor),
+          leading: Icon(Icons.location_on_outlined,
+              color: isEditing ? primaryColor : secondaryText),
           title: Text('Delivery Address',
-              style: AppTextStyles.bodyMedium(primaryText)),
+              style: AppTextStyles.bodyMedium(
+                  isEditing ? primaryText : secondaryText)),
           subtitle: Text('Manage your delivery location',
               style: AppTextStyles.caption(secondaryText)),
           trailing: Icon(Icons.arrow_forward_ios_rounded,
-              size: 18, color: secondaryText),
+              size: 18,
+              color: isEditing ? secondaryText : secondaryText.withValues(alpha: 0.4)),
         ),
       ),
     );
@@ -1355,28 +1358,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       textCapitalization: (label == 'Full Name' || label == 'Business Name')
           ? TextCapitalization.words
           : TextCapitalization.none,
-      style: AppTextStyles.bodyMedium(primaryText),
+      style: AppTextStyles.bodyLarge(isEditing ? primaryText : secondaryText),
       onChanged: isEditing ? onChanged : null,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(color: secondaryText, fontSize: 13),
-        floatingLabelStyle: TextStyle(color: isEditing ? primaryColor : secondaryText, fontSize: 12),
-        prefixIcon: Icon(icon, color: isEditing ? primaryColor : secondaryText, size: 20),
+        labelStyle: TextStyle(color: secondaryText, fontSize: 14),
+        floatingLabelStyle: TextStyle(color: isEditing ? primaryColor : secondaryText, fontSize: 13),
+        prefixIcon: Icon(icon, color: isEditing ? primaryColor : secondaryText, size: 22),
         filled: true,
-        fillColor: cardColor,
+        fillColor: isEditing ? cardColor : (cardColor).withValues(alpha: 0.5),
         counterText: '',
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: borderColor),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: borderColor),
+          borderSide: BorderSide(color: borderColor.withValues(alpha: 1.0), width: 1.5),
         ),
         disabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: borderColor),
+          borderSide: BorderSide(color: borderColor.withValues(alpha: 0.75)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
