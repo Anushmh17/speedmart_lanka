@@ -1,116 +1,74 @@
-enum OtpChannel { phone, email }
+import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 
-/// Result object returned by [OtpService.sendOtp].
+enum OtpChannel { phone }
+
 class OtpSendResult {
   const OtpSendResult({
     required this.success,
     this.message,
     this.maskedContact,
+    this.verificationId,
   });
 
   final bool success;
-
-  /// Human-readable status message.
   final String? message;
-
-  /// Masked version of the contact for display (e.g. "+94 07X XXX X234").
   final String? maskedContact;
+  // Phone auth only — needed to confirm the SMS code
+  final String? verificationId;
 
-  factory OtpSendResult.success({String? maskedContact}) => OtpSendResult(
+  factory OtpSendResult.success({String? maskedContact, String? verificationId}) =>
+      OtpSendResult(
         success: true,
         message: 'OTP sent successfully',
         maskedContact: maskedContact,
+        verificationId: verificationId,
       );
 
   factory OtpSendResult.failure(String message) =>
       OtpSendResult(success: false, message: message);
 }
 
-/// Abstract OTP service interface.
-///
-/// Swap [LocalOtpService] for [NotifyLkOtpService] (or any other real
-/// implementation) without changing calling code.
 abstract class OtpService {
-  /// Sends a one-time password to [destination] via [channel].
   Future<OtpSendResult> sendOtp({
     required OtpChannel channel,
     required String destination,
   });
 
-  /// Verifies that [code] is the correct OTP for [destination] via [channel].
-  ///
-  /// Returns `true` on success, `false` on mismatch / expiry.
   Future<bool> verifyOtp({
     required OtpChannel channel,
     required String destination,
     required String code,
+    String? verificationId,
   });
 }
 
-// ── Mock implementation ────────────────────────────────────────────────────
+// ── Firebase Phone Auth ────────────────────────────────────────────────────
 
-/// Development-only mock OTP service.
-///
-/// - [sendOtp]   → always succeeds after a 1.5-second delay, up to [maxSendsPerDestination].
-/// - [verifyOtp] → accepts [validCode] as the valid code, up to [maxVerifyAttemptsPerDestination].
-///
-/// Replace with [NotifyLkOtpService] when integrating production SMS.
-class LocalOtpService implements OtpService {
-  LocalOtpService({
-    this.validCode = '123456',
-    this.maxSendsPerDestination = 5,
-    this.maxVerifyAttemptsPerDestination = 5,
-    this.baseBlockDuration = const Duration(minutes: 10),
-  });
+class FirebasePhoneOtpService implements OtpService {
+  FirebasePhoneOtpService();
 
-  final String validCode;
-  final int maxSendsPerDestination;
-  final int maxVerifyAttemptsPerDestination;
-  final Duration baseBlockDuration;
+  final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Per destination trackers
-  final Map<String, int> _sendCounts = {};
-  final Map<String, int> _verifyAttempts = {};
-  final Map<String, DateTime> _sessionStart = {};  // start of current send window
-  final Map<String, DateTime> _blockUntil = {};    // absolute time block expires
-  final Map<String, int> _blockCount = {};
+  // Stores verificationId per phone number
+  final Map<String, String> _verificationIds = {};
+  // Stores auto-resolved credential (instant verification on some devices)
+  final Map<String, PhoneAuthCredential> _autoCredentials = {};
 
-  Duration _nextBlockDuration(String destination) {
-    final blocks = _blockCount[destination] ?? 0;
-    return baseBlockDuration * (blocks + 1);
+  static String _normalizePhone(String phone) {
+    final digits = phone.replaceAll(RegExp(r'[^\d]'), '');
+    if (digits.length == 9) return '+94$digits';
+    if (digits.length == 10 && digits.startsWith('0')) return '+94${digits.substring(1)}';
+    if (digits.length == 11 && digits.startsWith('94')) return '+$digits';
+    if (phone.startsWith('+')) return phone;
+    return '+94$digits';
   }
 
-  bool _isBlocked(String destination) {
-    final until = _blockUntil[destination];
-    if (until == null) return false;
-    if (DateTime.now().isBefore(until)) return true;
-    // Block expired — clean up
-    _blockUntil.remove(destination);
-    return false;
-  }
-
-  Duration _remainingBlockDuration(String destination) {
-    final until = _blockUntil[destination];
-    if (until == null) return Duration.zero;
-    final remaining = until.difference(DateTime.now());
-    return remaining.isNegative ? Duration.zero : remaining;
-  }
-
-  void _onLimitExceeded(String destination) {
-    final blocks = _blockCount[destination] ?? 0;
-    _blockCount[destination] = blocks + 1;
-    _blockUntil[destination] = DateTime.now().add(_nextBlockDuration(destination));
-    _sendCounts.remove(destination);
-    _verifyAttempts.remove(destination);
-    _sessionStart.remove(destination);
-  }
-
-  void resetLimits() {
-    _sendCounts.clear();
-    _verifyAttempts.clear();
-    _sessionStart.clear();
-    _blockUntil.clear();
-    _blockCount.clear();
+  static String _maskPhone(String phone) {
+    final clean = phone.replaceAll(RegExp(r'[^\d+]'), '');
+    if (clean.length < 4) return phone;
+    return '**** **** ${clean.substring(clean.length - 4)}';
   }
 
   @override
@@ -118,30 +76,47 @@ class LocalOtpService implements OtpService {
     required OtpChannel channel,
     required String destination,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 1500));
+    assert(channel == OtpChannel.phone, 'FirebasePhoneOtpService only handles phone');
 
-    if (_isBlocked(destination)) {
-      final remaining = _remainingBlockDuration(destination);
-      final mins = remaining.inMinutes + 1;
-      return OtpSendResult.failure(
-        'Too many OTP requests. Please try again in $mins minute${mins == 1 ? '' : 's'}.',
-      );
-    }
+    final phone = _normalizePhone(destination);
+    final completer = Completer<OtpSendResult>();
 
-    // Start session window on first send
-    _sessionStart[destination] ??= DateTime.now();
+    await _auth.verifyPhoneNumber(
+      phoneNumber: phone,
+      timeout: const Duration(seconds: 60),
+      verificationCompleted: (PhoneAuthCredential credential) {
+        // Auto-resolved (Android instant verification)
+        _autoCredentials[destination] = credential;
+        if (!completer.isCompleted) {
+          completer.complete(OtpSendResult.success(
+            maskedContact: _maskPhone(destination),
+            verificationId: credential.verificationId,
+          ));
+        }
+      },
+      verificationFailed: (FirebaseAuthException e) {
+        debugPrint('[FirebasePhone] verificationFailed: ${e.code} ${e.message}');
+        if (!completer.isCompleted) {
+          completer.complete(OtpSendResult.failure(
+            _friendlyError(e.code),
+          ));
+        }
+      },
+      codeSent: (String verificationId, int? resendToken) {
+        _verificationIds[destination] = verificationId;
+        if (!completer.isCompleted) {
+          completer.complete(OtpSendResult.success(
+            maskedContact: _maskPhone(destination),
+            verificationId: verificationId,
+          ));
+        }
+      },
+      codeAutoRetrievalTimeout: (String verificationId) {
+        _verificationIds[destination] = verificationId;
+      },
+    );
 
-    final currentSends = _sendCounts[destination] ?? 0;
-    if (currentSends >= maxSendsPerDestination) {
-      _onLimitExceeded(destination);
-      final mins = _remainingBlockDuration(destination).inMinutes + 1;
-      return OtpSendResult.failure(
-        'Too many OTP requests. Please try again in $mins minute${mins == 1 ? '' : 's'}.',
-      );
-    }
-
-    _sendCounts[destination] = currentSends + 1;
-    return OtpSendResult.success(maskedContact: _maskContact(destination));
+    return completer.future;
   }
 
   @override
@@ -149,46 +124,76 @@ class LocalOtpService implements OtpService {
     required OtpChannel channel,
     required String destination,
     required String code,
+    String? verificationId,
   }) async {
-    await Future.delayed(const Duration(milliseconds: 800));
-
-    if (_isBlocked(destination)) return false;
-
-    final currentAttempts = _verifyAttempts[destination] ?? 0;
-    if (currentAttempts >= maxVerifyAttemptsPerDestination) {
-      _onLimitExceeded(destination);
-      return false;
-    }
-
-    final isValid = code.trim() == validCode;
-    if (!isValid) {
-      final newAttempts = currentAttempts + 1;
-      _verifyAttempts[destination] = newAttempts;
-      if (newAttempts >= maxVerifyAttemptsPerDestination) {
-        _onLimitExceeded(destination);
+    // Use auto-credential if available (instant verification)
+    final autoCredential = _autoCredentials.remove(destination);
+    if (autoCredential != null) {
+      try {
+        await _auth.signInWithCredential(autoCredential);
+        return true;
+      } catch (e) {
+        debugPrint('[FirebasePhone] auto credential sign-in failed: $e');
       }
     }
-    return isValid;
+
+    final vid = verificationId ?? _verificationIds[destination];
+    if (vid == null) return false;
+
+    try {
+      final credential = PhoneAuthProvider.credential(
+        verificationId: vid,
+        smsCode: code.trim(),
+      );
+      await _auth.signInWithCredential(credential);
+      _verificationIds.remove(destination);
+      return true;
+    } on FirebaseAuthException catch (e) {
+      debugPrint('[FirebasePhone] verifyOtp failed: ${e.code}');
+      return false;
+    }
   }
 
-  String _maskContact(String contact) {
-    if (contact.isEmpty) return contact;
-    if (contact.contains('@')) {
-      // Email masking: abc***@domain.com
-      final parts = contact.split('@');
-      final name = parts[0];
-      final masked = name.length > 3
-          ? '${name.substring(0, 3)}***'
-          : '${name[0]}***';
-      return '$masked@${parts[1]}';
-    } else {
-      // Phone masking: show last 4 digits
-      final clean = contact.replaceAll(RegExp(r'[^\d+]'), '');
-      if (clean.length < 4) return contact;
-      final suffix = clean.substring(clean.length - 4);
-      return '**** **** $suffix';
+  String _friendlyError(String code) {
+    switch (code) {
+      case 'invalid-phone-number':
+        return 'Invalid phone number. Please check and try again.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please try again later.';
+      case 'quota-exceeded':
+        return 'SMS quota exceeded. Please try again later.';
+      default:
+        return 'Failed to send OTP. Please try again.';
     }
   }
 }
 
+// ── Local mock (debug only) ────────────────────────────────────────────────
 
+class LocalOtpService implements OtpService {
+  LocalOtpService({this.validCode = '123456'});
+  final String validCode;
+
+  void resetLimits() {}
+
+  @override
+  Future<OtpSendResult> sendOtp({
+    required OtpChannel channel,
+    required String destination,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 800));
+    debugPrint('[LocalOTP] Code for $destination: $validCode');
+    return OtpSendResult.success(maskedContact: destination);
+  }
+
+  @override
+  Future<bool> verifyOtp({
+    required OtpChannel channel,
+    required String destination,
+    required String code,
+    String? verificationId,
+  }) async {
+    await Future.delayed(const Duration(milliseconds: 400));
+    return code.trim() == validCode;
+  }
+}

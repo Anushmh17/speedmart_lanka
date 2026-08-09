@@ -53,6 +53,7 @@ service cloud.firestore {
     // ── Shopping Requests ─────────────────────────────────────────────────────
 
     match /requests/{requestId} {
+      // Customers authenticate via Firebase Phone Auth — uid() matches customerId.
       allow read: if isSignedIn();
       allow create: if isSignedIn() &&
         request.resource.data.customerId == uid();

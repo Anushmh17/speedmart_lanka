@@ -5,14 +5,14 @@ class SrilankavendorloginotpWidget extends StatefulWidget {
   final VoidCallback? onBack;
   final ValueChanged<String>? onVerifyOtp;
   final VoidCallback? onResend;
-  final String maskedEmail;
+  final String maskedPhone;
 
   const SrilankavendorloginotpWidget({
     super.key,
     this.onBack,
     this.onVerifyOtp,
     this.onResend,
-    this.maskedEmail = 'abc***@gmail.com',
+    this.maskedPhone = '**** **** 1234',
   });
 
   @override
@@ -271,7 +271,7 @@ class _SrilankavendorloginotpWidgetState
                                 ),
                                 SizedBox(height: y(20)),
                                 Text(
-                                  'Enter the code sent to your email',
+                                  'Enter the code sent to your phone',
                                   textAlign: TextAlign.center,
                                   style: TextStyle(
                                     fontFamily: 'Inter',
@@ -314,7 +314,7 @@ class _SrilankavendorloginotpWidgetState
                                       shape: BoxShape.circle,
                                     ),
                                     child: Icon(
-                                      Icons.email_outlined,
+                                      Icons.phone_android_outlined,
                                       color: const Color(0xFFEEB556),
                                       size: x(23),
                                     ),
@@ -339,7 +339,7 @@ class _SrilankavendorloginotpWidgetState
                                         ),
                                         SizedBox(height: y(8)),
                                         Text(
-                                          widget.maskedEmail,
+                                          widget.maskedPhone,
                                           style: TextStyle(
                                             color: const Color(0xFFFFFFFF),
                                             fontFamily: 'OpenSans',

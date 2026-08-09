@@ -123,15 +123,15 @@ class AuthNotifier extends StateNotifier<AuthState> {
   /// Verifies vendor email+password without setting auth state.
   /// Router won't redirect because isAuthenticated stays false.
   /// Call [login] after OTP is verified to complete authentication.
-  Future<UserModel?> verifyVendorCredentials({
+  Future<({UserModel user, String phone})?> verifyVendorCredentials({
     required String email,
     required String password,
   }) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final user = await _repo.verifyVendorCredentials(email: email, password: password);
+      final result = await _repo.verifyVendorCredentials(email: email, password: password);
       state = state.copyWith(isLoading: false);
-      return user;
+      return result;
     } catch (e) {
       state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
       return null;

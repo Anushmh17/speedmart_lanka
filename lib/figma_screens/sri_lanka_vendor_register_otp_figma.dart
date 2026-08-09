@@ -5,14 +5,14 @@ class SrilankavendorregistrationotpWidget extends StatefulWidget {
   final VoidCallback? onBack;
   final ValueChanged<String>? onVerifyOtp;
   final VoidCallback? onResend;
-  final String maskedEmail;
+  final String maskedPhone;
 
   const SrilankavendorregistrationotpWidget({
     super.key,
     this.onBack,
     this.onVerifyOtp,
     this.onResend,
-    this.maskedEmail = 'abc***@gmail.com',
+    this.maskedPhone = '**** **** 1234',
   });
 
   @override
@@ -183,7 +183,7 @@ class _SrilankavendorregistrationotpWidgetState
                             ),
                           ),
                           SizedBox(height: y(20)),
-                          Text('Enter the code sent to your email',
+                          Text('Enter the code sent to your phone',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontFamily: 'Inter',
@@ -213,7 +213,7 @@ class _SrilankavendorregistrationotpWidgetState
                                 border: Border.all(color: const Color(0xFFFF8D28), width: x(1.4)),
                                 shape: BoxShape.circle,
                               ),
-                              child: Icon(Icons.email_outlined, color: const Color(0xFFEEB556), size: x(23)),
+                              child: Icon(Icons.phone_android_outlined, color: const Color(0xFFEEB556), size: x(23)),
                             ),
                             SizedBox(width: x(12)),
                             Expanded(
@@ -225,7 +225,7 @@ class _SrilankavendorregistrationotpWidgetState
                                     style: TextStyle(color: const Color(0xFFFFEBFF), fontFamily: 'OpenSans',
                                         fontSize: fs(16), fontWeight: FontWeight.w700, height: 1)),
                                   SizedBox(height: y(8)),
-                                  Text(widget.maskedEmail,
+                                  Text(widget.maskedPhone,
                                     style: TextStyle(color: const Color(0xFFFFEBFF), fontFamily: 'OpenSans',
                                         fontSize: fs(16), fontWeight: FontWeight.w800, height: 1)),
                                 ],

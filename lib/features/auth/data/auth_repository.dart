@@ -125,14 +125,14 @@ class AuthRepository {
   }
 
   Future<void> _createFirebaseUser(String email, String password) async {
-    // Customers register via OTP with no password — generate a strong one for Firebase Auth.
-    final effectivePassword = password.isNotEmpty
-        ? password
-        : 'OTP_${email.hashCode.abs()}_${DateTime.now().millisecondsSinceEpoch}';
+    // Only vendors register with email+password.
+    // Customers get their Firebase account created automatically by
+    // Firebase Phone Auth during OTP verification — skip for them.
+    if (password.isEmpty) return;
     try {
       await _firebaseAuth.createUserWithEmailAndPassword(
         email: email,
-        password: effectivePassword,
+        password: password,
       );
     } on FirebaseAuthException catch (e) {
       if (e.code == 'email-already-in-use') {
@@ -334,14 +334,21 @@ class AuthRepository {
   Future<({UserModel user, String token})> loginCustomerOtp(
       String contact) async {
     await ensureInitialized();
-    await Future.delayed(const Duration(milliseconds: 1000));
+    await Future.delayed(const Duration(milliseconds: 500));
 
-    // Fetch the customer directly from Firestore by contact
+    // Firebase Phone Auth already signed the user in during OTP verification.
+    // _firebaseAuth.currentUser is now set with the real phone-linked UID.
+    final firebaseUser = _firebaseAuth.currentUser;
+    debugPrint('[Auth] loginCustomerOtp: firebaseUser=${firebaseUser?.uid}');
+
+    // Fetch the customer profile from Firestore by phone
     final fetchedUser = await _fetchCustomerByContact(contact);
     if (fetchedUser == null) {
-      final isEmail = contact.contains('@');
-      throw Exception(
-          'No account found for this ${isEmail ? 'email' : 'phone number'}. Please register.');
+      throw Exception('No account found for this phone number. Please register.');
+    }
+
+    if (!fetchedUser.isActive) {
+      throw Exception('Your account has been suspended. Contact support.');
     }
 
     // Merge into session cache
@@ -352,18 +359,11 @@ class AuthRepository {
       _sessionUsers.add(fetchedUser);
     }
 
-    final user = fetchedUser;
-
-    if (!user.isActive) {
-      throw Exception('Your account has been suspended. Contact support.');
-    }
-
     _currentToken =
-        'auth_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
-    _currentUserId = _firebaseAuth.currentUser?.uid ?? user.id;
-    // Upload FCM token to backend (best-effort)
-    _uploadDeviceTokenForUser(user);
-    return (user: user, token: _currentToken!);
+        'auth_token_${fetchedUser.id}_${DateTime.now().millisecondsSinceEpoch}';
+    _currentUserId = fetchedUser.id;
+    _uploadDeviceTokenForUser(fetchedUser);
+    return (user: fetchedUser, token: _currentToken!);
   }
 
   // ── Register ───────────────────────────────────────────────────────────────
@@ -493,7 +493,9 @@ class AuthRepository {
     );
 
     await _createFirebaseUser(resolvedEmail, password);
-    // After createUserWithEmailAndPassword, currentUser is set — use its UID as the doc ID.
+    // For customers: Firebase Phone Auth already created their account during
+    // OTP verification — currentUser.uid is their real phone-linked UID.
+    // For vendors: createUserWithEmailAndPassword sets currentUser.
     final firebaseUid = _firebaseAuth.currentUser?.uid;
     final userId = firebaseUid ?? newUser.id;
     final userWithFirebaseId = firebaseUid != null
@@ -616,6 +618,14 @@ class AuthRepository {
   Future<UserModel?> restoreSession(String token) async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 500));
+    // Restore anonymous session for customers on app restart
+    if (_firebaseAuth.currentUser == null) {
+      try {
+        await _firebaseAuth.signInAnonymously();
+      } catch (e) {
+        debugPrint('[Auth] Anonymous sign-in on restore failed (non-fatal): $e');
+      }
+    }
     try {
       final parts = token.split('_');
       if (parts.length >= 3) {
@@ -743,7 +753,7 @@ class AuthRepository {
 
   /// Verifies vendor credentials without setting auth state.
   /// Returns the matched user if credentials are valid.
-  Future<UserModel> verifyVendorCredentials({
+  Future<({UserModel user, String phone})> verifyVendorCredentials({
     required String email,
     required String password,
   }) async {
@@ -769,7 +779,7 @@ class AuthRepository {
       throw Exception('Your account has been suspended. Contact support.');
     }
 
-    return fetchedUser;
+    return (user: fetchedUser, phone: fetchedUser.phone);
   }
 
   // ── Password Reset ──────────────────────────────────────────────────────
