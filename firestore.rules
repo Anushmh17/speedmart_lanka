@@ -3,7 +3,7 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     function isSignedIn() {
       return request.auth != null;
@@ -18,15 +18,23 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/users/admins/profiles/$(uid()));
     }
 
+    function isVendor() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/users/vendors/profiles/$(uid()));
+    }
+
     function isOwner(userId) {
       return isSignedIn() && uid() == userId;
+    }
+
+    function isChatParticipant(chatId) {
+      let chat = get(/databases/$(database)/documents/chats/$(chatId)).data;
+      return uid() == chat.customerId || uid() == chat.vendorId;
     }
 
     // ── User Profiles ─────────────────────────────────────────────────────────
 
     match /users/customers/profiles/{userId} {
-      // Only authenticated users can read — unauthenticated OTP existence checks
-      // should be handled via a Cloud Function, not direct Firestore reads.
       allow read: if isOwner(userId) || isAdmin();
       allow create: if isSignedIn() && uid() == userId;
       allow update: if isOwner(userId) || isAdmin();
@@ -34,27 +42,35 @@ service cloud.firestore {
     }
 
     match /users/vendors/profiles/{userId} {
-      // Only the vendor themselves or an admin can read the full profile.
-      // Customers should never see vendor NIC, bank details, etc.
-      allow read: if isOwner(userId) || isAdmin();
+      allow read: if isOwner(userId) || isAdmin() || isVendor();
       allow create: if isOwner(userId);
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
     }
 
     match /users/admins/profiles/{userId} {
-      // Admin accounts must only be created via Firebase Console or a trusted Cloud Function.
       allow read: if isOwner(userId) || isAdmin();
       allow create: if false;
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if false;
     }
 
+    // ── Categories ────────────────────────────────────────────────────────────
+
+    match /categories/{categoryId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
     // ── Shopping Requests ─────────────────────────────────────────────────────
 
     match /requests/{requestId} {
-      // Customers authenticate via Firebase Phone Auth — uid() matches customerId.
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (
+        resource.data.customerId == uid() ||
+        isVendor() ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (isVendor() || isAdmin());
       allow create: if isSignedIn() &&
         request.resource.data.customerId == uid();
       allow update: if isSignedIn() &&
@@ -65,39 +81,52 @@ service cloud.firestore {
     // ── Proposals ─────────────────────────────────────────────────────────────
 
     match /proposals/{proposalId} {
-      allow read: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() &&
-        (resource.data.vendorId == uid() ||
-         resource.data.customerId == uid() ||
-         isAdmin());
+      allow read: if isSignedIn() && (
+        resource.data.vendorId == uid() ||
+        resource.data.customerId == uid() ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (isVendor() || isAdmin());
+      allow create: if isVendor() &&
+        request.resource.data.vendorId == uid();
+      allow update: if isSignedIn() && (
+        resource.data.vendorId == uid() ||
+        resource.data.customerId == uid() ||
+        isAdmin()
+      );
       allow delete: if isAdmin();
     }
 
     // ── Orders ────────────────────────────────────────────────────────────────
 
     match /orders/{orderId} {
-      allow read: if isSignedIn() &&
-        (resource.data.customerId == uid() ||
-         resource.data.vendorId == uid() ||
-         isAdmin());
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() &&
-        (resource.data.customerId == uid() ||
-         resource.data.vendorId == uid() ||
-         isAdmin());
+      allow get: if isSignedIn() && (
+        resource.data.customerId == uid() ||
+        resource.data.vendorId == uid() ||
+        isAdmin()
+      );
+      allow list: if isSignedIn() && (isVendor() || isAdmin());
+      allow create: if isSignedIn() &&
+        request.resource.data.customerId == uid();
+      allow update: if isSignedIn() && (
+        resource.data.customerId == uid() ||
+        resource.data.vendorId == uid() ||
+        isAdmin()
+      );
       allow delete: if isAdmin();
     }
 
-    // ── Payments ─────────────────────────────────────────────────────────────
+    // ── Payments ──────────────────────────────────────────────────────────────
 
     match /payments/{paymentId} {
-      allow read: if isSignedIn() &&
-        (resource.data.customerId == uid() ||
-         resource.data.vendorId == uid() ||
-         isAdmin());
-      allow create: if isSignedIn();
-      // Only admins can update payment records to prevent tampering
+      allow get: if isSignedIn() && (
+        resource.data.customerId == uid() ||
+        resource.data.vendorId == uid() ||
+        isAdmin()
+      );
+      allow list: if isAdmin();
+      allow create: if isSignedIn() &&
+        request.resource.data.customerId == uid();
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
@@ -106,16 +135,17 @@ service cloud.firestore {
 
     match /notifications/{notificationId} {
       allow read: if isSignedIn() && resource.data.userId == uid();
-      allow create: if isSignedIn();
+      allow create: if false;
       allow update: if isSignedIn() && resource.data.userId == uid();
       allow delete: if isSignedIn() && resource.data.userId == uid();
     }
 
-    // ── Reviews ──────────────────────────────────────────────────────────────
+    // ── Reviews ───────────────────────────────────────────────────────────────
 
     match /reviews/{reviewId} {
       allow read: if isSignedIn();
-      allow create: if isSignedIn();
+      allow create: if isSignedIn() &&
+        request.resource.data.customerId == uid();
       allow update: if isSignedIn() &&
         (resource.data.customerId == uid() || isAdmin());
       allow delete: if isAdmin();
@@ -132,20 +162,34 @@ service cloud.firestore {
 
     match /activity_logs/{logId} {
       allow read: if isAdmin();
-      allow create: if isSignedIn();
+      allow create: if false;
       allow update, delete: if false;
     }
 
-    // ── Chat ─────────────────────────────────────────────────────────────────
+    // ── Chat ──────────────────────────────────────────────────────────────────
 
     match /chats/{chatId} {
-      allow read, write: if isSignedIn();
+      allow read: if isSignedIn() && (
+        resource.data.customerId == uid() ||
+        resource.data.vendorId == uid() ||
+        isAdmin()
+      );
+      allow create: if isSignedIn() && (
+        request.resource.data.customerId == uid() ||
+        request.resource.data.vendorId == uid()
+      );
+      allow update: if isSignedIn() && (
+        resource.data.customerId == uid() ||
+        resource.data.vendorId == uid()
+      );
+      allow delete: if isAdmin();
     }
 
     match /chats/{chatId}/messages/{messageId} {
-      allow read: if isSignedIn();
+      allow read: if isSignedIn() && (isChatParticipant(chatId) || isAdmin());
       allow create: if isSignedIn() &&
-        request.resource.data.senderId == uid();
+        request.resource.data.senderId == uid() &&
+        isChatParticipant(chatId);
       allow update, delete: if false;
     }
 
