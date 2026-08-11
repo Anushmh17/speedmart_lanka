@@ -183,12 +183,38 @@ class _VendorLocationMapPickerState extends ConsumerState<VendorLocationMapPicke
                     Positioned(
                       right: 12,
                       top: 12,
-                      child: FloatingActionButton.small(
-                        heroTag: 'vendor-map-recenter',
-                        onPressed: _recenter,
-                        backgroundColor: cardColor,
-                        foregroundColor: AppColors.vendorColor,
-                        child: const Icon(Icons.center_focus_strong_rounded),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          FloatingActionButton.small(
+                            heroTag: 'vendor-map-recenter',
+                            onPressed: _recenter,
+                            backgroundColor: cardColor,
+                            foregroundColor: AppColors.vendorColor,
+                            child: const Icon(Icons.center_focus_strong_rounded),
+                          ),
+                          const SizedBox(height: 2),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 5, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: cardColor.withValues(alpha: 0.9),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                  color: AppColors.vendorColor
+                                      .withValues(alpha: 0.3)),
+                            ),
+                            child: Text(
+                              'Re-center',
+                              style: TextStyle(
+                                color: AppColors.vendorColor,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                height: 1,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                 ],

@@ -582,10 +582,51 @@ class _SrilankacustomerregisteraccountWidgetState
                     ),
                 ],
               ),
+              // Centered "Use My Location" button — shown only before first detection
+              if (!hasLocation)
+                Center(
+                  child: ElevatedButton.icon(
+                    onPressed: widget.isDetectingLocation
+                        ? null
+                        : (widget.onUseCurrentLocation ?? () {}),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFFFB6F02),
+                      elevation: 4,
+                      padding: EdgeInsets.symmetric(
+                          horizontal: x(16), vertical: y(10)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(x(24)),
+                      ),
+                      minimumSize: const Size(0, 0),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    icon: widget.isDetectingLocation
+                        ? SizedBox(
+                            width: x(16),
+                            height: x(16),
+                            child: const CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFFFB6F02),
+                            ),
+                          )
+                        : const Icon(Icons.my_location_rounded, size: 18),
+                    label: Text(
+                      widget.isDetectingLocation ? 'Detecting…' : 'Use My Location',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontSize: fs(13),
+                        fontWeight: FontWeight.w700,
+                        color: const Color(0xFFFB6F02),
+                      ),
+                    ),
+                  ),
+                ),
               Positioned(
                 right: x(10),
                 top: y(10),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     if (hasLocation)
                       FloatingActionButton.small(
@@ -596,24 +637,46 @@ class _SrilankacustomerregisteraccountWidgetState
                         child: const Icon(Icons.center_focus_strong_rounded),
                       ),
                     if (hasLocation) SizedBox(height: y(8)),
-                    FloatingActionButton.small(
-                      heroTag: 'cust-reg-map-detect',
-                      onPressed: widget.isDetectingLocation
-                          ? null
-                          : (widget.onUseCurrentLocation ??
-                              () => debugPrint('Use Current Location clicked')),
-                      backgroundColor: Colors.white,
-                      foregroundColor: const Color(0xFFFB6F02),
-                      child: widget.isDetectingLocation
-                          ? SizedBox(
-                              width: x(18),
-                              height: x(18),
-                              child: const CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Color(0xFFFB6F02),
-                              ),
-                            )
-                          : const Icon(Icons.my_location_rounded),
+                    Column(
+                      children: [
+                        FloatingActionButton.small(
+                          heroTag: 'cust-reg-map-detect',
+                          onPressed: widget.isDetectingLocation
+                              ? null
+                              : (widget.onUseCurrentLocation ?? () {}),
+                          backgroundColor: Colors.white,
+                          foregroundColor: const Color(0xFFFB6F02),
+                          child: widget.isDetectingLocation
+                              ? SizedBox(
+                                  width: x(18),
+                                  height: x(18),
+                                  child: const CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Color(0xFFFB6F02),
+                                  ),
+                                )
+                              : const Icon(Icons.my_location_rounded),
+                        ),
+                        SizedBox(height: y(2)),
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                              horizontal: x(5), vertical: y(2)),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.85),
+                            borderRadius: BorderRadius.circular(x(4)),
+                          ),
+                          child: Text(
+                            'My Location',
+                            style: TextStyle(
+                              color: const Color(0xFFFB6F02),
+                              fontFamily: 'Inter',
+                              fontSize: fs(9),
+                              fontWeight: FontWeight.w700,
+                              height: 1,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -629,7 +692,7 @@ class _SrilankacustomerregisteraccountWidgetState
                   child: Text(
                     hasLocation
                         ? 'Lat ${pinPoint.latitude.toStringAsFixed(5)}  Lng ${pinPoint.longitude.toStringAsFixed(5)}'
-                        : 'Tap "Use Current Location" to pin your location',
+                        : 'Tap "Use My Location" to pin your location',
                     style: TextStyle(
                       color: Colors.white,
                       fontFamily: 'Inter',

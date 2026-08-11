@@ -211,6 +211,30 @@ class _DeliveryLocationMapPickerState
                     ],
                   ),
                   if (!isOnline) _OfflineMapOverlay(isDark: isDark),
+                  // Centered "Use My Location" button — shown only before first pin
+                  if (!hasPin && !locationState.isGpsLoading)
+                    Center(
+                      child: ElevatedButton.icon(
+                        onPressed: _detectAgain,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: cardColor,
+                          foregroundColor: AppColors.customerColor,
+                          elevation: 4,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 10),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                        ),
+                        icon: const Icon(Icons.my_location_rounded, size: 18),
+                        label: const Text(
+                          'Use My Location',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                    ),
                   if (locationState.isGpsLoading)
                     Container(
                       color: Colors.black38,
@@ -228,6 +252,7 @@ class _DeliveryLocationMapPickerState
                     right: 12,
                     top: 12,
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         if (hasPin)
                           FloatingActionButton.small(
@@ -238,18 +263,43 @@ class _DeliveryLocationMapPickerState
                             child: const Icon(Icons.center_focus_strong_rounded),
                           ),
                         if (hasPin) const SizedBox(height: 8),
-                        FloatingActionButton.small(
-                          heroTag: 'delivery-map-detect-again',
-                          onPressed: locationState.isGpsLoading ? null : _detectAgain,
-                          backgroundColor: cardColor,
-                          foregroundColor: AppColors.customerColor,
-                          child: locationState.isGpsLoading
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.my_location_rounded),
+                        Column(
+                          children: [
+                            FloatingActionButton.small(
+                              heroTag: 'delivery-map-detect-again',
+                              onPressed: locationState.isGpsLoading ? null : _detectAgain,
+                              backgroundColor: cardColor,
+                              foregroundColor: AppColors.customerColor,
+                              child: locationState.isGpsLoading
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.my_location_rounded),
+                            ),
+                            const SizedBox(height: 2),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 5, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: cardColor.withValues(alpha: 0.9),
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(
+                                    color: AppColors.customerColor
+                                        .withValues(alpha: 0.3)),
+                              ),
+                              child: Text(
+                                'My Location',
+                                style: TextStyle(
+                                  color: AppColors.customerColor,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -278,19 +328,6 @@ class _DeliveryLocationMapPickerState
                       const SizedBox(height: 6),
                       Text(loc!.formattedAddress, style: AppTextStyles.caption(secondaryText)),
                     ],
-                  ] else ...[
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                      onPressed: locationState.isGpsLoading ? null : _detectAgain,
-                      icon: locationState.isGpsLoading
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.my_location_rounded),
-                      label: Text(locationState.isGpsLoading ? 'Detecting...' : 'Use Current Location'),
-                    ),
                   ],
                 ],
               ),
