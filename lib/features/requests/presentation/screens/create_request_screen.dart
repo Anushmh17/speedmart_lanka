@@ -618,9 +618,20 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> with 
     return 'Not provided';
   }
 
-  void _triggerReviewSheet() {
+  void _triggerReviewSheet() async {
     if (!_hasLocation()) return;
 
+    final online = await ConnectivityService.instance.isOnline();
+    if (!online) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No network. Check your connection and try again.')),
+        );
+      }
+      return;
+    }
+
+    if (!mounted) return;
     FocusScope.of(context).unfocus();
     setState(() {
       _progressStep = 1;
@@ -729,16 +740,6 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> with 
 
     final activeItems = _getActiveItems();
     if (activeItems.isEmpty || !_hasLocation()) return;
-
-    final online = await ConnectivityService.instance.isOnline();
-    if (!online) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No network. Check your connection and try again.')),
-        );
-      }
-      return;
-    }
 
     if (!mounted) return;
     setState(() {

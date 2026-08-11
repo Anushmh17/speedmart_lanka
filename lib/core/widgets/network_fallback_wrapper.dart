@@ -76,12 +76,18 @@ class _NetworkFallbackWrapperState
   Future<void> _showOfflineBannerAnim() async {
     if (!mounted) return;
     setState(() => _showOfflineBanner = true);
-    _offlineController.forward();
+    await _offlineController.forward();
+    await Future.delayed(const Duration(seconds: 5));
+    if (!mounted) return;
+    await _offlineController.reverse();
+    if (mounted) setState(() => _showOfflineBanner = false);
   }
 
   Future<void> _hideOfflineBannerAnim() async {
-    await _offlineController.reverse();
-    if (mounted) setState(() => _showOfflineBanner = false);
+    if (_showOfflineBanner) {
+      await _offlineController.reverse();
+      if (mounted) setState(() => _showOfflineBanner = false);
+    }
   }
 
   Future<void> _showBackOnlineBanner() async {
