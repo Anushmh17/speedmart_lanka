@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
+import '../../../../core/services/connectivity_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 
-class OrderTrackingMap extends StatelessWidget {
+class OrderTrackingMap extends ConsumerWidget {
   const OrderTrackingMap({
     super.key,
     required this.customerLatitude,
@@ -23,7 +25,8 @@ class OrderTrackingMap extends StatelessWidget {
   final String vendorBusinessName;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isOnline = ref.watch(isOnlineProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
@@ -161,6 +164,7 @@ class OrderTrackingMap extends StatelessWidget {
             ],
           ),
 
+          if (!isOnline) _OfflineMapOverlay(isDark: isDark),
           // Custom visual overlay details
           Positioned(
             bottom: 12,
@@ -198,6 +202,36 @@ class OrderTrackingMap extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _OfflineMapOverlay extends StatelessWidget {
+  const _OfflineMapOverlay({required this.isDark});
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: Container(
+        color: (isDark ? AppColors.surfaceDark : AppColors.surfaceLight).withOpacity(0.92),
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.wifi_off_rounded,
+                size: 36,
+                color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
+            const SizedBox(height: 10),
+            Text(
+              'Map unavailable offline',
+              style: AppTextStyles.bodyMedium(
+                isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

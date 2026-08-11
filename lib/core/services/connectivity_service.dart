@@ -1,10 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Exposes the current network connectivity state as a Riverpod provider.
-/// Consumers can watch [connectivityProvider] to reactively respond to
-/// online/offline transitions anywhere in the widget tree.
 class ConnectivityService {
   ConnectivityService._();
 
@@ -12,35 +11,44 @@ class ConnectivityService {
 
   final Connectivity _connectivity = Connectivity();
 
-  /// Returns true if at least one non-none connectivity type is active.
-  static bool _isOnline(List<ConnectivityResult> results) {
+  static bool _hasInterface(List<ConnectivityResult> results) {
     return results.any((r) => r != ConnectivityResult.none);
   }
 
-  /// One-shot check — use for guards before network calls.
+  /// True reachability check — verifies actual internet, not just network interface.
   Future<bool> isOnline() async {
     final results = await _connectivity.checkConnectivity();
-    return _isOnline(results);
+    if (!_hasInterface(results)) return false;
+    try {
+      final result = await InternetAddress.lookup('google.com')
+          .timeout(const Duration(seconds: 4));
+      return result.isNotEmpty && result.first.rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
   }
 
-  /// Stream of online/offline booleans — use for reactive UI.
-  Stream<bool> get onlineStream => _connectivity.onConnectivityChanged
-      .map(_isOnline)
-      .distinct();
+  /// Stream of online/offline booleans — emits on connectivity change then
+  /// re-checks real reachability.
+  Stream<bool> get onlineStream async* {
+    await for (final results in _connectivity.onConnectivityChanged) {
+      if (!_hasInterface(results)) {
+        yield false;
+      } else {
+        yield await isOnline();
+      }
+    }
+  }
 }
 
 // ── Riverpod providers ────────────────────────────────────────────────────────
 
-/// Provides the current online state as a [StreamProvider].
-/// Automatically rebuilds widgets when connectivity changes.
 final connectivityProvider = StreamProvider<bool>((ref) async* {
-  // Emit the current state immediately so widgets don't wait for the first event.
   yield await ConnectivityService.instance.isOnline();
   yield* ConnectivityService.instance.onlineStream;
 });
 
-/// Synchronous convenience — true when online, defaults to true while loading
-/// so we don't block UI unnecessarily.
+/// Synchronous convenience — true when online, defaults to true while loading.
 final isOnlineProvider = Provider<bool>((ref) {
   return ref.watch(connectivityProvider).maybeWhen(
         data: (online) => online,

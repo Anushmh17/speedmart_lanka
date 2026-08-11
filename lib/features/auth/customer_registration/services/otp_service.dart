@@ -57,11 +57,13 @@ class FirebasePhoneOtpService implements OtpService {
   final Map<String, PhoneAuthCredential> _autoCredentials = {};
 
   static String _normalizePhone(String phone) {
-    final digits = phone.replaceAll(RegExp(r'[^\d]'), '');
-    if (digits.length == 9) return '+94$digits';
-    if (digits.length == 10 && digits.startsWith('0')) return '+94${digits.substring(1)}';
-    if (digits.length == 11 && digits.startsWith('94')) return '+$digits';
-    if (phone.startsWith('+')) return phone;
+    // Strip everything except digits
+    String digits = phone.replaceAll(RegExp(r'[^\d]'), '');
+    // Remove leading country code variants first
+    if (digits.startsWith('9494')) digits = digits.substring(2); // double-prefixed
+    if (digits.startsWith('94') && digits.length == 11) digits = digits.substring(2);
+    if (digits.startsWith('0') && digits.length == 10) digits = digits.substring(1);
+    // digits should now be exactly 9
     return '+94$digits';
   }
 

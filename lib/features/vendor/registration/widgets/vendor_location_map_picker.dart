@@ -3,12 +3,14 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../../core/services/connectivity_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 
-class VendorLocationMapPicker extends StatefulWidget {
+class VendorLocationMapPicker extends ConsumerStatefulWidget {
   final double? initialLatitude;
   final double? initialLongitude;
   final Function(double latitude, double longitude, String source) onLocationSelected;
@@ -21,10 +23,10 @@ class VendorLocationMapPicker extends StatefulWidget {
   });
 
   @override
-  State<VendorLocationMapPicker> createState() => _VendorLocationMapPickerState();
+  ConsumerState<VendorLocationMapPicker> createState() => _VendorLocationMapPickerState();
 }
 
-class _VendorLocationMapPickerState extends State<VendorLocationMapPicker> {
+class _VendorLocationMapPickerState extends ConsumerState<VendorLocationMapPicker> {
   final _mapController = MapController();
   final _mapKey = GlobalKey();
   LatLng? _pinPoint;
@@ -35,7 +37,6 @@ class _VendorLocationMapPickerState extends State<VendorLocationMapPicker> {
     super.initState();
     if (_hasValidCoordinates(widget.initialLatitude, widget.initialLongitude)) {
       _pinPoint = LatLng(widget.initialLatitude!, widget.initialLongitude!);
-      debugPrint('[VendorLocation] map initialized lat/lng: ${widget.initialLatitude}, ${widget.initialLongitude}');
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _pinPoint != null) _mapController.move(_pinPoint!, 17);
       });
@@ -45,10 +46,8 @@ class _VendorLocationMapPickerState extends State<VendorLocationMapPicker> {
   @override
   void didUpdateWidget(VendorLocationMapPicker oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // GPS coordinates arrived after initial build — fly to pin
     if (_hasValidCoordinates(widget.initialLatitude, widget.initialLongitude) &&
-        !_hasValidCoordinates(
-            oldWidget.initialLatitude, oldWidget.initialLongitude)) {
+        !_hasValidCoordinates(oldWidget.initialLatitude, oldWidget.initialLongitude)) {
       final point = LatLng(widget.initialLatitude!, widget.initialLongitude!);
       setState(() => _pinPoint = point);
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -64,10 +63,7 @@ class _VendorLocationMapPickerState extends State<VendorLocationMapPicker> {
   }
 
   bool _hasValidCoordinates(double? latitude, double? longitude) {
-    return latitude != null &&
-        longitude != null &&
-        latitude != 0.0 &&
-        longitude != 0.0;
+    return latitude != null && longitude != null && latitude != 0.0 && longitude != 0.0;
   }
 
   void _recenter() {
@@ -76,21 +72,16 @@ class _VendorLocationMapPickerState extends State<VendorLocationMapPicker> {
   }
 
   void _movePinTo(LatLng point, {bool immediate = false}) {
-    debugPrint('[VendorLocation] pin moved lat/lng: ${point.latitude}, ${point.longitude}');
     setState(() => _pinPoint = point);
     _dragDebounce?.cancel();
 
     if (immediate) {
-      debugPrint('[VendorLocation] final saved lat/lng: ${point.latitude}, ${point.longitude}');
-      debugPrint('[VendorLocation] is valid: ${_hasValidCoordinates(point.latitude, point.longitude)}');
       widget.onLocationSelected(point.latitude, point.longitude, 'map_pin');
       return;
     }
 
     _dragDebounce = Timer(const Duration(milliseconds: 250), () {
       if (!mounted) return;
-      debugPrint('[VendorLocation] final saved lat/lng: ${point.latitude}, ${point.longitude}');
-      debugPrint('[VendorLocation] is valid: ${_hasValidCoordinates(point.latitude, point.longitude)}');
       widget.onLocationSelected(point.latitude, point.longitude, 'map_pin');
     });
   }
@@ -100,28 +91,23 @@ class _VendorLocationMapPickerState extends State<VendorLocationMapPicker> {
     if (context == null) return null;
     final box = context.findRenderObject() as RenderBox?;
     if (box == null) return null;
-
     final local = box.globalToLocal(globalPosition);
-    return _mapController.camera.pointToLatLng(
-      math.Point<double>(local.dx, local.dy),
-    );
+    return _mapController.camera.pointToLatLng(math.Point<double>(local.dx, local.dy));
   }
 
-  // Sri Lanka geographic center — used as fallback before GPS resolves
   static const _sriLankaCenter = LatLng(7.8731, 80.7718);
 
   @override
   Widget build(BuildContext context) {
+    final isOnline = ref.watch(isOnlineProvider);
     final pinPoint = _pinPoint;
     final hasPin = pinPoint != null;
     final center = pinPoint ?? _sriLankaCenter;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
-    final primaryText =
-        isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final secondaryText =
-        isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
 
     return Container(
       decoration: BoxDecoration(
@@ -146,14 +132,11 @@ class _VendorLocationMapPickerState extends State<VendorLocationMapPicker> {
                       initialZoom: hasPin ? 17 : 8,
                       minZoom: 6,
                       maxZoom: 19,
-                      onTap: hasPin
-                          ? (_, point) => _movePinTo(point, immediate: true)
-                          : null,
+                      onTap: hasPin ? (_, point) => _movePinTo(point, immediate: true) : null,
                     ),
                     children: [
                       TileLayer(
-                        urlTemplate:
-                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                         userAgentPackageName: 'com.speedmart.lanka',
                         retinaMode: false,
                       ),
@@ -168,27 +151,21 @@ class _VendorLocationMapPickerState extends State<VendorLocationMapPicker> {
                               child: GestureDetector(
                                 behavior: HitTestBehavior.opaque,
                                 onPanUpdate: (details) {
-                                  final next =
-                                      _latLngFromGlobal(details.globalPosition);
+                                  final next = _latLngFromGlobal(details.globalPosition);
                                   if (next != null) _movePinTo(next);
                                 },
                                 onPanEnd: (_) {
                                   final latest = _pinPoint;
-                                  if (latest != null) {
-                                    _movePinTo(latest, immediate: true);
-                                  }
+                                  if (latest != null) _movePinTo(latest, immediate: true);
                                 },
-                                child: const Icon(
-                                  Icons.location_pin,
-                                  color: AppColors.vendorColor,
-                                  size: 52,
-                                ),
+                                child: const Icon(Icons.location_pin, color: AppColors.vendorColor, size: 52),
                               ),
                             ),
                           ],
                         ),
                     ],
                   ),
+                  if (!isOnline) _OfflineMapOverlay(isDark: isDark),
                   if (!hasPin)
                     Container(
                       color: Colors.black38,
@@ -196,14 +173,9 @@ class _VendorLocationMapPickerState extends State<VendorLocationMapPicker> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const CircularProgressIndicator(
-                            color: AppColors.vendorColor,
-                          ),
+                          const CircularProgressIndicator(color: AppColors.vendorColor),
                           const SizedBox(height: 12),
-                          Text(
-                            'Detecting GPS location…',
-                            style: AppTextStyles.bodySmall(Colors.white),
-                          ),
+                          Text('Detecting GPS location…', style: AppTextStyles.bodySmall(Colors.white)),
                         ],
                       ),
                     ),
@@ -250,3 +222,34 @@ class _VendorLocationMapPickerState extends State<VendorLocationMapPicker> {
   }
 }
 
+class _OfflineMapOverlay extends StatelessWidget {
+  const _OfflineMapOverlay({required this.isDark});
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: Container(
+        color: (isDark ? AppColors.surfaceDark : AppColors.surfaceLight).withOpacity(0.92),
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.wifi_off_rounded,
+              size: 36,
+              color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Map unavailable offline',
+              style: AppTextStyles.bodyMedium(
+                isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

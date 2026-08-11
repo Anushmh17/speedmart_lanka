@@ -434,7 +434,7 @@ class AuthRepository {
       }
     }
 
-    final normalizedNic = nic?.trim();
+    final normalizedNic = nic?.trim().toUpperCase();
     if (normalizedNic != null && normalizedNic.isNotEmpty) {
       final nicExists = _sessionUsers.any(
         (u) =>
@@ -471,7 +471,7 @@ class AuthRepository {
       detectedCountry: detectedCountry,
       detectionSource: detectionSource,
       riskFlag: riskFlag,
-      nic: nic,
+      nic: normalizedNic,
       deliveryProvince: deliveryProvince,
       deliveryDistrict: deliveryDistrict,
       deliveryApproxArea: deliveryApproxArea,
@@ -554,7 +554,7 @@ class AuthRepository {
     await StorageService.addToRegistrationIndex(
       email: resolvedEmail,
       phone: normalizedPhone,
-      nic: nic?.trim(),
+      nic: normalizedNic,
     );
 
     debugPrint('[Auth] Registration saved: email=$resolvedEmail, id=$userId');

@@ -15,18 +15,9 @@ class SriLankaPhoneHelper {
   /// Output: "+94724999660"
   static String normalizeSriLankaPhoneForStorage(String input) {
     String digits = digitsOnly(input);
-    
-    // Remove leading 0 if present
-    if (digits.startsWith('0')) {
-      digits = digits.substring(1);
-    }
-    
-    // Remove +94 prefix if already present
-    if (digits.startsWith('94')) {
-      digits = digits.substring(2);
-    }
-    
-    debugPrint('[SriLankaPhone] normalize input: $input -> digits: $digits -> output: $countryCode$digits');
+    if (digits.startsWith('9494')) digits = digits.substring(2);
+    if (digits.startsWith('94') && digits.length == 11) digits = digits.substring(2);
+    if (digits.startsWith('0') && digits.length == 10) digits = digits.substring(1);
     return '$countryCode$digits';
   }
   
@@ -60,36 +51,29 @@ class SriLankaPhoneHelper {
     return digits;
   }
   
+  static const List<String> _validPrefixes = ['70','71','72','74','75','76','77','78'];
+
   /// Validate Sri Lankan mobile number
-  /// Must be exactly 9 digits after removing leading 0 and must start with 7
+  /// Must be exactly 9 digits after removing leading 0 and must start with a valid prefix
   static String? validateSriLankaMobile(String? input) {
     if (input == null || input.trim().isEmpty) {
       return 'Phone number is required';
     }
-    
+
     String digits = digitsOnly(input);
-    
-    // Remove leading 0 if present
-    if (digits.startsWith('0')) {
-      digits = digits.substring(1);
-    }
-    
-    // Remove +94 prefix if present
-    if (digits.startsWith('94')) {
-      digits = digits.substring(2);
-    }
-    
+
+    if (digits.startsWith('0')) digits = digits.substring(1);
+    if (digits.startsWith('94')) digits = digits.substring(2);
+
     if (digits.length != localDigitCount) {
-      debugPrint('[SriLankaPhone] validation failed: length ${digits.length} != $localDigitCount');
       return 'Phone number must be $localDigitCount digits after +94';
     }
-    
-    if (!digits.startsWith('7')) {
-      debugPrint('[SriLankaPhone] validation failed: does not start with 7');
-      return 'Mobile number must start with 7 (e.g., 71, 72, 77)';
+
+    final prefix = digits.substring(0, 2);
+    if (!_validPrefixes.contains(prefix)) {
+      return 'Enter a valid mobile number (07X where X is 0,1,2,4,5,6,7,8)';
     }
-    
-    debugPrint('[SriLankaPhone] validation passed: $digits');
+
     return null;
   }
   

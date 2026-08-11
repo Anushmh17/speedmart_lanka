@@ -6,6 +6,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../../../../core/services/connectivity_service.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_text_styles.dart';
 import '../../../../location/providers/location_provider.dart';
@@ -32,7 +33,6 @@ class _DeliveryLocationMapPickerState
     super.dispose();
   }
 
-  // Fly to pin the first time GPS coordinates arrive after the widget is built
   LatLng? _lastSyncedGps;
 
   void _maybeFlyToNewGps(LocationState state) {
@@ -114,7 +114,6 @@ class _DeliveryLocationMapPickerState
     if (context == null) return null;
     final box = context.findRenderObject() as RenderBox?;
     if (box == null) return null;
-
     final local = box.globalToLocal(globalPosition);
     return _mapController.camera.pointToLatLng(
       math.Point<double>(local.dx, local.dy),
@@ -124,18 +123,16 @@ class _DeliveryLocationMapPickerState
   @override
   Widget build(BuildContext context) {
     final locationState = ref.watch(deliveryLocationProvider);
+    final isOnline = ref.watch(isOnlineProvider);
     _syncPointFromState(locationState);
 
     final pinPoint = _pinPoint;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
-    final primaryText =
-        isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
-    final secondaryText =
-        isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
 
-    // Sri Lanka geographic center — used as fallback before GPS resolves
     const sriLankaCenter = LatLng(7.8731, 80.7718);
     final hasPin = pinPoint != null;
     final center = pinPoint ?? sriLankaCenter;
@@ -170,8 +167,7 @@ class _DeliveryLocationMapPickerState
                     ),
                     children: [
                       TileLayer(
-                        urlTemplate:
-                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                         userAgentPackageName: 'com.speedmart.lanka',
                         retinaMode: false,
                       ),
@@ -187,16 +183,9 @@ class _DeliveryLocationMapPickerState
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: Colors.blue.withValues(alpha: 0.18),
-                                    border: Border.all(
-                                      color: Colors.blue,
-                                      width: 2,
-                                    ),
+                                    border: Border.all(color: Colors.blue, width: 2),
                                   ),
-                                  child: const Icon(
-                                    Icons.my_location,
-                                    color: Colors.blue,
-                                    size: 16,
-                                  ),
+                                  child: const Icon(Icons.my_location, color: Colors.blue, size: 16),
                                 ),
                               ),
                             Marker(
@@ -207,28 +196,21 @@ class _DeliveryLocationMapPickerState
                               child: GestureDetector(
                                 behavior: HitTestBehavior.opaque,
                                 onPanUpdate: (details) {
-                                  final next =
-                                      _latLngFromGlobal(details.globalPosition);
+                                  final next = _latLngFromGlobal(details.globalPosition);
                                   if (next != null) _movePinTo(next);
                                 },
                                 onPanEnd: (_) {
                                   final latest = _pinPoint;
-                                  if (latest != null) {
-                                    _movePinTo(latest, immediate: true);
-                                  }
+                                  if (latest != null) _movePinTo(latest, immediate: true);
                                 },
-                                child: const Icon(
-                                  Icons.location_pin,
-                                  color: AppColors.customerColor,
-                                  size: 52,
-                                ),
+                                child: const Icon(Icons.location_pin, color: AppColors.customerColor, size: 52),
                               ),
                             ),
                           ],
                         ),
                     ],
                   ),
-                  // GPS loading overlay
+                  if (!isOnline) _OfflineMapOverlay(isDark: isDark),
                   if (locationState.isGpsLoading)
                     Container(
                       color: Colors.black38,
@@ -236,14 +218,9 @@ class _DeliveryLocationMapPickerState
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const CircularProgressIndicator(
-                            color: AppColors.customerColor,
-                          ),
+                          const CircularProgressIndicator(color: AppColors.customerColor),
                           const SizedBox(height: 12),
-                          Text(
-                            'Detecting GPS location…',
-                            style: AppTextStyles.bodySmall(Colors.white),
-                          ),
+                          Text('Detecting GPS location…', style: AppTextStyles.bodySmall(Colors.white)),
                         ],
                       ),
                     ),
@@ -263,16 +240,14 @@ class _DeliveryLocationMapPickerState
                         if (hasPin) const SizedBox(height: 8),
                         FloatingActionButton.small(
                           heroTag: 'delivery-map-detect-again',
-                          onPressed:
-                              locationState.isGpsLoading ? null : _detectAgain,
+                          onPressed: locationState.isGpsLoading ? null : _detectAgain,
                           backgroundColor: cardColor,
                           foregroundColor: AppColors.customerColor,
                           child: locationState.isGpsLoading
                               ? const SizedBox(
                                   width: 18,
                                   height: 18,
-                                  child:
-                                      CircularProgressIndicator(strokeWidth: 2),
+                                  child: CircularProgressIndicator(strokeWidth: 2),
                                 )
                               : const Icon(Icons.my_location_rounded),
                         ),
@@ -301,29 +276,20 @@ class _DeliveryLocationMapPickerState
                     ),
                     if (loc?.formattedAddress.isNotEmpty == true) ...[
                       const SizedBox(height: 6),
-                      Text(
-                        loc!.formattedAddress,
-                        style: AppTextStyles.caption(secondaryText),
-                      ),
+                      Text(loc!.formattedAddress, style: AppTextStyles.caption(secondaryText)),
                     ],
                   ] else ...[
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
-                      onPressed:
-                          locationState.isGpsLoading ? null : _detectAgain,
+                      onPressed: locationState.isGpsLoading ? null : _detectAgain,
                       icon: locationState.isGpsLoading
                           ? const SizedBox(
                               width: 18,
                               height: 18,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2),
+                              child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Icon(Icons.my_location_rounded),
-                      label: Text(
-                        locationState.isGpsLoading
-                            ? 'Detecting...'
-                            : 'Use Current Location',
-                      ),
+                      label: Text(locationState.isGpsLoading ? 'Detecting...' : 'Use Current Location'),
                     ),
                   ],
                 ],
@@ -336,3 +302,34 @@ class _DeliveryLocationMapPickerState
   }
 }
 
+class _OfflineMapOverlay extends StatelessWidget {
+  const _OfflineMapOverlay({required this.isDark});
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: Container(
+        color: (isDark ? AppColors.surfaceDark : AppColors.surfaceLight).withOpacity(0.92),
+        alignment: Alignment.center,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.wifi_off_rounded,
+              size: 36,
+              color: isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Map unavailable offline',
+              style: AppTextStyles.bodyMedium(
+                isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

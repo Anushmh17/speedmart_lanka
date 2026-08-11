@@ -27,6 +27,7 @@ import 'package:flutter/services.dart';
 import '../../../../shared/models/sri_lanka_banks.dart';
 import '../../../../shared/utils/category_constants.dart';
 import '../../../../core/utils/permission_utils.dart';
+import '../../../../core/utils/sri_lanka_phone_helper.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({
@@ -269,6 +270,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       return;
     }
 
+    final phoneError = SriLankaPhoneHelper.validateSriLankaMobile(_phoneCtrl.text.trim());
+    if (phoneError != null) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(phoneError), backgroundColor: Colors.red));
+      return;
+    }
+    final normalizedPhone = SriLankaPhoneHelper.normalizeSriLankaPhoneForStorage(_phoneCtrl.text.trim());
+
     // Upload profile image to Firebase Storage if a new local file was picked
     String? finalImageUrl = user.profileImageUrl;
     if (_pickedImagePath != null && !_pickedImagePath!.startsWith('http')) {
@@ -292,7 +300,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     await ref.read(authProvider.notifier).updateProfile(
       fullName: _nameCtrl.text.trim(),
-      phone: _phoneCtrl.text.trim(),
+      phone: normalizedPhone,
       businessName: user.role == UserRole.vendor ? _businessNameCtrl.text.trim() : null,
       profileImageUrl: finalImageUrl,
       requestedCategories: user.role == UserRole.vendor ? _requestedCategories : null,

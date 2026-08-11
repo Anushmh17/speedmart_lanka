@@ -124,7 +124,7 @@ class _SrilankacustomerregisteraccountWidgetState
         'fullName': _fullNameController.text.trim(),
         'phone': _phoneController.text.trim(),
         'email': _emailController.text.trim(),
-        'nic': _nicController.text.trim(),
+        'nic': _nicController.text.trim().toUpperCase(),
         'province': widget.selectedProvince?.trim() ?? '',
         'district': widget.selectedDistrict?.trim() ?? '',
         'preciseAddress': _addressController.text.trim(),
@@ -419,8 +419,7 @@ class _SrilankacustomerregisteraccountWidgetState
                       controller: _nicController,
                       textInputAction: TextInputAction.next,
                       inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'[0-9VvXx]')),
-                        LengthLimitingTextInputFormatter(12),
+                        _NicTextFormatter(),
                       ],
                       cursorColor: const Color(0xFFFF8213),
                       scrollPadding: EdgeInsets.only(
@@ -910,3 +909,50 @@ class _SrilankacustomerregisteraccountWidgetState
 }
 
 
+class _NicTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    final raw = newValue.text.toUpperCase();
+
+    // Build valid NIC string: up to 9 digits, then optionally one V at the end
+    final buffer = StringBuffer();
+    int digitCount = 0;
+    bool hasV = false;
+
+    for (final ch in raw.split('')) {
+      if (ch == 'V' && !hasV && digitCount == 9) {
+        buffer.write('V');
+        hasV = true;
+      } else if (RegExp(r'\d').hasMatch(ch) && !hasV && digitCount < 9) {
+        buffer.write(ch);
+        digitCount++;
+      }
+      // anything else (X, misplaced V, extra digits after V) is dropped
+    }
+
+    // If more than 9 digits were typed without a V, allow up to 12 digits (new NIC)
+    if (!hasV && digitCount == 9) {
+      // could still be new NIC — allow up to 12 digits total
+      // re-process allowing digits up to 12
+      buffer.clear();
+      digitCount = 0;
+      for (final ch in raw.split('')) {
+        if (RegExp(r'\d').hasMatch(ch) && digitCount < 12) {
+          buffer.write(ch);
+          digitCount++;
+        } else if (ch == 'V' && digitCount == 9 && !hasV) {
+          buffer.write('V');
+          hasV = true;
+          break;
+        }
+      }
+    }
+
+    final result = buffer.toString();
+    return newValue.copyWith(
+      text: result,
+      selection: TextSelection.collapsed(offset: result.length),
+    );
+  }
+}
