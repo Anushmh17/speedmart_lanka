@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../../core/services/connectivity_service.dart';
 import '../../../../core/routes/route_names.dart';
 import '../../../../core/services/storage_upload_service.dart';
 import '../../../../core/theme/app_colors.dart';
@@ -49,6 +50,15 @@ class _BankTransferConfirmScreenState
 
   Future<void> _confirmPayment() async {
     if (_isSubmitting) return;
+
+    final online = await ConnectivityService.instance.isOnline();
+    if (!online) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No network. Check your connection and try again.')),
+      );
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {

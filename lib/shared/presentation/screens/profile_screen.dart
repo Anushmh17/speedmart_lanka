@@ -21,6 +21,7 @@ import '../../../core/navigation/bottom_nav_visibility.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/providers/category_provider.dart';
 import '../../../shared/utils/category_sync_helper.dart';
+import '../../../core/services/connectivity_service.dart';
 import '../../../core/utils/permission_utils.dart';
 import '../../../core/utils/sri_lanka_phone_helper.dart';
 
@@ -303,6 +304,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
+
+    final online = await ConnectivityService.instance.isOnline();
+    if (!online) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No network. Check your connection and try again.')),
+      );
+      return;
+    }
 
     final user = ref.read(currentUserProvider);
     if (user == null) return;

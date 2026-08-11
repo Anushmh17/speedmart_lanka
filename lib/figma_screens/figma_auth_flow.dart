@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../core/services/connectivity_service.dart';
 import '../features/auth/providers/auth_provider.dart';
 import '../features/auth/customer_registration/providers/customer_registration_provider.dart';
 import '../features/customer/delivery_address/models/customer_delivery_address.dart';
@@ -335,6 +336,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     if (_selectedProvince == null) { _showError('Please select your Province.'); return; }
     if (_selectedDistrict == null) { _showError('Please select your District.'); return; }
     if (preciseAddress.isEmpty) { _showError('Please enter your precise delivery address.'); return; }
+    if (!await _checkOnline()) return;
 
     setState(() => _isLoading = true);
     try {
@@ -372,6 +374,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
   Future<void> _onSriLankaCustomerSendOtp(bool rememberMe) async {
     final phone = _loginPhoneCtrl.text.trim();
     if (phone.isEmpty) { _showError('Please enter your phone number.'); return; }
+    if (!await _checkOnline()) return;
 
     setState(() => _isLoading = true);
     try {
@@ -516,6 +519,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     final password = _vendorLoginPasswordCtrl.text;
     if (email.isEmpty) { _showError('Please enter your email.'); return; }
     if (password.isEmpty) { _showError('Please enter your password.'); return; }
+    if (!await _checkOnline()) return;
 
     setState(() => _isLoading = true);
     try {
@@ -586,6 +590,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
 
     // Store form data and send OTP â€” registration happens after OTP verified
     _pendingVendorRegData = data;
+    if (!await _checkOnline()) return;
 
     setState(() => _isLoading = true);
     try {
@@ -793,6 +798,12 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
   }
 
   void _showError(String message) => _showToast(message, isError: true);
+
+  Future<bool> _checkOnline() async {
+    final online = await ConnectivityService.instance.isOnline();
+    if (!online && mounted) _showError('No network. Check your connection and try again.');
+    return online;
+  }
 
   // â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 

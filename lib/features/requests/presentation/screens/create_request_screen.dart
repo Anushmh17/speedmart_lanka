@@ -11,6 +11,7 @@ import '../../../../core/widgets/theme3/theme3_widgets.dart';
 import '../../../../core/routes/route_names.dart';
 
 import '../../models/request_item.dart';
+import '../../../../core/services/connectivity_service.dart';
 import '../../providers/request_provider.dart';
 import '../../providers/draft_provider.dart';
 import '../../../../core/providers/notification_provider.dart';
@@ -728,6 +729,16 @@ class _CreateRequestScreenState extends ConsumerState<CreateRequestScreen> with 
 
     final activeItems = _getActiveItems();
     if (activeItems.isEmpty || !_hasLocation()) return;
+
+    final online = await ConnectivityService.instance.isOnline();
+    if (!online) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No network. Check your connection and try again.')),
+        );
+      }
+      return;
+    }
 
     if (!mounted) return;
     setState(() {

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:speedmart_lanka/core/services/connectivity_service.dart';
 import 'package:speedmart_lanka/core/theme/app_colors.dart';
 import 'package:speedmart_lanka/core/theme/app_text_styles.dart';
 import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
@@ -207,6 +208,14 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
             content: Text(_missingAddressError!), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    final online = await ConnectivityService.instance.isOnline();
+    if (!online) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No network. Check your connection and try again.')),
       );
       return;
     }

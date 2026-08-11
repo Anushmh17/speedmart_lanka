@@ -11,6 +11,7 @@ import 'package:speedmart_lanka/features/orders/data/order_repository.dart';
 import 'package:speedmart_lanka/features/orders/models/order_model.dart';
 import 'package:speedmart_lanka/features/orders/providers/order_provider.dart';
 import 'package:speedmart_lanka/features/orders/services/vendor_delivery_access_service.dart';
+import 'package:speedmart_lanka/core/services/connectivity_service.dart';
 import 'package:speedmart_lanka/core/providers/notification_provider.dart';
 import 'package:speedmart_lanka/features/notifications/models/notification_type.dart';
 import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart'
@@ -74,6 +75,13 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
     BuildContext context,
     OrderModel order,
   ) async {
+    final online = await ConnectivityService.instance.isOnline();
+    if (!online) {
+      if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No network. Check your connection and try again.')),
+      );
+      return;
+    }
     // Get payment for this order
     final payment = await PaymentRepository.instance.getPaymentByOrderId(order.id);
     if (payment == null) {
@@ -1063,6 +1071,13 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                             elevation: 0,
                           ),
                           onPressed: () async {
+                      final online = await ConnectivityService.instance.isOnline();
+                      if (!online) {
+                        if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('No network. Check your connection and try again.')),
+                        );
+                        return;
+                      }
                       OrderStatus nextStatus = OrderStatus.accepted;
 
                       if (activeOrder.status == OrderStatus.submitted) {

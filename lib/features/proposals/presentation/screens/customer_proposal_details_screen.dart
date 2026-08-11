@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/services/connectivity_service.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_radius.dart';
@@ -42,6 +43,13 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
 
   Future<void> _handleAccept() async {
     if (_isProcessingAccept) return;
+    final online = await ConnectivityService.instance.isOnline();
+    if (!online) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No network. Check your connection and try again.')),
+      );
+      return;
+    }
     setState(() {
       _isProcessingAccept = true;
     });
@@ -70,6 +78,13 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
   }
 
   Future<void> _handleReject(String reason) async {
+    final online = await ConnectivityService.instance.isOnline();
+    if (!online) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No network. Check your connection and try again.')),
+      );
+      return;
+    }
     await ref.read(proposalProvider.notifier).rejectProposal(widget.proposal.id, widget.requestId, reason);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -85,6 +100,13 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
 
   Future<void> _sendSuggestedMessage() async {
     if (_selectedControlledMsg == null) return;
+    final online = await ConnectivityService.instance.isOnline();
+    if (!online) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No network. Check your connection and try again.')),
+      );
+      return;
+    }
     await ref.read(proposalProvider.notifier).sendControlledMessage(
           widget.proposal.id,
           customerMsg: _selectedControlledMsg,

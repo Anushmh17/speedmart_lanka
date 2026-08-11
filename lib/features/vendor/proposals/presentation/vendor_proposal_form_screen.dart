@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../../core/services/connectivity_service.dart';
 import '../../../../core/providers/notification_provider.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
@@ -380,6 +381,14 @@ class _VendorProposalFormScreenState
   Future<void> _saveDraft() async {
     if (_saving) return;
 
+    final online = await ConnectivityService.instance.isOnline();
+    if (!online) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No network. Check your connection and try again.')),
+      );
+      return;
+    }
+
     final user = ref.read(currentUserProvider);
     if (user == null) return;
     final loc = ref.read(requestProvider);
@@ -418,6 +427,14 @@ class _VendorProposalFormScreenState
   Future<void> _submit() async {
     if (_saving) return;
     if (!_formKey.currentState!.validate()) return;
+
+    final online = await ConnectivityService.instance.isOnline();
+    if (!online) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No network. Check your connection and try again.')),
+      );
+      return;
+    }
 
     final user = ref.read(currentUserProvider);
     if (user == null) return;
