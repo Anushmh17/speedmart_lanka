@@ -21,7 +21,7 @@ class SrilankavendorregistrationotpWidget extends StatefulWidget {
 }
 
 class _SrilankavendorregistrationotpWidgetState
-    extends State<SrilankavendorregistrationotpWidget> {
+    extends State<SrilankavendorregistrationotpWidget> with WidgetsBindingObserver {
   static const String _assetBase =
       'assets/images/figma/sri_lanka_vendor_register_otp/';
 
@@ -39,10 +39,24 @@ class _SrilankavendorregistrationotpWidgetState
   bool _isSubmitting = false;
   bool _isSuccess = false;
 
+  double _keyboardHeight = 0;
+
   @override
   void initState() {
     super.initState();
     _addBackspaceListeners();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _otpFocusNodes[0].requestFocus(),
+    );
+  }
+
+  @override
+  void didChangeMetrics() {
+    final bottomInset = WidgetsBinding
+            .instance.platformDispatcher.views.first.viewInsets.bottom /
+        WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+    if (mounted) setState(() => _keyboardHeight = bottomInset);
   }
 
   void _addBackspaceListeners() {
@@ -84,6 +98,7 @@ class _SrilankavendorregistrationotpWidgetState
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     for (final c in _otpControllers) c.dispose();
     for (final f in _otpFocusNodes) f.dispose();
     super.dispose();
@@ -94,7 +109,11 @@ class _SrilankavendorregistrationotpWidgetState
     final media = MediaQuery.of(context);
     final w = media.size.width;
     final h = media.size.height;
-    final keyboardOpen = media.viewInsets.bottom > 0;
+    final keyboardHeight = _keyboardHeight;
+    final otpBoxTop = (h / 800) * 547;
+    final otpBoxBottom = otpBoxTop + (h / 800) * 48;
+    final coveredBy = (otpBoxBottom + 10.0 - (h - keyboardHeight)).clamp(0.0, double.infinity);
+    final slidePixels = coveredBy.clamp(0.0, otpBoxTop - 8.0);
     final sx = w / 360;
     final sy = h / 800;
     final fontScale = sx.clamp(0.76, 1.0).toDouble();
@@ -130,12 +149,19 @@ class _SrilankavendorregistrationotpWidgetState
             child: SizedBox(
               width: w,
               height: h,
-              child: AnimatedSlide(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOut,
-                offset: Offset(0, keyboardOpen ? -0.05 : 0),
-                child: Stack(
-                  children: [
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOut,
+                    top: -slidePixels,
+                    left: 0,
+                    right: 0,
+                    height: h,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
                     Positioned(
                       top: 0, left: 0, right: 0, height: y(360),
                       child: Image.asset('${_assetBase}Vendorloginuinewhero1.png', fit: BoxFit.fill),
@@ -342,7 +368,9 @@ class _SrilankavendorregistrationotpWidgetState
                       ),
                     ),
                   ],
-                ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

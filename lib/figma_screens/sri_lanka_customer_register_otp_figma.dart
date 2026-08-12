@@ -22,7 +22,7 @@ class SrilankacustomerregistrationotpWidget extends StatefulWidget {
 }
 
 class SrilankacustomerregistrationotpWidgetState
-    extends State<SrilankacustomerregistrationotpWidget> {
+    extends State<SrilankacustomerregistrationotpWidget> with WidgetsBindingObserver {
   static const String _assetBase =
       'assets/images/figma/sri_lanka_customer_register_otp/';
   static const int _resendSeconds = 30;
@@ -39,14 +39,25 @@ class SrilankacustomerregistrationotpWidgetState
   bool _canResend = false;
   Timer? _resendTimer;
 
+  double _keyboardHeight = 0;
+
   @override
   void initState() {
     super.initState();
     _startResendTimer();
     _addBackspaceListeners();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => _otpFocusNodes[0].requestFocus(),
     );
+  }
+
+  @override
+  void didChangeMetrics() {
+    final bottomInset = WidgetsBinding
+            .instance.platformDispatcher.views.first.viewInsets.bottom /
+        WidgetsBinding.instance.platformDispatcher.views.first.devicePixelRatio;
+    if (mounted) setState(() => _keyboardHeight = bottomInset);
   }
 
   void _addBackspaceListeners() {
@@ -67,6 +78,7 @@ class SrilankacustomerregistrationotpWidgetState
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _resendTimer?.cancel();
     for (final c in _otpControllers) { c.dispose(); }
     for (final f in _otpFocusNodes) { f.dispose(); }
@@ -138,13 +150,19 @@ class SrilankacustomerregistrationotpWidgetState
     final media = MediaQuery.of(context);
     final w = media.size.width;
     final h = media.size.height;
-    final keyboardOpen = media.viewInsets.bottom > 0;
     final sx = w / 360;
     final sy = h / 800;
     final fontScale = sx.clamp(0.76, 1.0).toDouble();
     double x(double v) => v * sx;
     double y(double v) => v * sy;
     double fs(double v) => v * fontScale;
+
+    final keyboardHeight = _keyboardHeight;
+    final otpBoxTop = y(530);
+    final otpBoxBottom = otpBoxTop + y(48);
+    final coveredBy = (otpBoxBottom + 10.0 - (h - keyboardHeight)).clamp(0.0, double.infinity);
+    final maxSlide = otpBoxTop - 8.0;
+    final slidePixels = coveredBy.clamp(0.0, maxSlide);
 
     final resendLabel = _canResend ? 'Resend OTP' : 'Resend in ${_secondsLeft}s';
 
@@ -170,12 +188,19 @@ class SrilankacustomerregistrationotpWidgetState
             onTap: () => FocusScope.of(context).unfocus(),
             child: SizedBox(
               width: w, height: h,
-              child: AnimatedSlide(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOut,
-                offset: Offset(0, keyboardOpen ? -0.05 : 0),
-                child: Stack(
-                  children: [
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOut,
+                    top: -slidePixels,
+                    left: 0,
+                    right: 0,
+                    height: h,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
                     Positioned(
                       top: 0, left: 0, right: 0, height: y(336),
                       child: Image.asset('${_assetBase}Customerheroimagespeedmart1.png', fit: BoxFit.fill),
@@ -362,6 +387,8 @@ class SrilankacustomerregistrationotpWidgetState
                     ),
                   ],
                 ),
+                  ),
+                ],
               ),
             ),
           ),

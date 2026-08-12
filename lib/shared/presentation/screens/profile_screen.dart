@@ -367,11 +367,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         );
       }
-    } catch (_) {
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Failed to save profile. Please try again.'),
+          SnackBar(
+              content: Text('Failed to save profile: $e'),
               backgroundColor: AppColors.error),
         );
       }
