@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1003,29 +1003,11 @@ class _NicTextFormatter extends TextInputFormatter {
       if (ch == 'V' && !hasV && digitCount == 9) {
         buffer.write('V');
         hasV = true;
-      } else if (RegExp(r'\d').hasMatch(ch) && !hasV && digitCount < 9) {
+      } else if (RegExp(r'\d').hasMatch(ch) && !hasV && digitCount < 12) {
         buffer.write(ch);
         digitCount++;
       }
       // anything else (X, misplaced V, extra digits after V) is dropped
-    }
-
-    // If more than 9 digits were typed without a V, allow up to 12 digits (new NIC)
-    if (!hasV && digitCount == 9) {
-      // could still be new NIC — allow up to 12 digits total
-      // re-process allowing digits up to 12
-      buffer.clear();
-      digitCount = 0;
-      for (final ch in raw.split('')) {
-        if (RegExp(r'\d').hasMatch(ch) && digitCount < 12) {
-          buffer.write(ch);
-          digitCount++;
-        } else if (ch == 'V' && digitCount == 9 && !hasV) {
-          buffer.write('V');
-          hasV = true;
-          break;
-        }
-      }
     }
 
     final result = buffer.toString();

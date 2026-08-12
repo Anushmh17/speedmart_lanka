@@ -112,6 +112,22 @@ class AuthRepository {
     }
   }
 
+  Future<bool> _customerExistsInFirestore({
+    required String field,
+    required String value,
+  }) async {
+    try {
+      final snapshot = await FirestoreService.collection('users/customers/profiles')
+          .where(field, isEqualTo: value)
+          .limit(1)
+          .get();
+      return snapshot.docs.isNotEmpty;
+    } catch (e) {
+      debugPrint('[Auth] _customerExistsInFirestore($field) error: $e');
+      rethrow;
+    }
+  }
+
   Future<void> _syncUserToFirestore(UserModel user) async {
     try {
       final doc = _collectionForRole(user.role).doc(user.id);
@@ -300,39 +316,98 @@ class AuthRepository {
     await ensureInitialized();
     final normPhone = phone?.trim();
     final normEmail = email?.trim().toLowerCase();
-    final normNic = nic?.trim().toLowerCase();
+    final normNic = nic?.trim().toUpperCase();
 
-    // If _sessionUsers is empty (offline / fresh install), fall back to local registration index.
-    final checkList = _sessionUsers.isNotEmpty
-        ? _sessionUsers
-            .map((u) => {'email': u.email, 'phone': u.phone, 'nic': u.nic})
-            .toList()
-        : await StorageService.getRegistrationIndex();
+    List<Map<String, dynamic>>? localCheckList;
+
+    Future<List<Map<String, dynamic>>> getLocalCheckList() async {
+      localCheckList ??= _sessionUsers.isNotEmpty
+          ? _sessionUsers
+              .map((u) => {'email': u.email, 'phone': u.phone, 'nic': u.nic})
+              .toList()
+          : await StorageService.getRegistrationIndex();
+      return localCheckList!;
+    }
 
     if (normPhone != null && normPhone.isNotEmpty) {
-      final exists = checkList.any((e) {
-        final p = e['phone']?.toString() ?? '';
-        return _phoneMatches(normPhone, p);
-      });
-      if (exists)
+      final normalizedPhone = _normalizeToE164(normPhone);
+      var firestoreUnavailable = false;
+      var firestoreMatch = false;
+      try {
+        firestoreMatch = await _customerExistsInFirestore(
+          field: 'phone',
+          value: normalizedPhone,
+        );
+      } catch (_) {
+        firestoreUnavailable = true;
+      }
+      if (!firestoreUnavailable && firestoreMatch) {
         throw Exception('An account with this phone number already exists.');
+      }
+      if (firestoreUnavailable) {
+        final checkList = await getLocalCheckList();
+        final exists = checkList.any((e) {
+          final p = e['phone']?.toString() ?? '';
+          return _phoneMatches(normPhone, p);
+        });
+        if (exists) {
+          throw Exception('An account with this phone number already exists.');
+        }
+      }
     }
 
     if (normEmail != null && normEmail.isNotEmpty) {
-      final exists = checkList.any((e) {
-        final em = e['email']?.toString().toLowerCase() ?? '';
-        return em.isNotEmpty && em == normEmail;
-      });
-      if (exists) throw Exception('An account with this email already exists.');
+      var firestoreUnavailable = false;
+      var firestoreMatch = false;
+      try {
+        firestoreMatch = await _customerExistsInFirestore(
+          field: 'email',
+          value: normEmail,
+        );
+      } catch (_) {
+        firestoreUnavailable = true;
+      }
+      if (!firestoreUnavailable && firestoreMatch) {
+        throw Exception('An account with this email already exists.');
+      }
+      if (firestoreUnavailable) {
+        final checkList = await getLocalCheckList();
+        final exists = checkList.any((e) {
+          final em = e['email']?.toString().toLowerCase() ?? '';
+          return em.isNotEmpty && em == normEmail;
+        });
+        if (exists) throw Exception('An account with this email already exists.');
+      }
     }
 
     if (normNic != null && normNic.isNotEmpty) {
-      final exists = checkList.any((e) {
-        final n = e['nic']?.toString().toLowerCase() ?? '';
-        return n.isNotEmpty && n == normNic;
-      });
-      if (exists)
+      var firestoreUnavailable = false;
+      var firestoreMatch = false;
+      try {
+        final nicLower = normNic.toLowerCase();
+        final nicVariants = <String>{normNic, nicLower};
+        for (final candidate in nicVariants) {
+          if (await _customerExistsInFirestore(field: 'nic', value: candidate)) {
+            firestoreMatch = true;
+            break;
+          }
+        }
+      } catch (_) {
+        firestoreUnavailable = true;
+      }
+      if (!firestoreUnavailable && firestoreMatch) {
         throw Exception('An account with this NIC number already exists.');
+      }
+      if (firestoreUnavailable) {
+        final checkList = await getLocalCheckList();
+        final exists = checkList.any((e) {
+          final n = e['nic']?.toString().toLowerCase() ?? '';
+          return n.isNotEmpty && n == normNic.toLowerCase();
+        });
+        if (exists) {
+          throw Exception('An account with this NIC number already exists.');
+        }
+      }
     }
   }
 
@@ -890,8 +965,14 @@ class AuthRepository {
     debugPrint(
         '[CategoryAudit] user.vendorCategories: ${user.vendorCategories}');
 
-    // Always sync to Firestore directly — do not rely on _sessionUsers cache
-    // which is empty after a hot restart / cold start.
+    // Update in-memory cache so duplicate checks reflect the new phone/email.
+    final index = _sessionUsers.indexWhere((u) => u.id == user.id);
+    if (index != -1) {
+      _sessionUsers[index] = user;
+    } else {
+      _sessionUsers.add(user);
+    }
+
     await _syncUserToFirestore(user);
     debugPrint('[CategoryAudit] ===== REPOSITORY UPDATE COMPLETE =====');
     return user;

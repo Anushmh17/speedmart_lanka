@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -828,8 +828,8 @@ class _SrilankavendorregistrationWidgetState
                               controller: _nicController,
                               focusNode: _nicFocusNode,
                               inputFormatters: [
-                                FilteringTextInputFormatter.allow(RegExp(r'[0-9Vv]')),
-                                LengthLimitingTextInputFormatter(12),
+                                _VendorNicFormatter(),
+                                
                               ],
                             ),
                           ],
@@ -1105,3 +1105,32 @@ class _SrilankavendorregistrationWidgetState
 }
 
 
+
+class _VendorNicFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    final raw = newValue.text.toUpperCase();
+    final buffer = StringBuffer();
+    int digitCount = 0;
+    bool hasV = false;
+
+    for (final ch in raw.split('')) {
+      if (ch == 'V' && !hasV && digitCount == 9) {
+        buffer.write('V');
+        hasV = true;
+        break;
+      } else if (RegExp(r'\d').hasMatch(ch) && !hasV && digitCount < 12) {
+        buffer.write(ch);
+        digitCount++;
+      }
+      // X and anything else is dropped
+    }
+
+    final result = buffer.toString();
+    return newValue.copyWith(
+      text: result,
+      selection: TextSelection.collapsed(offset: result.length),
+    );
+  }
+}

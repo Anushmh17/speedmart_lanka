@@ -11,11 +11,10 @@ import '../domain/auth_state.dart';
 /// Riverpod [StateNotifier] that drives all authentication logic.
 /// UI listens to [authProvider]; screens call methods on [authNotifier].
 class AuthNotifier extends StateNotifier<AuthState> {
-  AuthNotifier(this._ref) : super(const AuthState.initial()) {
+  AuthNotifier() : super(const AuthState.initial()) {
     _bootstrap();
   }
 
-  final Ref _ref;
   final _repo = AuthRepository.instance;
 
   Future<void> _bootstrap() async {
@@ -361,6 +360,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
       final savedUser = await _repo.updateUser(updatedUser);
 
+      // Update registration index if phone changed
+      if (phone != currentUser.phone) {
+        await StorageService.updateRegistrationIndex(
+          email: currentUser.email,
+          newPhone: phone,
+        );
+      }
+
       if (currentUser.id == updatedUser.id) {
         await StorageService.saveUser(savedUser.toJson());
         state = AuthState.authenticated(savedUser);
@@ -390,6 +397,14 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
     // Update in repository
     final savedUser = await _repo.updateUser(updatedUser);
+
+    // Keep the local duplicate-check index aligned with the verified phone.
+    if (phone != currentUser.phone) {
+      await StorageService.updateRegistrationIndex(
+        email: currentUser.email,
+        newPhone: phone,
+      );
+    }
 
     // Persist to local storage
     await StorageService.saveUser(savedUser.toJson());
@@ -527,7 +542,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
 // ── Providers ─────────────────────────────────────────────────────────────
 final authProvider = StateNotifierProvider<AuthNotifier, AuthState>(
-  (ref) => AuthNotifier(ref),
+  (ref) => AuthNotifier(),
 );
 
 /// Convenient shortcut to get current user (nullable)

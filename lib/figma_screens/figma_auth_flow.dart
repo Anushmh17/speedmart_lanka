@@ -332,7 +332,9 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     final preciseAddress = (data['preciseAddress'] ?? '').trim();
 
     if (nic.isEmpty) { _showError('Please enter your NIC number.'); return; }
-    if (nic.length != 10 && nic.length != 12) { _showError('Please enter a valid 10 or 12 digit NIC number.'); return; }
+    final validOldNic = RegExp(r'^\d{9}V$').hasMatch(nic.toUpperCase());
+    final validNewNic = RegExp(r'^\d{12}$').hasMatch(nic);
+    if (!validOldNic && !validNewNic) { _showError('Enter a valid NIC (e.g. 123456789V or 200012345678).'); return; }
     if (fullName.isEmpty) { _showError('Please enter your full name.'); return; }
     if (phone.isEmpty) { _showError('Please enter your phone number.'); return; }
     if (phone.length < 9) { _showError('Please enter a valid phone number.'); return; }
@@ -592,6 +594,12 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     if (password != confirmPassword) { _showError('Passwords do not match.'); return; }
     if (shopName.trim().isEmpty) { _showError('Please enter your shop name.'); return; }
     if (categories.trim().isEmpty) { _showError('Please select at least one category.'); return; }
+    final nic = (data['nic'] ?? '').trim().toUpperCase();
+    if (nic.isNotEmpty) {
+      final validOldNic = RegExp(r'^\d{9}V$').hasMatch(nic);
+      final validNewNic = RegExp(r'^\d{12}$').hasMatch(nic);
+      if (!validOldNic && !validNewNic) { _showError('Enter a valid NIC (e.g. 123456789V or 200012345678).'); return; }
+    }
 
     final lat = double.tryParse(data['latitude'] ?? '');
     final lng = double.tryParse(data['longitude'] ?? '');

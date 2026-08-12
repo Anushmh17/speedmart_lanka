@@ -338,6 +338,23 @@ class StorageService {
     await prefs.setString(_registrationIndexKey, jsonEncode(list));
   }
 
+  static Future<void> updateRegistrationIndex({
+    required String email,
+    required String newPhone,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_registrationIndexKey);
+    if (raw == null || raw.isEmpty) return;
+    final list = (jsonDecode(raw) as List).cast<Map<String, dynamic>>();
+    for (final entry in list) {
+      if (entry['email']?.toString().toLowerCase() == email.toLowerCase()) {
+        entry['phone'] = newPhone;
+        break;
+      }
+    }
+    await prefs.setString(_registrationIndexKey, jsonEncode(list));
+  }
+
   static Future<List<Map<String, dynamic>>> getRegistrationIndex() async {
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getString(_registrationIndexKey);
