@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../auth/data/auth_repository.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../../../location/models/delivery_location.dart';
 import '../../../location/providers/location_provider.dart';
@@ -145,7 +146,24 @@ class CustomerDeliveryAddressNotifier
     debugPrint('[CustomerLocation] province: ${saved.province}, district: ${saved.district}');
     debugPrint('[CustomerLocation] latitude: ${saved.latitude}, longitude: ${saved.longitude}, isGpsDetected: ${saved.isGpsDetected}');
 
+    // Save locally
     await _repo.save(saved);
+
+    // Sync delivery fields to Firestore via user profile
+    final user = ref.read(currentUserProvider);
+    if (user != null) {
+      final updatedUser = user.copyWith(
+        deliveryProvince: saved.province,
+        deliveryDistrict: saved.district,
+        deliveryApproxArea: saved.approximateArea,
+        deliveryPreciseAddress: saved.streetAddress,
+        deliveryNote: saved.deliveryNote,
+        deliveryLatitude: saved.latitude,
+        deliveryLongitude: saved.longitude,
+      );
+      await AuthRepository.instance.updateUser(updatedUser);
+      debugPrint('[CustomerLocation] Synced delivery address to Firestore');
+    }
 
     state = state.copyWith(
       savedAddress: saved,

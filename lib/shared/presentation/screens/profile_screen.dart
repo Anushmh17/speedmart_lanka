@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'dart:io';
+import '../../../core/services/storage_upload_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/widgets/app_state_widgets.dart';
@@ -41,8 +42,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late TextEditingController _businessNameCtrl;
 
   List<String> _selectedCategories = [];
-  String? _pickedImagePath; // unsaved pick — never overwritten by _initData
-  String? _savedImagePath; // last persisted local path from user model
+  String? _pickedImagePath; // unsaved pick — local path until saved
   int _imageVersion = 0;
 
   bool _isSaving = false;
@@ -98,10 +98,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     });
   }
 
-  bool _isLocalPath(String? path) =>
-      path != null &&
-      (path.startsWith('/') || path.contains(':\\') || path.contains(':/'));
-
   void _initData() {
     final user = ref.read(currentUserProvider);
     if (user != null) {
@@ -112,9 +108,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           user.requestedCategories?.isNotEmpty == true
               ? user.requestedCategories!
               : user.allowedCategories ?? []);
-      // Sync saved path from user model (local file paths only)
-      _savedImagePath =
-          _isLocalPath(user.profileImageUrl) ? user.profileImageUrl : null;
+      _pickedImagePath = null;
     }
   }
 
@@ -256,7 +250,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
     if (cropped != null && mounted) {
       if (_pickedImagePath != null) FileImage(File(_pickedImagePath!)).evict();
-      if (_savedImagePath != null) FileImage(File(_savedImagePath!)).evict();
       setState(() {
         _pickedImagePath = cropped.path;
         _imageVersion++;
@@ -336,23 +329,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       bool silent = false}) async {
     setState(() => _isSaving = true);
     try {
-      final imageToSave =
-          _pickedImagePath ?? _savedImagePath ?? user.profileImageUrl;
+      // Upload new image to Firebase Storage if one was picked
+      String? imageUrl = user.profileImageUrl;
+      if (_pickedImagePath != null) {
+        final storagePath = 'profile_images/${user.id}.jpg';
+        imageUrl = await StorageUploadService.instance
+            .uploadImage(_pickedImagePath!, storagePath);
+      }
       await ref.read(authProvider.notifier).updateProfile(
             fullName: _nameCtrl.text.trim(),
             phone: phone,
             businessName: user.role == UserRole.vendor
                 ? _businessNameCtrl.text.trim()
                 : null,
-            profileImageUrl: imageToSave,
+            profileImageUrl: imageUrl,
             requestedCategories:
                 user.role == UserRole.vendor ? _selectedCategories : null,
           );
       if (!mounted) return;
-      final newSaved = _pickedImagePath ?? _savedImagePath;
       setState(() {
         _isEditing = false;
-        _savedImagePath = newSaved;
         _pickedImagePath = null;
         _imageVersion++;
         ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
@@ -762,12 +758,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             final ImageProvider? previewImage =
                                 _pickedImagePath != null
                                     ? FileImage(File(_pickedImagePath!))
-                                    : _savedImagePath != null
-                                        ? FileImage(File(_savedImagePath!))
-                                        : user.profileImageUrl != null &&
-                                                !_isLocalPath(user.profileImageUrl)
-                                            ? NetworkImage(user.profileImageUrl!)
-                                            : null;
+                                    : user.profileImageUrl != null
+                                        ? NetworkImage(user.profileImageUrl!)
+                                        : null;
                             if (previewImage == null) return;
                             showDialog(
                               context: context,
@@ -808,15 +801,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             backgroundColor: primaryColor.withValues(alpha: 0.15),
                             backgroundImage: _pickedImagePath != null
                                 ? FileImage(File(_pickedImagePath!)) as ImageProvider
-                                : _savedImagePath != null
-                                    ? FileImage(File(_savedImagePath!)) as ImageProvider
-                                    : user.profileImageUrl != null &&
-                                            !_isLocalPath(user.profileImageUrl)
-                                        ? NetworkImage(user.profileImageUrl!) as ImageProvider
-                                        : null,
-                            child: (_pickedImagePath == null &&
-                                    _savedImagePath == null &&
-                                    user.profileImageUrl == null)
+                                : user.profileImageUrl != null
+                                    ? NetworkImage(user.profileImageUrl!) as ImageProvider
+                                    : null,
+                            child: (_pickedImagePath == null && user.profileImageUrl == null)
                                 ? Text(user.initials,
                                     style: AppTextStyles.h2(primaryColor))
                                 : null,

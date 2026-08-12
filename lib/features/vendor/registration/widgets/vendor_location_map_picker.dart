@@ -30,6 +30,7 @@ class _VendorLocationMapPickerState extends ConsumerState<VendorLocationMapPicke
   final _mapController = MapController();
   final _mapKey = GlobalKey();
   LatLng? _pinPoint;
+  LatLng? _gpsPoint;
   Timer? _dragDebounce;
 
   @override
@@ -37,6 +38,7 @@ class _VendorLocationMapPickerState extends ConsumerState<VendorLocationMapPicke
     super.initState();
     if (_hasValidCoordinates(widget.initialLatitude, widget.initialLongitude)) {
       _pinPoint = LatLng(widget.initialLatitude!, widget.initialLongitude!);
+      _gpsPoint = _pinPoint;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted && _pinPoint != null) _mapController.move(_pinPoint!, 17);
       });
@@ -49,7 +51,10 @@ class _VendorLocationMapPickerState extends ConsumerState<VendorLocationMapPicke
     if (_hasValidCoordinates(widget.initialLatitude, widget.initialLongitude) &&
         !_hasValidCoordinates(oldWidget.initialLatitude, oldWidget.initialLongitude)) {
       final point = LatLng(widget.initialLatitude!, widget.initialLongitude!);
-      setState(() => _pinPoint = point);
+      setState(() {
+        _pinPoint = point;
+        _gpsPoint = point;
+      });
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _mapController.move(point, 17);
       });
@@ -132,7 +137,7 @@ class _VendorLocationMapPickerState extends ConsumerState<VendorLocationMapPicke
                       initialZoom: hasPin ? 17 : 8,
                       minZoom: 6,
                       maxZoom: 19,
-                      onTap: hasPin ? (_, point) => _movePinTo(point, immediate: true) : null,
+                      onTap: (_, point) => _movePinTo(point, immediate: true),
                     ),
                     children: [
                       TileLayer(
@@ -140,9 +145,23 @@ class _VendorLocationMapPickerState extends ConsumerState<VendorLocationMapPicke
                         userAgentPackageName: 'com.speedmart.lanka',
                         retinaMode: false,
                       ),
-                      if (hasPin)
-                        MarkerLayer(
+                      MarkerLayer(
                           markers: [
+                            if (_gpsPoint != null)
+                              Marker(
+                                point: _gpsPoint!,
+                                width: 34,
+                                height: 34,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.blue.withValues(alpha: 0.18),
+                                    border: Border.all(color: Colors.blue, width: 2),
+                                  ),
+                                  child: const Icon(Icons.my_location, color: Colors.blue, size: 16),
+                                ),
+                              ),
+                            if (pinPoint != null)
                             Marker(
                               point: pinPoint,
                               width: 58,
@@ -167,16 +186,25 @@ class _VendorLocationMapPickerState extends ConsumerState<VendorLocationMapPicke
                   ),
                   if (!isOnline) _OfflineMapOverlay(isDark: isDark),
                   if (!hasPin)
-                    Container(
-                      color: Colors.black38,
-                      alignment: Alignment.center,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const CircularProgressIndicator(color: AppColors.vendorColor),
-                          const SizedBox(height: 12),
-                          Text('Detecting GPS location…', style: AppTextStyles.bodySmall(Colors.white)),
-                        ],
+                    Positioned(
+                      bottom: 12,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: ElevatedButton.icon(
+                          onPressed: null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: cardColor,
+                            foregroundColor: AppColors.vendorColor,
+                            elevation: 4,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                          ),
+                          icon: const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                          label: const Text('Detecting GPS…', style: TextStyle(fontWeight: FontWeight.w700)),
+                        ),
                       ),
                     ),
                   if (hasPin)

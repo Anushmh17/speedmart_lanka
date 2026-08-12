@@ -70,6 +70,7 @@ class _CustomerDeliveryAddressScreenState
     final user = ref.read(currentUserProvider);
     if (user == null) return;
 
+    // Read loc AFTER validateAndSync so it reflects the latest form values
     final loc = ref.read(deliveryLocationProvider).currentLocation;
     if (loc == null) return;
     

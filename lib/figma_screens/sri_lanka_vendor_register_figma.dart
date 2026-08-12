@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -88,6 +88,7 @@ class _SrilankavendorregistrationWidgetState
   final MapController _mapController = MapController();
   final _mapKey = GlobalKey();
   LatLng? _pinPoint;
+  LatLng? _gpsPoint;
 
   double? _lastMovedLat;
   double? _lastMovedLng;
@@ -119,6 +120,7 @@ class _SrilankavendorregistrationWidgetState
       _lastMovedLng = lng;
       final newPoint = LatLng(lat, lng);
       _pinPoint = newPoint;
+      _gpsPoint = newPoint;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _mapController.move(newPoint, 14.0);
       });
@@ -415,6 +417,7 @@ class _SrilankavendorregistrationWidgetState
                     initialZoom: hasLocation ? 14.0 : 7.5,
                     minZoom: 6,
                     maxZoom: 19,
+                    onTap: (_, point) { setState(() => _pinPoint = point); widget.onLocationPinChanged?.call(point.latitude, point.longitude); },
                   ),
                   children: [
                     TileLayer(
@@ -423,9 +426,19 @@ class _SrilankavendorregistrationWidgetState
                       userAgentPackageName: 'com.speedmart.lanka',
                       retinaMode: RetinaMode.isHighDensity(context),
                     ),
-                    if (hasLocation)
-                      MarkerLayer(
+                    MarkerLayer(
                         markers: [
+                          if (_gpsPoint != null)
+                            Marker(
+                              point: _gpsPoint!,
+                              width: x(34),
+                              height: x(34),
+                              child: Container(
+                                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.blue.withValues(alpha: 0.18), border: Border.all(color: Colors.blue, width: 2)),
+                                child: const Icon(Icons.my_location, color: Colors.blue, size: 16),
+                              ),
+                            ),
+                          if (pinPoint != null)
                           Marker(
                             point: pinPoint,
                             width: x(52),
