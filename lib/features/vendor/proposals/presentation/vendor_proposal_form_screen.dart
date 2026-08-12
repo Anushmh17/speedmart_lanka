@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -383,9 +384,11 @@ class _VendorProposalFormScreenState
 
     final online = await ConnectivityService.instance.isOnline();
     if (!online) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No network. Check your connection and try again.')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No network. Check your connection and try again.')),
+        );
+      }
       return;
     }
 
@@ -430,9 +433,11 @@ class _VendorProposalFormScreenState
 
     final online = await ConnectivityService.instance.isOnline();
     if (!online) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No network. Check your connection and try again.')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No network. Check your connection and try again.')),
+        );
+      }
       return;
     }
 
@@ -444,6 +449,7 @@ class _VendorProposalFormScreenState
     final feedNotifier = ref.read(vendorRequestFeedProvider.notifier);
     final notificationNotifier = ref.read(notificationProvider.notifier);
     final messenger = ScaffoldMessenger.of(context);
+    final router = GoRouter.of(context);
 
     final items = _buildItems();
     final result = validator.validate(
@@ -487,10 +493,10 @@ class _VendorProposalFormScreenState
         icon: Icons.local_offer_rounded,
         color: AppColors.vendorColor,
       );
-      context.pushReplacement(
-        RouteNames.vendorProposalDetail,
-        extra: proposal,
-      );
+      if (!mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        router.pushReplacement(RouteNames.vendorProposalDetail, extra: proposal);
+      });
     } catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
@@ -804,8 +810,8 @@ class _ItemEditorCardState extends State<_ItemEditorCard> {
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
                         child: isNetwork
-                            ? Image.network(url, width: 72, height: 72, fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined))
+                            ? CachedNetworkImage(imageUrl: url, width: 72, height: 72, fit: BoxFit.cover,
+                                errorWidget: (_, __, ___) => const Icon(Icons.broken_image_outlined))
                             : Image.file(File(url), width: 72, height: 72, fit: BoxFit.cover,
                                 errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined)),
                       ),
@@ -937,8 +943,8 @@ class _ItemEditorCardState extends State<_ItemEditorCard> {
   Widget _imagePreview(String path, Color cardColor) {
     const size = 56.0;
     if (path.startsWith('http://') || path.startsWith('https://')) {
-      return Image.network(path, width: size, height: size, fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => Container(width: size, height: size, color: cardColor,
+      return CachedNetworkImage(imageUrl: path, width: size, height: size, fit: BoxFit.cover,
+          errorWidget: (_, __, ___) => Container(width: size, height: size, color: cardColor,
               child: const Icon(Icons.image_outlined)));
     }
     if (!kIsWeb && File(path).existsSync()) {
