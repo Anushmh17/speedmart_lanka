@@ -441,17 +441,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               : AppColors.textSecondaryLight;
 
           final screenHeight = MediaQuery.of(ctx).size.height;
-          return Padding(
-            padding:
-                EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-            child: Container(
+          final keyboardInset = MediaQuery.of(ctx).viewInsets.bottom;
+          return Container(
               constraints: BoxConstraints(minHeight: screenHeight * 0.55),
               decoration: BoxDecoration(
                 color: bg,
                 borderRadius:
                     const BorderRadius.vertical(top: Radius.circular(24)),
               ),
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+              padding: EdgeInsets.fromLTRB(24, 20, 24, 32 + keyboardInset),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -584,8 +582,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   ),
                 ],
               ),
-            ),
-          );
+            );
         },
       ),
     );
