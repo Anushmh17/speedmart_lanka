@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/connectivity_service.dart';
@@ -96,17 +97,14 @@ class _NetworkFallbackImageState extends ConsumerState<NetworkFallbackImage> {
   Widget build(BuildContext context) {
     final isOnline = ref.watch(isOnlineProvider);
 
-    Widget image = Image.network(
-      widget.url,
+    Widget image = CachedNetworkImage(
       key: _imageKey,
+      imageUrl: widget.url,
       width: widget.width,
       height: widget.height,
       fit: widget.fit,
-      loadingBuilder: (_, child, progress) {
-        if (progress == null) return child;
-        return _shimmer();
-      },
-      errorBuilder: (_, __, ___) {
+      placeholder: (_, __) => _shimmer(),
+      errorWidget: (_, __, ___) {
         if (isOnline && _attempt < widget.maxRetries) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) _retry();

@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -756,7 +757,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                                 _pickedImagePath != null
                                     ? FileImage(File(_pickedImagePath!))
                                     : user.profileImageUrl != null
-                                        ? NetworkImage(user.profileImageUrl!)
+                                        ? CachedNetworkImageProvider(user.profileImageUrl!)
                                         : null;
                             if (previewImage == null) return;
                             showDialog(
@@ -799,7 +800,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             backgroundImage: _pickedImagePath != null
                                 ? FileImage(File(_pickedImagePath!)) as ImageProvider
                                 : user.profileImageUrl != null
-                                    ? NetworkImage(user.profileImageUrl!) as ImageProvider
+                                    ? CachedNetworkImageProvider(user.profileImageUrl!) as ImageProvider
                                     : null,
                             child: (_pickedImagePath == null && user.profileImageUrl == null)
                                 ? Text(user.initials,
