@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/services/firestore_service.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../location/models/delivery_location.dart';
@@ -11,20 +12,23 @@ import '../models/shopping_request.dart';
 
 /// Shopping request repository — Firestore-backed.
 class RequestRepository {
-  RequestRepository._() {
-    _initFuture = _initialize();
-  }
+  RequestRepository._();
 
   static final RequestRepository instance = RequestRepository._();
 
   static const String _requestsCollectionPath = 'requests';
 
-  late final Future<void> _initFuture;
+  Future<void>? _initFuture;
   bool _isInitialized = false;
 
   final List<ShoppingRequest> _requests = [];
 
-  Future<void> ensureInitialized() => _initFuture;
+  Future<void> ensureInitialized() {
+    if (!_isInitialized) {
+      _initFuture = _initialize();
+    }
+    return _initFuture!;
+  }
 
   CollectionReference<Map<String, dynamic>> get _requestsCollection =>
       FirestoreService.collection(_requestsCollectionPath);
@@ -62,18 +66,23 @@ class RequestRepository {
   Future<void> _initialize() async {
     if (_isInitialized) return;
 
-    final firestoreRequests = await _fetchRequestsFromFirestore();
-    if (firestoreRequests.isNotEmpty) {
-      _requests
-        ..clear()
-        ..addAll(firestoreRequests.map(ShoppingRequest.fromJson));
-    } else {
-      // Firestore unavailable — fall back to local storage once
-      final saved = await StorageService.getShoppingRequests();
-      _requests.addAll(saved.map(ShoppingRequest.fromJson));
+    // Skip Firestore fetch if no user is authenticated — avoids
+    // PERMISSION_DENIED errors on the login screen.
+    final firebaseUser = FirebaseAuth.instance.currentUser;
+    if (firebaseUser != null) {
+      final firestoreRequests = await _fetchRequestsFromFirestore();
+      if (firestoreRequests.isNotEmpty) {
+        _requests
+          ..clear()
+          ..addAll(firestoreRequests.map(ShoppingRequest.fromJson));
+      } else {
+        final saved = await StorageService.getShoppingRequests();
+        _requests.addAll(saved.map(ShoppingRequest.fromJson));
+      }
+      _isInitialized = true;
     }
-
-    _isInitialized = true;
+    // If unauthenticated, do NOT mark initialized so the next
+    // ensureInitialized() call after login will re-run properly.
   }
 
   Future<void> _persistRequests() async {

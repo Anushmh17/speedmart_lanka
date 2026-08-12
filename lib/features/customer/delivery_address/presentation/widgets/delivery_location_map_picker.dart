@@ -61,13 +61,16 @@ class _DeliveryLocationMapPickerState
     final point = _pointFromState(state);
     if (point == null) return;
 
-    final shouldUpdatePin = _pinPoint == null || _pinPoint != point;
+    // Only update _gpsPoint (blue dot) from provider — never overwrite a
+    // user-placed pin. _pinPoint is only set on first load or GPS detect.
     final shouldUpdateGps = _gpsPoint == null || _gpsPoint != point;
-
-    if (shouldUpdatePin || shouldUpdateGps) {
-      if (shouldUpdatePin) _pinPoint = point;
-      if (shouldUpdateGps) _gpsPoint = point;
-      _maybeFlyToNewGps(state);
+    if (shouldUpdateGps) {
+      _gpsPoint = point;
+      // Only move _pinPoint if the user hasn't placed one yet
+      if (_pinPoint == null) {
+        _pinPoint = point;
+        _maybeFlyToNewGps(state);
+      }
     }
   }
 
@@ -78,6 +81,7 @@ class _DeliveryLocationMapPickerState
     setState(() {
       _pinPoint = point;
       _gpsPoint = point;
+      _lastSyncedGps = point;
     });
     _mapController.move(point, 17);
   }
@@ -161,9 +165,7 @@ class _DeliveryLocationMapPickerState
                       initialZoom: hasPin ? 17 : 8,
                       minZoom: 6,
                       maxZoom: 19,
-                      onTap: hasPin
-                          ? (_, point) => _movePinTo(point, immediate: true)
-                          : null,
+                      onTap: (_, point) => _movePinTo(point, immediate: true),
                     ),
                     children: [
                       TileLayer(
@@ -171,8 +173,7 @@ class _DeliveryLocationMapPickerState
                         userAgentPackageName: 'com.speedmart.lanka',
                         retinaMode: false,
                       ),
-                      if (hasPin)
-                        MarkerLayer(
+                      MarkerLayer(
                           markers: [
                             if (_gpsPoint != null)
                               Marker(
@@ -188,24 +189,25 @@ class _DeliveryLocationMapPickerState
                                   child: const Icon(Icons.my_location, color: Colors.blue, size: 16),
                                 ),
                               ),
-                            Marker(
-                              point: pinPoint,
-                              width: 58,
-                              height: 58,
-                              alignment: Alignment.topCenter,
-                              child: GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onPanUpdate: (details) {
-                                  final next = _latLngFromGlobal(details.globalPosition);
-                                  if (next != null) _movePinTo(next);
-                                },
-                                onPanEnd: (_) {
-                                  final latest = _pinPoint;
-                                  if (latest != null) _movePinTo(latest, immediate: true);
-                                },
-                                child: const Icon(Icons.location_pin, color: AppColors.customerColor, size: 52),
+                            if (pinPoint != null)
+                              Marker(
+                                point: pinPoint,
+                                width: 58,
+                                height: 58,
+                                alignment: Alignment.topCenter,
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onPanUpdate: (details) {
+                                    final next = _latLngFromGlobal(details.globalPosition);
+                                    if (next != null) _movePinTo(next);
+                                  },
+                                  onPanEnd: (_) {
+                                    final latest = _pinPoint;
+                                    if (latest != null) _movePinTo(latest, immediate: true);
+                                  },
+                                  child: const Icon(Icons.location_pin, color: AppColors.customerColor, size: 52),
+                                ),
                               ),
-                            ),
                           ],
                         ),
                     ],

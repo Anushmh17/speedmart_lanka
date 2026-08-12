@@ -42,7 +42,8 @@ service cloud.firestore {
     }
 
     match /users/vendors/profiles/{userId} {
-      allow read: if isOwner(userId) || isAdmin() || isVendor();
+      allow get: if isOwner(userId) || isAdmin() || isVendor();
+      allow list: if isSignedIn();
       allow create: if isOwner(userId);
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
@@ -65,12 +66,12 @@ service cloud.firestore {
     // ── Shopping Requests ─────────────────────────────────────────────────────
 
     match /requests/{requestId} {
-      allow read: if isSignedIn() && (
+      allow get: if isSignedIn() && (
         resource.data.customerId == uid() ||
         isVendor() ||
         isAdmin()
       );
-      allow list: if isSignedIn() && (isVendor() || isAdmin());
+      allow list: if isSignedIn();
       allow create: if isSignedIn() &&
         request.resource.data.customerId == uid();
       allow update: if isSignedIn() &&
@@ -81,12 +82,12 @@ service cloud.firestore {
     // ── Proposals ─────────────────────────────────────────────────────────────
 
     match /proposals/{proposalId} {
-      allow read: if isSignedIn() && (
+      allow get: if isSignedIn() && (
         resource.data.vendorId == uid() ||
         resource.data.customerId == uid() ||
         isAdmin()
       );
-      allow list: if isSignedIn() && (isVendor() || isAdmin());
+      allow list: if isSignedIn();
       allow create: if isVendor() &&
         request.resource.data.vendorId == uid();
       allow update: if isSignedIn() && (
@@ -105,7 +106,7 @@ service cloud.firestore {
         resource.data.vendorId == uid() ||
         isAdmin()
       );
-      allow list: if isSignedIn() && (isVendor() || isAdmin());
+      allow list: if isSignedIn();
       allow create: if isSignedIn() &&
         request.resource.data.customerId == uid();
       allow update: if isSignedIn() && (
@@ -134,7 +135,8 @@ service cloud.firestore {
     // ── Notifications ─────────────────────────────────────────────────────────
 
     match /notifications/{notificationId} {
-      allow read: if isSignedIn() && resource.data.userId == uid();
+      allow get: if isSignedIn() && resource.data.userId == uid();
+      allow list: if isSignedIn();
       allow create: if false;
       allow update: if isSignedIn() && resource.data.userId == uid();
       allow delete: if isSignedIn() && resource.data.userId == uid();

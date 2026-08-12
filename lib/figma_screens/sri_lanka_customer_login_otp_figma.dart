@@ -18,10 +18,10 @@ class SrilankacustomerloginotpWidget extends StatefulWidget {
 
   @override
   State<SrilankacustomerloginotpWidget> createState() =>
-      _SrilankacustomerloginotpWidgetState();
+      SrilankacustomerloginotpWidgetState();
 }
 
-class _SrilankacustomerloginotpWidgetState
+class SrilankacustomerloginotpWidgetState
     extends State<SrilankacustomerloginotpWidget> with WidgetsBindingObserver {
   static const String _assetBase =
       'assets/images/figma/sri_lanka_customer_login_otp/';
@@ -136,12 +136,9 @@ class _SrilankacustomerloginotpWidgetState
     if (widget.onVerifyOtp != null) {
       widget.onVerifyOtp!(otp);
     }
-    // onVerifyOtp handles navigation; show success state briefly if still mounted
-    if (mounted)
-      setState(() {
-        _isSubmitting = false;
-        _isSuccess = true;
-      });
+    // Do NOT set _isSuccess here — parent calls reportError on failure
+    // or navigates away on success. Only stop the spinner.
+    if (mounted) setState(() => _isSubmitting = false);
   }
 
   void _handleResend() {

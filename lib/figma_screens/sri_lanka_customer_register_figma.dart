@@ -538,6 +538,10 @@ class _SrilankacustomerregisteraccountWidgetState
                   initialZoom: hasLocation ? 14.0 : 7.5,
                   minZoom: 6,
                   maxZoom: 19,
+                  onTap: (_, point) {
+                    setState(() => _pinPoint = point);
+                    widget.onLocationPinChanged?.call(point.latitude, point.longitude);
+                  },
                 ),
                 children: [
                   TileLayer(
@@ -546,8 +550,7 @@ class _SrilankacustomerregisteraccountWidgetState
                     userAgentPackageName: 'com.speedmart.lanka',
                     retinaMode: RetinaMode.isHighDensity(context),
                   ),
-                  if (hasLocation)
-                    MarkerLayer(
+                  MarkerLayer(
                       markers: [
                         Marker(
                           point: pinPoint,

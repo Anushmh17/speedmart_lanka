@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -68,6 +68,11 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
   late final Animation<Offset> _outSlide;
   // direction multiplier: +1 = forward, -1 = back
   final _dirNotifier = ValueNotifier<double>(1.0);
+
+  final _customerLoginOtpKey = GlobalKey<SrilankacustomerloginotpWidgetState>();
+  final _customerRegisterOtpKey = GlobalKey<SrilankacustomerregistrationotpWidgetState>();
+
+
 
   // â”€â”€ Registration form state â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Login phone
@@ -417,7 +422,9 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
         final ok = await ref.read(customerRegistrationProvider.notifier).verifyOtp(otp);
         if (!mounted) return;
         if (!ok) {
-          _showError(ref.read(customerRegistrationProvider).error ?? 'Incorrect OTP. Please try again.');
+          final errMsg = ref.read(customerRegistrationProvider).error ?? 'Incorrect OTP. Please try again.';
+          _customerLoginOtpKey.currentState?.reportError(errMsg);
+          _showError(errMsg);
           return;
         }
       }
@@ -440,7 +447,9 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       final ok = await ref.read(customerRegistrationProvider.notifier).verifyOtp(otp);
       if (!mounted) return;
       if (!ok) {
-        _showError(ref.read(customerRegistrationProvider).error ?? 'Incorrect OTP. Please try again.');
+        final errMsg = ref.read(customerRegistrationProvider).error ?? 'Incorrect OTP. Please try again.';
+        _customerRegisterOtpKey.currentState?.reportError(errMsg);
+        _showError(errMsg);
         return;
       }
       final regState = ref.read(customerRegistrationProvider);
@@ -928,6 +937,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
 
       case _FigmaAuthPage.customerLoginOtp:
         return SrilankacustomerloginotpWidget(
+          key: _customerLoginOtpKey,
           onVerifyOtp: (otp) => _onCustomerLoginOtpSuccess(otp, rememberMe: _pendingCustomerRememberMe),
           onBack: () => _go(_FigmaAuthPage.customerLogin, back: true),
           maskedPhone: ref.read(customerRegistrationProvider).maskedContact ?? '',
@@ -955,6 +965,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
 
       case _FigmaAuthPage.customerRegisterOtp:
         return SrilankacustomerregistrationotpWidget(
+          key: _customerRegisterOtpKey,
           onVerifyOtp: _onCustomerRegisterOtpSuccess,
           onBack: () => _go(_FigmaAuthPage.customerRegister, back: true),
           maskedPhone: ref.read(customerRegistrationProvider).maskedContact ?? '',
