@@ -1,6 +1,6 @@
 import * as admin from "firebase-admin";
 import {onDocumentCreated, onDocumentUpdated, onDocumentWritten} from "firebase-functions/v2/firestore";
-import {onCall, HttpsError} from "firebase-functions/v2/https";
+import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 
 admin.initializeApp();
@@ -79,6 +79,189 @@ async function logActivity(
     details: details ?? null,
   });
 }
+
+function normalizeSriLankaPhone(phone: string): string {
+  const digits = phone.replace(/[^\d]/g, "");
+  if (digits.startsWith("94") && digits.length === 11) return `+${digits}`;
+  if (digits.startsWith("0") && digits.length === 10) return `+94${digits.substring(1)}`;
+  if (digits.length === 9) return `+94${digits}`;
+  return phone.trim();
+}
+
+function normalizeEmail(value?: string | null): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function normalizeNic(value?: string | null): string {
+  return (value ?? "").trim().toUpperCase();
+}
+
+function makeLockId(kind: string, value: string): string {
+  return `${kind}_${encodeURIComponent(value)}`;
+}
+
+function parseIso(value: unknown): number | null {
+  if (typeof value !== "string" || value.trim().length === 0) return null;
+  const millis = Date.parse(value);
+  return Number.isNaN(millis) ? null : millis;
+}
+
+type CustomerRegistrationRequest = {
+  fullName?: string;
+  email?: string;
+  phone?: string;
+  nic?: string;
+  detectedCountry?: string;
+  detectionSource?: string;
+  riskFlag?: string;
+  verifiedPhone?: boolean;
+  verifiedEmail?: boolean;
+  deliveryCountry?: string;
+  deliveryProvince?: string;
+  deliveryDistrict?: string;
+  deliveryApproxArea?: string;
+  deliveryPreciseAddress?: string;
+  deliveryNote?: string;
+  deliveryLatitude?: number | null;
+  deliveryLongitude?: number | null;
+};
+
+export const registerCustomerAccount = onRequest(async (request, response) => {
+  response.set("Access-Control-Allow-Origin", "*");
+  response.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  response.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+
+  if (request.method === "OPTIONS") {
+    response.status(204).send("");
+    return;
+  }
+
+  if (request.method !== "POST") {
+    response.status(405).json({error: "Method not allowed"});
+    return;
+  }
+
+  const authHeader = request.get("authorization") ?? "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.substring(7).trim() : "";
+  if (!token) {
+    throw new HttpsError("unauthenticated", "Missing Firebase ID token.");
+  }
+
+  const decoded = await admin.auth().verifyIdToken(token);
+  const verifiedPhone = normalizeSriLankaPhone(decoded.phone_number ?? "");
+  if (!verifiedPhone) {
+    throw new HttpsError("failed-precondition", "Phone authentication is required.");
+  }
+
+  const body = request.body as CustomerRegistrationRequest;
+  const fullName = (body.fullName ?? "").trim();
+  const email = normalizeEmail(body.email);
+  const bodyPhone = normalizeSriLankaPhone(body.phone ?? "");
+  const nic = normalizeNic(body.nic);
+
+  if (!fullName) {
+    throw new HttpsError("invalid-argument", "fullName is required.");
+  }
+
+  if (bodyPhone !== verifiedPhone) {
+    throw new HttpsError("permission-denied", "Verified phone number does not match the requested phone.");
+  }
+
+  const phoneLockRef = db.doc(`registration_locks/customer_phone/${makeLockId("phone", bodyPhone)}`);
+  const emailLockRef = email ? db.doc(`registration_locks/customer_email/${makeLockId("email", email)}`) : null;
+  const nicLockRef = nic ? db.doc(`registration_locks/customer_nic/${makeLockId("nic", nic)}`) : null;
+  const rateLimitRef = db.doc(`registration_attempts/${decoded.uid}`);
+  const rateLimitSnap = await rateLimitRef.get();
+  const lastAttemptMs = parseIso(rateLimitSnap.data()?.lastAttemptAt);
+  if (lastAttemptMs != null && Date.now() - lastAttemptMs < 15000) {
+    throw new HttpsError("resource-exhausted", "Please wait a moment before trying again.");
+  }
+
+  const profileRef = db.collection("users/customers/profiles").doc();
+  const userData: Record<string, unknown> = {
+    id: profileRef.id,
+    full_name: fullName,
+    email,
+    phone: bodyPhone,
+    role: "customer",
+    is_active: true,
+    is_verified: body.verifiedPhone ?? true,
+    created_at: new Date().toISOString(),
+    nic: nic || null,
+    verified_phone: body.verifiedPhone ?? true,
+    verified_email: body.verifiedEmail ?? false,
+    detected_country: body.detectedCountry ?? "LK",
+    detection_source: body.detectionSource ?? "app_default",
+    risk_flag: body.riskFlag ?? null,
+    delivery_country: body.deliveryCountry ?? "Sri Lanka",
+    delivery_province: body.deliveryProvince ?? null,
+    delivery_district: body.deliveryDistrict ?? null,
+    delivery_approx_area: body.deliveryApproxArea ?? null,
+    delivery_precise_address: body.deliveryPreciseAddress ?? null,
+    delivery_note: body.deliveryNote ?? null,
+    delivery_latitude: body.deliveryLatitude ?? null,
+    delivery_longitude: body.deliveryLongitude ?? null,
+  };
+
+  await db.runTransaction(async (transaction) => {
+    const [phoneSnap, emailSnap, nicSnap] = await Promise.all([
+      transaction.get(phoneLockRef),
+      emailLockRef ? transaction.get(emailLockRef) : Promise.resolve(null),
+      nicLockRef ? transaction.get(nicLockRef) : Promise.resolve(null),
+    ]);
+
+    if (phoneSnap.exists) {
+      throw new HttpsError("already-exists", "An account with this phone number already exists.");
+    }
+    if (emailSnap?.exists) {
+      throw new HttpsError("already-exists", "An account with this email already exists.");
+    }
+    if (nicSnap?.exists) {
+      throw new HttpsError("already-exists", "An account with this NIC number already exists.");
+    }
+
+    transaction.set(profileRef, userData);
+    transaction.set(phoneLockRef, {
+      kind: "phone",
+      value: bodyPhone,
+      userId: profileRef.id,
+      authUid: decoded.uid,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    if (emailLockRef) {
+      transaction.set(emailLockRef, {
+        kind: "email",
+        value: email,
+        userId: profileRef.id,
+        authUid: decoded.uid,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    if (nicLockRef) {
+      transaction.set(nicLockRef, {
+        kind: "nic",
+        value: nic,
+        userId: profileRef.id,
+        authUid: decoded.uid,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    transaction.set(rateLimitRef, {
+      lastAttemptAt: new Date().toISOString(),
+      authUid: decoded.uid,
+      phone: verifiedPhone,
+    }, {merge: true});
+  });
+
+  response.json({
+    success: true,
+    token: `auth_token_${profileRef.id}_${Date.now()}`,
+    user: userData,
+  });
+});
 
 // ── 1. Vendor Approved ────────────────────────────────────────────────────────
 // Triggered when admin approves a vendor (vendorApproved: false → true)

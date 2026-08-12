@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/services/firestore_service.dart';
@@ -138,6 +139,80 @@ class AuthRepository {
       debugPrint('[Auth] Failed to sync user ${user.id} to Firestore: $e');
       rethrow;
     }
+  }
+
+  Future<({UserModel user, String token})> _registerCustomerServerSide({
+    required String fullName,
+    required String email,
+    required String phone,
+    required bool? verifiedPhone,
+    required bool? verifiedEmail,
+    required String? detectedCountry,
+    required String? detectionSource,
+    required String? riskFlag,
+    required String? nic,
+    required String? deliveryProvince,
+    required String? deliveryDistrict,
+    required String? deliveryApproxArea,
+    required String? deliveryPreciseAddress,
+    required String? deliveryNote,
+    required double? deliveryLatitude,
+    required double? deliveryLongitude,
+  }) async {
+    final currentUser = _firebaseAuth.currentUser;
+    if (currentUser == null) {
+      throw Exception('Please complete phone verification before registering.');
+    }
+
+    final projectId = Firebase.app().options.projectId;
+    if (projectId.isEmpty) {
+      throw Exception('Firebase project ID is not configured.');
+    }
+
+    final idToken = await currentUser.getIdToken(true);
+    final endpoint =
+        'https://us-central1-$projectId.cloudfunctions.net/registerCustomerAccount';
+
+    final response = await Dio().post(
+      endpoint,
+      data: {
+        'fullName': fullName,
+        'email': email,
+        'phone': phone,
+        'verifiedPhone': verifiedPhone ?? true,
+        'verifiedEmail': verifiedEmail ?? false,
+        'detectedCountry': detectedCountry,
+        'detectionSource': detectionSource,
+        'riskFlag': riskFlag,
+        'nic': nic,
+        'deliveryProvince': deliveryProvince,
+        'deliveryDistrict': deliveryDistrict,
+        'deliveryApproxArea': deliveryApproxArea,
+        'deliveryPreciseAddress': deliveryPreciseAddress,
+        'deliveryNote': deliveryNote,
+        'deliveryLatitude': deliveryLatitude,
+        'deliveryLongitude': deliveryLongitude,
+      },
+      options: Options(
+        headers: {
+          'Authorization': 'Bearer $idToken',
+          'Content-Type': 'application/json',
+        },
+      ),
+    );
+
+    final raw = response.data;
+    if (raw is! Map) {
+      throw Exception('Unexpected registration response from server.');
+    }
+
+    final data = Map<String, dynamic>.from(raw);
+    final userJson = Map<String, dynamic>.from(data['user'] as Map);
+    final user = UserModel.fromJson(userJson);
+    final token = data['token'] as String? ??
+        'auth_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
+
+    return (user: user, token: token);
   }
 
   Future<void> _createFirebaseUser(String email, String password) async {
@@ -483,6 +558,39 @@ class AuthRepository {
   }) async {
     await ensureInitialized();
 
+    if (role == UserRole.customer) {
+      final normalizedEmail = email.trim();
+      final rawPhone = phone.trim();
+      final normalizedPhone = rawPhone.isNotEmpty
+          ? SriLankaPhoneHelper.normalizeSriLankaPhoneForStorage(rawPhone)
+          : rawPhone;
+
+      final result = await _registerCustomerServerSide(
+        fullName: fullName.trim(),
+        email: normalizedEmail,
+        phone: normalizedPhone,
+        verifiedPhone: verifiedPhone,
+        verifiedEmail: verifiedEmail,
+        detectedCountry: detectedCountry,
+        detectionSource: detectionSource,
+        riskFlag: riskFlag,
+        nic: nic?.trim(),
+        deliveryProvince: deliveryProvince,
+        deliveryDistrict: deliveryDistrict,
+        deliveryApproxArea: deliveryApproxArea,
+        deliveryPreciseAddress: deliveryPreciseAddress,
+        deliveryNote: deliveryNote,
+        deliveryLatitude: deliveryLatitude,
+        deliveryLongitude: deliveryLongitude,
+      );
+
+      _sessionUsers.add(result.user);
+      _currentUserId = result.user.id;
+      _currentToken = result.token;
+      _uploadDeviceTokenForUser(result.user);
+      return result;
+    }
+
     final normalizedEmail = email.trim();
     final rawPhone = phone.trim();
     final normalizedPhone = rawPhone.isNotEmpty
@@ -577,50 +685,10 @@ class AuthRepository {
     // OTP verification — currentUser.uid is their real phone-linked UID.
     // For vendors: createUserWithEmailAndPassword sets currentUser.
     final firebaseUid = _firebaseAuth.currentUser?.uid;
-    final userId = firebaseUid ?? newUser.id;
-    final userWithFirebaseId = firebaseUid != null
-        ? UserModel(
-            id: userId,
-            fullName: newUser.fullName,
-            email: newUser.email,
-            phone: newUser.phone,
-            role: newUser.role,
-            isActive: newUser.isActive,
-            isVerified: newUser.isVerified,
-            createdAt: newUser.createdAt,
-            businessName: newUser.businessName,
-            vendorStatus: newUser.vendorStatus,
-            vendorApproved: newUser.vendorApproved,
-            vendorCategories: newUser.vendorCategories,
-            verifiedPhone: newUser.verifiedPhone,
-            verifiedEmail: newUser.verifiedEmail,
-            detectedCountry: newUser.detectedCountry,
-            detectionSource: newUser.detectionSource,
-            riskFlag: newUser.riskFlag,
-            nic: newUser.nic,
-            deliveryProvince: newUser.deliveryProvince,
-            deliveryDistrict: newUser.deliveryDistrict,
-            deliveryApproxArea: newUser.deliveryApproxArea,
-            deliveryPreciseAddress: newUser.deliveryPreciseAddress,
-            deliveryNote: newUser.deliveryNote,
-            deliveryLatitude: newUser.deliveryLatitude,
-            deliveryLongitude: newUser.deliveryLongitude,
-            shopName: newUser.shopName,
-            shopAddress: newUser.shopAddress,
-            shopProvince: newUser.shopProvince,
-            shopDistrict: newUser.shopDistrict,
-            shopArea: newUser.shopArea,
-            shopLatitude: newUser.shopLatitude,
-            shopLongitude: newUser.shopLongitude,
-            shopLocationAccuracyMeters: newUser.shopLocationAccuracyMeters,
-            shopLocationDetectedAt: newUser.shopLocationDetectedAt,
-            shopLocationSource: newUser.shopLocationSource,
-            isShopLocationAssigned: newUser.isShopLocationAssigned,
-            businessRegistrationNumber: newUser.businessRegistrationNumber,
-            assignedRadiusKm: newUser.assignedRadiusKm,
-            commissionRate: newUser.commissionRate,
-          )
-        : newUser;
+    final userId = role == UserRole.customer
+      ? newUser.id
+      : (firebaseUid ?? newUser.id);
+    final userWithFirebaseId = newUser.copyWith(id: userId);
     debugPrint('[Auth] Firebase user created, UID=$userId');
     _sessionUsers.add(userWithFirebaseId);
     _currentUserId = userId;

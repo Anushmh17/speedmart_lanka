@@ -37,8 +37,8 @@ service cloud.firestore {
     match /users/customers/profiles/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if true; // needed for phone/email lookup during login before auth
-      allow create: if isSignedIn();
-      allow update: if isSignedIn() || isAdmin();
+      allow create: if false;
+      allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
     }
 
