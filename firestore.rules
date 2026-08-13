@@ -202,12 +202,14 @@ service cloud.firestore {
     // ── Vendor Commission Payments ─────────────────────────────────────────
 
     match /vendor_commission_payments/{paymentId} {
-      // Vendor: read their own records; update only to submit receipt
+      // Vendor: read their own records; update/create to submit receipt
       allow get: if isSignedIn() && (
         resource.data.vendor_id == uid() || isAdmin()
       );
       allow list: if isVendor() || isAdmin();
-      allow create: if isAdmin();
+      allow create: if isAdmin() || (
+        isVendor() && request.resource.data.vendor_id == uid()
+      );
       // Vendor can update only to submit a receipt (status field)
       allow update: if isAdmin() || (
         isVendor() &&

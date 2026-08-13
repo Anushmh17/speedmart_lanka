@@ -21,22 +21,28 @@ class VendorCommissionPaymentRepository {
   Stream<List<VendorCommissionPayment>> streamForVendor(String vendorId) {
     return _col
         .where('vendor_id', isEqualTo: vendorId)
-        .orderBy('updated_at', descending: true)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => VendorCommissionPayment.fromJson({...d.data(), 'id': d.id}))
-            .toList());
+        .map((snap) {
+      final list = snap.docs
+          .map((d) =>
+              VendorCommissionPayment.fromJson({...d.data(), 'id': d.id}))
+          .toList();
+      list.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+      return list;
+    });
   }
 
   /// One-shot fetch for a vendor.
   Future<List<VendorCommissionPayment>> getForVendor(String vendorId) async {
     final snap = await _col
         .where('vendor_id', isEqualTo: vendorId)
-        .orderBy('updated_at', descending: true)
         .get();
-    return snap.docs
-        .map((d) => VendorCommissionPayment.fromJson({...d.data(), 'id': d.id}))
+    final list = snap.docs
+        .map((d) =>
+            VendorCommissionPayment.fromJson({...d.data(), 'id': d.id}))
         .toList();
+    list.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return list;
   }
 
   // ── Admin-side reads ───────────────────────────────────────────────────────
@@ -55,11 +61,19 @@ class VendorCommissionPaymentRepository {
   Stream<List<VendorCommissionPayment>> streamAwaitingReview() {
     return _col
         .where('status', isEqualTo: VendorCommissionPaymentStatus.receiptSubmitted.name)
-        .orderBy('submitted_at', descending: true)
         .snapshots()
-        .map((snap) => snap.docs
-            .map((d) => VendorCommissionPayment.fromJson({...d.data(), 'id': d.id}))
-            .toList());
+        .map((snap) {
+      final list = snap.docs
+          .map((d) =>
+              VendorCommissionPayment.fromJson({...d.data(), 'id': d.id}))
+          .toList();
+      list.sort((a, b) {
+        final dtA = a.submittedAt ?? a.updatedAt;
+        final dtB = b.submittedAt ?? b.updatedAt;
+        return dtB.compareTo(dtA);
+      });
+      return list;
+    });
   }
 
   // ── Write operations ───────────────────────────────────────────────────────
@@ -90,7 +104,7 @@ class VendorCommissionPaymentRepository {
     return VendorCommissionPayment.fromJson({...data, 'id': ref.id});
   }
 
-  /// Vendor submits their bank transfer receipt.
+  /// Vendor submits their bank transfer receipt for an existing record.
   Future<void> submitReceipt({
     required String paymentId,
     required String receiptUrl,
@@ -105,6 +119,33 @@ class VendorCommissionPaymentRepository {
       'updated_at': now.toIso8601String(),
     });
     debugPrint('[CommissionPayment] Vendor submitted receipt for $paymentId');
+  }
+
+  /// Vendor directly submits a bank transfer receipt (when no prior pending record exists).
+  Future<VendorCommissionPayment> submitVendorDirectReceipt({
+    required String vendorId,
+    required String vendorName,
+    required String receiptUrl,
+    String? note,
+  }) async {
+    final now = DateTime.now();
+    final data = <String, dynamic>{
+      'vendor_id': vendorId,
+      'vendor_name': vendorName,
+      'amount_owed': 0.0,
+      'amount_paid': 0.0,
+      'receipt_url': receiptUrl,
+      'receipt_note': note,
+      'admin_note': null,
+      'status': VendorCommissionPaymentStatus.receiptSubmitted.name,
+      'created_at': now.toIso8601String(),
+      'updated_at': now.toIso8601String(),
+      'submitted_at': now.toIso8601String(),
+      'reviewed_at': null,
+    };
+    final ref = await _col.add(data);
+    debugPrint('[CommissionPayment] Direct receipt submitted: ${ref.id} for vendor $vendorId');
+    return VendorCommissionPayment.fromJson({...data, 'id': ref.id});
   }
 
   /// Admin accepts receipt — optionally adjusts amountOwed for partial payments.

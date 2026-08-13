@@ -14,30 +14,28 @@ import '../models/vendor_commission_payment.dart';
 import '../providers/vendor_commission_payment_provider.dart';
 
 /// Fetches Speedmart's admin bank details from Firestore platform_config.
-/// Returns null while loading or if not configured.
+/// Returns null while loading or if not configured by admin.
 final _adminBankDetailsProvider = FutureProvider<Map<String, String>?>((ref) async {
   try {
     final doc = await FirebaseFirestore.instance
         .collection('platform_config')
         .doc('bank_details')
         .get();
-    if (!doc.exists || doc.data() == null) return null;
-    return doc.data()!.map((k, v) => MapEntry(k, v.toString()));
-  } catch (_) {
-    return null;
+    if (doc.exists && doc.data() != null && doc.data()!.isNotEmpty) {
+      return doc.data()!.map((k, v) => MapEntry(k, v.toString()));
+    }
+  } catch (e) {
+    debugPrint('[CommissionPayment] Could not load bank details from Firestore: $e');
   }
+  return null;
 });
 
 /// Vendor Commission Payment Screen — embedded in the Earnings (Wallet) tab.
 ///
 /// Shows:
 ///   1. Admin's bank account details (to transfer to)
-///   2. Outstanding amount owed
-///   3. Receipt upload flow
-///   4. History of past payment records
-///
-/// [scrollController] — pass the DraggableScrollableSheet controller when
-/// embedding in a bottom sheet to avoid nested scroll conflicts.
+///   2. Receipt upload flow
+///   3. History of past payment records
 class VendorCommissionPaymentScreen extends ConsumerStatefulWidget {
   const VendorCommissionPaymentScreen({super.key, this.scrollController});
 
@@ -61,7 +59,7 @@ class _VendorCommissionPaymentScreenState
 
   // ── Receipt upload & submit ────────────────────────────────────────────────
 
-  Future<void> _submitReceipt(VendorCommissionPayment payment) async {
+  Future<void> _submitReceipt([VendorCommissionPayment? payment]) async {
     if (_uploading) return;
 
     // Pick image
@@ -75,18 +73,29 @@ class _VendorCommissionPaymentScreenState
 
     setState(() => _uploading = true);
     try {
+      final user = ref.read(currentUserProvider);
+      final vendorId = payment?.vendorId ?? user?.id ?? 'unknown';
       final ts = DateTime.now().millisecondsSinceEpoch;
       final url = await StorageUploadService.instance.uploadImage(
         file.path,
-        'commission_receipts/${payment.vendorId}/$ts.jpg',
+        'commission_receipts/$vendorId/$ts.jpg',
         quality: 80,
       );
 
-      await VendorCommissionPaymentRepository.instance.submitReceipt(
-        paymentId: payment.id,
-        receiptUrl: url,
-        note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
-      );
+      if (payment != null) {
+        await VendorCommissionPaymentRepository.instance.submitReceipt(
+          paymentId: payment.id,
+          receiptUrl: url,
+          note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+        );
+      } else {
+        await VendorCommissionPaymentRepository.instance.submitVendorDirectReceipt(
+          vendorId: user?.id ?? '',
+          vendorName: user?.name ?? 'Vendor',
+          receiptUrl: url,
+          note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
+        );
+      }
 
       _noteCtrl.clear();
       if (mounted) {
@@ -95,7 +104,9 @@ class _VendorCommissionPaymentScreenState
             content: const Row(children: [
               Icon(Icons.check_circle_rounded, color: Colors.white),
               SizedBox(width: 8),
-              Text('Receipt submitted — Speedmart will review shortly.'),
+              Expanded(
+                child: Text('Transfer receipt submitted — Speedmart will review shortly.'),
+              ),
             ]),
             backgroundColor: AppColors.success,
             behavior: SnackBarBehavior.floating,
@@ -163,6 +174,10 @@ class _VendorCommissionPaymentScreenState
             _buildBankDetailsCard(bankAsync, isDark, primaryText, secondaryText, cardColor, borderColor),
             const SizedBox(height: 20),
 
+            // ── Direct Upload Receipt Card ──
+            _buildDirectUploadCard(isDark, primaryText, secondaryText, cardColor, borderColor),
+            const SizedBox(height: 24),
+
             // ── Payment records ──
             paymentsAsync.when(
               loading: () => const Center(
@@ -172,7 +187,7 @@ class _VendorCommissionPaymentScreenState
                       style: AppTextStyles.bodyMedium(AppColors.error))),
               data: (payments) {
                 if (payments.isEmpty) {
-                  return _buildEmptyState(isDark, secondaryText);
+                  return const SizedBox.shrink();
                 }
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -340,6 +355,84 @@ class _VendorCommissionPaymentScreenState
             .map((w) => w[0].toUpperCase() + w.substring(1))
             .join(' ');
     }
+  }
+
+  Widget _buildDirectUploadCard(
+    bool isDark,
+    Color primaryText,
+    Color secondaryText,
+    Color cardColor,
+    Color borderColor,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.vendorColor.withValues(alpha: 0.3),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            const Icon(Icons.cloud_upload_outlined,
+                color: AppColors.vendorColor, size: 20),
+            const SizedBox(width: 8),
+            Text('Upload Transfer Receipt',
+                style: AppTextStyles.subtitle(primaryText)
+                    .copyWith(fontWeight: FontWeight.bold)),
+          ]),
+          const SizedBox(height: 6),
+          Text(
+            'Made a bank transfer to Speedmart? Attach your payment receipt photo below for verification.',
+            style: AppTextStyles.bodySmall(secondaryText),
+          ),
+          const SizedBox(height: 14),
+          TextField(
+            controller: _noteCtrl,
+            decoration: InputDecoration(
+              hintText: 'Optional note (e.g., "Paid Rs. 2500 on 13 Aug")',
+              border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10)),
+              contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 10),
+              isDense: true,
+            ),
+            maxLines: 2,
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _uploading ? null : () => _submitReceipt(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.vendorColor,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              icon: _uploading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.add_photo_alternate_rounded),
+              label: Text(_uploading
+                  ? 'Uploading…'
+                  : 'Upload Receipt & Notify Speedmart'),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildEmptyState(bool isDark, Color secondaryText) {

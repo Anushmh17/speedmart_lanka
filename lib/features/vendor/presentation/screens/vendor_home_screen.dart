@@ -29,6 +29,7 @@ import 'package:speedmart_lanka/core/navigation/bottom_nav_visibility.dart';
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
 import 'package:speedmart_lanka/features/vendor/payments/presentation/vendor_commission_payment_screen.dart';
 import 'package:speedmart_lanka/features/vendor/payments/providers/vendor_commission_payment_provider.dart';
+import 'package:speedmart_lanka/features/vendor/payments/models/vendor_commission_payment.dart';
 import 'vendor_status_screen.dart';
 import 'package:speedmart_lanka/features/requests/data/request_repository.dart';
 
@@ -3173,44 +3174,47 @@ class _VendorCommissionBanner extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final primaryText =
         isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final secondaryText =
+        isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     final paymentsAsync = ref.watch(vendorCommissionPaymentsProvider);
+    final payments = paymentsAsync.valueOrNull ?? [];
 
-    final totalOwed = paymentsAsync.valueOrNull?.fold<double>(
-          0.0, (sum, p) => sum + p.amountOwed) ??
-        0.0;
-    final hasReceiptSubmitted = paymentsAsync.valueOrNull
-            ?.any((p) => p.status.name == 'receiptSubmitted') ??
-        false;
+    final totalOwed =
+        payments.fold<double>(0.0, (sum, p) => sum + p.amountOwed);
+    final hasReceiptSubmitted = payments.any(
+        (p) => p.status == VendorCommissionPaymentStatus.receiptSubmitted);
+    final hasSettled = payments
+        .any((p) => p.status == VendorCommissionPaymentStatus.accepted);
 
-    // No payment records at all — nothing to show.
-    if (paymentsAsync.valueOrNull != null &&
-        paymentsAsync.valueOrNull!.isEmpty) {
-      return const SizedBox.shrink();
+    final Color bannerColor;
+    final IconData bannerIcon;
+    final String bannerTitle;
+    final String bannerSubtitle;
+
+    if (hasReceiptSubmitted) {
+      bannerColor = AppColors.warning;
+      bannerIcon = Icons.hourglass_top_rounded;
+      bannerTitle = 'Receipt Under Review';
+      bannerSubtitle = 'Speedmart is verifying your bank transfer receipt.';
+    } else if (totalOwed > 0) {
+      bannerColor = AppColors.error;
+      bannerIcon = Icons.payment_rounded;
+      bannerTitle = 'Commission Payment Due';
+      bannerSubtitle =
+          'You owe Rs. ${totalOwed.toStringAsFixed(2)} to Speedmart. Tap to pay via bank transfer.';
+    } else if (hasSettled) {
+      bannerColor = AppColors.success;
+      bannerIcon = Icons.check_circle_rounded;
+      bannerTitle = 'Commission Settled';
+      bannerSubtitle = 'All commission payments up to date. Tap to view bank details.';
+    } else {
+      // Default state for new vendors or vendors without active invoices
+      bannerColor = AppColors.vendorColor;
+      bannerIcon = Icons.account_balance_rounded;
+      bannerTitle = 'Speedmart Payment & Bank Details';
+      bannerSubtitle =
+          'View Speedmart bank account details for commission transfers.';
     }
-
-    final Color bannerColor = hasReceiptSubmitted
-        ? AppColors.warning
-        : totalOwed > 0
-            ? AppColors.error
-            : AppColors.success;
-
-    final IconData bannerIcon = hasReceiptSubmitted
-        ? Icons.hourglass_top_rounded
-        : totalOwed > 0
-            ? Icons.payment_rounded
-            : Icons.check_circle_rounded;
-
-    final String bannerTitle = hasReceiptSubmitted
-        ? 'Receipt Under Review'
-        : totalOwed > 0
-            ? 'Commission Payment Due'
-            : 'Commission Settled';
-
-    final String bannerSubtitle = hasReceiptSubmitted
-        ? 'Speedmart is verifying your bank transfer receipt.'
-        : totalOwed > 0
-            ? 'You owe Rs. ${totalOwed.toStringAsFixed(2)} to Speedmart.'
-            : 'No outstanding commission balance.';
 
     return GestureDetector(
       onTap: () => showModalBottomSheet(
@@ -3279,10 +3283,7 @@ class _VendorCommissionBanner extends ConsumerWidget {
                           .copyWith(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 3),
                   Text(bannerSubtitle,
-                      style: AppTextStyles.bodySmall(
-                          isDark
-                              ? AppColors.textSecondaryDark
-                              : AppColors.textSecondaryLight)),
+                      style: AppTextStyles.bodySmall(secondaryText)),
                 ],
               ),
             ),
