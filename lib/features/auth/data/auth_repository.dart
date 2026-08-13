@@ -115,18 +115,32 @@ class AuthRepository {
 
   Future<bool> _customerExistsInFirestore({
     required String field,
-    required String value,
+    String? value,
+    List<String>? values,
   }) async {
     try {
-      final snapshot = await FirestoreService.collection('users/customers/profiles')
-          .where(field, isEqualTo: value)
-          .limit(1)
-          .get();
+      final col = FirestoreService.collection('users/customers/profiles');
+      Query<Map<String, dynamic>> query = col;
+      QuerySnapshot<Map<String, dynamic>> snapshot;
+
+      if (values != null && values.isNotEmpty) {
+        // Use whereIn to match multiple normalized variants.
+        snapshot = await query.where(field, whereIn: values).limit(1).get();
+      } else if (value != null) {
+        snapshot = await query.where(field, isEqualTo: value).limit(1).get();
+      } else {
+        return false;
+      }
+
       return snapshot.docs.isNotEmpty;
     } catch (e) {
       debugPrint('[Auth] _customerExistsInFirestore($field) error: $e');
       rethrow;
     }
+  }
+
+  static String _normalizeNicForQuery(String nic) {
+    return nic.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toUpperCase();
   }
 
   Future<void> _syncUserToFirestore(UserModel user) async {
@@ -459,25 +473,33 @@ class AuthRepository {
       var firestoreUnavailable = false;
       var firestoreMatch = false;
       try {
-        final nicLower = normNic.toLowerCase();
-        final nicVariants = <String>{normNic, nicLower};
-        for (final candidate in nicVariants) {
-          if (await _customerExistsInFirestore(field: 'nic', value: candidate)) {
-            firestoreMatch = true;
-            break;
-          }
+        final cleaned = _normalizeNicForQuery(normNic);
+        final candidates = <String>{
+          normNic,
+          normNic.toLowerCase(),
+          cleaned,
+          cleaned.toLowerCase()
+        }..removeWhere((s) => s.trim().isEmpty);
+
+        if (candidates.isNotEmpty) {
+          firestoreMatch = await _customerExistsInFirestore(
+            field: 'nic',
+            values: candidates.toList(),
+          );
         }
       } catch (_) {
         firestoreUnavailable = true;
       }
+
       if (!firestoreUnavailable && firestoreMatch) {
         throw Exception('An account with this NIC number already exists.');
       }
+
       if (firestoreUnavailable) {
         final checkList = await getLocalCheckList();
         final exists = checkList.any((e) {
-          final n = e['nic']?.toString().toLowerCase() ?? '';
-          return n.isNotEmpty && n == normNic.toLowerCase();
+          final n = e['nic']?.toString() ?? '';
+          return n.isNotEmpty && _normalizeNicForQuery(n) == _normalizeNicForQuery(normNic);
         });
         if (exists) {
           throw Exception('An account with this NIC number already exists.');
