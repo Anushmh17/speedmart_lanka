@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
 import 'package:speedmart_lanka/features/proposals/data/proposal_repository.dart';
 import 'package:speedmart_lanka/features/proposals/presentation/screens/customer_proposal_details_screen.dart';
 import 'package:speedmart_lanka/features/requests/data/request_repository.dart';
 import 'package:speedmart_lanka/features/requests/presentation/screens/request_details_screen.dart';
+import 'package:speedmart_lanka/features/vendor/proposals/presentation/vendor_request_detail_screen.dart';
 import 'package:speedmart_lanka/features/orders/data/order_repository.dart';
 import 'package:speedmart_lanka/features/orders/presentation/screens/order_tracking_screen.dart';
+import 'package:speedmart_lanka/shared/models/user_role.dart';
 
 class ProposalDeepLinkLoader extends ConsumerStatefulWidget {
   final String proposalId;
@@ -46,6 +49,12 @@ class _ProposalDeepLinkLoaderState extends ConsumerState<ProposalDeepLinkLoader>
   }
 }
 
+/// Role-aware request deep-link loader.
+///
+/// - **Vendor** taps "New Request Nearby" notification → [VendorRequestDetailScreen]
+///   (shows item list + "Create proposal" / "Edit proposal" CTA).
+/// - **Customer** taps a request notification → [RequestDetailsScreen]
+///   (shows their own request with incoming bids).
 class RequestDeepLinkLoader extends ConsumerStatefulWidget {
   final String requestId;
   const RequestDeepLinkLoader({super.key, required this.requestId});
@@ -79,8 +88,22 @@ class _RequestDeepLinkLoaderState extends ConsumerState<RequestDeepLinkLoader> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    if (_request == null) return const Scaffold(body: Center(child: Text('Request not found')));
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_request == null) {
+      return const Scaffold(body: Center(child: Text('Request not found')));
+    }
+
+    // Route to the correct screen based on the current user's role.
+    final role = ref.read(currentUserProvider)?.role;
+    if (role == UserRole.vendor) {
+      // Vendor tapped a "New Request Nearby" notification — show vendor detail
+      // screen so they can review items and submit a proposal.
+      return VendorRequestDetailScreen(request: _request);
+    }
+
+    // Default: customer viewing their own request (proposals, status, etc.)
     return RequestDetailsScreen(request: _request);
   }
 }

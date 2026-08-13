@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../../core/services/storage_upload_service.dart';
@@ -6,7 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/widgets/safe_request_image.dart';
 
-class ImageUploadGrid extends StatelessWidget {
+class ImageUploadGrid extends StatefulWidget {
   final String? category;
   final List<String> imageUrls;
   final ValueChanged<List<String>> onImagesChanged;
@@ -17,6 +17,13 @@ class ImageUploadGrid extends StatelessWidget {
     required this.imageUrls,
     required this.onImagesChanged,
   });
+
+  @override
+  State<ImageUploadGrid> createState() => _ImageUploadGridState();
+}
+
+class _ImageUploadGridState extends State<ImageUploadGrid> {
+  bool _uploading = false;
 
   void _showImageSourceActionSheet(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -174,6 +181,8 @@ class ImageUploadGrid extends StatelessWidget {
   }
 
   Future<void> _pickImage(BuildContext context, ImageSource source) async {
+    if (_uploading) return;
+
     bool hasPermission = false;
     if (source == ImageSource.camera) {
       hasPermission = await _requestCameraPermission(context);
@@ -191,23 +200,26 @@ class ImageUploadGrid extends StatelessWidget {
 
     try {
       final ImagePicker picker = ImagePicker();
+      // Resize to max 1200px. Do NOT also pass imageQuality â€” StorageUploadService
+      // compresses quality before upload. Doing both causes double-compression.
       final XFile? image = await picker.pickImage(
         source: source,
-        maxWidth: 1024,
-        maxHeight: 1024,
-        imageQuality: 85,
+        maxWidth: 1200,
+        maxHeight: 1200,
       );
 
       if (image == null) return;
 
-      // Upload to Firebase Storage immediately
+      if (mounted) setState(() => _uploading = true);
+
+      // Upload to Firebase Storage with compression
       String uploadedUrl;
       try {
         final ts = DateTime.now().millisecondsSinceEpoch;
         uploadedUrl = await StorageUploadService.instance.uploadImage(
           image.path,
           'request_images/$ts.jpg',
-          quality: 75,
+          quality: 78,
         );
       } catch (e) {
         if (context.mounted) {
@@ -219,10 +231,12 @@ class ImageUploadGrid extends StatelessWidget {
           );
         }
         return;
+      } finally {
+        if (mounted) setState(() => _uploading = false);
       }
 
-      final newList = List<String>.from(imageUrls)..add(uploadedUrl);
-      onImagesChanged(newList);
+      final newList = List<String>.from(widget.imageUrls)..add(uploadedUrl);
+      widget.onImagesChanged(newList);
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -241,6 +255,7 @@ class ImageUploadGrid extends StatelessWidget {
         );
       }
     } catch (e) {
+      if (mounted) setState(() => _uploading = false);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -253,8 +268,8 @@ class ImageUploadGrid extends StatelessWidget {
   }
 
   void _removeImage(int index) {
-    final newList = List<String>.from(imageUrls)..removeAt(index);
-    onImagesChanged(newList);
+    final newList = List<String>.from(widget.imageUrls)..removeAt(index);
+    widget.onImagesChanged(newList);
   }
 
   void _showPreviewDialog(BuildContext context, String url) {
@@ -309,9 +324,22 @@ class ImageUploadGrid extends StatelessWidget {
             ),
             const SizedBox(width: 4),
             Text(
-              '(${imageUrls.length} added)',
+              '(${widget.imageUrls.length} added)',
               style: AppTextStyles.caption(secondaryText),
             ),
+            if (_uploading) ...[
+              const SizedBox(width: 8),
+              const SizedBox(
+                width: 12,
+                height: 12,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppColors.customerColor,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text('Uploadingâ€¦', style: AppTextStyles.caption(AppColors.customerColor)),
+            ],
           ],
         ),
         const SizedBox(height: 4),
@@ -325,12 +353,12 @@ class ImageUploadGrid extends StatelessWidget {
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
-            itemCount: imageUrls.length + 1,
+            itemCount: widget.imageUrls.length + 1,
             itemBuilder: (context, index) {
-              if (index == imageUrls.length) {
-                // "+" Add Image Button
+              if (index == widget.imageUrls.length) {
+                // "+" Add Image Button â€” shows spinner while uploading
                 return GestureDetector(
-                  onTap: () => _showImageSourceActionSheet(context),
+                  onTap: _uploading ? null : () => _showImageSourceActionSheet(context),
                   child: Container(
                     width: 80,
                     height: 80,
@@ -340,16 +368,24 @@ class ImageUploadGrid extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: borderColor, style: BorderStyle.solid),
                     ),
-                    child: const Icon(
-                      Icons.add_a_photo_outlined,
-                      color: AppColors.customerColor,
-                      size: 26,
-                    ),
+                    child: _uploading
+                        ? const Padding(
+                            padding: EdgeInsets.all(24),
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: AppColors.customerColor,
+                            ),
+                          )
+                        : const Icon(
+                            Icons.add_a_photo_outlined,
+                            color: AppColors.customerColor,
+                            size: 26,
+                          ),
                   ),
                 );
               }
 
-              final url = imageUrls[index];
+              final url = widget.imageUrls[index];
               return Stack(
                 children: [
                   GestureDetector(
@@ -399,4 +435,5 @@ class ImageUploadGrid extends StatelessWidget {
     );
   }
 }
+
 

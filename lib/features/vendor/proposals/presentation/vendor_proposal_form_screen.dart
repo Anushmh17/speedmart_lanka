@@ -25,6 +25,7 @@ import '../widgets/image_gallery_viewer.dart';
 import '../../../../core/utils/permission_utils.dart';
 import '../../../../core/services/storage_upload_service.dart';
 import '../../../../core/routes/route_names.dart';
+import '../../../../core/widgets/safe_request_image.dart';
 /// Create or edit a vendor proposal (quotation) for a customer request.
 class VendorProposalFormScreen extends ConsumerStatefulWidget {
   const VendorProposalFormScreen({
@@ -747,18 +748,28 @@ class _ItemEditorCard extends StatefulWidget {
 }
 
 class _ItemEditorCardState extends State<_ItemEditorCard> {
+  bool _uploadingImage = false;
+
   Future<void> _pickVendorImage() async {
     if (widget.vendorImageUrls.length >= 4) return;
+    if (_uploadingImage) return;
     if (!await AppPermissionUtils.ensureGalleryPermission(context)) return;
     final picker = ImagePicker();
-    final file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    // Resize to max 1200px — StorageUploadService will compress quality.
+    // Do NOT also pass imageQuality here to avoid double-compressing.
+    final file = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 1200,
+      maxHeight: 1200,
+    );
     if (file == null) return;
+    setState(() => _uploadingImage = true);
     try {
       final ts = DateTime.now().millisecondsSinceEpoch;
       final url = await StorageUploadService.instance.uploadImage(
         file.path,
         'proposal_images/$ts.jpg',
-        quality: 75,
+        quality: 78,
       );
       widget.onVendorImagesChanged([...widget.vendorImageUrls, url]);
     } catch (e) {
@@ -767,6 +778,8 @@ class _ItemEditorCardState extends State<_ItemEditorCard> {
           SnackBar(content: Text('Failed to upload image: $e'), backgroundColor: Colors.red),
         );
       }
+    } finally {
+      if (mounted) setState(() => _uploadingImage = false);
     }
   }
 
@@ -800,7 +813,6 @@ class _ItemEditorCardState extends State<_ItemEditorCard> {
                 itemCount: widget.customerImageUrls.length,
                 itemBuilder: (context, index) {
                   final url = widget.customerImageUrls[index];
-                  final isNetwork = url.startsWith('http://') || url.startsWith('https://');
                   return Padding(
                     padding: EdgeInsets.only(right: index < widget.customerImageUrls.length - 1 ? 8 : 0),
                     child: GestureDetector(
@@ -809,15 +821,19 @@ class _ItemEditorCardState extends State<_ItemEditorCard> {
                       )),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: isNetwork
-                            ? CachedNetworkImage(imageUrl: url, width: 72, height: 72, fit: BoxFit.cover,
-                                errorWidget: (_, __, ___) => const Icon(Icons.broken_image_outlined))
-                            : Image.file(File(url), width: 72, height: 72, fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined)),
+                        // Use NetworkFallbackImage for shimmer + retry support
+                        child: NetworkFallbackImage(
+                          url: url,
+                          width: 72,
+                          height: 72,
+                          fit: BoxFit.cover,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
                       ),
                     ),
                   );
                 },
+
               ),
             ),
           ],
@@ -863,7 +879,7 @@ class _ItemEditorCardState extends State<_ItemEditorCard> {
                 )),
                 if (widget.vendorImageUrls.length < 4)
                   InkWell(
-                    onTap: _pickVendorImage,
+                    onTap: _uploadingImage ? null : _pickVendorImage,
                     child: Container(
                       width: 56,
                       height: 56,
@@ -871,8 +887,13 @@ class _ItemEditorCardState extends State<_ItemEditorCard> {
                         border: Border.all(color: borderColor),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Icon(Icons.add_photo_alternate_outlined,
-                          color: AppColors.vendorColor, size: 22),
+                      child: _uploadingImage
+                          ? const Padding(
+                              padding: EdgeInsets.all(14),
+                              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.vendorColor),
+                            )
+                          : const Icon(Icons.add_photo_alternate_outlined,
+                              color: AppColors.vendorColor, size: 22),
                     ),
                   ),
               ],
@@ -943,9 +964,31 @@ class _ItemEditorCardState extends State<_ItemEditorCard> {
   Widget _imagePreview(String path, Color cardColor) {
     const size = 56.0;
     if (path.startsWith('http://') || path.startsWith('https://')) {
-      return CachedNetworkImage(imageUrl: path, width: size, height: size, fit: BoxFit.cover,
-          errorWidget: (_, __, ___) => Container(width: size, height: size, color: cardColor,
-              child: const Icon(Icons.image_outlined)));
+      // memCacheWidth/Height tells Flutter to decode only at thumbnail
+      // resolution — avoids loading full-res JPEG into memory for a 56px tile
+      return CachedNetworkImage(
+        imageUrl: path,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        memCacheWidth: 112,  // 2× for hi-DPI screens
+        memCacheHeight: 112,
+        placeholder: (_, __) => Container(
+          width: size,
+          height: size,
+          color: cardColor,
+          child: const Center(
+            child: SizedBox(
+              width: 18, height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.vendorColor),
+            ),
+          ),
+        ),
+        errorWidget: (_, __, ___) => Container(
+          width: size, height: size, color: cardColor,
+          child: const Icon(Icons.image_outlined, color: Colors.grey),
+        ),
+      );
     }
     if (!kIsWeb && File(path).existsSync()) {
       return Image.file(File(path), width: size, height: size, fit: BoxFit.cover);

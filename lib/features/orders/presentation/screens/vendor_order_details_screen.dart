@@ -155,7 +155,7 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
 
     // Notify customer
     ref.read(notificationProvider.notifier).triggerNotification(
-      title: 'Payment Received! 💰',
+      title: 'Payment Received! ðŸ’°',
       body: 'Vendor confirmed cash collection for order ${order.id}.',
       icon: Icons.paid_rounded,
       color: AppColors.success,
@@ -456,6 +456,21 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                   if (activeOrder.paymentMethod == PaymentMethod.cashOnDelivery)
                     const SizedBox(height: 24),
 
+                  // â”€â”€ Bank Transfer Payment Panel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                  // Shown when customer chose bank transfer. Vendor can view
+                  // the uploaded receipt and confirm the payment before
+                  // advancing the order through the delivery stages.
+                  if (activeOrder.paymentMethod == PaymentMethod.bankTransfer)
+                    _BankTransferPanel(
+                      order: activeOrder,
+                      secondaryText: secondaryText,
+                      primaryText: primaryText,
+                      cardColor: cardColor,
+                      borderColor: borderColor,
+                    ),
+                  if (activeOrder.paymentMethod == PaymentMethod.bankTransfer)
+                    const SizedBox(height: 24),
+
                   // UNLOCKED Customer Details Section (Reveal Privacy Barrier)
                   Container(
                     width: double.infinity,
@@ -585,7 +600,7 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text('GPS Accuracy', style: AppTextStyles.caption(secondaryText)),
-                                    Text('±${activeOrder.accuracy!.toStringAsFixed(1)}m', style: AppTextStyles.bodyMedium(primaryText)),
+                                    Text('Â±${activeOrder.accuracy!.toStringAsFixed(1)}m', style: AppTextStyles.bodyMedium(primaryText)),
                                     if (activeOrder.accuracy! > 150)
                                       Text('Low accuracy - move outdoors for better precision', style: AppTextStyles.caption(Colors.orange)),
                                   ],
@@ -1031,7 +1046,7 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(
-                                    'COD Order — Collect cash on delivery',
+                                    'COD Order â€” Collect cash on delivery',
                                     style: AppTextStyles.bodyMedium(AppColors.warning).copyWith(
                                       fontWeight: FontWeight.w600,
                                     ),
@@ -1119,54 +1134,22 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
 
                       await ref.read(orderProvider.notifier).updateOrderStatus(activeOrder.id, nextStatus);
 
-                      // Trigger simulated Customer Notifications based on status update!
-                      if (nextStatus == OrderStatus.accepted) {
-                        ref.read(notificationProvider.notifier).triggerNotification(
-                          title: 'Order Accepted! ✅',
-                          body: 'Shop Owner accepted your order ${activeOrder.id}.',
-                          icon: Icons.check_circle_rounded,
-                          color: AppColors.customerColor,
-                        );
-                      } else if (nextStatus == OrderStatus.preparing) {
-                        ref.read(notificationProvider.notifier).triggerNotification(
-                          title: 'Order Preparing! 📦',
-                          body: 'Shop Owner is packing your items for order ${activeOrder.id}.',
-                          icon: Icons.inventory_2_rounded,
-                          color: AppColors.customerColor,
-                        );
-                      } else if (nextStatus == OrderStatus.readyForDelivery) {
-                        ref.read(notificationProvider.notifier).triggerNotification(
-                          title: 'Order Ready! 🚀',
-                          body: 'Your order ${activeOrder.id} is ready for pickup/delivery.',
-                          icon: Icons.check_circle_rounded,
-                          color: AppColors.customerColor,
-                        );
-                      } else if (nextStatus == OrderStatus.outForDelivery) {
-                        ref.read(notificationProvider.notifier).triggerNotification(
-                          title: 'Order Out for Delivery! 🛵',
-                          body: 'Shop Owner dispatched your order ${activeOrder.id}. It is on the way!',
-                          icon: Icons.delivery_dining_rounded,
-                          color: AppColors.customerColor,
-                        );
-                      } else if (nextStatus == OrderStatus.delivered) {
-                        ref.read(notificationProvider.notifier).triggerNotification(
-                          title: 'Order Delivered! 🎉',
-                          body: 'Thank you! Order ${activeOrder.id} has been delivered successfully.',
-                          icon: Icons.task_alt_rounded,
-                          color: AppColors.customerColor,
-                        );
-                        // For bank transfer orders, notify customer that vendor confirmed delivery
-                        if (activeOrder.paymentMethod == PaymentMethod.bankTransfer) {
-                          await ref
-                              .read(notification_feature.notificationProvider.notifier)
-                              .createNotification(
-                                type: NotificationType.orderDelivered,
-                                title: 'Order Delivered & Bank Transfer Verified ✅',
-                                body: 'Your bank transfer was verified and order ${activeOrder.id} has been delivered.',
-                                userId: activeOrder.customerId,
-                                relatedId: activeOrder.id,
-                              );
-                        }
+                      // NOTE: Push notification for every status change is handled
+                      // server-side by the onOrderStatusChanged Cloud Function.
+                      // No local notification trigger needed here â€” it would duplicate.
+
+                      // Special: for bank transfer, notify customer of delivery + verification
+                      if (nextStatus == OrderStatus.delivered &&
+                          activeOrder.paymentMethod == PaymentMethod.bankTransfer) {
+                        await ref
+                            .read(notification_feature.notificationProvider.notifier)
+                            .createNotification(
+                              type: NotificationType.orderDelivered,
+                              title: 'Order Delivered & Bank Transfer Verified âœ…',
+                              body: 'Your bank transfer was verified and order ${activeOrder.id} has been delivered.',
+                              userId: activeOrder.customerId,
+                              relatedId: activeOrder.id,
+                            );
                       }
 
                       if (context.mounted) {
@@ -1247,7 +1230,7 @@ String _generateInvoiceText(OrderModel order) {
 
 String _generateRiderShareText(OrderModel order) {
   return '''
-🛵 SPEEDMART LANKA DELIVERY RIDER INFO 🛵
+ðŸ›µ SPEEDMART LANKA DELIVERY RIDER INFO ðŸ›µ
 Order ID: ${order.id}
 Customer Name: ${order.customerName}
 Phone: ${order.customerPhone}
@@ -1256,3 +1239,308 @@ Navigate: https://www.google.com/maps/search/?api=1&query=${order.customerLatitu
 ''';
 }
 
+// ── Bank Transfer Payment Panel ──────────────────────────────────────────────
+/// Shown on the vendor order details screen when the payment method is bank
+/// transfer. Displays the receipt image the customer uploaded, the current
+/// payment status, and a confirmation button the vendor uses once they have
+/// verified the transfer in their banking app.
+class _BankTransferPanel extends ConsumerStatefulWidget {
+  const _BankTransferPanel({
+    required this.order,
+    required this.secondaryText,
+    required this.primaryText,
+    required this.cardColor,
+    required this.borderColor,
+  });
+
+  final OrderModel order;
+  final Color secondaryText;
+  final Color primaryText;
+  final Color cardColor;
+  final Color borderColor;
+
+  @override
+  ConsumerState<_BankTransferPanel> createState() => _BankTransferPanelState();
+}
+
+class _BankTransferPanelState extends ConsumerState<_BankTransferPanel> {
+  bool _confirming = false;
+
+  bool get _alreadyPaid =>
+      widget.order.paymentStatus == PaymentStatus.paid;
+
+  Future<void> _confirmPayment() async {
+    if (_confirming || _alreadyPaid) return;
+    final online = await ConnectivityService.instance.isOnline();
+    if (!online) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('No network. Check your connection and try again.')),
+        );
+      }
+      return;
+    }
+
+    // Capture context before async gap to satisfy use_build_context_synchronously
+    if (!mounted) return;
+    final ctx0 = context;
+    final confirmed = await showDialog<bool>(
+      context: ctx0,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Confirm Bank Transfer?'),
+        content: const Text(
+            'This will mark the payment as received and notify the customer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.success),
+            child: const Text('Yes, Confirm'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _confirming = true);
+    try {
+      // Mark payment as paid
+      await PaymentRepository.instance
+          .updatePaymentStatus(widget.order.id, PaymentStatus.paid);
+
+      // Also mark the order's paymentStatus field
+      await OrderRepository.instance
+          .updatePaymentStatus(widget.order.id, PaymentStatus.paid);
+
+      // Notify customer their payment has been verified
+      await ref
+          .read(notification_feature.notificationProvider.notifier)
+          .createNotification(
+            type: NotificationType.bankTransferReceiptSubmitted,
+            title: 'Bank Transfer Verified ✅',
+            body:
+                'Your bank transfer for order ${widget.order.id} has been verified. The vendor will now start preparing your order.',
+            userId: widget.order.customerId,
+            relatedId: widget.order.id,
+          );
+
+      // Reload vendor orders so the UI refreshes
+      await ref.read(orderProvider.notifier).loadVendorOrders();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Payment confirmed! Customer has been notified.'),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _confirming = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Re-read order from provider so status updates live
+    final liveOrder = ref.watch(orderProvider).orders.firstWhere(
+          (o) => o.id == widget.order.id,
+          orElse: () => widget.order,
+        );
+    final paid = liveOrder.paymentStatus == PaymentStatus.paid;
+    final pendingBank =
+        liveOrder.paymentStatus == PaymentStatus.pendingBankTransfer;
+
+    final panelColor = paid
+        ? AppColors.success
+        : pendingBank
+            ? AppColors.customerColor
+            : AppColors.warning;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: panelColor.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: panelColor.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Header ──
+          Row(
+            children: [
+              Icon(
+                paid
+                    ? Icons.check_circle_rounded
+                    : pendingBank
+                        ? Icons.hourglass_top_rounded
+                        : Icons.account_balance_rounded,
+                color: panelColor,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      paid
+                          ? 'Bank Transfer Verified'
+                          : pendingBank
+                              ? 'Receipt Submitted — Awaiting Verification'
+                              : 'Bank Transfer — Awaiting Receipt',
+                      style: AppTextStyles.h3(panelColor),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      paid
+                          ? 'Payment confirmed. Proceed with delivery.'
+                          : pendingBank
+                              ? 'Customer uploaded a receipt. Please verify below.'
+                              : 'Customer has not yet submitted the transfer receipt.',
+                      style: AppTextStyles.caption(widget.secondaryText),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          // ── Receipt image (if available) ──
+          FutureBuilder<PaymentModel?>(
+            future: PaymentRepository.instance
+                .getPaymentByOrderId(widget.order.id),
+            builder: (context, snap) {
+              final receiptUrl = snap.data?.receiptImageUrl;
+              if (receiptUrl == null || receiptUrl.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 14),
+                  Text('Customer Receipt',
+                      style: AppTextStyles.caption(widget.secondaryText)),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => Scaffold(
+                          backgroundColor: Colors.black,
+                          appBar: AppBar(
+                            backgroundColor: Colors.black,
+                            iconTheme:
+                                const IconThemeData(color: Colors.white),
+                            title: const Text('Payment Receipt',
+                                style: TextStyle(color: Colors.white)),
+                          ),
+                          body: InteractiveViewer(
+                            child: Center(
+                              child: Image.network(
+                                receiptUrl,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) => const Center(
+                                  child: Text('Could not load image',
+                                      style:
+                                          TextStyle(color: Colors.white70)),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        receiptUrl,
+                        height: 180,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          height: 80,
+                          decoration: BoxDecoration(
+                            color: widget.borderColor,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Center(
+                            child: Icon(Icons.broken_image_outlined,
+                                color: Colors.white54, size: 36),
+                          ),
+                        ),
+                        loadingBuilder: (_, child, progress) {
+                          if (progress == null) return child;
+                          return Container(
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: widget.borderColor,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Center(
+                                child: CircularProgressIndicator()),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text('Tap image to view full screen',
+                      style: AppTextStyles.caption(widget.secondaryText)),
+                ],
+              );
+            },
+          ),
+
+          // ── Confirm button (only if not yet paid) ──
+          if (!paid) ...[
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.success,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  elevation: 0,
+                ),
+                onPressed: _confirming ? null : _confirmPayment,
+                icon: _confirming
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.verified_rounded,
+                        color: Colors.white, size: 18),
+                label: Text(
+                  _confirming ? 'Confirming…' : 'Confirm Payment Received',
+                  style: AppTextStyles.button(Colors.white),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}

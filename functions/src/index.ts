@@ -3,6 +3,11 @@ import {onDocumentCreated, onDocumentUpdated, onDocumentWritten} from "firebase-
 import {onCall, onRequest, HttpsError} from "firebase-functions/v2/https";
 import {onSchedule} from "firebase-functions/v2/scheduler";
 
+// ── App Check enforcement ────────────────────────────────────────────────────
+// Set to true in production to reject requests from unverified clients.
+// Keep false during development/testing so emulators still work.
+const ENFORCE_APP_CHECK = true;
+
 admin.initializeApp();
 
 const db = admin.firestore();
@@ -175,9 +180,9 @@ type CustomerRegistrationRequest = {
   deliveryLongitude?: number | null;
 };
 
-export const registerCustomerAccount = onRequest(async (request, response) => {
+export const registerCustomerAccount = onRequest({memory: '256MiB', timeoutSeconds: 60, enforceAppCheck: ENFORCE_APP_CHECK}, async (request, response) => {
   response.set("Access-Control-Allow-Origin", "*");
-  response.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  response.set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Firebase-AppCheck");
   response.set("Access-Control-Allow-Methods", "POST, OPTIONS");
 
   if (request.method === "OPTIONS") {
@@ -313,16 +318,16 @@ export const registerCustomerAccount = onRequest(async (request, response) => {
     }, {merge: true});
   });
 
-  response.json({
-    success: true,
-    token: `auth_token_${profileRef.id}_${Date.now()}`,
-    user: userData,
+    response.json({
+      success: true,
+      token: `auth_token_${profileRef.id}_${Date.now()}`,
+      user: userData,
+    });
   });
-});
 
-export const registerVendorAccount = onRequest(async (request, response) => {
+  export const registerVendorAccount = onRequest({memory: '256MiB', timeoutSeconds: 60, enforceAppCheck: ENFORCE_APP_CHECK}, async (request, response) => {
   response.set("Access-Control-Allow-Origin", "*");
-  response.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  response.set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Firebase-AppCheck");
   response.set("Access-Control-Allow-Methods", "POST, OPTIONS");
 
   if (request.method === "OPTIONS") {
@@ -493,8 +498,6 @@ export const registerVendorAccount = onRequest(async (request, response) => {
     user: userData,
   });
 });
-
-// ── 1. Vendor Approved ────────────────────────────────────────────────────────
 // Triggered when admin approves a vendor (vendorApproved: false → true)
 
 export const onVendorApproved = onDocumentUpdated(
@@ -527,28 +530,6 @@ export const onVendorApproved = onDocumentUpdated(
       ]);
     }
 
-    // Vendor suspended
-    if (before.vendorStatus !== "suspended" && after.vendorStatus === "suspended") {
-      const name = after.businessName ?? after.fullName ?? "Shop Owner";
-
-      await Promise.all([
-        createNotification(
-          vendorId,
-          "vendorSuspended",
-          "Account Suspended",
-          "Your shop owner account has been suspended. Please contact support for assistance.",
-          vendorId
-        ),
-        sendPushNotification(
-          vendorId,
-          "Account Suspended",
-          "Your account has been suspended. Contact support for help.",
-          {route: "/vendor/status", type: "vendorSuspended"}
-        ),
-        logActivity("suspend", "users/vendors/profiles", vendorId, "admin", `Vendor ${name} suspended`),
-      ]);
-    }
-
     // Vendor rejected
     if (before.vendorStatus !== "rejected" && after.vendorStatus === "rejected") {
       const name = after.businessName ?? after.fullName ?? "Shop Owner";
@@ -574,7 +555,7 @@ export const onVendorApproved = onDocumentUpdated(
 );
 
 // ── 2. New Shopping Request ───────────────────────────────────────────────────
-// Notify nearby vendors when a customer submits a new request
+// Notify nearby vendors via district-based FCM topic (avoids fan-out reads/writes)
 
 export const onNewRequest = onDocumentCreated(
   "requests/{requestId}",
@@ -585,49 +566,60 @@ export const onNewRequest = onDocumentCreated(
     const requestId = event.params.requestId;
     const customerArea = request.customerArea ?? "your area";
 
-    // Get all approved active vendors
-    const vendorsSnap = await db
-      .collection("users/vendors/profiles")
-      .where("vendorStatus", "==", "approved")
-      .where("isActive", "==", true)
-      .get();
+    // Determine which district topic to use.
+    // Vendors subscribe to "vendor_requests_<district>" on app startup.
+    // Fall back to the global "vendor_requests_all" topic if district is missing.
+    const rawDistrict: string = (
+      request.district ||
+      request.deliveryDistrict ||
+      request.customerDistrict ||
+      ""
+    ).toString().toLowerCase().replace(/[^a-z0-9]/g, "_");
 
-    const notifyPromises: Promise<void>[] = [];
+    const districtTopic = rawDistrict ? `vendor_requests_${rawDistrict}` : "vendor_requests_all";
 
-    for (const vendorDoc of vendorsSnap.docs) {
-      const vendor = vendorDoc.data();
-      const vendorId = vendorDoc.id;
-
-      // Basic radius check using Haversine if vendor has coordinates
-      if (vendor.shopLatitude && vendor.shopLongitude &&
-          request.latitude && request.longitude) {
-        const dist = haversineKm(
-          vendor.shopLatitude, vendor.shopLongitude,
-          request.latitude, request.longitude
-        );
-        const radius = vendor.assignedRadiusKm ?? 5;
-        if (dist > radius) continue;
-      }
-
-      notifyPromises.push(
-        createNotification(
-          vendorId,
-          "newNearbyRequest",
-          "New Shopping Request Nearby 📍",
-          `A customer in ${customerArea} needs items delivered. Submit your proposal now!`,
+    // Cost: ONE FCM multicast to a topic (replaces N individual reads + N writes)
+    try {
+      await messaging.send({
+        topic: districtTopic,
+        notification: {
+          title: "New Request Nearby 📍",
+          body: `Customer in ${customerArea} needs delivery. Tap to view.`,
+        },
+        data: {
+          route: `/vendor/requests/${requestId}`,
+          type: "newNearbyRequest",
           requestId,
-          {requestId}
-        ),
-        sendPushNotification(
-          vendorId,
-          "New Request Nearby 📍",
-          `Customer in ${customerArea} needs delivery. Tap to view.`,
-          {route: `/vendor/requests/${requestId}`, type: "newNearbyRequest", requestId}
-        )
-      );
+        },
+        android: {priority: "high"},
+        apns: {payload: {aps: {sound: "default"}}},
+      });
+    } catch (e) {
+      console.error(`[FCM] Topic send to ${districtTopic} failed:`, e);
     }
 
-    await Promise.all(notifyPromises);
+    // Also broadcast to the global fallback topic so vendors without a district still receive it
+    if (rawDistrict) {
+      try {
+        await messaging.send({
+          topic: "vendor_requests_all",
+          notification: {
+            title: "New Request Nearby 📍",
+            body: `Customer in ${customerArea} needs delivery. Tap to view.`,
+          },
+          data: {
+            route: `/vendor/requests/${requestId}`,
+            type: "newNearbyRequest",
+            requestId,
+          },
+          android: {priority: "high"},
+          apns: {payload: {aps: {sound: "default"}}},
+        });
+      } catch (e) {
+        console.error(`[FCM] Topic send to vendor_requests_all failed:`, e);
+      }
+    }
+
     await logActivity("create", "requests", requestId, request.customerId ?? "customer");
   }
 );
@@ -829,6 +821,114 @@ export const onOrderStatusChanged = onDocumentUpdated(
   }
 );
 
+// ── 5b. Bank Transfer Payment Events ─────────────────────────────────────────
+// Two triggers on the `payments` collection:
+//
+//  A) Customer submits receipt (status: pending → pendingBankTransfer)
+//     → Push the VENDOR so they know to open the order and verify,
+//       even if their app is completely closed.
+//
+//  B) Vendor confirms payment received (status: pendingBankTransfer → paid)
+//     → Push the CUSTOMER so they know their order is now being prepared,
+//       even if their app is completely closed.
+//
+// Previously both of these only wrote a Firestore notification doc — meaning
+// the recipient had to open the app and check manually. These triggers ensure
+// a real device-level push is delivered.
+
+export const onBankTransferReceiptSubmitted = onDocumentUpdated(
+  "payments/{paymentId}",
+  async (event) => {
+    const before = event.data?.before.data();
+    const after  = event.data?.after.data();
+    if (!before || !after) return;
+
+    const beforeStatus: string = before.paymentStatus ?? "";
+    const afterStatus:  string = after.paymentStatus  ?? "";
+
+    // ── A) Customer submitted receipt ────────────────────────────────────────
+    if (
+      beforeStatus !== "pendingBankTransfer" &&
+      afterStatus  === "pendingBankTransfer"
+    ) {
+      const vendorId:   string = after.vendorId   ?? "";
+      const customerId: string = after.customerId ?? "";
+      const orderId:    string = after.orderId    ?? "";
+      const amount:     number = after.amount     ?? 0;
+
+      if (!vendorId) return;
+
+      const hasReceipt = !!(after.receiptImageUrl ?? "");
+      const receiptNote = hasReceipt
+        ? " They uploaded a receipt — tap to verify."
+        : " Please check your banking app and verify the transfer.";
+
+      await Promise.all([
+        // Firestore notification doc (in-app notification center)
+        createNotification(
+          vendorId,
+          "bankTransferReceiptSubmitted",
+          "Bank Transfer Submitted 🏦",
+          `Customer confirmed a bank transfer of Rs. ${amount.toFixed(2)} for order ${orderId}.${receiptNote}`,
+          orderId,
+          { orderId, customerId, hasReceipt: String(hasReceipt) }
+        ),
+        // Real FCM push (works when app is closed/backgrounded)
+        sendPushNotification(
+          vendorId,
+          "Bank Transfer Submitted 🏦",
+          `Customer confirmed Rs. ${amount.toFixed(2)} transfer for order ${orderId}.${receiptNote}`,
+          {
+            route:    `/vendor/orders/${orderId}`,
+            type:     "bankTransferReceiptSubmitted",
+            orderId,
+          }
+        ),
+      ]);
+
+      console.log(`[BankTransfer] Receipt submitted for order ${orderId} — vendor ${vendorId} notified.`);
+    }
+
+    // ── B) Vendor confirmed payment ──────────────────────────────────────────
+    if (
+      beforeStatus !== "paid" &&
+      afterStatus  === "paid" &&
+      (before.paymentMethod === "bankTransfer" || after.paymentMethod === "bankTransfer")
+    ) {
+      const customerId: string = after.customerId ?? "";
+      const orderId:    string = after.orderId    ?? "";
+      const amount:     number = after.amount     ?? 0;
+
+      if (!customerId) return;
+
+      await Promise.all([
+        // Firestore notification doc (in-app notification center)
+        createNotification(
+          customerId,
+          "bankTransferConfirmed",
+          "Payment Verified ✅",
+          `Your bank transfer of Rs. ${amount.toFixed(2)} for order ${orderId} has been verified. The vendor will now start preparing your order.`,
+          orderId,
+          { orderId }
+        ),
+        // Real FCM push (works when app is closed/backgrounded)
+        sendPushNotification(
+          customerId,
+          "Payment Verified ✅",
+          `Your bank transfer for order ${orderId} is confirmed. Preparing your order now!`,
+          {
+            route:  `/customer/orders/${orderId}`,
+            type:   "bankTransferConfirmed",
+            orderId,
+          }
+        ),
+      ]);
+
+      console.log(`[BankTransfer] Payment confirmed for order ${orderId} — customer ${customerId} notified.`);
+    }
+  }
+);
+
 // ── 6. Activity Log — Admin Actions ──────────────────────────────────────────
 // Log all writes to sensitive admin-managed collections
 
@@ -867,7 +967,9 @@ export const logDeliveryAreaChanges = onDocumentWritten(
 // ── 7. Cleanup Stale FCM Tokens (Scheduled) ───────────────────────────────────
 // Runs every Sunday at midnight to remove invalid FCM tokens
 
-export const cleanupStaleFcmTokens = onSchedule("every sunday 00:00", async () => {
+export const cleanupStaleFcmTokens = onSchedule(
+  "every sunday 00:00",
+  async () => {
   const collections = ["customers", "vendors", "admins"];
 
   for (const col of collections) {
@@ -901,10 +1003,40 @@ export const cleanupStaleFcmTokens = onSchedule("every sunday 00:00", async () =
   }
 });
 
+// ── 7b. Cleanup Old Notifications (Scheduled) ────────────────────────────────
+// Runs every night at 2 AM — deletes notification docs older than 30 days.
+// Prevents the /notifications collection from bloating and running up
+// Firestore read/write costs indefinitely.
+
+export const cleanupOldNotifications = onSchedule(
+  "every day 02:00",
+  async () => {
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 30);
+    const cutoffIso = cutoff.toISOString();
+
+    const snap = await db
+      .collection("notifications")
+      .where("createdAt", "<", cutoffIso)
+      .limit(400) // process in chunks to stay within batch limit
+      .get();
+
+    if (snap.empty) {
+      console.log("[Cleanup] No old notifications to purge.");
+      return;
+    }
+
+    const batch = db.batch();
+    snap.docs.forEach((doc) => batch.delete(doc.ref));
+    await batch.commit();
+    console.log(`[Cleanup] Deleted ${snap.size} notifications older than 30 days.`);
+  }
+);
+
 // ── 8. Send Notification (Callable) ──────────────────────────────────────────
 // Admin can trigger a manual push notification from the admin web panel
 
-export const sendAdminNotification = onCall(async (request) => {
+export const sendAdminNotification = onCall({memory: '128MiB', timeoutSeconds: 60}, async (request) => {
   // Only allow authenticated admins
   if (!request.auth) throw new HttpsError("unauthenticated", "Must be signed in.");
 
@@ -947,3 +1079,107 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
 function toRad(deg: number): number {
   return (deg * Math.PI) / 180;
 }
+
+// ── Commission Payment Triggers ───────────────────────────────────────────────
+
+/**
+ * Fires when a vendor submits (or resubmits) a bank transfer receipt.
+ * Notifies all admin users to review the receipt.
+ */
+export const onCommissionReceiptSubmitted = onDocumentUpdated(
+  "vendor_commission_payments/{paymentId}",
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    if (!before || !after) return;
+
+    // Only fire when status transitions to receiptSubmitted
+    const wasSubmitted = before.status === "receiptSubmitted";
+    const isNowSubmitted = after.status === "receiptSubmitted";
+    if (wasSubmitted || !isNowSubmitted) return;
+
+    const vendorName: string = after.vendor_name ?? "A vendor";
+    const amountOwed: number = after.amount_owed ?? 0;
+    const paymentId: string = event.params.paymentId;
+
+    // Notify all admins
+    const adminSnap = await db.collection("users/admins/profiles").get();
+    const notifyTasks = adminSnap.docs.map((adminDoc) => {
+      const adminId = adminDoc.id;
+      const title = "💰 Commission Receipt Submitted";
+      const body = `${vendorName} submitted a payment receipt for Rs. ${amountOwed.toFixed(2)}. Please review.`;
+      return Promise.all([
+        sendPushNotification(adminId, title, body, {
+          type: "commissionReceiptSubmitted",
+          paymentId,
+          vendorId: after.vendor_id ?? "",
+        }),
+        createNotification(
+          adminId,
+          "commissionReceiptSubmitted",
+          title,
+          body,
+          paymentId,
+          {vendorId: after.vendor_id, amountOwed}
+        ),
+      ]);
+    });
+
+    await Promise.allSettled(notifyTasks);
+    console.log(`[Commission] Receipt submitted notification sent for ${paymentId}`);
+  }
+);
+
+/**
+ * Fires when an admin reviews a commission receipt (status → accepted or partial).
+ * Notifies the vendor of the outcome and updated balance.
+ */
+export const onCommissionReceiptReviewed = onDocumentUpdated(
+  "vendor_commission_payments/{paymentId}",
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    if (!before || !after) return;
+
+    const reviewStatuses = ["accepted", "partial"];
+    const wasReviewed = reviewStatuses.includes(before.status);
+    const isNowReviewed = reviewStatuses.includes(after.status);
+
+    // Only fire on transition into a reviewed state
+    if (wasReviewed || !isNowReviewed) return;
+
+    const vendorId: string = after.vendor_id ?? "";
+    if (!vendorId) return;
+
+    const paymentId: string = event.params.paymentId;
+    const amountOwed: number = after.amount_owed ?? 0;
+    const amountPaid: number = after.amount_paid ?? 0;
+    const isFullyPaid = amountOwed <= 0;
+
+    const title = isFullyPaid
+      ? "✅ Commission Receipt Accepted"
+      : "📋 Partial Payment Recorded";
+
+    const body = isFullyPaid
+      ? `Your commission payment of Rs. ${amountPaid.toFixed(2)} has been verified. Your balance is now cleared.`
+      : `Rs. ${amountPaid.toFixed(2)} confirmed. You still owe Rs. ${amountOwed.toFixed(2)}. Please complete the remaining balance.`;
+
+    await Promise.all([
+      sendPushNotification(vendorId, title, body, {
+        type: "commissionReceiptReviewed",
+        paymentId,
+        amountOwed: amountOwed.toString(),
+      }),
+      createNotification(
+        vendorId,
+        "commissionReceiptReviewed",
+        title,
+        body,
+        paymentId,
+        {amountPaid, amountOwed, isFullyPaid}
+      ),
+    ]);
+
+    console.log(`[Commission] Review notification sent to vendor ${vendorId} for ${paymentId}`);
+  }
+);

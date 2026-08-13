@@ -11,6 +11,24 @@ service firebase.storage {
                    && request.resource.contentType.matches('image/.*');
     }
 
+    // Commission receipts — vendor uploads their own; admins can read all
+    match /commission_receipts/{vendorId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+                   && request.auth.uid == vendorId
+                   && request.resource.size < 10 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
+    // Request / order images — any authenticated user can read;
+    // owners write their own folder
+    match /request_images/{userId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId
+                   && request.resource.size < 10 * 1024 * 1024
+                   && request.resource.contentType.matches('image/.*');
+    }
+
     // Deny everything else
     match /{allPaths=**} {
       allow read, write: if false;

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/services/fcm_service.dart';
 import '../../../core/storage/storage_service.dart';
 import '../../../features/notifications/data/notification_repository.dart';
 import '../../../shared/models/user_model.dart';
@@ -95,13 +96,13 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // Clean stale category keys automatically on session restore
       final cleanedUser = await _cleanUserCategoriesOnLogin(user);
       
-      debugPrint('[CategoryAudit] After automatic cleanup (AFTER):');
-      debugPrint('[CategoryAudit] cleanedUser.allowedCategories: ${cleanedUser.allowedCategories}');
-      debugPrint('[CategoryAudit] cleanedUser.vendorCategories: ${cleanedUser.vendorCategories}');
-      debugPrint('[CategoryAudit] cleanedUser.requestedCategories: ${cleanedUser.requestedCategories}');
       debugPrint('[CategoryAudit] ===== SESSION RESTORED WITH CLEAN CATEGORIES =====');
       
       NotificationRepository.instance.resetForNewSession();
+      // Re-subscribe vendor to FCM topics on session restore
+      if (cleanedUser.role == UserRole.vendor) {
+        FcmService.subscribeVendorToTopics(shopDistrict: cleanedUser.shopDistrict);
+      }
       state = AuthState.authenticated(cleanedUser);
       return;
     }
@@ -149,6 +150,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await StorageService.saveUser(cleanedUser.toJson());
       await StorageService.saveRole(cleanedUser.role.name);
       NotificationRepository.instance.resetForNewSession();
+      // Subscribe vendor to district-based request notification topics
+      if (cleanedUser.role == UserRole.vendor) {
+        FcmService.subscribeVendorToTopics(shopDistrict: cleanedUser.shopDistrict);
+      }
       state = AuthState.authenticated(cleanedUser);
     } catch (e) {
       state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
@@ -182,6 +187,10 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await StorageService.saveUser(cleanedUser.toJson());
       await StorageService.saveRole(cleanedUser.role.name);
       NotificationRepository.instance.resetForNewSession();
+      // Subscribe vendor to district-based request notification topics
+      if (cleanedUser.role == UserRole.vendor) {
+        FcmService.subscribeVendorToTopics(shopDistrict: cleanedUser.shopDistrict);
+      }
       state = AuthState.authenticated(cleanedUser);
     } catch (e) {
       state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
@@ -313,8 +322,12 @@ class AuthNotifier extends StateNotifier<AuthState> {
 
   // ── Logout ─────────────────────────────────────────────────────────────────
   Future<void> logout() async {
-    // Preserve the role so the router can redirect to the correct login screen
+    // Unsubscribe vendor from FCM topics before clearing session
     final role = state.user?.role;
+    final shopDistrict = state.user?.shopDistrict;
+    if (role == UserRole.vendor) {
+      await FcmService.unsubscribeVendorFromTopics(shopDistrict: shopDistrict);
+    }
     await _repo.logout();
     await StorageService.clearSession();
     if (role != null) await StorageService.saveRole(role.name);

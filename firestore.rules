@@ -36,7 +36,10 @@ service cloud.firestore {
 
     match /users/customers/profiles/{userId} {
       allow get: if isOwner(userId) || isAdmin();
-      allow list: if true; // needed for phone/email lookup during login before auth
+      // Phone/email lookup during login is handled server-side by the
+      // registerCustomerAccount Cloud Function (authenticated + App Check).
+      // Unauthenticated listing is no longer needed and is a security risk.
+      allow list: if isSignedIn();
       allow create: if false;
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
@@ -194,6 +197,34 @@ service cloud.firestore {
         request.resource.data.senderId == uid() &&
         isChatParticipant(chatId);
       allow update, delete: if false;
+    }
+
+    // ── Vendor Commission Payments ─────────────────────────────────────────
+
+    match /vendor_commission_payments/{paymentId} {
+      // Vendor: read their own records; update only to submit receipt
+      allow get: if isSignedIn() && (
+        resource.data.vendor_id == uid() || isAdmin()
+      );
+      allow list: if isVendor() || isAdmin();
+      allow create: if isAdmin();
+      // Vendor can update only to submit a receipt (status field)
+      allow update: if isAdmin() || (
+        isVendor() &&
+        resource.data.vendor_id == uid() &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['receipt_url', 'receipt_note', 'status', 'submitted_at', 'updated_at'])
+      );
+      allow delete: if isAdmin();
+    }
+
+    // ── Platform Config (bank details etc.) ───────────────────────────────────
+
+    match /platform_config/{docId} {
+      // Any signed-in user can read (vendors need bank details)
+      allow read: if isSignedIn();
+      // Only admins can write
+      allow write: if isAdmin();
     }
 
     // ── Deny everything else ──────────────────────────────────────────────────

@@ -1,4 +1,6 @@
 ﻿import 'package:flutter/material.dart';
+import 'package:speedmart_lanka/core/utils/sri_lanka_phone_helper.dart';
+import 'package:speedmart_lanka/core/utils/validators.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
@@ -331,14 +333,13 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     final email = (data['email'] ?? '').trim();
     final preciseAddress = (data['preciseAddress'] ?? '').trim();
 
-    if (nic.isEmpty) { _showError('Please enter your NIC number.'); return; }
-    final validOldNic = RegExp(r'^\d{9}V$').hasMatch(nic.toUpperCase());
-    final validNewNic = RegExp(r'^\d{12}$').hasMatch(nic);
-    if (!validOldNic && !validNewNic) { _showError('Enter a valid NIC (e.g. 123456789V or 200012345678).'); return; }
+    final nicErr = Validators.nic(nic);
+    if (nicErr != null) { _showError(nicErr); return; }
     if (fullName.isEmpty) { _showError('Please enter your full name.'); return; }
-    if (phone.isEmpty) { _showError('Please enter your phone number.'); return; }
-    if (phone.length < 9) { _showError('Please enter a valid phone number.'); return; }
-    if (email.isEmpty || !email.contains('@')) { _showError('Please enter a valid email address.'); return; }
+    final phoneErr = SriLankaPhoneHelper.validateSriLankaMobile(phone);
+    if (phoneErr != null) { _showError(phoneErr); return; }
+    final emailErr = Validators.email(email);
+    if (emailErr != null) { _showError(emailErr); return; }
     if (_detectedLatitude == null || _detectedLongitude == null) { _showError('Please pin your delivery location on the map.'); return; }
     if (_selectedProvince == null) { _showError('Please select your Province.'); return; }
     if (_selectedDistrict == null) { _showError('Please select your District.'); return; }
@@ -589,16 +590,16 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     final categories = data['categories'] ?? '';
 
     if (fullName.trim().isEmpty) { _showError('Please enter your full name.'); return; }
-    if (email.trim().isEmpty || !email.contains('@')) { _showError('Please enter a valid email.'); return; }
+    final emailErr = Validators.email(email.trim());
+    if (emailErr != null) { _showError('Please enter a valid email.'); return; }
     if (password.length < 8) { _showError('Password must be at least 8 characters.'); return; }
     if (password != confirmPassword) { _showError('Passwords do not match.'); return; }
     if (shopName.trim().isEmpty) { _showError('Please enter your shop name.'); return; }
     if (categories.trim().isEmpty) { _showError('Please select at least one category.'); return; }
     final nic = (data['nic'] ?? '').trim().toUpperCase();
     if (nic.isNotEmpty) {
-      final validOldNic = RegExp(r'^\d{9}V$').hasMatch(nic);
-      final validNewNic = RegExp(r'^\d{12}$').hasMatch(nic);
-      if (!validOldNic && !validNewNic) { _showError('Enter a valid NIC (e.g. 123456789V or 200012345678).'); return; }
+      final nicErr = Validators.nic(nic);
+      if (nicErr != null) { _showError(nicErr); return; }
     }
 
     final lat = double.tryParse(data['latitude'] ?? '');
@@ -613,8 +614,15 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     try {
       final reg = ref.read(customerRegistrationProvider.notifier);
       reg.setMode(isLogin: false);
-      reg.setLkUser(false);
-      reg.updatePhone((data['phone'] ?? '').trim());
+      // Vendor phone is a Sri Lanka mobile — ensure registration treats
+      // this as an LK phone user so OTP is sent to the phone, not email.
+      reg.setLkUser(true);
+
+      final rawPhone = (data['phone'] ?? '').trim();
+      debugPrint('[VendorRegister] raw phone input: "$rawPhone"');
+      final normalized = SriLankaPhoneHelper.normalizeSriLankaPhoneForStorage(rawPhone);
+      debugPrint('[VendorRegister] normalized for storage: "$normalized"');
+      reg.updatePhone(rawPhone);
 
       await reg.sendOtp();
       if (!mounted) return;

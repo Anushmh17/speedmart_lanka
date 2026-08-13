@@ -27,6 +27,8 @@ import 'package:speedmart_lanka/features/shared/presentation/screens/profile_scr
 import 'package:speedmart_lanka/core/widgets/shared_floating_bottom_nav.dart';
 import 'package:speedmart_lanka/core/navigation/bottom_nav_visibility.dart';
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
+import 'package:speedmart_lanka/features/vendor/payments/presentation/vendor_commission_payment_screen.dart';
+import 'package:speedmart_lanka/features/vendor/payments/providers/vendor_commission_payment_provider.dart';
 import 'vendor_status_screen.dart';
 import 'package:speedmart_lanka/features/requests/data/request_repository.dart';
 
@@ -2120,7 +2122,7 @@ class _PendingApprovalView extends StatelessWidget {
   }
 }
 
-enum _WalletWeekRange { currentWeek, lastWeek }
+enum _WalletDateRange { thisWeek, lastWeek, thisMonth, lastMonth, custom }
 
 class _VendorWalletTab extends ConsumerStatefulWidget {
   const _VendorWalletTab();
@@ -2130,7 +2132,9 @@ class _VendorWalletTab extends ConsumerStatefulWidget {
 }
 
 class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
-  _WalletWeekRange _selectedWeekRange = _WalletWeekRange.currentWeek;
+  _WalletDateRange _range = _WalletDateRange.thisMonth;
+  DateTime? _customStart;
+  DateTime? _customEnd;
 
   @override
   Widget build(BuildContext context) {
@@ -2143,67 +2147,113 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
 
     final orderState = ref.watch(orderProvider);
-    final revenueSummary = _VendorRevenueSummary.fromOrders(orderState.orders);
 
-    // Include all active vendor orders except cancelled ones.
-    // This keeps the wallet ledger in sync with live order activity.
+    // ── Date range boundaries ──────────────────────────────────────────────────
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
+
+    // Week helpers
+    final startOfCurrentWeek = todayStart.subtract(Duration(days: now.weekday - 1));
+    final startOfLastWeek = startOfCurrentWeek.subtract(const Duration(days: 7));
+    final endOfLastWeek = startOfCurrentWeek;
+
+    // Month helpers
+    final startOfCurrentMonth = DateTime(now.year, now.month, 1);
+    final startOfLastMonth = DateTime(now.year, now.month - 1, 1);
+    final endOfLastMonth = DateTime(now.year, now.month, 0, 23, 59, 59);
+
+    late DateTime rangeStart;
+    late DateTime rangeEnd;
+
+    switch (_range) {
+      case _WalletDateRange.thisWeek:
+        rangeStart = startOfCurrentWeek;
+        rangeEnd = todayStart.add(const Duration(days: 1));
+        break;
+      case _WalletDateRange.lastWeek:
+        rangeStart = startOfLastWeek;
+        rangeEnd = endOfLastWeek;
+        break;
+      case _WalletDateRange.thisMonth:
+        rangeStart = startOfCurrentMonth;
+        rangeEnd = todayStart.add(const Duration(days: 1));
+        break;
+      case _WalletDateRange.lastMonth:
+        rangeStart = startOfLastMonth;
+        rangeEnd = endOfLastMonth.add(const Duration(seconds: 1));
+        break;
+      case _WalletDateRange.custom:
+        rangeStart = _customStart ?? startOfCurrentMonth;
+        rangeEnd = (_customEnd ?? todayStart).add(const Duration(days: 1));
+        break;
+    }
+
+    const _months = [
+      '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    final String rangeLabel;
+    switch (_range) {
+      case _WalletDateRange.thisWeek:
+        rangeLabel = 'This Week';
+        break;
+      case _WalletDateRange.lastWeek:
+        rangeLabel = 'Last Week';
+        break;
+      case _WalletDateRange.thisMonth:
+        rangeLabel = '${_months[now.month]} ${now.year}';
+        break;
+      case _WalletDateRange.lastMonth:
+        rangeLabel = '${_months[startOfLastMonth.month]} ${startOfLastMonth.year}';
+        break;
+      case _WalletDateRange.custom:
+        if (_customStart == null) {
+          rangeLabel = 'Custom Range';
+        } else {
+          final s = _customStart!;
+          final e = _customEnd ?? todayStart;
+          rangeLabel = '${s.day} ${_months[s.month]} – ${e.day} ${_months[e.month]}';
+        }
+        break;
+    }
+
+    // Filter orders to the selected range
     final allWalletOrders = orderState.orders
         .where((o) => o.status != OrderStatus.cancelled)
         .toList();
 
+    final filteredOrders = allWalletOrders.where((o) {
+      return !o.createdAt.isBefore(rangeStart) && o.createdAt.isBefore(rangeEnd);
+    }).toList();
+
+    final revenueSummary = _VendorRevenueSummary.fromOrders(filteredOrders);
     final double liveGrossRevenue = revenueSummary.grossSales;
     final double liveCommission = revenueSummary.commission;
     final double liveNetEarnings = revenueSummary.netEarnings;
 
+    // ── Weekly bar chart — always shows 7 days within the selected range ───────
+    // For non-week ranges we show the last 7 days of the range period.
     final weeklySales = <String, double>{
-      'Mon': 0,
-      'Tue': 0,
-      'Wed': 0,
-      'Thu': 0,
-      'Fri': 0,
-      'Sat': 0,
-      'Sun': 0,
+      'Mon': 0, 'Tue': 0, 'Wed': 0, 'Thu': 0, 'Fri': 0, 'Sat': 0, 'Sun': 0,
     };
-    final now = DateTime.now();
-    final startOfCurrentWeek = DateTime(now.year, now.month, now.day)
-        .subtract(Duration(days: now.weekday - 1));
-    final startOfLastWeek =
-        startOfCurrentWeek.subtract(const Duration(days: 7));
-    final selectedStartOfWeek =
-        _selectedWeekRange == _WalletWeekRange.currentWeek
-            ? startOfCurrentWeek
-            : startOfLastWeek;
-    final selectedEndOfWeek = selectedStartOfWeek.add(const Duration(days: 7));
+    final chartStart = (_range == _WalletDateRange.thisWeek || _range == _WalletDateRange.lastWeek)
+        ? rangeStart
+        : rangeEnd.subtract(const Duration(days: 7));
+    final chartEnd = rangeEnd;
 
-    final visibleWalletOrders = allWalletOrders.where((order) {
-      final orderDate = DateTime(
-        order.createdAt.year,
-        order.createdAt.month,
-        order.createdAt.day,
-      );
-      return !orderDate.isBefore(selectedStartOfWeek) &&
-          orderDate.isBefore(selectedEndOfWeek);
-    }).toList();
-
-    for (final order in visibleWalletOrders) {
+    final chartOrders = allWalletOrders.where((o) =>
+        !o.createdAt.isBefore(chartStart) && o.createdAt.isBefore(chartEnd));
+    for (final order in chartOrders) {
       final day = const [
-        'Mon',
-        'Tue',
-        'Wed',
-        'Thu',
-        'Fri',
-        'Sat',
-        'Sun'
+        'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'
       ][order.createdAt.weekday - 1];
       weeklySales[day] = weeklySales[day]! + order.totalPrice;
     }
 
     final double currentWeekMax = weeklySales.values.fold<double>(
-        0.0,
-        (maxValue, dailyValue) =>
-            dailyValue > maxValue ? dailyValue : maxValue);
+        0.0, (maxV, v) => v > maxV ? v : maxV);
     final double weeklyChartMax = currentWeekMax > 0 ? currentWeekMax : 1.0;
-    final bool hasWeeklySales = weeklySales.values.any((value) => value > 0);
+    final bool hasWeeklySales = weeklySales.values.any((v) => v > 0);
 
     final double cumulativeGross = liveGrossRevenue;
     final double cumulativeCommission = liveCommission;
@@ -2266,20 +2316,32 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Cumulative Net Earnings',
+                          Text('Net Earnings',
                               style: AppTextStyles.caption(Colors.white70)
                                   .copyWith(fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Rs. ${cumulativeNet.toStringAsFixed(2)}',
-                        style: AppTextStyles.h1(Colors.white)
-                            .copyWith(fontSize: 32, letterSpacing: -0.5),
-                      ),
-                      const SizedBox(height: 16),
-                      const Divider(color: Colors.white30, height: 1),
-                      const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              rangeLabel,
+                              style: AppTextStyles.caption(Colors.white)
+                                  .copyWith(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                         ],
+                       ),
+                       const SizedBox(height: 8),
+                       Text(
+                         'Rs. ${cumulativeNet.toStringAsFixed(2)}',
+                         style: AppTextStyles.h1(Colors.white)
+                             .copyWith(fontSize: 32, letterSpacing: -0.5),
+                       ),
+                       const SizedBox(height: 16),
+                       const Divider(color: Colors.white30, height: 1),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
@@ -2314,44 +2376,118 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
               ),
             ),
             const SizedBox(height: 28),
-            Text('Weekly Sales Distribution',
-                style: AppTextStyles.h2(primaryText)),
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: ToggleButtons(
-                isSelected: [
-                  _selectedWeekRange == _WalletWeekRange.currentWeek,
-                  _selectedWeekRange == _WalletWeekRange.lastWeek,
-                ],
-                onPressed: (index) {
-                  setState(() {
-                    _selectedWeekRange = index == 0
-                        ? _WalletWeekRange.currentWeek
-                        : _WalletWeekRange.lastWeek;
-                  });
-                },
-                borderRadius: BorderRadius.circular(12),
-                selectedColor: Colors.white,
-                fillColor: AppColors.vendorColor,
-                color: isDark
-                    ? AppColors.textSecondaryDark
-                    : AppColors.textSecondaryLight,
-                borderColor: borderColor,
-                selectedBorderColor: AppColors.vendorColor,
-                children: const [
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    child: Text('This Week'),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                    child: Text('Last Week'),
+            // ── Date range filter chips ──────────────────────────────────────────────
+            Row(
+              children: [
+                const Icon(Icons.date_range_rounded,
+                    color: AppColors.vendorColor, size: 18),
+                const SizedBox(width: 8),
+                Text('Filter Period',
+                    style: AppTextStyles.subtitle(primaryText)
+                        .copyWith(fontSize: 14)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _rangeChip('This Week', _WalletDateRange.thisWeek,
+                      isDark, borderColor),
+                  const SizedBox(width: 8),
+                  _rangeChip('Last Week', _WalletDateRange.lastWeek,
+                      isDark, borderColor),
+                  const SizedBox(width: 8),
+                  _rangeChip('This Month', _WalletDateRange.thisMonth,
+                      isDark, borderColor),
+                  const SizedBox(width: 8),
+                  _rangeChip('Last Month', _WalletDateRange.lastMonth,
+                      isDark, borderColor),
+                  const SizedBox(width: 8),
+                  // Custom date range chip
+                  GestureDetector(
+                    onTap: () async {
+                      final picked = await showDateRangePicker(
+                        context: context,
+                        firstDate: DateTime(2024),
+                        lastDate: todayStart,
+                        initialDateRange: (_customStart != null && _customEnd != null)
+                            ? DateTimeRange(
+                                start: _customStart!, end: _customEnd!)
+                            : null,
+                        builder: (ctx, child) => Theme(
+                          data: Theme.of(ctx).copyWith(
+                            colorScheme: Theme.of(ctx).colorScheme.copyWith(
+                              primary: AppColors.vendorColor,
+                            ),
+                          ),
+                          child: child!,
+                        ),
+                      );
+                      if (picked != null) {
+                        setState(() {
+                          _range = _WalletDateRange.custom;
+                          _customStart = picked.start;
+                          _customEnd = picked.end;
+                        });
+                      }
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _range == _WalletDateRange.custom
+                            ? AppColors.vendorColor
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: _range == _WalletDateRange.custom
+                              ? AppColors.vendorColor
+                              : borderColor,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.calendar_month_rounded,
+                            size: 14,
+                            color: _range == _WalletDateRange.custom
+                                ? Colors.white
+                                : secondaryText,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _range == _WalletDateRange.custom &&
+                                    _customStart != null
+                                ? rangeLabel
+                                : 'Custom',
+                            style: AppTextStyles.caption(
+                              _range == _WalletDateRange.custom
+                                  ? Colors.white
+                                  : secondaryText,
+                            ).copyWith(fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 24),
+            // ── Daily distribution chart ─────────────────────────────────────────────
+            Text('Sales Distribution',
+                style: AppTextStyles.h2(primaryText)),
+            const SizedBox(height: 4),
+            Text(
+              _range == _WalletDateRange.thisWeek ||
+                      _range == _WalletDateRange.lastWeek
+                  ? 'Daily breakdown for $rangeLabel'
+                  : 'Last 7 days of $rangeLabel',
+              style: AppTextStyles.caption(secondaryText),
+            ),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -2365,14 +2501,8 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 24.0),
                       child: Text(
-                        _selectedWeekRange == _WalletWeekRange.currentWeek
-                            ? 'No sales recorded for this week yet.'
-                            : 'No sales recorded for last week.',
-                        style: AppTextStyles.bodyMedium(
-                          isDark
-                              ? AppColors.textSecondaryDark
-                              : AppColors.textSecondaryLight,
-                        ),
+                        'No sales in this period.',
+                        style: AppTextStyles.bodyMedium(secondaryText),
                         textAlign: TextAlign.center,
                       ),
                     )
@@ -2396,18 +2526,33 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
               ),
             ),
             const SizedBox(height: 28),
+            // ── Commission Payment Banner ──────────────────────────────────────
+            _VendorCommissionBanner(isDark: isDark),
+            const SizedBox(height: 28),
+            // ── Settlement log header ──────────────────────────────────────────
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Earnings Settlement Log',
-                    style: AppTextStyles.h2(primaryText)),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Earnings Settlement Log',
+                        style: AppTextStyles.h2(primaryText)),
+                    const SizedBox(height: 2),
+                    Text(
+                      rangeLabel,
+                      style: AppTextStyles.caption(AppColors.vendorColor)
+                          .copyWith(fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
                 const Icon(Icons.history_toggle_off_rounded,
                     color: AppColors.vendorColor, size: 20),
               ],
             ),
             const SizedBox(height: 12),
-            if (allWalletOrders.isNotEmpty) ...[
-              ...allWalletOrders.map((order) {
+            if (filteredOrders.isNotEmpty) ...[  
+              ...filteredOrders.map((order) {
                 final orderGross = order.totalPrice;
                 final orderComm = order.platformCommission;
                 final orderNet = order.vendorNetAmount;
@@ -2525,7 +2670,7 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 18),
                 child: Text(
-                  'No settlement activity yet.',
+                  'No orders in this period.',
                   style: AppTextStyles.bodyMedium(secondaryText),
                 ),
               ),
@@ -2844,6 +2989,41 @@ class _VendorWalletTabState extends ConsumerState<_VendorWalletTab> {
       ),
     );
   }
+
+  /// Animated filter chip for selecting the active date range.
+  Widget _rangeChip(
+    String label,
+    _WalletDateRange value,
+    bool isDark,
+    Color borderColor,
+  ) {
+    final isSelected = _range == value;
+    return GestureDetector(
+      onTap: () => setState(() => _range = value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.vendorColor : Colors.transparent,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected ? AppColors.vendorColor : borderColor,
+          ),
+        ),
+        child: Text(
+          label,
+          style: AppTextStyles.caption(
+            isSelected
+                ? Colors.white
+                : isDark
+                    ? AppColors.textSecondaryDark
+                    : AppColors.textSecondaryLight,
+          ).copyWith(fontWeight: FontWeight.w600),
+        ),
+      ),
+    );
+  }
 }
 
 /// Animated tab switcher that fades between tabs while keeping all alive.
@@ -2976,6 +3156,140 @@ extension _VendorHomeScreenStateExtension on _VendorHomeScreenState {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Commission Payment Banner ─────────────────────────────────────────────────
+/// Displayed inside the wallet tab above the settlement log.
+/// Shows outstanding commission owed and opens VendorCommissionPaymentScreen
+/// in a modal sheet.
+class _VendorCommissionBanner extends ConsumerWidget {
+  const _VendorCommissionBanner({required this.isDark});
+  final bool isDark;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final primaryText =
+        isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final paymentsAsync = ref.watch(vendorCommissionPaymentsProvider);
+
+    final totalOwed = paymentsAsync.valueOrNull?.fold<double>(
+          0.0, (sum, p) => sum + p.amountOwed) ??
+        0.0;
+    final hasReceiptSubmitted = paymentsAsync.valueOrNull
+            ?.any((p) => p.status.name == 'receiptSubmitted') ??
+        false;
+
+    // No payment records at all — nothing to show.
+    if (paymentsAsync.valueOrNull != null &&
+        paymentsAsync.valueOrNull!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final Color bannerColor = hasReceiptSubmitted
+        ? AppColors.warning
+        : totalOwed > 0
+            ? AppColors.error
+            : AppColors.success;
+
+    final IconData bannerIcon = hasReceiptSubmitted
+        ? Icons.hourglass_top_rounded
+        : totalOwed > 0
+            ? Icons.payment_rounded
+            : Icons.check_circle_rounded;
+
+    final String bannerTitle = hasReceiptSubmitted
+        ? 'Receipt Under Review'
+        : totalOwed > 0
+            ? 'Commission Payment Due'
+            : 'Commission Settled';
+
+    final String bannerSubtitle = hasReceiptSubmitted
+        ? 'Speedmart is verifying your bank transfer receipt.'
+        : totalOwed > 0
+            ? 'You owe Rs. ${totalOwed.toStringAsFixed(2)} to Speedmart.'
+            : 'No outstanding commission balance.';
+
+    return GestureDetector(
+      onTap: () => showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => DraggableScrollableSheet(
+          initialChildSize: 0.9,
+          minChildSize: 0.5,
+          maxChildSize: 0.97,
+          builder: (_, scrollController) => Container(
+            decoration: BoxDecoration(
+              color: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                const SizedBox(height: 12),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : Colors.black12,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Expanded(
+                  child: VendorCommissionPaymentScreen(
+                    scrollController: scrollController,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: bannerColor.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: bannerColor.withValues(alpha: 0.35),
+            width: 1.5,
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: bannerColor.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(bannerIcon, color: bannerColor, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(bannerTitle,
+                      style: AppTextStyles.subtitle(primaryText)
+                          .copyWith(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 3),
+                  Text(bannerSubtitle,
+                      style: AppTextStyles.bodySmall(
+                          isDark
+                              ? AppColors.textSecondaryDark
+                              : AppColors.textSecondaryLight)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Icon(Icons.chevron_right_rounded, color: bannerColor, size: 22),
+          ],
+        ),
       ),
     );
   }
