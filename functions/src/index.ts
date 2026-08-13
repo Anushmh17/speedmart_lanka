@@ -96,6 +96,55 @@ function normalizeNic(value?: string | null): string {
   return (value ?? "").trim().toUpperCase();
 }
 
+function isSriLankaNic(value?: string | null): boolean {
+  if (!value) return false;
+  const cleaned = (value ?? "").replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+  // Old format: 9 digits + V (X not accepted)
+  if (/^[0-9]{9}V$/.test(cleaned)) return true;
+  // New format: 12 digits
+  if (/^[0-9]{12}$/.test(cleaned)) return true;
+  return false;
+}
+
+function nicEncodesValidDob(value?: string | null): boolean {
+  if (!value) return false;
+  const cleaned = (value ?? "").replace(/[^0-9A-Za-z]/g, '').toUpperCase();
+  const now = new Date().getFullYear();
+
+  if (/^[0-9]{9}V$/.test(cleaned)) {
+    const yy = parseInt(cleaned.substring(0, 2), 10);
+    const ddd = parseInt(cleaned.substring(2, 5), 10);
+    if (Number.isNaN(yy) || Number.isNaN(ddd)) return false;
+    let year = 1900 + yy;
+    let age = now - year;
+    if (age < 10) year = 2000 + yy;
+    if (year > now || now - year > 120) return false;
+    let dayOfYear = ddd;
+    if (dayOfYear > 500) dayOfYear -= 500;
+    if (dayOfYear < 1) return false;
+    const isLeap = (year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0));
+    const maxDay = isLeap ? 366 : 365;
+    if (dayOfYear > maxDay) return false;
+    return true;
+  }
+
+  if (/^[0-9]{12}$/.test(cleaned)) {
+    const year = parseInt(cleaned.substring(0, 4), 10);
+    const ddd = parseInt(cleaned.substring(4, 7), 10);
+    if (Number.isNaN(year) || Number.isNaN(ddd)) return false;
+    if (year > now || now - year > 120) return false;
+    let dayOfYear = ddd;
+    if (dayOfYear > 500) dayOfYear -= 500;
+    if (dayOfYear < 1) return false;
+    const isLeap = (year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0));
+    const maxDay = isLeap ? 366 : 365;
+    if (dayOfYear > maxDay) return false;
+    return true;
+  }
+
+  return false;
+}
+
 function makeLockId(kind: string, value: string): string {
   return `${kind}_${encodeURIComponent(value)}`;
 }
@@ -148,9 +197,11 @@ export const registerCustomerAccount = onRequest(async (request, response) => {
   }
 
   const decoded = await admin.auth().verifyIdToken(token);
+  // Ensure the ID token belongs to a phone-authenticated user (SMS OTP)
+  const signInProvider = (decoded.firebase && (decoded.firebase as any).sign_in_provider) || (decoded.sign_in_provider as any) || '';
   const verifiedPhone = normalizeSriLankaPhone(decoded.phone_number ?? "");
-  if (!verifiedPhone) {
-    throw new HttpsError("failed-precondition", "Phone authentication is required.");
+  if (!verifiedPhone || signInProvider !== 'phone') {
+    throw new HttpsError("failed-precondition", "Phone authentication (SMS OTP) is required.");
   }
 
   const body = request.body as CustomerRegistrationRequest;
@@ -161,6 +212,12 @@ export const registerCustomerAccount = onRequest(async (request, response) => {
 
   if (!fullName) {
     throw new HttpsError("invalid-argument", "fullName is required.");
+  }
+
+  if (nic && nic.length > 0) {
+    if (!isSriLankaNic(nic) || !nicEncodesValidDob(nic)) {
+      throw new HttpsError("invalid-argument", "NIC format is invalid or encodes an impossible date for Sri Lanka.");
+    }
   }
 
   if (bodyPhone !== verifiedPhone) {
@@ -201,6 +258,180 @@ export const registerCustomerAccount = onRequest(async (request, response) => {
     delivery_note: body.deliveryNote ?? null,
     delivery_latitude: body.deliveryLatitude ?? null,
     delivery_longitude: body.deliveryLongitude ?? null,
+  };
+
+  await db.runTransaction(async (transaction) => {
+    const [phoneSnap, emailSnap, nicSnap] = await Promise.all([
+      transaction.get(phoneLockRef),
+      emailLockRef ? transaction.get(emailLockRef) : Promise.resolve(null),
+      nicLockRef ? transaction.get(nicLockRef) : Promise.resolve(null),
+    ]);
+
+    if (phoneSnap.exists) {
+      throw new HttpsError("already-exists", "An account with this phone number already exists.");
+    }
+    if (emailSnap?.exists) {
+      throw new HttpsError("already-exists", "An account with this email already exists.");
+    }
+    if (nicSnap?.exists) {
+      throw new HttpsError("already-exists", "An account with this NIC number already exists.");
+    }
+
+    transaction.set(profileRef, userData);
+    transaction.set(phoneLockRef, {
+      kind: "phone",
+      value: bodyPhone,
+      userId: profileRef.id,
+      authUid: decoded.uid,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    if (emailLockRef) {
+      transaction.set(emailLockRef, {
+        kind: "email",
+        value: email,
+        userId: profileRef.id,
+        authUid: decoded.uid,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    if (nicLockRef) {
+      transaction.set(nicLockRef, {
+        kind: "nic",
+        value: nic,
+        userId: profileRef.id,
+        authUid: decoded.uid,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    }
+
+    transaction.set(rateLimitRef, {
+      lastAttemptAt: new Date().toISOString(),
+      authUid: decoded.uid,
+      phone: verifiedPhone,
+    }, {merge: true});
+  });
+
+  response.json({
+    success: true,
+    token: `auth_token_${profileRef.id}_${Date.now()}`,
+    user: userData,
+  });
+});
+
+export const registerVendorAccount = onRequest(async (request, response) => {
+  response.set("Access-Control-Allow-Origin", "*");
+  response.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+  response.set("Access-Control-Allow-Methods", "POST, OPTIONS");
+
+  if (request.method === "OPTIONS") {
+    response.status(204).send("");
+    return;
+  }
+
+  if (request.method !== "POST") {
+    response.status(405).json({error: "Method not allowed"});
+    return;
+  }
+
+  const authHeader = request.get("authorization") ?? "";
+  const token = authHeader.startsWith("Bearer ") ? authHeader.substring(7).trim() : "";
+  if (!token) {
+    throw new HttpsError("unauthenticated", "Missing Firebase ID token.");
+  }
+
+  const decoded = await admin.auth().verifyIdToken(token);
+  const signInProvider = (decoded.firebase && (decoded.firebase as any).sign_in_provider) || (decoded.sign_in_provider as any) || '';
+
+  // Prefer the phone number carried in the ID token (when signed-in via phone),
+  // but also allow email/password authenticated tokens if the Firebase user
+  // record has a linked phoneNumber that matches (i.e. phone was previously
+  // linked via `linkWithCredential`). This ensures vendors can sign in with
+  // email/password while still proving control of the verified phone.
+  let verifiedPhone = normalizeSriLankaPhone(decoded.phone_number ?? "");
+  let phoneLinked = false;
+
+  if (signInProvider === 'phone' && verifiedPhone) {
+    phoneLinked = true;
+  } else {
+    // Try to fetch the user record and verify a linked phone exists and
+    // matches a normalized phone number.
+    try {
+      const userRecord = await admin.auth().getUser(decoded.uid);
+      const userPhone = normalizeSriLankaPhone(userRecord.phoneNumber ?? "");
+      if (userPhone) {
+        verifiedPhone = userPhone;
+        // Consider the phone linked if the record has a phoneNumber or a
+        // provider entry for the phone provider.
+        phoneLinked = !!userRecord.phoneNumber || (userRecord.providerData || []).some((p: any) => p && p.providerId === 'phone');
+      }
+    } catch (err) {
+      throw new HttpsError('unauthenticated', 'Failed to validate Firebase user record.');
+    }
+  }
+
+  if (!verifiedPhone || !phoneLinked) {
+    throw new HttpsError("failed-precondition", "Phone authentication (SMS OTP) is required or the phone must be linked to the account.");
+  }
+
+  const body = request.body as any;
+  const fullName = (body.fullName ?? "").trim();
+  const email = normalizeEmail(body.email);
+  const bodyPhone = normalizeSriLankaPhone(body.phone ?? "");
+  const nic = normalizeNic(body.nic);
+
+  if (!fullName) {
+    throw new HttpsError("invalid-argument", "fullName is required.");
+  }
+
+  if (nic && nic.length > 0) {
+    if (!isSriLankaNic(nic) || !nicEncodesValidDob(nic)) {
+      throw new HttpsError("invalid-argument", "NIC format is invalid or encodes an impossible date for Sri Lanka.");
+    }
+  }
+
+  if (bodyPhone !== verifiedPhone) {
+    throw new HttpsError("permission-denied", "Verified phone number does not match the requested phone.");
+  }
+
+  const phoneLockRef = db.doc(`registration_locks/vendor_phone/${makeLockId("phone", bodyPhone)}`);
+  const emailLockRef = email ? db.doc(`registration_locks/vendor_email/${makeLockId("email", email)}`) : null;
+  const nicLockRef = nic ? db.doc(`registration_locks/vendor_nic/${makeLockId("nic", nic)}`) : null;
+  const rateLimitRef = db.doc(`registration_attempts/${decoded.uid}`);
+  const rateLimitSnap = await rateLimitRef.get();
+  const lastAttemptMs = parseIso(rateLimitSnap.data()?.lastAttemptAt);
+  if (lastAttemptMs != null && Date.now() - lastAttemptMs < 15000) {
+    throw new HttpsError("resource-exhausted", "Please wait a moment before trying again.");
+  }
+
+  const profileRef = db.collection("users/vendors/profiles").doc();
+  const userData: Record<string, unknown> = {
+    id: profileRef.id,
+    full_name: fullName,
+    email,
+    phone: bodyPhone,
+    role: "vendor",
+    is_active: false,
+    is_verified: body.verifiedPhone ?? true,
+    created_at: new Date().toISOString(),
+    nic: nic || null,
+    verified_phone: body.verifiedPhone ?? true,
+    verified_email: body.verifiedEmail ?? false,
+    detected_country: body.detectedCountry ?? "LK",
+    detection_source: body.detectionSource ?? "app_default",
+    risk_flag: body.riskFlag ?? null,
+    business_registration_number: body.businessRegistrationNumber ?? null,
+    business_name: body.businessName ?? null,
+    shop_address: body.shopAddress ?? null,
+    shop_province: body.shopProvince ?? null,
+    shop_district: body.shopDistrict ?? null,
+    shop_area: body.shopArea ?? null,
+    shop_latitude: body.shopLatitude ?? null,
+    shop_longitude: body.shopLongitude ?? null,
+    shop_location_accuracy_meters: body.shopLocationAccuracyMeters ?? null,
+    shop_location_detected_at: body.shopLocationDetectedAt ?? null,
+    shop_location_source: body.shopLocationSource ?? null,
   };
 
   await db.runTransaction(async (transaction) => {

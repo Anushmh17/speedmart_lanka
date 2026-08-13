@@ -15,14 +15,31 @@ class SriLankaPhoneInputFormatter extends TextInputFormatter {
   ) {
     // Extract digits only
     String digits = SriLankaPhoneHelper.digitsOnly(newValue.text);
-    
-    // Remove leading 0 if present
+
+    if (digits.isEmpty) {
+      return const TextEditingValue(
+        text: '',
+        selection: TextSelection.collapsed(offset: 0),
+      );
+    }
+
+    // Allow entry with international prefixes: +94, 94, or 00
+    if (digits.startsWith('00')) {
+      digits = digits.substring(2);
+      debugPrint('[PhoneFormat] removed leading 00');
+    }
+    if (digits.startsWith('94') && digits.length > 9) {
+      digits = digits.substring(2);
+      debugPrint('[PhoneFormat] removed leading 94');
+    }
+
+    // Remove leading 0 for local formats
     if (digits.startsWith('0')) {
       digits = digits.substring(1);
       debugPrint('[PhoneFormat] removed leading 0');
     }
-    
-    // Block input beyond 9 digits
+
+    // Block input beyond 9 local digits
     if (digits.length > 9) {
       debugPrint('[PhoneFormat] blocked: exceeds 9 digits');
       return oldValue;

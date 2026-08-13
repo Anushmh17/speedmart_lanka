@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+
 class SrilankacustomerloginWidget extends StatefulWidget {
   final ValueChanged<bool>? onSendOtp;
   final VoidCallback? onRegister;
@@ -369,10 +370,8 @@ class _SrilankacustomerloginWidgetState
                                                 textInputAction:
                                                     TextInputAction.done,
                                                 inputFormatters: [
-                                                  FilteringTextInputFormatter
-                                                      .digitsOnly,
-                                                  LengthLimitingTextInputFormatter(
-                                                      10),
+                                                  FilteringTextInputFormatter.digitsOnly,
+                                                  LengthLimitingTextInputFormatter(10),
                                                 ],
                                                 cursorColor:
                                                     const Color(0xFFFF8213),

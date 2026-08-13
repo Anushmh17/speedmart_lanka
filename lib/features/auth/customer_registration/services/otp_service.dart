@@ -56,15 +56,22 @@ class FirebasePhoneOtpService implements OtpService {
   // Stores auto-resolved credential (instant verification on some devices)
   final Map<String, PhoneAuthCredential> _autoCredentials = {};
 
-  static String _normalizePhone(String phone) {
-    // Strip everything except digits
+  static String? _normalizePhone(String phone) {
+    // Accept local numbers (e.g. 0771234567), numbers with leading 0,
+    // numbers with country code (94 or +94), and numbers with 00 prefix.
     String digits = phone.replaceAll(RegExp(r'[^\d]'), '');
-    // Remove leading country code variants first
-    if (digits.startsWith('9494')) digits = digits.substring(2); // double-prefixed
-    if (digits.startsWith('94') && digits.length == 11) digits = digits.substring(2);
-    if (digits.startsWith('0') && digits.length == 10) digits = digits.substring(1);
-    // digits should now be exactly 9
-    return '+94$digits';
+    if (digits.isEmpty) return null;
+    // Strip international 00 prefix if present.
+    if (digits.startsWith('00')) digits = digits.substring(2);
+    // Remove leading country code if present.
+    if (digits.startsWith('94')) digits = digits.substring(2);
+    // Remove a single leading 0 for local formats.
+    if (digits.startsWith('0')) digits = digits.substring(1);
+    // After normalization we expect a 9-digit subscriber number for Sri Lanka.
+    if (digits.length == 9) {
+      return '+94$digits';
+    }
+    return null;
   }
 
   static String _maskPhone(String phone) {
@@ -81,6 +88,11 @@ class FirebasePhoneOtpService implements OtpService {
     assert(channel == OtpChannel.phone, 'FirebasePhoneOtpService only handles phone');
 
     final phone = _normalizePhone(destination);
+    if (phone == null) {
+      return OtpSendResult.failure(
+        'Invalid phone number. Please enter a valid Sri Lankan mobile number (e.g. 0771234567).',
+      );
+    }
     final completer = Completer<OtpSendResult>();
 
     await _auth.verifyPhoneNumber(
@@ -159,7 +171,7 @@ class FirebasePhoneOtpService implements OtpService {
   String _friendlyError(String code) {
     switch (code) {
       case 'invalid-phone-number':
-        return 'Invalid phone number. Please check and try again.';
+        return 'Invalid phone number. Please enter a valid Sri Lankan mobile number (e.g. 0771234567).';
       case 'too-many-requests':
         return 'Too many attempts. Please try again later.';
       case 'quota-exceeded':
