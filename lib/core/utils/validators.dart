@@ -94,9 +94,56 @@ class Validators {
       return AppStrings.fieldRequired;
     }
     final clean = value.trim().toUpperCase();
-    if (RegExp(r'^\d{9}V$').hasMatch(clean)) return null;
-    if (RegExp(r'^\d{12}$').hasMatch(clean)) return null;
+    // Accept only old format with 'V' and new 12-digit format
+    if (RegExp(r'^\d{9}V$').hasMatch(clean)) {
+      if (_nicEncodesValidDob(clean)) return null;
+      return 'Enter a valid NIC (date information looks invalid)';
+    }
+    if (RegExp(r'^\d{12}$').hasMatch(clean)) {
+      if (_nicEncodesValidDob(clean)) return null;
+      return 'Enter a valid NIC (date information looks invalid)';
+    }
     return 'Enter a valid NIC (e.g. 123456789V or 200012345678)';
+  }
+
+  static bool _nicEncodesValidDob(String nic) {
+    final cleaned = nic.replaceAll(RegExp(r'[^A-Za-z0-9]'), '').toUpperCase();
+    final now = DateTime.now().year;
+
+    // Old format: YYDDDxxxxxV -> first 2 digits year, next 3 digits day-of-year
+    if (RegExp(r'^\d{9}V$').hasMatch(cleaned)) {
+      final yy = int.tryParse(cleaned.substring(0, 2));
+      final ddd = int.tryParse(cleaned.substring(2, 5));
+      if (yy == null || ddd == null) return false;
+      int year = 1900 + yy;
+      int age = now - year;
+      if (age < 10) year = 2000 + yy;
+      if (year > now || now - year > 120) return false;
+      int dayOfYear = ddd;
+      if (dayOfYear > 500) dayOfYear -= 500; // female offset
+      if (dayOfYear < 1) return false;
+      final isLeap = (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0));
+      final maxDay = isLeap ? 366 : 365;
+      if (dayOfYear > maxDay) return false;
+      return true;
+    }
+
+    // New format: YYYYDDDxxxxxx -> first 4 digits year, next 3 digits day-of-year
+    if (RegExp(r'^\d{12}$').hasMatch(cleaned)) {
+      final year = int.tryParse(cleaned.substring(0, 4));
+      final ddd = int.tryParse(cleaned.substring(4, 7));
+      if (year == null || ddd == null) return false;
+      if (year > now || now - year > 120) return false;
+      int dayOfYear = ddd;
+      if (dayOfYear > 500) dayOfYear -= 500;
+      if (dayOfYear < 1) return false;
+      final isLeap = (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0));
+      final maxDay = isLeap ? 366 : 365;
+      if (dayOfYear > maxDay) return false;
+      return true;
+    }
+
+    return false;
   }
 
   /// Generic min length
