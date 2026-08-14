@@ -83,7 +83,6 @@ class VendorCategories {
   static String normalize(String displayValue) {
     final trimmed = displayValue.trim();
     if (trimmed.isEmpty) {
-      debugPrint('[CategoryNormalize] WARNING: Empty category value');
       return '';
     }
 
@@ -91,15 +90,12 @@ class VendorCategories {
     
     // Check if it's already a valid normalized category
     if (normalizedList.contains(lowercase)) {
-      debugPrint('[CategoryNormalize] Normalized successfully: "$lowercase"');
       return lowercase;
     }
     
     // Check alias map for legacy names
     if (aliasMap.containsKey(lowercase)) {
       final normalized = aliasMap[lowercase]!;
-      debugPrint('[CategoryNormalize] Alias matched: "$displayValue" -> "$normalized"');
-      debugPrint('[CategoryNormalize] Normalized successfully: "$normalized"');
       return normalized;
     }
     
@@ -113,13 +109,11 @@ class VendorCategories {
           )
           .key;
       if (normalized.isNotEmpty) {
-        debugPrint('[CategoryNormalize] Normalized successfully: "$normalized"');
         return normalized;
       }
     }
     
     // Not found in master list or aliases
-    debugPrint('[CategoryNormalize] WARNING: "$displayValue" not found in normalization map');
     return lowercase; // Return lowercase as fallback
   }
 
@@ -145,8 +139,6 @@ class VendorCategories {
       return [];
     }
 
-    debugPrint('[CategoryNormalize] Before: $categories');
-
     final normalized = categories
         .cast<dynamic>()
         .map<String>((e) => e.toString().trim().toLowerCase())
@@ -155,7 +147,6 @@ class VendorCategories {
         .toList()
       ..sort(); // Sort for consistency
 
-    debugPrint('[CategoryNormalize] After: $normalized');
     return normalized;
   }
 

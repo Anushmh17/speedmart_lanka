@@ -116,33 +116,34 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
       // Get proposal to find category
       final proposal = await ref.read(proposalProvider.notifier).loadProposalById(order.proposalId); // ignore: use_build_context_synchronously
 
-      if (proposal != null && proposal.categoryNormalized != null && proposal.categoryNormalized!.isNotEmpty) {
-        final category = proposal.categoryNormalized!;
-        final currentFulfillment = request.getFulfillment(category);
+      if (proposal != null && proposal.categoriesNormalized.isNotEmpty) {
+        for (final category in proposal.categoriesNormalized) {
+          final currentFulfillment = request.getFulfillment(category);
 
-        debugPrint('[CODFlow] category: $category');
-        debugPrint('[CODFlow] fulfillment before: ${currentFulfillment?.status.name}');
+          debugPrint('[CODFlow] category: $category');
+          debugPrint('[CODFlow] fulfillment before: ${currentFulfillment?.status.name}');
 
-        if (currentFulfillment != null) {
-          final updatedFulfillments = Map<String, RequestCategoryFulfillment>.from(
-            request.categoryFulfillments,
-          );
+          if (currentFulfillment != null) {
+            final updatedFulfillments = Map<String, RequestCategoryFulfillment>.from(
+              request.categoryFulfillments,
+            );
 
-          // Update to paid and completed
-          updatedFulfillments[category] = currentFulfillment.copyWith(
-            status: RequestCategoryStatus.paid,
-            paidAt: DateTime.now(),
-            completedAt: DateTime.now(),
-          );
+            // Update to paid and completed
+            updatedFulfillments[category] = currentFulfillment.copyWith(
+              status: RequestCategoryStatus.paid,
+              paidAt: DateTime.now(),
+              completedAt: DateTime.now(),
+            );
 
-          final updatedRequest = request.copyWith(
-            categoryFulfillments: updatedFulfillments,
-            updatedAt: DateTime.now(),
-          );
+            final updatedRequest = request.copyWith(
+              categoryFulfillments: updatedFulfillments,
+              updatedAt: DateTime.now(),
+            );
 
-          await RequestRepository.instance.updateRequest(updatedRequest);
-          debugPrint('[CODFlow] fulfillment after: paid');
-          debugPrint('[CODFlow] customer UI should now show paid: true');
+            await RequestRepository.instance.updateRequest(updatedRequest);
+            debugPrint('[CODFlow] fulfillment after: paid');
+            debugPrint('[CODFlow] customer UI should now show paid: true');
+          }
         }
       }
     }
@@ -205,8 +206,12 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
       body: Column(
         children: [
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
+            child: RefreshIndicator(
+              onRefresh: () async => ref.read(orderProvider.notifier).loadVendorOrders(),
+              color: AppColors.vendorColor,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1011,6 +1016,7 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                     const SizedBox(height: 30),
                   ],
                 ],
+              ),
               ),
             ),
           ),

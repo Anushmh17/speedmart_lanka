@@ -58,6 +58,18 @@ class _CustomerProposalComparisonScreenState
     });
   }
 
+  // ── Pull-to-refresh ─────────────────────────────────────────────────────
+
+  Future<void> _onRefresh() async {
+    final proposals = await ref
+        .read(proposalProvider.notifier)
+        .loadProposalsForRequest(widget.requestId);
+    if (!mounted) return;
+    ref
+        .read(customerProposalComparisonProvider(widget.requestId).notifier)
+        .updateFrom(proposals: proposals, request: widget.request);
+  }
+
   // ── Item-level accept ───────────────────────────────────────────────────
 
   void _onAcceptOffer(ItemVendorOffer offer) {
@@ -228,23 +240,28 @@ class _CustomerProposalComparisonScreenState
   }
 
   bool _categoryHasAccepted(Proposal proposal, List<Proposal> proposals) {
-    final category = proposal.categoryNormalized;
-    if (category == null || category.isEmpty) {
+    final categories = proposal.categoriesNormalized;
+    if (categories.isEmpty) {
       return proposals.any((p) => p.status == ProposalStatus.accepted);
     }
-    final status = widget.request.getCategoryStatus(category);
-    if (status == RequestCategoryStatus.accepted ||
-        status == RequestCategoryStatus.codConfirmed ||
-        status == RequestCategoryStatus.outForDelivery ||
-        status == RequestCategoryStatus.paid ||
-        status == RequestCategoryStatus.completed) {
-      return true;
+    for (final category in categories) {
+      final status = widget.request.getCategoryStatus(category);
+      if (status == RequestCategoryStatus.accepted ||
+          status == RequestCategoryStatus.codConfirmed ||
+          status == RequestCategoryStatus.outForDelivery ||
+          status == RequestCategoryStatus.paid ||
+          status == RequestCategoryStatus.completed) {
+        return true;
+      }
+      if (proposals.any(
+        (p) =>
+            p.status == ProposalStatus.accepted &&
+            p.categoriesNormalized.contains(category),
+      )) {
+        return true;
+      }
     }
-    return proposals.any(
-      (p) =>
-          p.status == ProposalStatus.accepted &&
-          p.categoryNormalized == category,
-    );
+    return false;
   }
 
   // ── Pay for accepted items ───────────────────────────────────────────────
@@ -361,9 +378,13 @@ class _CustomerProposalComparisonScreenState
           ),
 
           Expanded(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                  AppSpacing.md, AppSpacing.md, AppSpacing.md, 100),
+            child: RefreshIndicator(
+              onRefresh: _onRefresh,
+              color: AppColors.customerColor,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.fromLTRB(
+                    AppSpacing.md, AppSpacing.md, AppSpacing.md, 100),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -440,6 +461,7 @@ class _CustomerProposalComparisonScreenState
                     }),
                   ],
                 ],
+              ),
               ),
             ),
           ),

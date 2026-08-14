@@ -295,7 +295,10 @@ class _VendorRequestFeedScreenState
             ),
           ),
           // ── Category chips ────────────────────────────────────────────
-          if (feedState.categoryChips.isNotEmpty) ...[  
+          // Only show when vendor has 2+ approved categories.
+          // A single-category vendor doesn't need "All" + their one category.
+          // When admin approves additional categories, this row auto-appears.
+          if (feedState.categoryChips.length > 1) ...[  
             const SizedBox(height: AppSpacing.sm),
             SizedBox(
               height: 38,

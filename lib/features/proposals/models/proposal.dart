@@ -218,7 +218,7 @@ class Proposal {
   final double vendorLongitude;
   
   // Category-specific proposal tracking (for multi-category requests)
-  final String? categoryNormalized; // The specific category this proposal addresses
+  final List<String> categoriesNormalized; // The specific categories this proposal addresses
   // Commission rate applied at submission time (e.g. 0.10 = 10%)
   final double? commissionRate;
 
@@ -243,7 +243,7 @@ class Proposal {
     this.vendorResponse,
     this.vendorLatitude = 6.9145,
     this.vendorLongitude = 79.8510,
-    this.categoryNormalized,
+    this.categoriesNormalized = const [],
     this.commissionRate,
   });
 
@@ -276,7 +276,7 @@ class Proposal {
     String? vendorResponse,
     double? vendorLatitude,
     double? vendorLongitude,
-    String? categoryNormalized,
+    List<String>? categoriesNormalized,
     double? commissionRate,
   }) {
     return Proposal(
@@ -301,7 +301,7 @@ class Proposal {
       vendorResponse: vendorResponse ?? this.vendorResponse,
       vendorLatitude: vendorLatitude ?? this.vendorLatitude,
       vendorLongitude: vendorLongitude ?? this.vendorLongitude,
-      categoryNormalized: categoryNormalized ?? this.categoryNormalized,
+      categoriesNormalized: categoriesNormalized ?? this.categoriesNormalized,
       commissionRate: commissionRate ?? this.commissionRate,
     );
   }
@@ -329,7 +329,7 @@ class Proposal {
       'vendorResponse': vendorResponse,
       'vendorLatitude': vendorLatitude,
       'vendorLongitude': vendorLongitude,
-      'categoryNormalized': categoryNormalized,
+      'categoriesNormalized': categoriesNormalized,
       'commissionRate': commissionRate,
     };
   }
@@ -381,7 +381,12 @@ class Proposal {
       vendorResponse: json['vendorResponse'] as String?,
       vendorLatitude: (json['vendorLatitude'] as num?)?.toDouble() ?? 6.9145,
       vendorLongitude: (json['vendorLongitude'] as num?)?.toDouble() ?? 79.8510,
-      categoryNormalized: json['categoryNormalized'] as String?,
+      categoriesNormalized: (json['categoriesNormalized'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          (json['categoryNormalized'] != null
+              ? [json['categoryNormalized'].toString()]
+              : []),
       commissionRate: (json['commissionRate'] as num?)?.toDouble(),
     );
   }

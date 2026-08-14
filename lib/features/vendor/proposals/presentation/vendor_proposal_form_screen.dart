@@ -254,21 +254,21 @@ class _VendorProposalFormScreenState
     final commissionAmount = subtotal * commissionRate;
     final totalPrice = subtotal + _deliveryFee + commissionAmount;
 
-    // Determine category for this proposal from the (already-filtered) request items
-    String? proposalCategory;
+    // Determine categories for this proposal from the (already-filtered) request items
     final categoriesInProposal = widget.request.items
         .map((i) => i.category)
         .whereType<String>()
         .where((c) => c.isNotEmpty)
         .map(VendorCategories.normalize)
-        .toSet();
+        .toSet()
+        .toList();
 
     if (categoriesInProposal.isNotEmpty) {
-      proposalCategory = categoriesInProposal.first;
       if (categoriesInProposal.length > 1) {
-        debugPrint('[MultiCategoryFlow] Warning: filtered request still has multiple categories: $categoriesInProposal');
+        debugPrint('[MultiCategoryFlow] Created multi-category proposal for: $categoriesInProposal');
+      } else {
+        debugPrint('[MultiCategoryFlow] Created single-category proposal: ${categoriesInProposal.first}');
       }
-      debugPrint('[MultiCategoryFlow] Created proposal category: $proposalCategory');
     }
 
     return Proposal(
@@ -289,7 +289,7 @@ class _VendorProposalFormScreenState
       productImageUrls: const [],
       vendorLatitude: vendorLatitude,
       vendorLongitude: vendorLongitude,
-      categoryNormalized: proposalCategory,
+      categoriesNormalized: categoriesInProposal,
       commissionRate: commissionRate,
     );
   }

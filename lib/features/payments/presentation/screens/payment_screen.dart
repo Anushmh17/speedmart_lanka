@@ -413,28 +413,28 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         }
 
         // Update category fulfillment based on payment method
-        if (group.proposal.categoryNormalized != null &&
-            group.proposal.categoryNormalized!.isNotEmpty) {
-          final category = group.proposal.categoryNormalized!;
-          final currentFulfillment = updatedFulfillments[category];
+        if (group.proposal.categoriesNormalized.isNotEmpty) {
+          for (final category in group.proposal.categoriesNormalized) {
+            final currentFulfillment = updatedFulfillments[category];
 
-          if (currentFulfillment != null) {
-            if (_selectedMethod == PaymentMethod.cashOnDelivery) {
-              updatedFulfillments[category] = currentFulfillment.copyWith(
-                status: RequestCategoryStatus.codConfirmed,
-                codConfirmedAt: DateTime.now(),
-              );
-            } else if (_selectedMethod == PaymentMethod.online) {
-              updatedFulfillments[category] = currentFulfillment.copyWith(
-                status: RequestCategoryStatus.paid,
-                paidAt: DateTime.now(),
-              );
-            } else if (_selectedMethod == PaymentMethod.bankTransfer) {
-              // Bank transfer is pending external confirmation — treat same as COD for now
-              updatedFulfillments[category] = currentFulfillment.copyWith(
-                status: RequestCategoryStatus.codConfirmed,
-                codConfirmedAt: DateTime.now(),
-              );
+            if (currentFulfillment != null) {
+              if (_selectedMethod == PaymentMethod.cashOnDelivery) {
+                updatedFulfillments[category] = currentFulfillment.copyWith(
+                  status: RequestCategoryStatus.codConfirmed,
+                  codConfirmedAt: DateTime.now(),
+                );
+              } else if (_selectedMethod == PaymentMethod.online) {
+                updatedFulfillments[category] = currentFulfillment.copyWith(
+                  status: RequestCategoryStatus.paid,
+                  paidAt: DateTime.now(),
+                );
+              } else if (_selectedMethod == PaymentMethod.bankTransfer) {
+                // Bank transfer is pending external confirmation — treat same as COD for now
+                updatedFulfillments[category] = currentFulfillment.copyWith(
+                  status: RequestCategoryStatus.codConfirmed,
+                  codConfirmedAt: DateTime.now(),
+                );
+              }
             }
           }
         }

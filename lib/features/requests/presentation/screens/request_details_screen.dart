@@ -52,6 +52,20 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
     });
   }
 
+  Future<void> _onRefresh() async {
+    // Refresh the request itself from Firestore
+    final refreshed = await RequestRepository.instance.getRequestById(_request.id);
+    if (refreshed != null && mounted) {
+      setState(() => _request = refreshed);
+    }
+    // Reload proposals
+    await ref
+        .read(proposalProvider.notifier)
+        .loadProposalsForRequest(_request.id);
+    if (!mounted) return;
+    _syncComparison(ref.read(proposalProvider).proposals);
+  }
+
   @override
   void didUpdateWidget(covariant RequestDetailsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -579,10 +593,9 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
         final cat = itemCategoryMap[pi.requestItemId];
         if (cat != null && cat.isNotEmpty) coveredCategories.add(cat);
       }
-      // Fall back to categoryNormalized field if items gave nothing
-      if (coveredCategories.isEmpty && proposal.categoryNormalized != null &&
-          proposal.categoryNormalized!.isNotEmpty) {
-        coveredCategories.add(proposal.categoryNormalized!);
+      // Fall back to categoriesNormalized field if items gave nothing
+      if (coveredCategories.isEmpty && proposal.categoriesNormalized.isNotEmpty) {
+        coveredCategories.addAll(proposal.categoriesNormalized);
       }
       // Last resort: first request category
       if (coveredCategories.isEmpty && requestCategories.isNotEmpty) {
@@ -971,7 +984,9 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
       proposal: p.copyWith(
         items: singleItem,
         status: displayStatus,
-        categoryNormalized: category.isEmpty ? p.categoryNormalized : category,
+        categoriesNormalized: category.isEmpty 
+            ? p.categoriesNormalized
+            : [category],
       ),
       proposalItemId: proposalItemId,
       maskedVendorName: service.maskedVendorName(p.vendorId),
@@ -1159,8 +1174,12 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
       body: Column(
         children: [
           Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: RefreshIndicator(
+              onRefresh: _onRefresh,
+              color: AppColors.customerColor,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1411,6 +1430,7 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
                   ],
                   const SizedBox(height: 20),
                 ],
+              ),
               ),
             ),
           ),

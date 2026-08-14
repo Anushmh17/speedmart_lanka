@@ -130,6 +130,7 @@ class UserModel {
     this.bankAccountNumber,
     this.acceptsCashOnDelivery,
     this.acceptsBankTransfer,
+    this.activeSessions,
   });
 
   /// Create from JSON (API response)

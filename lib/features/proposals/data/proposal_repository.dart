@@ -160,7 +160,7 @@ class ProposalRepository {
           (p) =>
               p.vendorId == vendorId &&
               p.requestId == requestId &&
-              p.categoryNormalized == categoryNormalized,
+              p.categoriesNormalized.contains(categoryNormalized),
         );
       }
       return _proposals.firstWhere(

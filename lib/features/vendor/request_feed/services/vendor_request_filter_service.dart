@@ -199,7 +199,7 @@ class VendorRequestFilterService {
         }
         bidCategoriesByRequest
             .putIfAbsent(p.requestId, () => {})
-            .add(p.categoryNormalized ?? '');
+            .addAll(p.categoriesNormalized);
       }
     }
 

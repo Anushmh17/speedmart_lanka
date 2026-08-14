@@ -1009,7 +1009,9 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, idx) {
                   final proposal = requestProposals[idx];
-                  final category = proposal.categoryNormalized ?? 'General';
+                  final category = proposal.categoriesNormalized.isNotEmpty
+                      ? proposal.categoriesNormalized.join(', ')
+                      : 'General';
                   final statusColor = _getStatusColor(proposal.status);
 
                   OrderModel? matchingOrder;
@@ -1234,8 +1236,8 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
                   const SizedBox(height: 8),
                   Text('Request: ${proposal.requestId}',
                       style: AppTextStyles.bodySmall(secondaryText)),
-                  if ((proposal.categoryNormalized ?? '').isNotEmpty)
-                    Text('Category: ${proposal.categoryNormalized}',
+                  if (proposal.categoriesNormalized.isNotEmpty)
+                    Text('Category: ${proposal.categoriesNormalized.join(', ')}',
                         style: AppTextStyles.caption(secondaryText)),
                   Text(
                     'Date: ${_formatDateTime(proposal.createdAt)}',

@@ -4,6 +4,7 @@ import '../../auth/providers/auth_provider.dart';
 import '../../../core/providers/notification_provider.dart';
 import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart' as notification_feature;
 import 'package:speedmart_lanka/features/notifications/models/notification_type.dart';
+import 'package:speedmart_lanka/shared/utils/category_constants.dart';
 import '../../vendor/proposals/services/proposal_validation_service.dart';
 import '../../requests/data/request_repository.dart';
 import '../../requests/models/shopping_request.dart';
@@ -60,7 +61,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
       final proposals = await _repo.getProposalsForRequest(requestId);
       print('[ProposalDebug] loadProposalsForRequest($requestId): found ${proposals.length} proposals');
       for (final p in proposals) {
-        print('[ProposalDebug]   id=${p.id} status=${p.status.name} category=${p.categoryNormalized} items=${p.items.length}');
+        print('[ProposalDebug]   id=${p.id} status=${p.status.name} categories=${p.categoriesNormalized.join(', ')} items=${p.items.length}');
         for (final item in p.items) {
           print('[ProposalDebug]     item=${item.itemName} status=${item.status.name}');
         }
@@ -236,9 +237,9 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
       final acceptedProposal = await _repo.getProposalById(proposalId);
       if (acceptedProposal == null) throw Exception('Proposal not found');
       
-      final acceptedCategory = acceptedProposal.categoryNormalized;
+      final acceptedCategories = acceptedProposal.categoriesNormalized;
       print('[MultiCategoryFlow] Accept proposal: ${acceptedProposal.id}');
-      print('[MultiCategoryFlow] Accepted category: $acceptedCategory');
+      print('[MultiCategoryFlow] Accepted categories: $acceptedCategories');
 
       // Accept selected proposal
       await _repo.updateProposalStatus(proposalId, ProposalStatus.accepted);
@@ -259,11 +260,11 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
       final allProps = await _repo.getAllProposalsForRequest(requestId);
       for (final p in allProps) {
         if (p.id != proposalId && p.status.isEditableByVendor) {
-          // Only reject if same category
-          if (p.categoryNormalized == acceptedCategory) {
-            final rejectionReason = acceptedCategory != null
-                ? 'Customer selected another vendor for $acceptedCategory category'
-                : 'Customer selected another vendor for this category';
+          // Check if competing proposal overlaps with any accepted categories
+          final overlaps = p.categoriesNormalized.any((c) => acceptedCategories.contains(c));
+          if (overlaps) {
+            final overlappingCats = p.categoriesNormalized.where((c) => acceptedCategories.contains(c)).join(', ');
+            final rejectionReason = 'Customer selected another vendor for $overlappingCats category';
             
             await _repo.updateProposalStatus(
               p.id,
@@ -290,7 +291,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
               );
             } catch (_) {}
           } else {
-            print('[MultiCategoryFlow] Preserved other-category proposal: ${p.id} (${p.categoryNormalized})');
+            print('[MultiCategoryFlow] Preserved other-category proposal: ${p.id} (${p.categoriesNormalized})');
           }
         }
       }
@@ -298,26 +299,41 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
       // Update category fulfillment
       final request = await _requestRepo.getRequestById(requestId);
       if (request != null) {
-        // Resolve category: use proposal's categoryNormalized, or fall back to
-        // the single category if the request has only one.
-        final resolvedCategory = acceptedCategory ??
-            (request.categoryFulfillments.length == 1
-                ? request.categoryFulfillments.keys.first
-                : null);
+        // Find which categories are actually fulfilled by this proposal 
+        // (i.e. items that are NOT unavailable)
+        final fulfilledItemIds = acceptedProposal.items
+            .where((i) => i.status != ProposalItemStatus.unavailable)
+            .map((i) => i.requestItemId)
+            .toSet();
 
-        if (resolvedCategory != null) {
+        final fulfilledCategories = request.items
+            .where((i) => fulfilledItemIds.contains(i.id) && i.category != null && i.category!.isNotEmpty)
+            .map((i) => VendorCategories.normalize(i.category!))
+            .toSet()
+            .toList();
+
+        // Resolve categories: use the actual fulfilled categories, or fall back to
+        // all categories if the request has only one or mapping fails.
+        final resolvedCategories = fulfilledCategories.isNotEmpty
+            ? fulfilledCategories
+            : request.categoryFulfillments.keys.toList();
+
+        if (resolvedCategories.isNotEmpty) {
           final updatedFulfillments = Map<String, RequestCategoryFulfillment>.from(
             request.categoryFulfillments,
           );
-          final current = updatedFulfillments[resolvedCategory];
-          if (current != null) {
-            updatedFulfillments[resolvedCategory] = current.copyWith(
-              status: RequestCategoryStatus.accepted,
-              acceptedProposalId: proposalId,
-              acceptedVendorId: acceptedProposal.vendorId,
-              acceptedAt: DateTime.now(),
-            );
-            print('[MultiCategoryFlow] Updated category fulfillment: $resolvedCategory');
+          
+          for (final category in resolvedCategories) {
+            final current = updatedFulfillments[category];
+            if (current != null) {
+              updatedFulfillments[category] = current.copyWith(
+                status: RequestCategoryStatus.accepted,
+                acceptedProposalId: proposalId,
+                acceptedVendorId: acceptedProposal.vendorId,
+                acceptedAt: DateTime.now(),
+              );
+              print('[MultiCategoryFlow] Updated category fulfillment: $category');
+            }
           }
 
           // Update request with new fulfillments
@@ -532,26 +548,39 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
           await _repo.updateProposalStatus(proposalId, ProposalStatus.accepted);
           print('[ItemAccept] All items resolved — proposal $proposalId → accepted');
           // Update request category fulfillment
-          final category = updatedWinner.categoryNormalized;
           final request = await _requestRepo.getRequestById(requestId);
           if (request != null) {
-            // Resolve category with fallback for single-category requests
-            final resolvedCategory = category ??
-                (request.categoryFulfillments.length == 1
-                    ? request.categoryFulfillments.keys.first
-                    : null);
-            if (resolvedCategory != null) {
+            // Find which categories were actually accepted by looking at the accepted items
+            final acceptedItemIds = updatedWinner.items
+                .where((i) => i.customerDecision == ProposalItemDecision.accepted)
+                .map((i) => i.requestItemId)
+                .toSet();
+
+            final fulfilledCategories = request.items
+                .where((i) => acceptedItemIds.contains(i.id) && i.category != null && i.category!.isNotEmpty)
+                .map((i) => VendorCategories.normalize(i.category!))
+                .toSet()
+                .toList();
+
+            // Fallback for single category requests or if category mapping fails
+            final resolvedCategories = fulfilledCategories.isNotEmpty
+                ? fulfilledCategories
+                : request.categoryFulfillments.keys.toList();
+
+            if (resolvedCategories.isNotEmpty) {
               final updatedFulfillments = Map<String, RequestCategoryFulfillment>.from(
                 request.categoryFulfillments,
               );
-              final current = updatedFulfillments[resolvedCategory];
-              if (current != null) {
-                updatedFulfillments[resolvedCategory] = current.copyWith(
-                  status: RequestCategoryStatus.accepted,
-                  acceptedProposalId: proposalId,
-                  acceptedVendorId: updatedWinner.vendorId,
-                  acceptedAt: DateTime.now(),
-                );
+              for (final category in resolvedCategories) {
+                final current = updatedFulfillments[category];
+                if (current != null) {
+                  updatedFulfillments[category] = current.copyWith(
+                    status: RequestCategoryStatus.accepted,
+                    acceptedProposalId: proposalId,
+                    acceptedVendorId: updatedWinner.vendorId,
+                    acceptedAt: DateTime.now(),
+                  );
+                }
               }
               // Only set request to customerAccepted once ALL categories are resolved
               final tentativeRequest = request.copyWith(
