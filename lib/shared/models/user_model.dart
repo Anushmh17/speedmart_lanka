@@ -76,6 +76,9 @@ class UserModel {
   final double? deliveryLatitude;
   final double? deliveryLongitude;
 
+  /// Active session UUIDs for device limits
+  final List<String>? activeSessions;
+
   const UserModel({
     required this.id,
     required this.fullName,
@@ -199,6 +202,9 @@ class UserModel {
       bankAccountNumber: json['bank_account_number'] as String?,
       acceptsCashOnDelivery: json['accepts_cash_on_delivery'] as bool?,
       acceptsBankTransfer: json['accepts_bank_transfer'] as bool?,
+      activeSessions: (json['active_sessions'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
     );
   }
 
@@ -216,6 +222,7 @@ class UserModel {
       'created_at': createdAt.toIso8601String(),
       'profile_image_url': profileImageUrl,
       'nic': nic,
+      'active_sessions': activeSessions,
     };
 
     if (role == UserRole.customer) {
@@ -325,6 +332,7 @@ class UserModel {
     String? bankAccountNumber,
     bool? acceptsCashOnDelivery,
     bool? acceptsBankTransfer,
+    List<String>? activeSessions,
   }) {
     return UserModel(
       id: id ?? this.id,
@@ -378,6 +386,7 @@ class UserModel {
       bankAccountNumber: bankAccountNumber ?? this.bankAccountNumber,
       acceptsCashOnDelivery: acceptsCashOnDelivery ?? this.acceptsCashOnDelivery,
       acceptsBankTransfer: acceptsBankTransfer ?? this.acceptsBankTransfer,
+      activeSessions: activeSessions ?? this.activeSessions,
     );
   }
 

@@ -12,6 +12,7 @@ import '../../../core/utils/sri_lanka_phone_helper.dart';
 import '../../../shared/models/user_model.dart';
 import '../../../shared/models/user_role.dart';
 import '../../../shared/models/vendor_status.dart';
+import 'package:uuid/uuid.dart';
 
 /// Authentication repository — Firebase Auth for credentials, Firestore for user data.
 class AuthRepository {
@@ -30,6 +31,28 @@ class AuthRepository {
   String? _currentToken;
 
   String? get currentFirebaseUid => _firebaseAuth.currentUser?.uid;
+
+  /// Helper to record a new session limit (max 5)
+  Future<UserModel> _recordSession(UserModel user) async {
+    const uuid = Uuid();
+    final newSessionId = uuid.v4();
+    
+    // Save to local storage so the device knows its own ID
+    await StorageService.saveSessionId(newSessionId);
+    
+    List<String> sessions = user.activeSessions?.toList() ?? [];
+    sessions.add(newSessionId);
+    
+    // Enforce 5-device limit
+    if (sessions.length > 5) {
+      sessions = sessions.sublist(sessions.length - 5);
+    }
+    
+    final updatedUser = user.copyWith(activeSessions: sessions);
+    await _syncUserToFirestore(updatedUser);
+    
+    return updatedUser;
+  }
 
   CollectionReference<Map<String, dynamic>> _collectionForRole(UserRole role) {
     switch (role) {
@@ -61,6 +84,11 @@ class AuthRepository {
       debugPrint('[Auth] Failed to load users from Firestore: $e');
       return [];
     }
+  }
+
+  /// Real-time stream for the user profile document (used for session tracking and live updates)
+  Stream<DocumentSnapshot<Map<String, dynamic>>> userStream(String uid, UserRole role) {
+    return _collectionForRole(role).doc(uid).snapshots();
   }
 
   /// Fetches a single user by email from the correct role subcollection.
@@ -378,7 +406,9 @@ class AuthRepository {
     debugPrint('[Auth] Login success: ${fetchedUser.email}');
 
     _uploadDeviceTokenForUser(fetchedUser);
-    return (user: fetchedUser, token: _currentToken!);
+    
+    final updatedUser = await _recordSession(fetchedUser);
+    return (user: updatedUser, token: _currentToken!);
   }
 
   // ── Customer OTP Authentication ──────────────────────────────────────────
@@ -540,7 +570,9 @@ class AuthRepository {
         'auth_token_${fetchedUser.id}_${DateTime.now().millisecondsSinceEpoch}';
     _currentUserId = fetchedUser.id;
     _uploadDeviceTokenForUser(fetchedUser);
-    return (user: fetchedUser, token: _currentToken!);
+    
+    final updatedUser = await _recordSession(fetchedUser);
+    return (user: updatedUser, token: _currentToken!);
   }
 
   // ── Register ───────────────────────────────────────────────────────────────
@@ -728,7 +760,9 @@ class AuthRepository {
         'auth_token_${userId}_${DateTime.now().millisecondsSinceEpoch}';
     _currentUserId = userId;
     _uploadDeviceTokenForUser(userWithFirebaseId);
-    return (user: userWithFirebaseId, token: _currentToken!);
+    
+    final updatedUser = await _recordSession(userWithFirebaseId);
+    return (user: updatedUser, token: _currentToken!);
   }
 
   // Best-effort upload of device FCM token to backend. No-op if backend URL not configured.

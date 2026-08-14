@@ -28,6 +28,18 @@ class StorageService {
     await _secure.delete(key: AppConstants.tokenKey);
   }
 
+  // ── Session ID (device unique) ─────────────────────────────────────────────
+
+  static Future<void> saveSessionId(String sessionId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('device_session_id', sessionId);
+  }
+
+  static Future<String?> getSessionId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString('device_session_id');
+  }
+
   // ── FCM device token (secure) ──────────────────────────────────────────
 
   static Future<void> saveFcmToken(String token) async {

@@ -23,6 +23,16 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/users/vendors/profiles/$(uid()));
     }
 
+    function isVendorActive() {
+      return isVendor() &&
+        get(/databases/$(database)/documents/users/vendors/profiles/$(uid())).data.is_active == true;
+    }
+
+    function isCustomerActive() {
+      return isSignedIn() &&
+        get(/databases/$(database)/documents/users/customers/profiles/$(uid())).data.is_active == true;
+    }
+
     function isOwner(userId) {
       return isSignedIn() && uid() == userId;
     }
@@ -92,10 +102,10 @@ service cloud.firestore {
         isAdmin()
       );
       allow list: if isSignedIn();
-      allow create: if isVendor() &&
+      allow create: if isVendorActive() &&
         request.resource.data.vendorId == uid();
       allow update: if isSignedIn() && (
-        resource.data.vendorId == uid() ||
+        (resource.data.vendorId == uid() && isVendorActive()) ||
         resource.data.customerId == uid() ||
         isAdmin()
       );
@@ -111,11 +121,11 @@ service cloud.firestore {
         isAdmin()
       );
       allow list: if isSignedIn();
-      allow create: if isSignedIn() &&
+      allow create: if isCustomerActive() &&
         request.resource.data.customerId == uid();
       allow update: if isSignedIn() && (
-        resource.data.customerId == uid() ||
-        resource.data.vendorId == uid() ||
+        (resource.data.customerId == uid() && isCustomerActive()) ||
+        (resource.data.vendorId == uid() && isVendorActive()) ||
         isAdmin()
       );
       allow delete: if isAdmin();
@@ -181,12 +191,12 @@ service cloud.firestore {
         isAdmin()
       );
       allow create: if isSignedIn() && (
-        request.resource.data.customerId == uid() ||
-        request.resource.data.vendorId == uid()
+        (request.resource.data.customerId == uid() && isCustomerActive()) ||
+        (request.resource.data.vendorId == uid() && isVendorActive())
       );
       allow update: if isSignedIn() && (
-        resource.data.customerId == uid() ||
-        resource.data.vendorId == uid()
+        (resource.data.customerId == uid() && isCustomerActive()) ||
+        (resource.data.vendorId == uid() && isVendorActive())
       );
       allow delete: if isAdmin();
     }
@@ -195,7 +205,8 @@ service cloud.firestore {
       allow read: if isSignedIn() && (isChatParticipant(chatId) || isAdmin());
       allow create: if isSignedIn() &&
         request.resource.data.senderId == uid() &&
-        isChatParticipant(chatId);
+        isChatParticipant(chatId) &&
+        (isVendorActive() || isCustomerActive());
       allow update, delete: if false;
     }
 

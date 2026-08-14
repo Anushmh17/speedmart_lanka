@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/services/fcm_service.dart';
@@ -17,6 +19,26 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   final _repo = AuthRepository.instance;
+  
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _userSubscription;
+
+  Future<void> _setupSessionListener(UserModel user) async {
+    _userSubscription?.cancel();
+    final localSessionId = await StorageService.getSessionId();
+    if (localSessionId == null) return;
+    
+    _userSubscription = _repo.userStream(user.id, user.role).listen((snapshot) async {
+      if (!snapshot.exists) {
+        logout();
+        return;
+      }
+      final latestUser = UserModel.fromJson({...snapshot.data()!, 'id': snapshot.id});
+      if (latestUser.activeSessions != null && !latestUser.activeSessions!.contains(localSessionId)) {
+        debugPrint('[Auth] Session $localSessionId is no longer active. Forcing logout.');
+        logout();
+      }
+    });
+  }
 
   Future<void> _bootstrap() async {
     try {
@@ -104,6 +126,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         FcmService.subscribeVendorToTopics(shopDistrict: cleanedUser.shopDistrict);
       }
       state = AuthState.authenticated(cleanedUser);
+      _setupSessionListener(cleanedUser);
       return;
     }
 
@@ -113,6 +136,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await StorageService.saveUser(cleanedUser.toJson());
       NotificationRepository.instance.resetForNewSession();
       state = AuthState.authenticated(cleanedUser);
+      _setupSessionListener(cleanedUser);
     } else {
       await StorageService.clearSession();
       state = const AuthState.unauthenticated();
@@ -155,6 +179,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         FcmService.subscribeVendorToTopics(shopDistrict: cleanedUser.shopDistrict);
       }
       state = AuthState.authenticated(cleanedUser);
+      _setupSessionListener(cleanedUser);
     } catch (e) {
       state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
     }
@@ -192,6 +217,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
         FcmService.subscribeVendorToTopics(shopDistrict: cleanedUser.shopDistrict);
       }
       state = AuthState.authenticated(cleanedUser);
+      _setupSessionListener(cleanedUser);
     } catch (e) {
       state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
     }
@@ -224,6 +250,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await StorageService.saveRole(result.user.role.name);
       NotificationRepository.instance.resetForNewSession();
       state = AuthState.authenticated(result.user);
+      _setupSessionListener(result.user);
     } catch (e) {
       state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
       // Do not rethrow — error is captured in AuthState; callers must not
@@ -311,6 +338,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await StorageService.saveRole(result.user.role.name);
       debugPrint('[Auth] Storage: role saved');
       state = AuthState.authenticated(result.user);
+      _setupSessionListener(result.user);
       debugPrint('[Auth] Register success: authenticated user ${result.user.email}');
     } catch (e) {
       final errorMsg = e.toString().replaceAll('Exception: ', '');
