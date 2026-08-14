@@ -180,7 +180,7 @@ type CustomerRegistrationRequest = {
   deliveryLongitude?: number | null;
 };
 
-export const registerCustomerAccount = onRequest({memory: '256MiB', timeoutSeconds: 60, enforceAppCheck: ENFORCE_APP_CHECK}, async (request, response) => {
+export const registerCustomerAccount = onRequest({memory: '256MiB', timeoutSeconds: 60}, async (request, response) => {
   response.set("Access-Control-Allow-Origin", "*");
   response.set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Firebase-AppCheck");
   response.set("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -188,6 +188,20 @@ export const registerCustomerAccount = onRequest({memory: '256MiB', timeoutSecon
   if (request.method === "OPTIONS") {
     response.status(204).send("");
     return;
+  }
+
+  if (ENFORCE_APP_CHECK) {
+    const appCheckToken = request.header("X-Firebase-AppCheck");
+    if (!appCheckToken) {
+      response.status(401).json({error: "Unauthorized: Missing App Check token."});
+      return;
+    }
+    try {
+      await admin.appCheck().verifyToken(appCheckToken);
+    } catch (err) {
+      response.status(401).json({error: "Unauthorized: Invalid App Check token."});
+      return;
+    }
   }
 
   if (request.method !== "POST") {
@@ -325,7 +339,7 @@ export const registerCustomerAccount = onRequest({memory: '256MiB', timeoutSecon
     });
   });
 
-  export const registerVendorAccount = onRequest({memory: '256MiB', timeoutSeconds: 60, enforceAppCheck: ENFORCE_APP_CHECK}, async (request, response) => {
+  export const registerVendorAccount = onRequest({memory: '256MiB', timeoutSeconds: 60}, async (request, response) => {
   response.set("Access-Control-Allow-Origin", "*");
   response.set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Firebase-AppCheck");
   response.set("Access-Control-Allow-Methods", "POST, OPTIONS");
@@ -333,6 +347,20 @@ export const registerCustomerAccount = onRequest({memory: '256MiB', timeoutSecon
   if (request.method === "OPTIONS") {
     response.status(204).send("");
     return;
+  }
+
+  if (ENFORCE_APP_CHECK) {
+    const appCheckToken = request.header("X-Firebase-AppCheck");
+    if (!appCheckToken) {
+      response.status(401).json({error: "Unauthorized: Missing App Check token."});
+      return;
+    }
+    try {
+      await admin.appCheck().verifyToken(appCheckToken);
+    } catch (err) {
+      response.status(401).json({error: "Unauthorized: Invalid App Check token."});
+      return;
+    }
   }
 
   if (request.method !== "POST") {

@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:uuid/uuid.dart';
 
 class ChatMessage {
@@ -35,6 +36,33 @@ class ChatMessage {
       timestamp: DateTime.now(),
       isSystemMessage: true,
     );
+  }
+
+  factory ChatMessage.fromJson(Map<String, dynamic> json, String documentId) {
+    return ChatMessage(
+      id: documentId,
+      proposalId: json['proposalId'] as String? ?? '',
+      senderRole: json['senderRole'] as String? ?? '',
+      senderName: json['senderName'] as String? ?? '',
+      text: json['text'] as String? ?? '',
+      maskedText: json['maskedText'] as String? ?? '',
+      timestamp: json['timestamp'] != null 
+          ? (json['timestamp'] as Timestamp).toDate() 
+          : DateTime.now(),
+      isSystemMessage: json['isSystemMessage'] as bool? ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'proposalId': proposalId,
+      'senderRole': senderRole,
+      'senderName': senderName,
+      'text': text,
+      'maskedText': maskedText,
+      'timestamp': Timestamp.fromDate(timestamp),
+      'isSystemMessage': isSystemMessage,
+    };
   }
 }
 

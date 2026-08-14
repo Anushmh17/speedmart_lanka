@@ -28,6 +28,8 @@ import '../../../../shared/models/sri_lanka_banks.dart';
 import '../../../../shared/utils/category_constants.dart';
 import '../../../../core/utils/permission_utils.dart';
 import '../../../../core/utils/sri_lanka_phone_helper.dart';
+import '../../../../core/navigation/bottom_nav_visibility.dart';
+import '../../../../shared/models/vendor_status.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({
@@ -266,6 +268,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (!_hasProfileChanges) {
       if (mounted) {
         setState(() => _isEditing = false);
+        ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
       }
       return;
     }
@@ -314,6 +317,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     if (mounted && !ref.read(authLoadingProvider)) {
       setState(() => _isEditing = false);
+      ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: user.role == UserRole.vendor
@@ -328,24 +332,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Future<void> _handleLogout() async {
     if (!mounted) return;
 
-    // Use root navigator so dialogs survive shell/route teardown
-    final rootCtx = rootNavigatorKey.currentContext;
-    if (rootCtx == null) return;
-
     // Step 1: Confirm logout
     final confirmed = await showDialog<bool>(
-      context: rootCtx,
+      context: context,
+      useRootNavigator: true,
       barrierDismissible: false,
       builder: (_) => AlertDialog(
         title: const Text('Log out?'),
         content: const Text('Are you sure you want to log out of your account?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(rootCtx).pop(false),
+            onPressed: () => Navigator.of(context, rootNavigator: true).pop(false),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.of(rootCtx).pop(true),
+            onPressed: () => Navigator.of(context, rootNavigator: true).pop(true),
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
             child: const Text('Log out'),
           ),
@@ -359,7 +360,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     // Step 2: Ask about OTP preference for customer/vendor
     if (role == UserRole.customer || role == UserRole.vendor) {
       final keep = await showDialog<bool>(
-        context: rootCtx,
+        context: context,
+        useRootNavigator: true,
         barrierDismissible: false,
         builder: (_) => AlertDialog(
           title: const Text('Stay signed in?'),
@@ -368,11 +370,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.of(rootCtx).pop(false),
+              onPressed: () => Navigator.of(context, rootNavigator: true).pop(false),
               child: const Text('No'),
             ),
             TextButton(
-              onPressed: () => Navigator.of(rootCtx).pop(true),
+              onPressed: () => Navigator.of(context, rootNavigator: true).pop(true),
               child: const Text('Yes'),
             ),
           ],
@@ -411,7 +413,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 if (!_isEditing)
                   IconButton(
                     icon: const Icon(Icons.edit_rounded),
-                    onPressed: () => setState(() => _isEditing = true),
+                    onPressed: () {
+                      setState(() => _isEditing = true);
+                      ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(true);
+                    },
                   )
                 else
                   IconButton(
@@ -423,6 +428,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         _pickedImagePath = null;
                         _selectedBank = null;
                       });
+                      ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
                     },
                   ),
               ],
@@ -470,115 +476,129 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildProfileHeader(dynamic user, bool isDark, bool isEditing) {
-    return Theme3AppCard(
-      type: Theme3CardType.elevated,
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          // Edit toggle row — only shown when there is no AppBar (embedded tab)
-          if (!widget.showBackButton)
-            Align(
-              alignment: Alignment.centerRight,
-              child: IconButton(
-                icon: Icon(isEditing ? Icons.close_rounded : Icons.edit_rounded),
-                onPressed: () {
-                  if (isEditing) {
-                    _initData();
-                    setState(() {
-                      _isEditing = false;
-                      _pickedImagePath = null;
-                      _selectedBank = null;
-                    });
-                  } else {
-                    setState(() => _isEditing = true);
-                  }
-                },
-              ),
-            ),
-          Stack(
-            alignment: Alignment.bottomRight,
-            children: [
-              CircleAvatar(
-                radius: 54,
-                backgroundColor: AppColors.primary.withValues(alpha: 0.2),
-                backgroundImage: _pickedImagePath != null && File(_pickedImagePath!).existsSync()
-                    ? FileImage(File(_pickedImagePath!))
-                    : _isLocalPath(user.profileImageUrl) && File(user.profileImageUrl!).existsSync()
-                        ? FileImage(File(user.profileImageUrl!)) as ImageProvider
-                        : user.profileImageUrl != null && !_isLocalPath(user.profileImageUrl)
-                            ? NetworkImage(user.profileImageUrl!) as ImageProvider
-                            : null,
-                child: (_pickedImagePath == null && (user.profileImageUrl == null || _isLocalPath(user.profileImageUrl)))
-                    ? Text(
-                        user.initials,
-                        style: AppTextStyles.h1(
-                          isDark ? AppColors.primaryDark : AppColors.primary,
-                        ),
-                      )
-                    : null,
-              ),
-              if (isEditing)
-                GestureDetector(
-                  onTap: _pickImage,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: isDark ? AppColors.surfaceElevatedDark : AppColors.primary,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.2),
-                          blurRadius: 4,
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      Icons.camera_alt_rounded,
-                      color: isDark ? AppColors.primary : Colors.white,
-                      size: 18,
-                    ),
+  Widget _buildAvatar(dynamic user, bool isDark, bool isEditing) {
+    return Stack(
+      alignment: Alignment.bottomRight,
+      children: [
+        CircleAvatar(
+          radius: 46,
+          backgroundColor: AppColors.primary.withValues(alpha: 0.2),
+          backgroundImage: _pickedImagePath != null && File(_pickedImagePath!).existsSync()
+              ? FileImage(File(_pickedImagePath!))
+              : _isLocalPath(user.profileImageUrl) && File(user.profileImageUrl!).existsSync()
+                  ? FileImage(File(user.profileImageUrl!)) as ImageProvider
+                  : user.profileImageUrl != null && !_isLocalPath(user.profileImageUrl)
+                      ? NetworkImage(user.profileImageUrl!) as ImageProvider
+                      : null,
+          child: (_pickedImagePath == null && (user.profileImageUrl == null || _isLocalPath(user.profileImageUrl)))
+              ? Text(
+                  user.initials,
+                  style: AppTextStyles.h1(
+                    isDark ? AppColors.primaryDark : AppColors.primary,
                   ),
-                ),
-            ],
-          ),
-          const SizedBox(height: AppSpacing.md),
-          Text(
-            user.fullName,
-            style: AppTextStyles.h2(
-              isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
+                )
+              : null,
+        ),
+        if (isEditing)
+          GestureDetector(
+            onTap: _pickImage,
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.surfaceElevatedDark : AppColors.primary,
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 4,
+                  ),
+                ],
+              ),
+              child: Icon(
+                Icons.camera_alt_rounded,
+                color: isDark ? AppColors.primary : Colors.white,
+                size: 16,
+              ),
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            user.email,
-            style: AppTextStyles.bodyMedium(
-              isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+      ],
+    );
+  }
+
+  Widget _buildProfileHeader(dynamic user, bool isDark, bool isEditing) {
+    final lightBlueBg = isDark ? AppColors.primaryDark.withValues(alpha: 0.15) : AppColors.primary.withValues(alpha: 0.08);
+    
+    if (user.role == UserRole.vendor) {
+      return Theme3AppCard(
+        type: Theme3CardType.elevated,
+        backgroundColor: lightBlueBg,
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user.businessName ?? 'Shop Details',
+                    style: AppTextStyles.h2(isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight),
+                  ),
+                  const SizedBox(height: 8),
+                  if (user.vendorStatus == VendorStatus.approved)
+                    Theme3StatusChip(
+                      label: 'Verified Shop Owner',
+                      status: Theme3StatusType.completed,
+                    )
+                  else
+                    Theme3StatusChip(
+                      label: 'Pending Approval',
+                      status: Theme3StatusType.pending,
+                    ),
+                ],
+              ),
             ),
-          ),
-          if (user.detectedCountry != null) ...[  
-            const SizedBox(height: 4),
-            Text(
-              user.detectedCountry == 'LK' ? '🇱🇰 Sri Lanka' : '🌐 International',
-              style: AppTextStyles.caption(
-                isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+            const SizedBox(width: 16),
+            _buildAvatar(user, isDark, isEditing),
+          ],
+        ),
+      );
+    } else {
+      return Theme3AppCard(
+        type: Theme3CardType.elevated,
+        backgroundColor: lightBlueBg,
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            _buildAvatar(user, isDark, isEditing),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    user.fullName,
+                    style: AppTextStyles.h2(isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    user.email,
+                    style: AppTextStyles.bodyMedium(isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
+                  ),
+                  if (user.detectedCountry != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      user.detectedCountry == 'LK' ? '🇱🇰 Sri Lanka' : '🌐 International',
+                      style: AppTextStyles.caption(isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight),
+                    ),
+                  ],
+                ],
               ),
             ),
           ],
-          const SizedBox(height: 12),
-          if (user.role == UserRole.vendor && user.isVerified)
-            Theme3StatusChip(
-              label: 'Verified Shop Owner',
-              status: Theme3StatusType.completed,
-            )
-          else if (user.role == UserRole.vendor)
-            Theme3StatusChip(
-              label: 'Pending Approval',
-              status: Theme3StatusType.pending,
-            ),
-        ],
-      ),
-    );
+        ),
+      );
+    }
   }
 
   List<Widget> _buildQuickStats(dynamic user, bool isDark) {
@@ -710,25 +730,59 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   List<Widget> _buildAccountSection(dynamic user, bool isDark, bool isEditing) {
     return [
       Text(
-        'Account',
+        'Account Details',
         style: AppTextStyles.subtitle(
           isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight,
         ),
       ),
       const SizedBox(height: AppSpacing.md),
-      if (isEditing) ..._buildEditablePersonalFields(isDark) else ..._buildAccountMenuItems(user, isDark),
+      if (isEditing) 
+        ..._buildEditablePersonalFields(user, isDark) 
+      else 
+        ..._buildReadOnlyPersonalFields(user, isDark),
+      if (!isEditing) const SizedBox(height: AppSpacing.md),
+      if (!isEditing) ..._buildAccountMenuItems(user, isDark),
+    ];
+  }
+
+  List<Widget> _buildReadOnlyPersonalFields(dynamic user, bool isDark) {
+    final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    
+    return [
+      Theme3AppCard(
+        type: Theme3CardType.standard,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            _bankInfoRow(Icons.person_outline_rounded, 'Name', user.fullName, primaryText, secondaryText),
+            const SizedBox(height: 12),
+            _bankInfoRow(Icons.email_outlined, 'Email', user.email, primaryText, secondaryText),
+            const SizedBox(height: 12),
+            _bankInfoRow(Icons.phone_outlined, 'Phone', user.phone, primaryText, secondaryText),
+            if (user.nic != null && user.nic!.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _bankInfoRow(Icons.badge_outlined, 'NIC', user.nic!, primaryText, secondaryText),
+            ],
+            if (user.role == UserRole.vendor && user.bankName != null && user.bankName!.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _bankInfoRow(Icons.account_balance_outlined, 'Bank Account', '${user.bankName} - ${user.bankAccountNumber}', primaryText, secondaryText),
+            ],
+          ],
+        ),
+      ),
     ];
   }
 
   List<Widget> _buildAccountMenuItems(dynamic user, bool isDark) {
     final items = [
-      ('Personal Information', Icons.person_outline_rounded, true, () {
+      ('Edit Profile', Icons.edit_outlined, true, () {
         setState(() => _isEditing = true);
+        ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(true);
       }),
       if (user.role == UserRole.customer) ('Delivery Address', Icons.location_on_outlined, true, () {
         context.push(RouteNames.customerDeliveryAddress);
       }),
-      ('Notifications', Icons.notifications_outlined, false, () {}),
       ('Payment Methods', Icons.payment_outlined, true, () => _showPaymentMethodsSheet(isDark)),
     ];
 
@@ -793,7 +847,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     ];
   }
 
-  List<Widget> _buildEditablePersonalFields(bool isDark) {
+  List<Widget> _buildEditablePersonalFields(dynamic user, bool isDark) {
     return [
       Theme3AppTextField(
         label: 'Full Name',
@@ -807,6 +861,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         controller: _phoneCtrl,
         prefixIcon: Icons.phone_outlined,
         keyboardType: TextInputType.phone,
+      ),
+      const SizedBox(height: AppSpacing.md),
+      Theme3AppTextField(
+        label: 'Email',
+        controller: TextEditingController(text: user.email),
+        prefixIcon: Icons.email_outlined,
+        suffixIcon: Icons.lock_outline_rounded,
+        readOnly: true,
+      ),
+      const SizedBox(height: AppSpacing.md),
+      Theme3AppTextField(
+        label: 'NIC',
+        controller: TextEditingController(text: user.nic ?? 'Not provided'),
+        prefixIcon: Icons.badge_outlined,
+        suffixIcon: Icons.lock_outline_rounded,
+        readOnly: true,
       ),
     ];
   }
@@ -883,8 +953,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       if (isEditing) _buildRequestableCategories(isDark),
       const SizedBox(height: AppSpacing.md),
       _buildBankDetailsSection(user, isDark, isEditing),
-      if (isEditing) const SizedBox(height: AppSpacing.md),
-      if (isEditing) _buildPaymentAvailabilitySection(isDark),
     ];
   }
 
@@ -1070,34 +1138,62 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               const SizedBox(height: AppSpacing.md),
               if (isEditing) ...[
                 // Bank picker
-                GestureDetector(
-                  onTap: () => _showBankPickerSheet(isDark, primaryText, secondaryText),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: secondaryText.withValues(alpha: 0.4)),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      children: [
-                        if (_selectedBank != null) ...[
-                          Image.asset(
-                            _selectedBank!.logoAsset,
-                            width: 40,
-                            height: 40,
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => const Icon(Icons.account_balance_outlined, size: 36),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: secondaryText.withValues(alpha: 0.4)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () => _showBankPickerSheet(isDark, primaryText, secondaryText),
+                          borderRadius: BorderRadius.circular(8),
+                          child: Padding(
+                            padding: const EdgeInsets.all(10.0),
+                            child: Row(
+                              children: [
+                                if (_selectedBank != null) ...[
+                                  Image.asset(
+                                    _selectedBank!.logoAsset,
+                                    width: 32,
+                                    height: 32,
+                                    fit: BoxFit.contain,
+                                    errorBuilder: (_, __, ___) => const Icon(Icons.account_balance_outlined, size: 32),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(child: Text(_selectedBank!.name, style: AppTextStyles.bodyMedium(primaryText))),
+                                ] else ...[
+                                  Icon(Icons.account_balance_outlined, color: secondaryText),
+                                  const SizedBox(width: 10),
+                                  Expanded(child: Text('Select your bank', style: AppTextStyles.bodyMedium(secondaryText))),
+                                ],
+                              ],
+                            ),
                           ),
-                          const SizedBox(width: 10),
-                          Expanded(child: Text(_selectedBank!.name, style: AppTextStyles.bodyMedium(primaryText))),
-                        ] else ...[
-                          Icon(Icons.account_balance_outlined, color: secondaryText),
-                          const SizedBox(width: 10),
-                          Expanded(child: Text('Select your bank', style: AppTextStyles.bodyMedium(secondaryText))),
-                        ],
-                        Icon(Icons.keyboard_arrow_down_rounded, color: secondaryText),
-                      ],
-                    ),
+                        ),
+                      ),
+                      if (_selectedBank != null)
+                        IconButton(
+                          icon: Icon(Icons.close_rounded, color: secondaryText),
+                          tooltip: 'Clear bank selection',
+                          onPressed: () {
+                            setState(() {
+                              _selectedBank = null;
+                              _bankNameCtrl.clear();
+                              _bankAccountNumberCtrl.clear();
+                              _bankBranchCtrl.clear();
+                              _bankAccountNameCtrl.clear();
+                            });
+                          },
+                        )
+                      else
+                        Padding(
+                          padding: const EdgeInsets.only(right: 12.0),
+                          child: Icon(Icons.keyboard_arrow_down_rounded, color: secondaryText),
+                        ),
+                    ],
                   ),
                 ),
                 if (_selectedBank != null) ...[
@@ -1391,6 +1487,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   void _showPaymentMethodsSheet(bool isDark) {
+    final user = ref.read(currentUserProvider);
     final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     final bgColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
@@ -1403,71 +1500,120 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (sheetCtx) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40, height: 4,
-                decoration: BoxDecoration(
-                  color: borderColor,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text('Payment Methods', style: AppTextStyles.h2(primaryText)),
-            const SizedBox(height: 4),
-            Text('Manage how you pay for orders', style: AppTextStyles.bodySmall(secondaryText)),
-            const SizedBox(height: 20),
-            _paymentMethodTile(
-              icon: Icons.money_rounded,
-              label: 'Cash on Delivery',
-              sublabel: 'Pay when your order arrives',
-              color: AppColors.success,
-              isDark: isDark,
-              primaryText: primaryText,
-              secondaryText: secondaryText,
-              borderColor: borderColor,
-            ),
-            const SizedBox(height: 12),
-            _paymentMethodTile(
-              icon: Icons.credit_card_rounded,
-              label: 'Online Payment',
-              sublabel: 'Bank transfer at checkout',
-              color: AppColors.primary,
-              isDark: isDark,
-              primaryText: primaryText,
-              secondaryText: secondaryText,
-              borderColor: borderColor,
-            ),
-            const SizedBox(height: 20),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.warning.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.warning.withValues(alpha: 0.25)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline_rounded, color: AppColors.warning, size: 18),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Card saving and wallet top-up coming soon.',
-                      style: AppTextStyles.caption(secondaryText),
+      builder: (sheetCtx) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(
+                      color: borderColor,
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
+                ),
+                const SizedBox(height: 16),
+                Text('Payment Methods', style: AppTextStyles.h2(primaryText)),
+                const SizedBox(height: 4),
+                Text(
+                  user?.role == UserRole.vendor 
+                    ? 'Manage which payment methods your customers can use.' 
+                    : 'Manage how you pay for orders',
+                  style: AppTextStyles.bodySmall(secondaryText),
+                ),
+                const SizedBox(height: 20),
+                if (user?.role == UserRole.vendor) ...[
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('Enable Cash on Delivery', style: AppTextStyles.bodyMedium(primaryText)),
+                    subtitle: Text('Customers can choose COD for your accepted proposals.', style: AppTextStyles.caption(secondaryText)),
+                    value: _acceptsCashOnDelivery,
+                    activeColor: AppColors.success,
+                    onChanged: (value) async {
+                      setSheetState(() => _acceptsCashOnDelivery = value);
+                      setState(() => _acceptsCashOnDelivery = value);
+                      if (user != null) {
+                        await ref.read(authProvider.notifier).updateProfile(
+                          fullName: user.fullName,
+                          phone: user.phone,
+                          acceptsCashOnDelivery: value,
+                        );
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('Enable Bank Transfer', style: AppTextStyles.bodyMedium(primaryText)),
+                    subtitle: Text('Customers can choose bank transfer when checking out.', style: AppTextStyles.caption(secondaryText)),
+                    value: _acceptsBankTransfer,
+                    activeColor: AppColors.primary,
+                    onChanged: (value) async {
+                      setSheetState(() => _acceptsBankTransfer = value);
+                      setState(() => _acceptsBankTransfer = value);
+                      if (user != null) {
+                        await ref.read(authProvider.notifier).updateProfile(
+                          fullName: user.fullName,
+                          phone: user.phone,
+                          acceptsBankTransfer: value,
+                        );
+                      }
+                    },
+                  ),
+                ] else ...[
+                  _paymentMethodTile(
+                    icon: Icons.money_rounded,
+                    label: 'Cash on Delivery',
+                    sublabel: 'Pay when your order arrives',
+                    color: AppColors.success,
+                    isDark: isDark,
+                    primaryText: primaryText,
+                    secondaryText: secondaryText,
+                    borderColor: borderColor,
+                  ),
+                  const SizedBox(height: 12),
+                  _paymentMethodTile(
+                    icon: Icons.credit_card_rounded,
+                    label: 'Online Payment',
+                    sublabel: 'Bank transfer at checkout',
+                    color: AppColors.primary,
+                    isDark: isDark,
+                    primaryText: primaryText,
+                    secondaryText: secondaryText,
+                    borderColor: borderColor,
+                  ),
                 ],
-              ),
+                const SizedBox(height: 20),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: AppColors.warning.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.warning.withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline_rounded, color: AppColors.warning, size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Card saving and wallet top-up coming soon.',
+                          style: AppTextStyles.caption(secondaryText),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -1616,11 +1762,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   List<Widget> _buildSaveButton(bool isLoading) {
     return [
       const SizedBox(height: AppSpacing.xl),
-      Theme3AppButton(
-        label: 'Save Changes',
-        onPressed: _hasProfileChanges ? _handleSave : null,
-        isLoading: isLoading,
-      ),
+      Row(
+        children: [
+          Expanded(
+            child: Theme3AppButton(
+              label: 'Cancel',
+              type: Theme3ButtonType.secondary,
+              onPressed: () {
+                _initData();
+                setState(() {
+                  _isEditing = false;
+                  _pickedImagePath = null;
+                  _selectedBank = null;
+                });
+                ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
+              },
+            ),
+          ),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Theme3AppButton(
+              label: 'Save Changes',
+              onPressed: _hasProfileChanges ? _handleSave : null,
+              isLoading: isLoading,
+            ),
+          ),
+        ],
+      )
     ];
   }
 }

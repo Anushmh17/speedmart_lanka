@@ -91,7 +91,7 @@ class _VendorCommissionPaymentScreenState
       } else {
         await VendorCommissionPaymentRepository.instance.submitVendorDirectReceipt(
           vendorId: user?.id ?? '',
-          vendorName: user?.name ?? 'Vendor',
+          vendorName: user?.businessName ?? user?.fullName ?? 'Vendor',
           receiptUrl: url,
           note: _noteCtrl.text.trim().isEmpty ? null : _noteCtrl.text.trim(),
         );
@@ -187,7 +187,7 @@ class _VendorCommissionPaymentScreenState
                       style: AppTextStyles.bodyMedium(AppColors.error))),
               data: (payments) {
                 if (payments.isEmpty) {
-                  return const SizedBox.shrink();
+                  return _buildEmptyState(isDark, secondaryText);
                 }
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

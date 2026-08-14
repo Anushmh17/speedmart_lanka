@@ -8,7 +8,7 @@ class BottomNavVisibilityNotifier extends AutoDisposeNotifier<bool> {
   void setManualHidden(bool hidden) {
     if (_manualHidden != hidden) {
       _manualHidden = hidden;
-      ref.notifyListeners();
+      _recalculateState();
     }
   }
 
@@ -22,6 +22,11 @@ class BottomNavVisibilityNotifier extends AutoDisposeNotifier<bool> {
       debugPrint('[BottomNav] route changed, reset manual hidden');
     }
 
+    _recalculateState();
+  }
+
+  void _recalculateState() {
+    final location = _lastLocation ?? '/';
     // CRITICAL FIX: Parse the location to get the actual path
     final uri = Uri.tryParse(location);
     final cleanPath = uri?.path ?? location;

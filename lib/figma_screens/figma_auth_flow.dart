@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:speedmart_lanka/core/utils/sri_lanka_phone_helper.dart';
 import 'package:speedmart_lanka/core/utils/validators.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -659,6 +659,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       final categories = data['categories'] ?? '';
       final lat = double.tryParse(data['latitude'] ?? '')!;
       final lng = double.tryParse(data['longitude'] ?? '')!;
+      final nic = (data['nic'] ?? '').trim().toUpperCase();
 
       await ref.read(authProvider.notifier).register(
         fullName: data['fullName']!.trim(),
@@ -666,6 +667,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
         phone: data['phone'] ?? '',
         password: data['password']!,
         role: UserRole.vendor,
+        nic: nic.isNotEmpty ? nic : null,
         businessName: shopName.trim(),
         categories: categories.isNotEmpty ? categories.split(',') : null,
         shopName: shopName.trim(),
@@ -678,7 +680,8 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
         businessRegistrationNumber: data['businessRegNo']?.isNotEmpty == true ? data['businessRegNo'] : null,
         detectedCountry: 'LK',
         detectionSource: 'app_default',
-        verifiedEmail: true,
+        verifiedPhone: true,
+        verifiedEmail: false,
         shopLocationAccuracyMeters: 0,
         shopLocationDetectedAt: DateTime.now(),
       );

@@ -11,6 +11,7 @@ class Theme3AppCard extends StatelessWidget {
   final EdgeInsetsGeometry? padding;
   final EdgeInsetsGeometry? margin;
   final VoidCallback? onTap;
+  final Color? backgroundColor;
 
   const Theme3AppCard({
     super.key,
@@ -19,6 +20,7 @@ class Theme3AppCard extends StatelessWidget {
     this.padding,
     this.margin,
     this.onTap,
+    this.backgroundColor,
   });
 
   @override
@@ -26,6 +28,7 @@ class Theme3AppCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     Color getBackgroundColor() {
+      if (backgroundColor != null) return backgroundColor!;
       switch (type) {
         case Theme3CardType.standard:
           return isDark ? AppColors.cardDark : AppColors.cardLight;
@@ -42,6 +45,12 @@ class Theme3AppCard extends StatelessWidget {
       if (type == Theme3CardType.highlighted) {
         return BorderSide(
           color: isDark ? AppColors.primaryDark.withValues(alpha: 0.3) : AppColors.primary.withValues(alpha: 0.2),
+          width: 1,
+        );
+      }
+      if (backgroundColor != null) {
+        return BorderSide(
+          color: backgroundColor!.withValues(alpha: 0.3),
           width: 1,
         );
       }

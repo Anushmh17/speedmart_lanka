@@ -1,6 +1,9 @@
+import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../models/chat_message.dart';
+import '../../auth/providers/auth_provider.dart';
 
 class ChatState {
   final List<ChatMessage> messages;
@@ -23,7 +26,33 @@ class ChatState {
 }
 
 class ChatNotifier extends StateNotifier<ChatState> {
-  ChatNotifier() : super(ChatState(messages: []));
+  final Ref ref;
+  StreamSubscription? _sub;
+
+  ChatNotifier(this.ref) : super(ChatState(messages: [])) {
+    _init();
+  }
+
+  void _init() {
+    final user = ref.read(authProvider).user;
+    if (user == null) return;
+
+    _sub = FirebaseFirestore.instance
+        .collection('chat_messages')
+        .where('participants', arrayContains: user.id)
+        .orderBy('timestamp')
+        .snapshots()
+        .listen((snap) {
+      final msgs = snap.docs.map((d) => ChatMessage.fromJson(d.data(), d.id)).toList();
+      state = state.copyWith(messages: msgs);
+    });
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
 
   // Regex utility to dynamically mask phone numbers, emails and suburb details
   String maskSensitiveDetails(String originalText) {
@@ -65,43 +94,25 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }) async {
     final masked = maskSensitiveDetails(text);
 
-    final newMessage = ChatMessage(
-      id: const Uuid().v4(),
-      proposalId: proposalId,
-      senderRole: senderRole,
-      senderName: senderName,
-      text: text,
-      maskedText: masked,
-      timestamp: DateTime.now(),
-    );
+    final proposalDoc = await FirebaseFirestore.instance.collection('proposals').doc(proposalId).get();
+    final proposalData = proposalDoc.data();
+    if (proposalData == null) return;
 
-    state = state.copyWith(messages: [...state.messages, newMessage]);
+    final customerId = proposalData['customerId'] as String;
+    final vendorId = proposalData['vendorId'] as String;
 
-    // Simulate shop owner responding to customer after 2 seconds
-    if (senderRole == 'customer') {
-      Future.delayed(const Duration(seconds: 2), () {
-        final String vendorReply;
-        if (text.toLowerCase().contains('fresh') || text.toLowerCase().contains('brand')) {
-          vendorReply = 'Yes, all products are fresh from Keells store, and packed today morning.';
-        } else if (text.toLowerCase().contains('deliver') || text.toLowerCase().contains('when')) {
-          vendorReply = 'We can deliver within 2 hours of payment confirmation. Our rider is ready.';
-        } else {
-          vendorReply = 'Thank you for your response! Looking forward to serving you through Speedmart.';
-        }
+    final messageData = {
+      'proposalId': proposalId,
+      'senderRole': senderRole,
+      'senderName': senderName,
+      'text': text,
+      'maskedText': masked,
+      'timestamp': FieldValue.serverTimestamp(),
+      'isSystemMessage': false,
+      'participants': [customerId, vendorId],
+    };
 
-        final vendorMsg = ChatMessage(
-          id: const Uuid().v4(),
-          proposalId: proposalId,
-          senderRole: 'vendor',
-          senderName: 'Partner Shop Owner #A3B1',
-          text: vendorReply,
-          maskedText: maskSensitiveDetails(vendorReply),
-          timestamp: DateTime.now(),
-        );
-
-        state = state.copyWith(messages: [...state.messages, vendorMsg]);
-      });
-    }
+    await FirebaseFirestore.instance.collection('chat_messages').add(messageData);
   }
 
   List<ChatMessage> getMessagesForProposal(String proposalId) {
@@ -128,6 +139,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
 }
 
 final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
-  return ChatNotifier();
+  return ChatNotifier(ref);
 });
 

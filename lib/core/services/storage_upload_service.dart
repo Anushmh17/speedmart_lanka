@@ -22,8 +22,9 @@ class StorageUploadService {
     final uploadFile = compressed ?? file;
 
     final ref = _storage.ref().child(storagePath);
-    final task = await ref.putFile(
-      uploadFile,
+    final bytes = await uploadFile.readAsBytes();
+    final task = await ref.putData(
+      bytes,
       SettableMetadata(contentType: 'image/jpeg'),
     );
     final url = await task.ref.getDownloadURL();
