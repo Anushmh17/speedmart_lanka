@@ -318,7 +318,7 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                     const Divider(height: 1),
                     const SizedBox(height: 12),
                     _PricingRow(
-                      label: 'Items subtotal',
+                      label: 'Items subtotal (incl. commission)',
                       value: 'Rs. ${v.subtotal.toStringAsFixed(2)}',
                       isDark: isDark,
                     ),
@@ -398,7 +398,7 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                               Padding(
                                 padding: const EdgeInsets.only(left: 18, top: 1),
                                 child: Text(
-                                  '↳ $altName × ${item.quantity} @ Rs. ${item.unitPrice.toStringAsFixed(0)}',
+                                  '↳ $altName × ${item.quantity} @ Rs. ${p.customerUnitPrice(item).toStringAsFixed(0)}',
                                   style: AppTextStyles.caption(secondaryText),
                                 ),
                               ),
@@ -415,7 +415,7 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                             const SizedBox(width: 5),
                             Expanded(
                               child: Text(
-                                '${item.itemName} × ${item.quantity} @ Rs. ${item.unitPrice.toStringAsFixed(0)}',
+                                '${item.itemName} × ${item.quantity} @ Rs. ${p.customerUnitPrice(item).toStringAsFixed(0)}',
                                 style: AppTextStyles.caption(secondaryText),
                               ),
                             ),
@@ -424,7 +424,9 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                       );
                     }),
                     const SizedBox(height: 12),
-                    if (!inactive && v.canAcceptOrReject) ...[
+                    if (!inactive &&
+                        v.canAcceptOrReject &&
+                        (widget.onAccept != null || widget.onReject != null)) ...[
                       Row(
                         children: [
                           Expanded(
@@ -447,9 +449,7 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                                 backgroundColor: _accentColor,
                                 minimumSize: const Size(0, 44),
                               ),
-                              child: Text(
-                                v.isAccepted ? 'Pay now' : 'Accept',
-                              ),
+                              child: const Text('Accept'),
                             ),
                           ),
                         ],

@@ -105,6 +105,25 @@ class OrderModel {
   /// Derive it here the same way AcceptedVendorGroup does.
   double get platformCommission => totalPrice - itemSubtotal - deliveryCharge;
 
+  /// Customer-facing item subtotal, including the commission already included
+  /// in the final order amount.
+  double get customerSubtotal => itemSubtotal + platformCommission;
+
+  /// Splits the included commission proportionally across available line
+  /// items for receipts. The stored vendor prices remain unchanged.
+  double customerItemTotal(ProposalItem item) {
+    if (item.status == ProposalItemStatus.unavailable || itemSubtotal <= 0) {
+      return item.subtotal;
+    }
+    return item.subtotal +
+        (platformCommission * item.subtotal / itemSubtotal);
+  }
+
+  double customerUnitPrice(ProposalItem item) {
+    if (item.quantity <= 0) return 0;
+    return customerItemTotal(item) / item.quantity;
+  }
+
   /// Vendor receives the full totalPrice from the customer (cash or bank).
   /// They owe platformCommission to Speedmart monthly.
   double get vendorNetAmount => totalPrice - platformCommission;

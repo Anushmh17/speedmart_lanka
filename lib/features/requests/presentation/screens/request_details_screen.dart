@@ -20,6 +20,8 @@ import '../../../customer/proposals/providers/customer_proposal_comparison_provi
 import '../../../customer/proposals/services/proposal_comparison_service.dart';
 import '../../../customer/proposals/widgets/customer_proposal_card.dart';
 import '../../../requests/data/request_repository.dart';
+import '../../../orders/models/order_model.dart';
+import '../../../orders/providers/order_provider.dart';
 import 'request_item_details_screen.dart';
 import '../widgets/category_selector.dart';
 
@@ -47,6 +49,7 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
       await ref
           .read(proposalProvider.notifier)
           .loadProposalsForRequest(_request.id);
+      await ref.read(orderProvider.notifier).loadCustomerOrders();
       if (!mounted) return;
       _syncComparison(ref.read(proposalProvider).proposals);
     });
@@ -62,6 +65,7 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
     await ref
         .read(proposalProvider.notifier)
         .loadProposalsForRequest(_request.id);
+    await ref.read(orderProvider.notifier).loadCustomerOrders();
     if (!mounted) return;
     _syncComparison(ref.read(proposalProvider).proposals);
   }
@@ -227,10 +231,15 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
         setState(() => _request = refreshed);
       }
       if (!mounted) return;
-      context.push('/customer/payment', extra: {
-        'proposal': proposal,
+      await context.push('/customer/payment', extra: {
+        // Multi-category cards pass a proposal narrowed to the selected item.
+        // Keep that scope through checkout instead of charging every item in
+        // the vendor's original proposal.
+        'proposal': paymentProposal ?? proposal,
         'requestId': _request.id,
       });
+      if (!mounted) return;
+      await _onRefresh();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -984,6 +993,10 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
       proposal: p.copyWith(
         items: singleItem,
         status: displayStatus,
+        // A category/item checkout must use its proportional commission, not
+        // the total for every item in the original vendor proposal.
+        totalPrice: subtotal + p.deliveryCharge +
+            (p.subtotal > 0 ? p.platformCommission * subtotal / p.subtotal : 0),
         categoriesNormalized: category.isEmpty 
             ? p.categoriesNormalized
             : [category],
@@ -1144,6 +1157,7 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
       }
     });
     final requestState = ref.watch(requestProvider);
+    final orderState = ref.watch(orderProvider);
     final requestLoading = requestState.isLoading;
 
     // Reactively sync _request from provider state so that category
@@ -1153,17 +1167,34 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
         .where((r) => r.id == _request.id)
         .firstOrNull;
     if (freshRequest != null &&
-        freshRequest.updatedAt != _request.updatedAt) {
+        (freshRequest.updatedAt != _request.updatedAt ||
+            freshRequest.status != _request.status ||
+            freshRequest.proposalCount != _request.proposalCount)) {
       // Schedule the setState outside of build to avoid calling it during build.
       Future.microtask(() {
         if (mounted) setState(() => _request = freshRequest);
       });
     }
 
-    final hasAcceptedProposal = proposalState.proposals
-        .any((p) => p.status == ProposalStatus.accepted);
-    final canCancel = _canCancel(proposalState.proposals) && !_isCancelled;
-    final proposalsEnabled = !_isCancelled;
+    final hasOrderForRequest = orderState.orders.any(
+      (order) =>
+          order.requestId == _request.id &&
+          order.status != OrderStatus.cancelled,
+    );
+    final hasOpenCategory = _request.categoryFulfillments.isNotEmpty &&
+        _request.categoryFulfillments.values
+            .any((fulfillment) => fulfillment.status.canReceiveProposals);
+    // For a single-category request, an order is definitive even if the
+    // category-fulfillment write has not reached this device yet. Multi-category
+    // requests remain open only for categories that are still unresolved.
+    final requestHasConfirmedOrder = hasOrderForRequest &&
+        (!_request.isMultiCategory || !hasOpenCategory);
+    final hasAcceptedProposal = requestHasConfirmedOrder ||
+        proposalState.proposals.any((p) => p.status == ProposalStatus.accepted);
+    final canCancel = _canCancel(proposalState.proposals) &&
+        !_isCancelled &&
+        !requestHasConfirmedOrder;
+    final proposalsEnabled = !_isCancelled && !requestHasConfirmedOrder;
 
     return Scaffold(
       backgroundColor: bgColor,

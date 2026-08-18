@@ -274,6 +274,7 @@ class _VendorProposalFormScreenState
     return Proposal(
       id: widget.existingProposal?.id ?? '',
       requestId: widget.request.id,
+      customerId: widget.request.customerId,
       vendorId: user.id,
       vendorBusinessName: user.businessName ?? 'Partner Vendor',
       items: items,
@@ -478,10 +479,11 @@ class _VendorProposalFormScreenState
 
     setState(() => _saving = true);
     try {
+      final Proposal savedProposal;
       if (_isEditing && widget.existingProposal!.status != ProposalStatus.draft) {
-        await proposalNotifier.updateVendorProposal(proposal);
+        savedProposal = await proposalNotifier.updateVendorProposal(proposal);
       } else {
-        await proposalNotifier.submitProposal(proposal);
+        savedProposal = await proposalNotifier.submitProposal(proposal);
       }
       if (!mounted) return;
 
@@ -496,7 +498,9 @@ class _VendorProposalFormScreenState
       );
       if (!mounted) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        router.pushReplacement(RouteNames.vendorProposalDetail, extra: proposal);
+        router.pushReplacement(
+          RouteNames.vendorProposalDetail.replaceFirst(':id', savedProposal.id),
+        );
       });
     } catch (e) {
       if (!mounted) return;

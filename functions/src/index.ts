@@ -220,8 +220,41 @@ export const onNewProposal = onDocumentCreated(
     if (!proposal) return;
 
     const proposalId = event.params.proposalId;
-    const customerId: string = proposal.customerId;
+    const customerId = typeof proposal.customerId === "string" ? proposal.customerId : "";
     const vendorId: string = proposal.vendorId;
+    const requestId = typeof proposal.requestId === "string" ? proposal.requestId : "";
+
+    if (!customerId) {
+      console.error(`[Proposal] ${sanitize(proposalId)} has no customerId; notification skipped.`);
+      return;
+    }
+
+    // Keep the request summary in sync for customer dashboards. Use the
+    // current proposal collection rather than incrementing so retried events
+    // cannot inflate the count.
+    if (requestId) {
+      const [requestDoc, proposalDocs] = await Promise.all([
+        db.doc(`requests/${requestId}`).get(),
+        db.collection("proposals").where("requestId", "==", requestId).get(),
+      ]);
+      if (requestDoc.exists) {
+        const openProposalCount = proposalDocs.docs.filter((doc) => {
+          const status = doc.data().status;
+          return status === "submitted" || status === "updated";
+        }).length;
+        const currentStatus = requestDoc.data()?.status;
+        const update: Record<string, unknown> = {
+          proposalCount: openProposalCount,
+          updatedAt: new Date().toISOString(),
+        };
+        if (currentStatus === "submitted" ||
+            currentStatus === "waitingForVendor" ||
+            currentStatus === "proposalSubmitted") {
+          update.status = "proposalSubmitted";
+        }
+        await requestDoc.ref.update(update);
+      }
+    }
 
     // Get vendor name
     const vendorDoc = await db.doc(`users/vendors/profiles/${vendorId}`).get();
@@ -234,13 +267,13 @@ export const onNewProposal = onDocumentCreated(
         "New Proposal Received 💬",
         `${sanitize(vendorName)} has submitted a proposal for your shopping request.`,
         proposalId,
-        {proposalId, requestId: proposal.requestId}
+        {proposalId, requestId}
       ),
       sendPushNotification(
         customerId,
         "New Proposal 💬",
         `${sanitize(vendorName)} submitted a proposal. Tap to review.`,
-        {route: `/customer/requests/${proposal.requestId}`, type: "newProposal", proposalId}
+        {route: `/customer/requests/${requestId}`, type: "newProposal", proposalId}
       ),
     ]);
   }

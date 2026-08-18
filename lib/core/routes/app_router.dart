@@ -444,15 +444,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
-        path: RouteNames.vendorProposalDetail,
-        parentNavigatorKey: rootNavigatorKey,
-        pageBuilder: (context, state) {
-          final id = state.pathParameters['id'] ?? '';
-          return _buildPage(
-              context, state, ProposalDeepLinkLoader(proposalId: id));
-        },
-      ),
-      GoRoute(
+        // Keep static routes before /vendor/proposals/:id so "edit" is not
+        // interpreted as a proposal ID.
         path: RouteNames.vendorProposalEdit,
         parentNavigatorKey: rootNavigatorKey,
         pageBuilder: (context, state) {
@@ -474,6 +467,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 request: request,
                 existingProposal: proposal,
               ));
+        },
+      ),
+      GoRoute(
+        path: RouteNames.vendorProposalDetail,
+        parentNavigatorKey: rootNavigatorKey,
+        pageBuilder: (context, state) {
+          final id = state.pathParameters['id'] ?? '';
+          return _buildPage(
+              context, state, ProposalDeepLinkLoader(proposalId: id));
         },
       ),
       GoRoute(

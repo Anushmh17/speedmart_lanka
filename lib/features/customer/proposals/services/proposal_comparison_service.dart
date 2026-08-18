@@ -86,9 +86,10 @@ class ProposalComparisonService {
     }
 
     final minPrice = allProposals
-        .map((p) => p.subtotal + getEffectiveDeliveryFee(p))
+        .map((p) => p.customerSubtotal + getEffectiveDeliveryFee(p))
         .reduce((a, b) => a < b ? a : b);
-    if (proposal.subtotal + getEffectiveDeliveryFee(proposal) == minPrice) {
+    if (proposal.customerSubtotal + getEffectiveDeliveryFee(proposal) ==
+        minPrice) {
       badges.add(ProposalBadge.bestPrice);
     }
 

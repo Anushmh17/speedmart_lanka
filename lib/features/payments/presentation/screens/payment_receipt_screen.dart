@@ -18,6 +18,12 @@ class PaymentReceiptScreen extends ConsumerWidget {
     final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+    // Older payments stored the commission in serviceFee; newer payments use
+    // platformCommission. The customer subtotal must include either value.
+    final commission = payment.platformCommission != 0
+        ? payment.platformCommission
+        : payment.serviceFee;
+    final customerSubtotal = payment.subtotal + commission;
 
     return Scaffold(
       appBar: AppBar(
@@ -65,7 +71,11 @@ class PaymentReceiptScreen extends ConsumerWidget {
                   _receiptRow('Shop', order.vendorBusinessName, primaryText),
                   _receiptRow('Payment Status', payment.paymentStatus.displayName, primaryText),
                   _receiptRow('Payment Method', payment.paymentMethod.displayName, primaryText),
-                  _receiptRow('Subtotal', 'Rs. ${payment.subtotal.toStringAsFixed(2)}', primaryText),
+                  _receiptRow(
+                    'Subtotal (incl. commission)',
+                    'Rs. ${customerSubtotal.toStringAsFixed(2)}',
+                    primaryText,
+                  ),
                   _receiptRow('Delivery Fee', 'Rs. ${payment.deliveryFee.toStringAsFixed(2)}', primaryText),
                   const Divider(),
                   _receiptRow('Total Paid', 'Rs. ${payment.amount.toStringAsFixed(2)}', AppColors.customerColor),

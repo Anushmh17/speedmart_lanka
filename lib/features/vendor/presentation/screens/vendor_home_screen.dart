@@ -26,6 +26,7 @@ import 'package:speedmart_lanka/features/requests/models/shopping_request.dart';
 import 'package:speedmart_lanka/features/shared/presentation/screens/profile_screen.dart';
 import 'package:speedmart_lanka/core/widgets/shared_floating_bottom_nav.dart';
 import 'package:speedmart_lanka/core/navigation/bottom_nav_visibility.dart';
+import 'package:speedmart_lanka/core/routes/route_names.dart';
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
 import 'package:speedmart_lanka/features/vendor/payments/presentation/vendor_commission_payment_screen.dart';
 import 'package:speedmart_lanka/features/vendor/payments/providers/vendor_commission_payment_provider.dart';
@@ -1175,8 +1176,10 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
                                     style: TextButton.styleFrom(
                                         foregroundColor: secondaryText),
                                     onPressed: () => context.push(
-                                        '/vendor/proposals/detail',
-                                        extra: proposal),
+                                        RouteNames.vendorProposalDetail.replaceFirst(
+                                          ':id',
+                                          proposal.id,
+                                        )),
                                     child: const Text('Details',
                                         style: TextStyle(fontSize: 12)),
                                   ),
@@ -1220,7 +1223,10 @@ class _MyProposalsTabState extends ConsumerState<_MyProposalsTab> {
           child: InkWell(
             borderRadius: BorderRadius.circular(AppRadius.lg),
             onTap: () =>
-                context.push('/vendor/proposals/detail', extra: proposal),
+                context.push(RouteNames.vendorProposalDetail.replaceFirst(
+                  ':id',
+                  proposal.id,
+                )),
             child: Theme3AppCard(
               margin: EdgeInsets.only(bottom: AppSpacing.sm),
               child: Column(

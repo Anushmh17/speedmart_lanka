@@ -43,7 +43,8 @@ class CustomerProposalView {
   /// including the hidden platform fee folded into the proposal total.
   double get totalPrice => proposal.totalPrice;
 
-  double get subtotal => proposal.subtotal;
+  /// Customer subtotal includes the commission already included in the bid.
+  double get subtotal => proposal.customerSubtotal;
 
   double get deliveryFee => waveDeliveryFee ? 0.0 : proposal.deliveryFee;
 

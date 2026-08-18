@@ -9,6 +9,8 @@ import '../../../../../core/theme/app_text_styles.dart';
 import '../../../../../core/widgets/theme3/theme3_empty_state.dart';
 import '../../../../proposals/providers/proposal_provider.dart';
 import '../../../../proposals/models/proposal.dart';
+import '../../../../orders/models/order_model.dart';
+import '../../../../orders/providers/order_provider.dart';
 import '../../providers/customer_proposal_comparison_provider.dart';
 import '../../models/customer_item_proposal_view.dart';
 import '../../widgets/customer_item_proposal_card.dart';
@@ -48,6 +50,7 @@ class _CustomerProposalComparisonScreenState
     super.initState();
     Future.microtask(() async {
       if (!mounted) return;
+      await ref.read(orderProvider.notifier).loadCustomerOrders();
       final proposals = await ref
           .read(proposalProvider.notifier)
           .loadProposalsForRequest(widget.requestId);
@@ -61,6 +64,7 @@ class _CustomerProposalComparisonScreenState
   // ── Pull-to-refresh ─────────────────────────────────────────────────────
 
   Future<void> _onRefresh() async {
+    await ref.read(orderProvider.notifier).loadCustomerOrders();
     final proposals = await ref
         .read(proposalProvider.notifier)
         .loadProposalsForRequest(widget.requestId);
@@ -102,6 +106,7 @@ class _CustomerProposalComparisonScreenState
               requestItemId: offer.proposalItem.requestItemId,
               requestId: widget.requestId,
             );
+        if (mounted) await _onRefresh();
       }
     });
   }
@@ -142,6 +147,7 @@ class _CustomerProposalComparisonScreenState
               requestItemId: offer.proposalItem.requestItemId,
               requestId: widget.requestId,
             );
+        if (mounted) await _onRefresh();
       }
     });
   }
@@ -177,10 +183,11 @@ class _CustomerProposalComparisonScreenState
         });
         try {
           if (mounted) {
-            context.push('/customer/payment', extra: {
+            await context.push('/customer/payment', extra: {
               'proposal': proposal,
               'requestId': widget.requestId,
             });
+            if (mounted) await _onRefresh();
           }
         } catch (e) {
           if (mounted) {
@@ -267,9 +274,17 @@ class _CustomerProposalComparisonScreenState
   // ── Pay for accepted items ───────────────────────────────────────────────
 
   void _payForAcceptedItems(List<Proposal> proposals) {
-    // Find a proposal that was accepted — use it for the payment screen.
-    final accepted =
-        proposals.where((p) => p.status == ProposalStatus.accepted).toList();
+    final orders = ref.read(orderProvider).orders;
+    // A proposal with an existing non-cancelled order has already been paid for
+    // or confirmed. Never send it through checkout a second time.
+    final accepted = proposals.where((proposal) {
+      final alreadyOrdered = orders.any(
+        (order) =>
+            order.proposalId == proposal.id &&
+            order.status != OrderStatus.cancelled,
+      );
+      return proposal.status == ProposalStatus.accepted && !alreadyOrdered;
+    }).toList();
     if (accepted.isEmpty) return;
     // Use the first accepted proposal as the primary one.
     context.push('/customer/payment', extra: {
@@ -281,6 +296,7 @@ class _CustomerProposalComparisonScreenState
   @override
   Widget build(BuildContext context) {
     final proposalState = ref.watch(proposalProvider);
+    final orderState = ref.watch(orderProvider);
     final comparisonState =
         ref.watch(customerProposalComparisonProvider(widget.requestId));
 
@@ -296,6 +312,17 @@ class _CustomerProposalComparisonScreenState
             );
       }
     });
+    ref.listen(orderProvider, (prev, next) {
+      if (prev?.orders != next.orders) {
+        ref
+            .read(
+                customerProposalComparisonProvider(widget.requestId).notifier)
+            .updateFrom(
+              proposals: proposalState.proposals,
+              request: widget.request,
+            );
+      }
+    });
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryText =
@@ -303,10 +330,20 @@ class _CustomerProposalComparisonScreenState
     final secondaryText =
         isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
 
-    final hasAcceptedProposal =
-        proposalState.proposals.any((p) => p.status == ProposalStatus.accepted);
-    final hasAnyAcceptedItem = comparisonState.itemViews
-        .any((iv) => iv.isAccepted);
+    bool hasExistingOrder(Proposal proposal) => orderState.orders.any(
+          (order) =>
+              order.proposalId == proposal.id &&
+              order.status != OrderStatus.cancelled,
+        );
+    final hasPayableAcceptedProposal = proposalState.proposals.any(
+      (proposal) =>
+          proposal.status == ProposalStatus.accepted && !hasExistingOrder(proposal),
+    );
+    final hasPayableAcceptedItem = comparisonState.itemViews.any(
+      (itemView) => itemView.vendorOffers.any(
+        (offer) => offer.isAccepted && !hasExistingOrder(offer.vendorProposal),
+      ),
+    );
 
     if (proposalState.isLoading) {
       return Scaffold(
@@ -389,7 +426,7 @@ class _CustomerProposalComparisonScreenState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // ── Accepted banner ──────────────────────────────────
-                  if (hasAcceptedProposal || hasAnyAcceptedItem)
+                  if (hasPayableAcceptedProposal || hasPayableAcceptedItem)
                     _AcceptedBanner(
                       onPay: () => _payForAcceptedItems(proposalState.proposals),
                     ),
@@ -413,6 +450,11 @@ class _CustomerProposalComparisonScreenState
                             itemView: iv,
                             onAcceptOffer: _onAcceptOffer,
                             onRejectOffer: _onRejectOffer,
+                            orderedProposalIds: orderState.orders
+                                .where((order) =>
+                                    order.status != OrderStatus.cancelled)
+                                .map((order) => order.proposalId)
+                                .toSet(),
                           )),
                     ],
                   ],
@@ -439,7 +481,9 @@ class _CustomerProposalComparisonScreenState
                       final categoryAccepted = _categoryHasAccepted(
                           view.proposal, proposalState.proposals);
                       final canAct =
-                          view.canAcceptOrReject && !categoryAccepted;
+                          view.canAcceptOrReject &&
+                              !categoryAccepted &&
+                              !hasExistingOrder(view.proposal);
                       return CustomerProposalCard(
                         view: view,
                         requestId: widget.requestId,
@@ -469,7 +513,8 @@ class _CustomerProposalComparisonScreenState
       ),
 
       // ── Floating Pay button (shown when items accepted) ──────────────
-      floatingActionButton: (hasAnyAcceptedItem || hasAcceptedProposal)
+      floatingActionButton:
+          (hasPayableAcceptedItem || hasPayableAcceptedProposal)
           ? FloatingActionButton.extended(
               backgroundColor: AppColors.customerColor,
               onPressed: () =>

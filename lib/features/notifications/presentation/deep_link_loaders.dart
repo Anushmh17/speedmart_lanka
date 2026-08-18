@@ -6,6 +6,7 @@ import 'package:speedmart_lanka/features/proposals/presentation/screens/customer
 import 'package:speedmart_lanka/features/requests/data/request_repository.dart';
 import 'package:speedmart_lanka/features/requests/presentation/screens/request_details_screen.dart';
 import 'package:speedmart_lanka/features/vendor/proposals/presentation/vendor_request_detail_screen.dart';
+import 'package:speedmart_lanka/features/vendor/proposals/presentation/vendor_proposal_detail_screen.dart';
 import 'package:speedmart_lanka/features/orders/data/order_repository.dart';
 import 'package:speedmart_lanka/features/orders/presentation/screens/order_tracking_screen.dart';
 import 'package:speedmart_lanka/shared/models/user_role.dart';
@@ -45,6 +46,10 @@ class _ProposalDeepLinkLoaderState extends ConsumerState<ProposalDeepLinkLoader>
   Widget build(BuildContext context) {
     if (_loading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
     if (_proposal == null) return const Scaffold(body: Center(child: Text('Proposal not found')));
+    final role = ref.read(currentUserProvider)?.role;
+    if (role == UserRole.vendor) {
+      return VendorProposalDetailScreen(proposal: _proposal);
+    }
     return CustomerProposalDetailsScreen(proposal: _proposal, requestId: _proposal.requestId);
   }
 }

@@ -15,12 +15,14 @@ class CustomerItemProposalCard extends StatefulWidget {
     required this.onAcceptOffer,
     required this.onRejectOffer,
     this.enabled = true,
+    this.orderedProposalIds = const {},
   });
 
   final CustomerItemProposalView itemView;
   final void Function(ItemVendorOffer offer) onAcceptOffer;
   final void Function(ItemVendorOffer offer) onRejectOffer;
   final bool enabled;
+  final Set<String> orderedProposalIds;
 
   @override
   State<CustomerItemProposalCard> createState() =>
@@ -40,8 +42,13 @@ class _CustomerItemProposalCardState extends State<CustomerItemProposalCard> {
     final iv = widget.itemView;
 
     final hasAccepted = iv.isAccepted;
+    final hasOrderedProposal = iv.vendorOffers.any(
+      (offer) => widget.orderedProposalIds.contains(offer.vendorProposal.id),
+    );
     final headerColor =
-        hasAccepted ? AppColors.success : AppColors.customerColor;
+        (hasAccepted || hasOrderedProposal)
+            ? AppColors.success
+            : AppColors.customerColor;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -95,7 +102,7 @@ class _CustomerItemProposalCardState extends State<CustomerItemProposalCard> {
                     ],
                   ),
                 ),
-                if (hasAccepted)
+                if (hasAccepted || hasOrderedProposal)
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -125,7 +132,7 @@ class _CustomerItemProposalCardState extends State<CustomerItemProposalCard> {
               primaryText: primaryText,
               secondaryText: secondaryText,
               borderColor: borderColor,
-              enabled: widget.enabled,
+              enabled: widget.enabled && !hasOrderedProposal,
               onAccept: () => widget.onAcceptOffer(offer),
               onReject: () => widget.onRejectOffer(offer),
             );

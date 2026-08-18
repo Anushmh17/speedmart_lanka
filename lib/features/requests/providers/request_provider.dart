@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../shared/models/location_model.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -8,6 +11,8 @@ import 'package:speedmart_lanka/shared/utils/category_constants.dart';
 import '../data/request_repository.dart';
 import '../../proposals/data/proposal_repository.dart';
 import '../../proposals/models/proposal.dart';
+import '../../orders/data/order_repository.dart';
+import '../../orders/models/order_model.dart';
 import '../models/request_item.dart';
 import '../models/shopping_request.dart';
 import '../../location/models/delivery_location.dart';
@@ -61,10 +66,15 @@ class RequestNotifier extends StateNotifier<RequestState> {
 
   final Ref ref;
   late final RequestRepository _repo;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>?
+      _customerProposalSubscription;
+  String? _watchedCustomerId;
+  Future<void> _customerRequestLoadQueue = Future.value();
 
   Future<void> _bootstrap() async {
     await _repo.ensureInitialized();
     await ProposalRepository.instance.ensureInitialized();
+    await OrderRepository.instance.ensureInitialized();
     final user = ref.read(currentUserProvider);
     if (user == null) return;
     if (user.role.name == 'customer') {
@@ -74,18 +84,112 @@ class RequestNotifier extends StateNotifier<RequestState> {
     }
   }
 
-  Future<void> loadMyRequests() async {
+  /// Customer startup triggers this from the provider, dashboard, and the
+  /// proposal listener. These reads share repository caches, so serializing
+  /// them prevents an older response from overwriting a newer proposal count.
+  Future<void> loadMyRequests() {
+    final Future<void> nextLoad = _customerRequestLoadQueue.then<void>(
+      (_) => _loadMyRequests(),
+      onError: (_) => _loadMyRequests(),
+    );
+    _customerRequestLoadQueue = nextLoad;
+    return nextLoad;
+  }
+
+  Future<void> _loadMyRequests() async {
     final user = ref.read(currentUserProvider);
     if (user == null) return;
 
+    _watchCustomerProposals(user.id);
+
     await _repo.ensureInitialized();
+    await ProposalRepository.instance.ensureInitialized();
+    await OrderRepository.instance.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
+      await Future.wait([
+        _repo.refreshFromFirestore(),
+        ProposalRepository.instance.refreshFromFirestore(),
+        OrderRepository.instance.refreshFromFirestore(),
+      ]);
       final requests = await _repo.getCustomerRequests(user.id);
-      state = state.copyWith(isLoading: false, requests: requests);
+      final proposals = await ProposalRepository.instance.getAllProposals();
+      final orders = await OrderRepository.instance.getOrdersForCustomer(user.id);
+
+      // Vendor apps cannot write customer requests directly. Derive the
+      // customer-facing count and status from the authoritative proposals so
+      // dashboard and list cards update even before a server refresh arrives.
+      final hydratedRequests = requests.map((request) {
+        final hasOpenCategory = request.categoryFulfillments.isNotEmpty &&
+            request.categoryFulfillments.values
+                .any((fulfillment) => fulfillment.status.canReceiveProposals);
+        final hasConfirmedOrder = orders.any(
+          (order) =>
+              order.requestId == request.id &&
+              order.status != OrderStatus.cancelled,
+        );
+        // An order closes a single-category request. For a multi-category
+        // request, preserve the remaining category offers until all categories
+        // have been resolved.
+        final isOrderCompleteForRequest = hasConfirmedOrder &&
+            (!request.isMultiCategory || !hasOpenCategory);
+        final openProposalCount = proposals
+            .where((proposal) =>
+                proposal.requestId == request.id &&
+                (proposal.status == ProposalStatus.submitted ||
+                    proposal.status == ProposalStatus.updated))
+            .length;
+        final hasNewProposal = openProposalCount > 0;
+        final shouldShowProposalStatus = hasNewProposal &&
+            (request.status == RequestStatus.submitted ||
+                request.status == RequestStatus.waitingForVendor ||
+                request.status == RequestStatus.proposalSubmitted);
+
+        return request.copyWith(
+          proposalCount:
+              isOrderCompleteForRequest ? 0 : openProposalCount,
+          status: isOrderCompleteForRequest
+              ? RequestStatus.customerAccepted
+              : shouldShowProposalStatus
+                  ? RequestStatus.proposalSubmitted
+                  : request.status,
+        );
+      }).toList();
+
+      state = state.copyWith(isLoading: false, requests: hydratedRequests);
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
     }
+  }
+
+  void _watchCustomerProposals(String customerId) {
+    if (_watchedCustomerId == customerId &&
+        _customerProposalSubscription != null) {
+      return;
+    }
+    _customerProposalSubscription?.cancel();
+    _watchedCustomerId = customerId;
+    _customerProposalSubscription = FirebaseFirestore.instance
+        .collection('proposals')
+        .where('customerId', isEqualTo: customerId)
+        .snapshots()
+        .listen(
+      (_) {
+        // A vendor submitted, edited, or withdrew a proposal. Reload the
+        // derived request count/status that customer cards display.
+        unawaited(loadMyRequests());
+      },
+      onError: (Object error) {
+        state = state.copyWith(error: error.toString());
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _customerProposalSubscription?.cancel();
+    _watchedCustomerId = null;
+    super.dispose();
   }
 
   Future<void> loadNearbyRequests() async {
@@ -297,4 +401,3 @@ class RequestNotifier extends StateNotifier<RequestState> {
 final requestProvider = StateNotifierProvider<RequestNotifier, RequestState>((ref) {
   return RequestNotifier(ref);
 });
-

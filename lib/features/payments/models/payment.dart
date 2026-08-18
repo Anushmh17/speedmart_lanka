@@ -16,7 +16,7 @@ extension PaymentMethodExtension on PaymentMethod {
       case PaymentMethod.bankTransfer:
         return 'Bank Transfer';
       case PaymentMethod.cardPlaceholder:
-        return 'Card Payment (Placeholder)';
+        return 'Card Payment';
     }
   }
 }

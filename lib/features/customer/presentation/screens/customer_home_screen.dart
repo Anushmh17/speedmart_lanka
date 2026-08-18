@@ -1066,7 +1066,7 @@ class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
                   : (request.status == RequestStatus.delivered ? Theme3StatusType.completed : Theme3StatusType.inProgress);
               
               final primaryCategory = request.categories.isNotEmpty ? request.categories.first : '';
-              final proposalCount = request.categoryFulfillments.length;
+              final proposalCount = request.proposalCount;
               final requestImages = _getRequestImages(request);
               
               return Theme3AppCard(
@@ -1484,7 +1484,13 @@ class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
     }
   }
 
-  String _formatRequestStatus(dynamic status) {
+  String _formatRequestStatus(RequestStatus status) {
+    // This status is written when a vendor sends a proposal. It is a vendor
+    // action internally, but the customer-facing dashboard should describe
+    // what the customer has received.
+    if (status == RequestStatus.proposalSubmitted) {
+      return 'Proposal Received';
+    }
     final value = status.toString().split('.').last;
     return value
         .replaceAllMapped(

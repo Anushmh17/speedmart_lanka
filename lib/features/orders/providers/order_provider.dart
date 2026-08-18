@@ -62,6 +62,7 @@ class OrderNotifier extends StateNotifier<OrderState> {
     await _repo.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
+      await _repo.refreshFromFirestore();
       final orders = await _repo.getOrdersForCustomer(user.id);
       state = state.copyWith(isLoading: false, orders: orders);
     } catch (e) {

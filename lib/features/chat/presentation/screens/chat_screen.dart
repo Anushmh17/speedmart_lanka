@@ -51,16 +51,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     super.dispose();
   }
 
-  void _sendMessage([String? customText]) {
+  Future<void> _sendMessage([String? customText]) async {
     final text = customText ?? _controller.text.trim();
     if (text.isEmpty) return;
 
-    ref.read(chatProvider.notifier).sendMessage(
-          proposalId: widget.proposalId,
-          senderRole: 'customer',
-          senderName: 'Customer',
-          text: text,
+    try {
+      await ref.read(chatProvider.notifier).sendMessage(
+            proposalId: widget.proposalId,
+            senderRole: 'customer',
+            senderName: 'Customer',
+            text: text,
+          );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Message could not be sent. Please try again.')),
         );
+      }
+      return;
+    }
 
     if (customText == null) {
       _controller.clear();

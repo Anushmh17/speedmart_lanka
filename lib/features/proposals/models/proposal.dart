@@ -198,6 +198,7 @@ class ProposalItem {
 class Proposal {
   final String id;
   final String requestId;
+  final String customerId;
   final String vendorId;
   final String vendorBusinessName;
   final List<ProposalItem> items;
@@ -225,6 +226,7 @@ class Proposal {
   Proposal({
     required this.id,
     required this.requestId,
+    this.customerId = '',
     required this.vendorId,
     required this.vendorBusinessName,
     required this.items,
@@ -251,6 +253,28 @@ class Proposal {
 
   double get deliveryFee => deliveryCharge;
 
+  /// Commission is included in [totalPrice] when a vendor submits a proposal.
+  /// Keep the vendor's item prices unchanged, but expose customer-facing
+  /// amounts so every visible subtotal agrees with the final proposal total.
+  double get platformCommission {
+    final amount = totalPrice - subtotal - deliveryFee;
+    return amount > 0 ? amount : 0;
+  }
+
+  double get customerSubtotal => subtotal + platformCommission;
+
+  double customerItemTotal(ProposalItem item) {
+    if (item.status == ProposalItemStatus.unavailable || subtotal <= 0) {
+      return item.subtotal;
+    }
+    return item.subtotal + (platformCommission * item.subtotal / subtotal);
+  }
+
+  double customerUnitPrice(ProposalItem item) {
+    if (item.quantity <= 0) return 0;
+    return customerItemTotal(item) / item.quantity;
+  }
+
   bool get canEdit => status.isEditableByVendor;
 
   bool get canWithdraw => status.isEditableByVendor;
@@ -258,6 +282,7 @@ class Proposal {
   Proposal copyWith({
     String? id,
     String? requestId,
+    String? customerId,
     String? vendorId,
     String? vendorBusinessName,
     List<ProposalItem>? items,
@@ -282,6 +307,7 @@ class Proposal {
     return Proposal(
       id: id ?? this.id,
       requestId: requestId ?? this.requestId,
+      customerId: customerId ?? this.customerId,
       vendorId: vendorId ?? this.vendorId,
       vendorBusinessName: vendorBusinessName ?? this.vendorBusinessName,
       items: items ?? this.items,
@@ -311,6 +337,7 @@ class Proposal {
     return {
       'id': id,
       'requestId': requestId,
+      'customerId': customerId,
       'vendorId': vendorId,
       'vendorBusinessName': vendorBusinessName,
       'items': items.map((i) => i.toJson()).toList(),
@@ -352,6 +379,7 @@ class Proposal {
     return Proposal(
       id: json['id'] as String? ?? '',
       requestId: json['requestId'] as String? ?? '',
+      customerId: json['customerId'] as String? ?? '',
       vendorId: json['vendorId'] as String? ?? '',
       vendorBusinessName: json['vendorBusinessName'] as String? ?? '',
       items: (json['items'] as List<dynamic>? ?? [])

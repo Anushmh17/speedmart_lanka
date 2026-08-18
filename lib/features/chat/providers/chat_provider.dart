@@ -91,6 +91,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
     required String senderName,
     required String text,
   }) async {
+    final senderId = ref.read(authProvider).user?.id;
+    if (senderId == null || senderId.isEmpty) {
+      throw StateError('Sign in again before sending a message.');
+    }
+
     final masked = maskSensitiveDetails(text);
 
     final proposalDoc = await FirebaseFirestore.instance.collection('proposals').doc(proposalId).get();
@@ -102,6 +107,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     final messageData = {
       'proposalId': proposalId,
+      'senderId': senderId,
       'senderRole': senderRole,
       'senderName': senderName,
       'text': text,
@@ -140,4 +146,3 @@ class ChatNotifier extends StateNotifier<ChatState> {
 final chatProvider = StateNotifierProvider<ChatNotifier, ChatState>((ref) {
   return ChatNotifier(ref);
 });
-

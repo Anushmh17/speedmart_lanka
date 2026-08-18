@@ -54,7 +54,9 @@ class ItemVendorOffer {
     }
   }
 
-  double get itemSubtotal => proposalItem.subtotal;
+  /// Customer item amount includes its proportional share of the commission
+  /// that is already included in the proposal total.
+  double get itemSubtotal => vendorProposal.customerItemTotal(proposalItem);
 }
 
 /// Customer-facing item-level proposal view.

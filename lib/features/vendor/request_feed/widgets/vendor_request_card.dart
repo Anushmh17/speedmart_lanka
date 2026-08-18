@@ -103,8 +103,7 @@ class VendorRequestCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(AppRadius.lg),
             onTap: () {
               context.push(
-                '/vendor/requests/detail',
-                extra: feedRequest.request,
+                '/vendor/requests/${feedRequest.requestId}',
               );
             },
             child: Padding(
@@ -261,8 +260,7 @@ class VendorRequestCard extends StatelessWidget {
                       ),
                       onPressed: () {
                         context.push(
-                          '/vendor/requests/detail',
-                          extra: feedRequest.request,
+                          '/vendor/requests/${feedRequest.requestId}',
                         );
                       },
                       icon: const Icon(Icons.send_rounded, size: 16),

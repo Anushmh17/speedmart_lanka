@@ -268,12 +268,13 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                             ),
                             const SizedBox(height: 3),
                             Text(
-                                'Qty: ${item.quantity} | Unit: Rs. ${item.price.toStringAsFixed(0)}',
+                                'Qty: ${item.quantity} | Unit (incl. commission): Rs. ${activeOrder.customerUnitPrice(item).toStringAsFixed(0)}',
                                 style: AppTextStyles.caption(secondaryText)),
                           ],
                         ),
                       ),
-                      Text('Rs. ${item.totalPrice.toStringAsFixed(2)}',
+                      Text(
+                          'Rs. ${activeOrder.customerItemTotal(item).toStringAsFixed(2)}',
                           style: AppTextStyles.bodyMedium(primaryText)),
                     ],
                   ),
@@ -308,6 +309,17 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                       Text('Payment Method:',
                           style: AppTextStyles.bodyMedium(secondaryText)),
                       Text(activeOrder.paymentMethod.displayName,
+                          style: AppTextStyles.bodyMedium(primaryText)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Shipping Fee:',
+                          style: AppTextStyles.bodyMedium(secondaryText)),
+                      Text(
+                          'Rs. ${activeOrder.deliveryCharge.toStringAsFixed(2)}',
                           style: AppTextStyles.bodyMedium(primaryText)),
                     ],
                   ),
@@ -426,7 +438,9 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
       builder: (ctx) {
         final isDarkCtx = Theme.of(ctx).brightness == Brightness.dark;
         final txtColor = isDarkCtx ? Colors.white : Colors.black;
-        final subtotal = activeOrder.totalPrice - activeOrder.deliveryCharge;
+        // totalPrice already includes the platform commission. Keep delivery
+        // separate and show a subtotal that reconciles with the total paid.
+        final subtotal = activeOrder.customerSubtotal;
 
         return AlertDialog(
           backgroundColor:
@@ -471,7 +485,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                 _buildReceiptRow('Payment Method',
                     activeOrder.paymentMethod.displayName, txtColor),
                 const Divider(height: 20),
-                _buildReceiptRow('Items Subtotal',
+                _buildReceiptRow('Subtotal (incl. commission)',
                     'Rs. ${subtotal.toStringAsFixed(2)}', txtColor),
                 _buildReceiptRow('Delivery Charge',
                     'Rs. ${activeOrder.deliveryCharge.toStringAsFixed(2)}',
@@ -712,7 +726,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                   pw.Row(
                     mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                     children: [
-                      pw.Text('Items Subtotal', style: pw.TextStyle(fontSize: 12, color: PdfColors.grey800)),
+                      pw.Text('Subtotal (incl. commission)', style: pw.TextStyle(fontSize: 12, color: PdfColors.grey800)),
                       pw.Text('Rs. ${subtotal.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold)),
                     ],
                   ),
@@ -793,14 +807,14 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
   }
 
   pw.Widget _buildReceiptItemsTable(OrderModel activeOrder) {
-    final headers = ['Item', 'Qty', 'Unit Price', 'Total'];
+    final headers = ['Item', 'Qty', 'Unit (incl. fee)', 'Total (incl. fee)'];
     final rows = activeOrder.items
         .where((item) => item.status != ProposalItemStatus.unavailable)
         .map((item) => [
               item.itemName,
               item.quantity.toString(),
-              'Rs. ${item.price.toStringAsFixed(2)}',
-              'Rs. ${item.totalPrice.toStringAsFixed(2)}',
+              'Rs. ${activeOrder.customerUnitPrice(item).toStringAsFixed(2)}',
+              'Rs. ${activeOrder.customerItemTotal(item).toStringAsFixed(2)}',
             ])
         .toList();
 
@@ -848,5 +862,3 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
     );
   }
 }
-
-

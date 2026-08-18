@@ -838,7 +838,10 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
         }
       }
       
-      await ref.read(authProvider.notifier).loginVendorAfterOtp(email);
+      await ref.read(authProvider.notifier).loginVendorAfterOtp(
+            email: email,
+            password: _vendorLoginPasswordCtrl.text,
+          );
       if (!mounted) return;
       final authState = ref.read(authProvider);
       if (authState.hasError) {

@@ -83,6 +83,24 @@ class OrderRepository {
     await _syncOrdersToFirestore(_orders);
   }
 
+  /// Reload orders created or updated on another device/session. Keep the
+  /// existing cache if the server cannot be reached.
+  Future<void> refreshFromFirestore() async {
+    if (FirebaseAuth.instance.currentUser == null) return;
+    try {
+      final query = await _ordersCollection
+          .limit(500)
+          .get(const GetOptions(source: Source.server));
+      _orders
+        ..clear()
+        ..addAll(query.docs.map(
+          (doc) => OrderModel.fromJson({...doc.data(), 'id': doc.id}),
+        ));
+    } catch (e) {
+      debugPrint('[Order] Failed to refresh orders from Firestore: $e');
+    }
+  }
+
   Future<List<OrderModel>> getAllOrders() async {
     await ensureInitialized();
     await Future.delayed(const Duration(milliseconds: 300));
@@ -154,4 +172,3 @@ class OrderRepository {
     }
   }
 }
-

@@ -70,7 +70,9 @@ class VendorRequestFilterService {
     ShoppingRequest request,
     List<String> vendorCategories,
   ) {
-    if (vendorCategories.isEmpty) return request.items;
+    // A vendor must have at least one approved category to access requests.
+    // Do not expose every request when the vendor profile is missing categories.
+    if (vendorCategories.isEmpty) return const [];
 
     // Normalize vendor categories using VendorCategories.normalize()
     final vendorNormalized = vendorCategories
@@ -81,10 +83,11 @@ class VendorRequestFilterService {
     debugPrint('[FeedCategoryFix] Vendor normalized categories: $vendorNormalized');
 
     final matchingItems = request.items.where((item) {
-      // Items with no category are visible to all vendors.
+      // Requests are required to have categorized items. Hide legacy or
+      // malformed uncategorized items instead of exposing them to all vendors.
       if (item.category == null || item.category!.isEmpty) {
-        debugPrint('[FeedCategoryFix] Item "${item.itemName}" has no category, including for all vendors');
-        return true;
+        debugPrint('[FeedCategoryFix] Item "${item.itemName}" has no category, excluding from vendor feed');
+        return false;
       }
 
       final originalCategory = item.category!;

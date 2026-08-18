@@ -12,6 +12,7 @@ import 'package:speedmart_lanka/features/proposals/models/proposal.dart';
 import 'package:speedmart_lanka/features/proposals/providers/proposal_provider.dart';
 import 'package:speedmart_lanka/features/requests/models/shopping_request.dart';
 import 'package:speedmart_lanka/features/requests/models/request_category_fulfillment.dart';
+import 'package:speedmart_lanka/features/requests/data/request_repository.dart';
 import 'package:speedmart_lanka/features/requests/providers/request_provider.dart';
 import 'package:speedmart_lanka/features/notifications/models/notification_type.dart';
 import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart'
@@ -21,6 +22,7 @@ import 'package:speedmart_lanka/features/payments/providers/payment_provider.dar
 import 'package:speedmart_lanka/features/auth/data/auth_repository.dart';
 import 'package:speedmart_lanka/shared/models/user_model.dart';
 import 'package:speedmart_lanka/shared/models/user_role.dart';
+import 'package:speedmart_lanka/shared/utils/category_constants.dart';
 
 class AcceptedVendorGroup {
   final Proposal proposal;
@@ -200,6 +202,23 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     );
   }
 
+  Proposal _scopeProposalToItems(
+    Proposal proposal,
+    List<ProposalItem> selectedItems,
+  ) {
+    if (selectedItems.length == proposal.items.length) return proposal;
+    final selectedSubtotal =
+        selectedItems.fold<double>(0, (sum, item) => sum + item.subtotal);
+    final proportionalCommission = proposal.subtotal > 0
+        ? proposal.platformCommission * selectedSubtotal / proposal.subtotal
+        : 0.0;
+    return proposal.copyWith(
+      items: selectedItems,
+      totalPrice:
+          selectedSubtotal + proposal.deliveryCharge + proportionalCommission,
+    );
+  }
+
   Future<void> _handleConfirmPayment(List<AcceptedVendorGroup> groups) async {
     if (_isProcessing) return;
 
@@ -229,7 +248,17 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     if (_selectedMethod == PaymentMethod.cardPlaceholder) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('This payment method is a placeholder in mock mode.'),
+          content: Text('Card payment is currently unavailable.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    if (_selectedMethod == PaymentMethod.online) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Online payment is currently unavailable.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -241,6 +270,28 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     });
 
     try {
+      // Refresh before creating payment/order records. This protects against a
+      // stale proposal screen being used after the order was already placed.
+      await ref.read(orderProvider.notifier).loadCustomerOrders();
+      final existingProposalIds = ref
+          .read(orderProvider)
+          .orders
+          .where((order) => order.status != OrderStatus.cancelled)
+          .map((order) => order.proposalId)
+          .toSet();
+      if (groups.any((group) => existingProposalIds.contains(group.proposal.id))) {
+        if (mounted) {
+          setState(() => _isProcessing = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('An order has already been placed for this proposal.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+        return;
+      }
+
       final double customerLat = _request!.latitude;
       final double customerLng = _request!.longitude;
       final deliveryAddress = _request!.deliveryAddress.isNotEmpty
@@ -252,6 +303,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
       final updatedFulfillments = Map<String, RequestCategoryFulfillment>.from(
           _request!.categoryFulfillments);
+      final paymentStatusByCategory = <String, RequestCategoryStatus>{};
 
       for (final group in groups) {
         final subtotal = group.subtotal;
@@ -277,11 +329,21 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         debugPrint('[PaymentAudit] Customer pays: $customerAmount');
         debugPrint('[PaymentAudit] Vendor receives: $vendorNetAmount');
 
+        final acceptedItemIds =
+            group.acceptedItems.map((item) => item.requestItemId).toSet();
+        final categoryScope = _request!.items
+            .where((item) => acceptedItemIds.contains(item.id))
+            .map((item) => VendorCategories.normalize(item.category ?? ''))
+            .where((category) => category.isNotEmpty)
+            .toSet()
+            .toList();
+
         // Only mark the proposal accepted after the customer has actually confirmed payment.
         if (group.proposal.status != ProposalStatus.accepted) {
           await ref.read(proposalProvider.notifier).acceptProposal(
                 group.proposal.id,
                 widget.requestId,
+                categoryScope: categoryScope,
               );
         }
 
@@ -423,25 +485,49 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                   status: RequestCategoryStatus.codConfirmed,
                   codConfirmedAt: DateTime.now(),
                 );
+                paymentStatusByCategory[category] =
+                    RequestCategoryStatus.codConfirmed;
               } else if (_selectedMethod == PaymentMethod.online) {
                 updatedFulfillments[category] = currentFulfillment.copyWith(
                   status: RequestCategoryStatus.paid,
                   paidAt: DateTime.now(),
                 );
+                paymentStatusByCategory[category] =
+                    RequestCategoryStatus.paid;
               } else if (_selectedMethod == PaymentMethod.bankTransfer) {
                 // Bank transfer is pending external confirmation — treat same as COD for now
                 updatedFulfillments[category] = currentFulfillment.copyWith(
                   status: RequestCategoryStatus.codConfirmed,
                   codConfirmedAt: DateTime.now(),
                 );
+                paymentStatusByCategory[category] =
+                    RequestCategoryStatus.codConfirmed;
               }
             }
           }
         }
       }
 
-      final updatedRequest = _request!.copyWith(
-        categoryFulfillments: updatedFulfillments,
+      // placeOrder and acceptProposal update the request while checkout is in
+      // progress. Reload before persisting the payment state so a stale screen
+      // cannot reopen the request or erase another category's fulfillment.
+      final latestRequest =
+          await RequestRepository.instance.getRequestById(widget.requestId) ??
+              _request!;
+      final finalFulfillments =
+          Map<String, RequestCategoryFulfillment>.from(
+        latestRequest.categoryFulfillments,
+      );
+      for (final entry in paymentStatusByCategory.entries) {
+        final fulfillment = finalFulfillments[entry.key];
+        if (fulfillment == null) continue;
+        final now = DateTime.now();
+        finalFulfillments[entry.key] = entry.value == RequestCategoryStatus.paid
+            ? fulfillment.copyWith(status: entry.value, paidAt: now)
+            : fulfillment.copyWith(status: entry.value, codConfirmedAt: now);
+      }
+      final updatedRequest = latestRequest.copyWith(
+        categoryFulfillments: finalFulfillments,
         updatedAt: DateTime.now(),
       );
 
@@ -637,34 +723,29 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       return false;
     }
 
-    for (final p in proposals) {
-      if (p.requestId != widget.requestId) continue;
+    bool hasExistingOrderForProposal(Proposal proposal) => customerOrders.any(
+          (order) =>
+              order.proposalId == proposal.id &&
+              order.status != OrderStatus.cancelled,
+        );
 
-      final List<ProposalItem> items;
-      if (hasExplicitAcceptedItems) {
-        items = p.items
+    if (hasExplicitAcceptedItems) {
+      for (final p in proposals) {
+        if (p.requestId != widget.requestId || hasExistingOrderForProposal(p)) {
+          continue;
+        }
+        final items = p.items
             .where((i) => i.customerDecision == ProposalItemDecision.accepted)
             .toList();
-      } else {
-        if (p.status == ProposalStatus.accepted || p.id == widget.proposal.id) {
-          items = p.items
-              .where((i) => i.status != ProposalItemStatus.unavailable)
-              .toList();
-        } else {
-          items = [];
+        if (items.isNotEmpty) {
+          acceptedGroups.add(AcceptedVendorGroup(
+            proposal: _scopeProposalToItems(p, items),
+            acceptedItems: items,
+            waveDeliveryCharge: checkWaveDeliveryCharge(p),
+          ));
         }
       }
-
-      if (items.isNotEmpty) {
-        acceptedGroups.add(AcceptedVendorGroup(
-          proposal: p,
-          acceptedItems: items,
-          waveDeliveryCharge: checkWaveDeliveryCharge(p),
-        ));
-      }
-    }
-
-    if (acceptedGroups.isEmpty) {
+    } else if (!hasExistingOrderForProposal(widget.proposal)) {
       acceptedGroups.add(AcceptedVendorGroup(
         proposal: widget.proposal,
         acceptedItems: widget.proposal.items
@@ -672,6 +753,30 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             .toList(),
         waveDeliveryCharge: checkWaveDeliveryCharge(widget.proposal),
       ));
+    }
+
+    if (acceptedGroups.isEmpty) {
+      return Scaffold(
+        backgroundColor:
+            isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
+        appBar: AppBar(
+          title: const Text('Checkout & Payment'),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded),
+            onPressed: () => context.pop(),
+          ),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              'This proposal already has an order. You can track it from My Orders.',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.bodyMedium(primaryText),
+            ),
+          ),
+        ),
+      );
     }
 
     final grandTotal =
@@ -887,6 +992,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                             );
                         final isLoadingAvailability =
                             snapshot.connectionState == ConnectionState.waiting;
+                        final unavailableColor = Theme.of(context).disabledColor;
                         return Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
@@ -931,22 +1037,21 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                               RadioListTile<PaymentMethod>(
                                 title: Row(
                                   children: [
-                                    const Icon(Icons.payment_outlined,
-                                        color: AppColors.customerColor),
+                                    Icon(Icons.payment_outlined,
+                                        color: unavailableColor),
                                     const SizedBox(width: 12),
                                     Text('Online Payment',
                                         style: AppTextStyles.bodyMedium(
-                                            primaryText)),
+                                            unavailableColor)),
                                   ],
                                 ),
                                 value: PaymentMethod.online,
                                 groupValue: _selectedMethod,
                                 activeColor: AppColors.customerColor,
-                                onChanged: (val) {
-                                  setState(() {
-                                    _selectedMethod = val!;
-                                  });
-                                },
+                                onChanged: null,
+                                subtitle: Text('Currently unavailable',
+                                    style: AppTextStyles.caption(
+                                        unavailableColor)),
                               ),
                               const Divider(height: 1),
                               RadioListTile<PaymentMethod>(
@@ -980,22 +1085,21 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                               RadioListTile<PaymentMethod>(
                                 title: Row(
                                   children: [
-                                    const Icon(Icons.credit_card_outlined,
-                                        color: AppColors.customerColor),
+                                    Icon(Icons.credit_card_outlined,
+                                        color: unavailableColor),
                                     const SizedBox(width: 12),
-                                    Text('Card Payment (Placeholder)',
+                                    Text('Card Payment',
                                         style: AppTextStyles.bodyMedium(
-                                            primaryText)),
+                                            unavailableColor)),
                                   ],
                                 ),
                                 value: PaymentMethod.cardPlaceholder,
                                 groupValue: _selectedMethod,
                                 activeColor: AppColors.customerColor,
-                                onChanged: (val) {
-                                  setState(() {
-                                    _selectedMethod = val!;
-                                  });
-                                },
+                                onChanged: null,
+                                subtitle: Text('Currently unavailable',
+                                    style: AppTextStyles.caption(
+                                        unavailableColor)),
                               ),
                             ],
                           ),
@@ -1240,7 +1344,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                                   : _selectedMethod ==
                                           PaymentMethod.bankTransfer
                                       ? 'Proceed to Bank Transfer'
-                                      : 'Placeholder payment method',
+                                      : 'Confirm Payment',
                           style: AppTextStyles.button(Colors.white),
                         ),
                       ),

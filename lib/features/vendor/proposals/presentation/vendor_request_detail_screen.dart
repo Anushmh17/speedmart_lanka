@@ -8,6 +8,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_radius.dart';
+import '../../../../core/routes/route_names.dart';
 import '../../../../shared/utils/category_constants.dart';
 import '../../../customer/delivery_address/utils/vendor_delivery_privacy.dart';
 import '../../../proposals/models/proposal.dart';
@@ -248,8 +249,10 @@ class _VendorRequestDetailScreenState
                         child: TextButton(
                           onPressed: () {
                             context.push(
-                              '/vendor/proposals/detail',
-                              extra: _existingProposal,
+                              RouteNames.vendorProposalDetail.replaceFirst(
+                                ':id',
+                                _existingProposal!.id,
+                              ),
                             );
                           },
                           child: const Text('View proposal & messages'),
@@ -284,8 +287,10 @@ class _VendorRequestDetailScreenState
                             );
                           } else {
                             context.push(
-                              '/vendor/proposals/detail',
-                              extra: _existingProposal,
+                              RouteNames.vendorProposalDetail.replaceFirst(
+                                ':id',
+                                _existingProposal!.id,
+                              ),
                             );
                           }
                         },

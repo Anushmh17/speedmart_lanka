@@ -32,7 +32,9 @@ class ProposalRepository {
   Future<List<Map<String, dynamic>>> _fetchProposalsFromFirestore() async {
     if (FirebaseAuth.instance.currentUser == null) return [];
     try {
-      final query = await _proposalsCollection.limit(500).get();
+      final query = await _proposalsCollection
+          .limit(500)
+          .get(const GetOptions(source: Source.server));
       return query.docs.map((doc) => {
             ...doc.data(),
             'id': doc.id,
@@ -84,6 +86,24 @@ class ProposalRepository {
     }
 
     _isInitialized = true;
+  }
+
+  /// Refreshes proposals created or updated by another signed-in user.
+  Future<void> refreshFromFirestore() async {
+    if (FirebaseAuth.instance.currentUser == null) return;
+    try {
+      final query = await _proposalsCollection
+          .limit(500)
+          .get(const GetOptions(source: Source.server));
+      final refreshed = query.docs
+          .map((doc) => Proposal.fromJson({...doc.data(), 'id': doc.id}))
+          .toList();
+      _proposals
+        ..clear()
+        ..addAll(await _patchVendorCoords(refreshed));
+    } catch (e) {
+      debugPrint('[Proposal] Failed to refresh proposals from Firestore: $e');
+    }
   }
 
   /// Patches vendorLatitude/vendorLongitude on loaded proposals using the
@@ -353,4 +373,3 @@ class ProposalRepository {
     await _persistProposals();
   }
 }
-

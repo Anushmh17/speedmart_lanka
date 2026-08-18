@@ -10,6 +10,8 @@ import '../../../../core/theme/app_text_styles.dart';
 import '../../models/proposal.dart';
 import '../../providers/proposal_provider.dart';
 import '../../../customer/proposals/services/proposal_comparison_service.dart';
+import '../../../orders/models/order_model.dart';
+import '../../../orders/providers/order_provider.dart';
 import '../../../vendor/proposals/widgets/image_gallery_viewer.dart';
 import '../../../../core/widgets/theme3/theme3_app_button.dart';
 import 'customer_proposal_details_screen_header.dart';
@@ -42,6 +44,22 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
 
   bool _isProcessingAccept = false;
 
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(
+      () => ref.read(orderProvider.notifier).loadCustomerOrders(),
+    );
+  }
+
+  Proposal get _currentProposal {
+    final proposals = ref.read(proposalProvider).proposals;
+    return proposals.firstWhere(
+      (proposal) => proposal.id == widget.proposal.id,
+      orElse: () => widget.proposal,
+    );
+  }
+
   Future<void> _handleAccept() async {
     if (_isProcessingAccept) return;
     final online = await ConnectivityService.instance.isOnline();
@@ -56,10 +74,13 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
     });
     try {
       if (!mounted) return;
-      context.push('/customer/payment', extra: {
-        'proposal': widget.proposal,
+      await context.push('/customer/payment', extra: {
+        'proposal': _currentProposal,
         'requestId': widget.requestId,
       });
+      if (mounted) {
+        await ref.read(orderProvider.notifier).loadCustomerOrders();
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -86,7 +107,11 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
       );
       return;
     }
-    await ref.read(proposalProvider.notifier).rejectProposal(widget.proposal.id, widget.requestId, reason);
+    await ref.read(proposalProvider.notifier).rejectProposal(
+          _currentProposal.id,
+          widget.requestId,
+          reason,
+        );
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -109,7 +134,7 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
       return;
     }
     await ref.read(proposalProvider.notifier).sendControlledMessage(
-          widget.proposal.id,
+          _currentProposal.id,
           customerMsg: _selectedControlledMsg,
         );
     if (mounted) {
@@ -163,12 +188,25 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
     final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+    final proposalState = ref.watch(proposalProvider);
+    final proposal = proposalState.proposals.firstWhere(
+      (candidate) => candidate.id == widget.proposal.id,
+      orElse: () => widget.proposal,
+    );
+    final hasOrder = ref.watch(orderProvider).orders.any(
+          (order) =>
+              order.proposalId == proposal.id &&
+              order.status != OrderStatus.cancelled,
+        );
+    final canAcceptOrReject = !hasOrder &&
+        (proposal.status == ProposalStatus.submitted ||
+            proposal.status == ProposalStatus.updated);
 
     const comparisonService = ProposalComparisonService();
     final maskedVendorName =
-        comparisonService.maskedVendorName(widget.proposal.vendorId);
+        comparisonService.maskedVendorName(proposal.vendorId);
     final rating =
-        comparisonService.ratingPlaceholderFor(widget.proposal.vendorId);
+        comparisonService.ratingPlaceholderFor(proposal.vendorId);
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
@@ -214,8 +252,8 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                           icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
                           label: const Text('Chat with Shop Owner (Secure Link)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                           onPressed: () {
-                            final item = widget.proposal.items.isNotEmpty
-                                ? widget.proposal.items.first
+                            final item = proposal.items.isNotEmpty
+                                ? proposal.items.first
                                 : null;
                             final autoMsg = item != null
                                 ? _buildItemChatMessage(item)
@@ -223,7 +261,7 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                             context.push(
                               '/chat',
                               extra: {
-                                'proposalId': widget.proposal.id,
+                                'proposalId': proposal.id,
                                 'vendorName': maskedVendorName,
                                 'isUnlocked': false,
                                 'autoMessage': autoMsg,
@@ -248,7 +286,7 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                   const SizedBox(height: 12),
 
                   // Item Availability Summary
-                  _buildItemAvailabilitySummary(widget.proposal, cardColor, borderColor, primaryText, secondaryText),
+                  _buildItemAvailabilitySummary(proposal, cardColor, borderColor, primaryText, secondaryText),
                   const SizedBox(height: 24),
 
                   Text('Proposal Items Detail', style: AppTextStyles.h2(primaryText)),
@@ -259,9 +297,9 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     padding: EdgeInsets.zero,
-                    itemCount: widget.proposal.items.length,
+                    itemCount: proposal.items.length,
                     itemBuilder: (context, index) {
-                      final sortedItems = [...widget.proposal.items]
+                      final sortedItems = [...proposal.items]
                         ..sort((a, b) {
                           int rank(ProposalItemStatus s) {
                             if (s == ProposalItemStatus.available) return 0;
@@ -345,11 +383,11 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                                 ),
                                 child: Column(
                                   children: [
-                                    _priceRow('Unit Price', 'Rs. ${item.price.toStringAsFixed(2)}', secondaryText, primaryText),
+                                    _priceRow('Unit Price (incl. commission)', 'Rs. ${proposal.customerUnitPrice(item).toStringAsFixed(2)}', secondaryText, primaryText),
                                     const SizedBox(height: 4),
-                                    _priceRow('Qty × Unit', '${item.quantity} × Rs. ${item.price.toStringAsFixed(2)}', secondaryText, secondaryText),
+                                    _priceRow('Qty × Unit', '${item.quantity} × Rs. ${proposal.customerUnitPrice(item).toStringAsFixed(2)}', secondaryText, secondaryText),
                                     const Divider(height: 14),
-                                    _priceRow('Item Total', 'Rs. ${item.totalPrice.toStringAsFixed(2)}', primaryText, AppColors.success, bold: true),
+                                    _priceRow('Item Total (incl. commission)', 'Rs. ${proposal.customerItemTotal(item).toStringAsFixed(2)}', primaryText, AppColors.success, bold: true),
                                   ],
                                 ),
                               ),
@@ -396,11 +434,11 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                                 ),
                                 child: Column(
                                   children: [
-                                    _priceRow('Unit Price', 'Rs. ${item.price.toStringAsFixed(2)}', secondaryText, primaryText),
+                                    _priceRow('Unit Price (incl. commission)', 'Rs. ${proposal.customerUnitPrice(item).toStringAsFixed(2)}', secondaryText, primaryText),
                                     const SizedBox(height: 4),
-                                    _priceRow('Qty × Unit', '${item.quantity} × Rs. ${item.price.toStringAsFixed(2)}', secondaryText, secondaryText),
+                                    _priceRow('Qty × Unit', '${item.quantity} × Rs. ${proposal.customerUnitPrice(item).toStringAsFixed(2)}', secondaryText, secondaryText),
                                     const Divider(height: 14),
-                                    _priceRow('Item Total', 'Rs. ${item.totalPrice.toStringAsFixed(2)}', primaryText, AppColors.warning, bold: true),
+                                    _priceRow('Item Total (incl. commission)', 'Rs. ${proposal.customerItemTotal(item).toStringAsFixed(2)}', primaryText, AppColors.warning, bold: true),
                                   ],
                                 ),
                               ),
@@ -431,16 +469,18 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                     ),
                     child: Column(
                       children: [
-                        _priceRow('Estimated Delivery', widget.proposal.estimatedDeliveryTime, secondaryText, primaryText),
+                        _priceRow('Items Subtotal (incl. commission)', 'Rs. ${proposal.customerSubtotal.toStringAsFixed(2)}', secondaryText, primaryText),
                         const SizedBox(height: 10),
-                        _priceRow('Delivery Charge', 'Rs. ${widget.proposal.deliveryCharge.toStringAsFixed(2)}', secondaryText, primaryText),
+                        _priceRow('Estimated Delivery', proposal.estimatedDeliveryTime, secondaryText, primaryText),
+                        const SizedBox(height: 10),
+                        _priceRow('Delivery Charge', 'Rs. ${proposal.deliveryCharge.toStringAsFixed(2)}', secondaryText, primaryText),
                         const Divider(height: 24),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Text('Total Proposal Bid', style: AppTextStyles.subtitle(primaryText)),
                             Text(
-                              'Rs. ${widget.proposal.totalPrice.toStringAsFixed(2)}',
+                              'Rs. ${proposal.totalPrice.toStringAsFixed(2)}',
                               style: AppTextStyles.h1(AppColors.customerColor),
                             ),
                           ],
@@ -451,7 +491,7 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                   const SizedBox(height: 24),
 
                   // Controlled Communication Log
-                  if (widget.proposal.customerResponse != null || widget.proposal.vendorResponse != null) ...[
+                  if (proposal.customerResponse != null || proposal.vendorResponse != null) ...[
                     Text('Predefined Response Log', style: AppTextStyles.h2(primaryText)),
                     const SizedBox(height: 8),
                     Container(
@@ -465,12 +505,12 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (widget.proposal.customerResponse != null) ...[
-                            Text('You: "${widget.proposal.customerResponse}"', style: AppTextStyles.bodyMedium(AppColors.customerColor)),
+                          if (proposal.customerResponse != null) ...[
+                            Text('You: "${proposal.customerResponse}"', style: AppTextStyles.bodyMedium(AppColors.customerColor)),
                             const SizedBox(height: 8),
                           ],
-                          if (widget.proposal.vendorResponse != null)
-                            Text('Shop Owner: "${widget.proposal.vendorResponse}"', style: AppTextStyles.bodyMedium(AppColors.vendorColor)),
+                          if (proposal.vendorResponse != null)
+                            Text('Shop Owner: "${proposal.vendorResponse}"', style: AppTextStyles.bodyMedium(AppColors.vendorColor)),
                         ],
                       ),
                     ),
@@ -478,8 +518,7 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                   ],
 
                   // Suggested Predefined Responses (Controlled Communication)
-                  if (widget.proposal.status == ProposalStatus.submitted ||
-                      widget.proposal.status == ProposalStatus.updated) ...[
+                  if (canAcceptOrReject) ...[
                     Text('Send Predefined Response', style: AppTextStyles.h2(primaryText)),
                     const SizedBox(height: 8),
                     Container(
@@ -534,8 +573,7 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
           ),
 
           // Accept / Reject Buttons
-          if (widget.proposal.status == ProposalStatus.submitted ||
-              widget.proposal.status == ProposalStatus.updated)
+          if (canAcceptOrReject)
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(

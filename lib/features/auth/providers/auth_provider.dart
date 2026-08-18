@@ -27,17 +27,27 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final localSessionId = await StorageService.getSessionId();
     if (localSessionId == null) return;
     
-    _userSubscription = _repo.userStream(user.id, user.role).listen((snapshot) async {
-      if (!snapshot.exists) {
-        logout();
-        return;
-      }
-      final latestUser = UserModel.fromJson({...snapshot.data()!, 'id': snapshot.id});
-      if (latestUser.activeSessions != null && !latestUser.activeSessions!.contains(localSessionId)) {
-        debugPrint('[Auth] Session $localSessionId is no longer active. Forcing logout.');
-        logout();
-      }
-    });
+    _userSubscription = _repo.userStream(user.id, user.role).listen(
+      (snapshot) {
+        if (!snapshot.exists) {
+          unawaited(logout());
+          return;
+        }
+        final latestUser =
+            UserModel.fromJson({...snapshot.data()!, 'id': snapshot.id});
+        if (latestUser.activeSessions != null &&
+            !latestUser.activeSessions!.contains(localSessionId)) {
+          debugPrint(
+              '[Auth] Session $localSessionId is no longer active. Forcing logout.');
+          unawaited(logout());
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        // A stream may emit an error while logout is cancelling it. Retain the
+        // current session; only an explicit profile/session update can log out.
+        debugPrint('[Auth] Session listener error: $error');
+      },
+    );
   }
 
   Future<void> _bootstrap() async {
@@ -177,12 +187,19 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   // ── Login ──────────────────────────────────────────────────────────────────
-  /// Completes vendor session after OTP — Firebase is already signed in
-  /// from [verifyVendorCredentials], so no redundant signIn call.
-  Future<void> loginVendorAfterOtp(String email) async {
+  /// Completes vendor login after phone OTP verification. Phone Auth signs in
+  /// with a phone-based Firebase user, so restore the email account that owns
+  /// the vendor Firestore profile before creating the application session.
+  Future<void> loginVendorAfterOtp({
+    required String email,
+    required String password,
+  }) async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      final result = await _repo.loginVendorAfterOtp(email);
+      final result = await _repo.loginVendorAfterOtp(
+        email: email,
+        password: password,
+      );
       final cleanedUser = await _cleanUserCategoriesOnLogin(result.user);
       await StorageService.saveToken(result.token);
       await StorageService.saveUser(cleanedUser.toJson());

@@ -56,6 +56,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
 
   Future<List<Proposal>> loadProposalsForRequest(String requestId) async {
     await _repo.ensureInitialized();
+    await _repo.refreshFromFirestore();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final proposals = await _repo.getProposalsForRequest(requestId);
@@ -126,7 +127,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
     return saved;
   }
 
-  Future<void> submitProposal(Proposal proposal) async {
+  Future<Proposal> submitProposal(Proposal proposal) async {
     await _repo.ensureInitialized();
     await _requestRepo.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
@@ -156,17 +157,8 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
         await _requestRepo.updateRequest(updatedRequest);
         ref.read(requestProvider.notifier).syncRequest(updatedRequest);
         
-        // Create a persisted notification for the customer to inform about the new proposal
-        try {
-          await ref.read(notification_feature.notificationProvider.notifier).createNotification(
-            type: NotificationType.newProposal,
-            title: 'New Proposal Received',
-            body: '${saved.vendorBusinessName} submitted a proposal for your request.',
-            userId: request.customerId,
-            relatedId: saved.id,
-            data: {'requestId': saved.requestId, 'vendorId': saved.vendorId},
-          );
-        } catch (_) {}
+        // The server-side onNewProposal function creates the customer
+        // notification. Client-side notification creates are denied by rules.
       } else {
         await _requestRepo.updateRequestStatus(
           proposal.requestId,
@@ -175,6 +167,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
       }
 
       state = state.copyWith(isLoading: false, selectedProposal: saved);
+      return saved;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
       rethrow;
@@ -227,7 +220,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
   Future<void> acceptProposal(
     String proposalId,
     String requestId, {
-    String? categoryNormalized,
+    List<String>? categoryScope,
   }) async {
     await _repo.ensureInitialized();
     await _requestRepo.ensureInitialized();
@@ -237,12 +230,15 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
       final acceptedProposal = await _repo.getProposalById(proposalId);
       if (acceptedProposal == null) throw Exception('Proposal not found');
       
-      final acceptedCategories = acceptedProposal.categoriesNormalized;
+      final acceptedCategories = (categoryScope != null && categoryScope.isNotEmpty
+              ? categoryScope
+              : acceptedProposal.categoriesNormalized)
+          .map(VendorCategories.normalize)
+          .where((category) => category.isNotEmpty)
+          .toSet()
+          .toList();
       print('[MultiCategoryFlow] Accept proposal: ${acceptedProposal.id}');
       print('[MultiCategoryFlow] Accepted categories: $acceptedCategories');
-
-      // Accept selected proposal
-      await _repo.updateProposalStatus(proposalId, ProposalStatus.accepted);
 
       // Persist notification to vendor that their proposal was accepted
       try {
@@ -261,9 +257,21 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
       for (final p in allProps) {
         if (p.id != proposalId && p.status.isEditableByVendor) {
           // Check if competing proposal overlaps with any accepted categories
-          final overlaps = p.categoriesNormalized.any((c) => acceptedCategories.contains(c));
-          if (overlaps) {
-            final overlappingCats = p.categoriesNormalized.where((c) => acceptedCategories.contains(c)).join(', ');
+          final overlaps = p.categoriesNormalized.any(
+            (category) =>
+                acceptedCategories.contains(VendorCategories.normalize(category)),
+          );
+          final proposalCategories = p.categoriesNormalized
+              .map(VendorCategories.normalize)
+              .where((category) => category.isNotEmpty)
+              .toSet();
+          final hasOtherOpenCategories = proposalCategories.any(
+            (category) => !acceptedCategories.contains(category),
+          );
+          if (overlaps && !hasOtherOpenCategories) {
+            final overlappingCats = proposalCategories
+                .where(acceptedCategories.contains)
+                .join(', ');
             final rejectionReason = 'Customer selected another vendor for $overlappingCats category';
             
             await _repo.updateProposalStatus(
@@ -314,9 +322,11 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
 
         // Resolve categories: use the actual fulfilled categories, or fall back to
         // all categories if the request has only one or mapping fails.
-        final resolvedCategories = fulfilledCategories.isNotEmpty
-            ? fulfilledCategories
-            : request.categoryFulfillments.keys.toList();
+        final resolvedCategories = acceptedCategories.isNotEmpty
+            ? acceptedCategories
+            : fulfilledCategories.isNotEmpty
+                ? fulfilledCategories
+                : request.categoryFulfillments.keys.toList();
 
         if (resolvedCategories.isNotEmpty) {
           final updatedFulfillments = Map<String, RequestCategoryFulfillment>.from(
@@ -336,26 +346,39 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
             }
           }
 
-          // Update request with new fulfillments
-          final updatedRequest = request.copyWith(
+          final tentativeRequest = request.copyWith(
             categoryFulfillments: updatedFulfillments,
             updatedAt: DateTime.now(),
           );
+          final allCategoriesResolved =
+              tentativeRequest.categoryFulfillments.isNotEmpty &&
+                  tentativeRequest.categoryFulfillments.values
+                      .every((fulfillment) =>
+                          !fulfillment.status.canReceiveProposals);
+          final updatedRequest = tentativeRequest.copyWith(
+            status: allCategoriesResolved || !request.isMultiCategory
+                ? RequestStatus.customerAccepted
+                : request.status,
+          );
           await _requestRepo.updateRequest(updatedRequest);
+
+          final proposalFullyAccepted = !request.isMultiCategory ||
+              acceptedProposal.categoriesNormalized.every((category) {
+                final fulfillment =
+                    updatedRequest.getFulfillment(VendorCategories.normalize(category));
+                return fulfillment?.acceptedProposalId == proposalId &&
+                    fulfillment?.status.canReceiveProposals == false;
+              });
+          if (proposalFullyAccepted &&
+              acceptedProposal.status != ProposalStatus.accepted) {
+            await _repo.updateProposalStatus(proposalId, ProposalStatus.accepted);
+          }
 
           // Log summary
           final accepted = updatedRequest.acceptedCategoriesCount;
           final pending = updatedRequest.pendingCategoriesCount;
           final completed = updatedRequest.completedCategoriesCount;
           print('[MultiCategoryFlow] Request summary: $accepted accepted, $pending pending, $completed completed');
-        }
-
-        // Mark request as customerAccepted once at least one category is accepted
-        if (request.status != RequestStatus.customerAccepted) {
-          await _requestRepo.updateRequestStatus(
-            requestId,
-            RequestStatus.customerAccepted,
-          );
         }
 
         // Sync updated request into requestProvider state

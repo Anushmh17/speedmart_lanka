@@ -49,10 +49,10 @@ class AuthRepository {
     
     final updatedUser = user.copyWith(activeSessions: sessions);
     
-    // Fire and forget so it doesn't block login if network is unstable
-    _syncUserToFirestore(updatedUser).catchError((e) {
-      debugPrint('[Auth] Failed to sync session in background: $e');
-    });
+    // The session listener starts immediately after login.  Persist this ID
+    // first so its initial snapshot cannot see an older active_sessions list
+    // and incorrectly log the device out.
+    await _syncUserToFirestore(updatedUser);
     
     return updatedUser;
   }
@@ -306,10 +306,17 @@ class AuthRepository {
     return _completeVendorLogin(email, role);
   }
 
-  /// Completes vendor login using the already-authenticated Firebase session.
-  /// Called after OTP verification to avoid a redundant signInWithEmailAndPassword.
-  Future<({UserModel user, String token})> loginVendorAfterOtp(String email) async {
+  /// Completes vendor login after phone OTP verification.
+  ///
+  /// Firebase Phone Auth changes the current Firebase user to the phone-based
+  /// account. Sign back in as the email account so its UID matches the vendor
+  /// profile document before reading or updating Firestore.
+  Future<({UserModel user, String token})> loginVendorAfterOtp({
+    required String email,
+    required String password,
+  }) async {
     await ensureInitialized();
+    await _signInWithFirebase(email, password);
     return _completeVendorLogin(email, UserRole.vendor);
   }
 

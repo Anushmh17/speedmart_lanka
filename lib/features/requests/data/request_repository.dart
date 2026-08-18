@@ -35,7 +35,9 @@ class RequestRepository {
 
   Future<List<Map<String, dynamic>>> _fetchRequestsFromFirestore() async {
     try {
-      final query = await _requestsCollection.limit(500).get();
+      final query = await _requestsCollection
+          .limit(500)
+          .get(const GetOptions(source: Source.server));
       return query.docs.map((doc) {
         final data = doc.data();
         return {
@@ -83,6 +85,26 @@ class RequestRepository {
     }
     // If unauthenticated, do NOT mark initialized so the next
     // ensureInitialized() call after login will re-run properly.
+  }
+
+  /// Refreshes the in-memory request cache after a cross-user change, such as
+  /// a vendor submitting a proposal. Keep the existing cache on a read error
+  /// so a transient Firestore failure does not erase visible requests.
+  Future<void> refreshFromFirestore() async {
+    if (FirebaseAuth.instance.currentUser == null) return;
+    try {
+      final query = await _requestsCollection
+          .limit(500)
+          .get(const GetOptions(source: Source.server));
+      final refreshed = query.docs
+          .map((doc) => ShoppingRequest.fromJson({...doc.data(), 'id': doc.id}))
+          .toList();
+      _requests
+        ..clear()
+        ..addAll(refreshed);
+    } catch (e) {
+      debugPrint('[Request] Failed to refresh requests from Firestore: $e');
+    }
   }
 
   Future<void> _persistRequests() async {
@@ -274,4 +296,3 @@ class RequestRepository {
     return newRequest;
   }
 }
-
