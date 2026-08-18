@@ -159,7 +159,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     final size = MediaQuery.of(context).size;
 
-    const splashBg = Color(0xFF0A1628);
+    const Color(0xFF0A1628);
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A1628),

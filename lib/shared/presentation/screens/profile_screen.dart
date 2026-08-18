@@ -622,6 +622,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (confirmed != true) return;
 
     final role = ref.read(currentUserProvider)?.role;
+    var retainRememberedSession = false;
 
     // Step 2: Ask about OTP preference only if they previously opted in to remember me
     if (role == UserRole.customer || role == UserRole.vendor) {
@@ -651,6 +652,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         );
         if (keep == null) return;
+        retainRememberedSession = keep;
         if (role == UserRole.customer) {
           await StorageService.saveCustomerRememberMe(keep);
         } else {
@@ -661,7 +663,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     // Step 3: Perform logout and cleanup
     ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
-    await ref.read(authProvider.notifier).logout();
+    await ref
+        .read(authProvider.notifier)
+        .logout(keepRememberedSession: retainRememberedSession);
     ref.read(customerRegistrationProvider.notifier).reset();
     ref.read(deliveryLocationProvider.notifier).clearLocation();
     ref.read(customerDeliveryAddressProvider.notifier).reset();
@@ -951,15 +955,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   width: double.infinity,
                   height: 56,
                   child: OutlinedButton.icon(
-                    onPressed: _handleLogout,
+                    onPressed: isLoading ? null : _handleLogout,
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.error,
                       side: const BorderSide(color: AppColors.error),
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16)),
                     ),
-                    icon: const Icon(Icons.logout_rounded),
-                    label: Text('Logout from Account',
+                    icon: isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: AppColors.error,
+                            ),
+                          )
+                        : const Icon(Icons.logout_rounded),
+                    label: Text(isLoading ? 'Logging out...' : 'Logout from Account',
                         style: AppTextStyles.button(AppColors.error)
                             .copyWith(fontSize: 16)),
                   ),

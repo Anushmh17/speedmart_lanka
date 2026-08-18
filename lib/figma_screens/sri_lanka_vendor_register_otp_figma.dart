@@ -17,10 +17,10 @@ class SrilankavendorregistrationotpWidget extends StatefulWidget {
 
   @override
   State<SrilankavendorregistrationotpWidget> createState() =>
-      _SrilankavendorregistrationotpWidgetState();
+      SrilankavendorregistrationotpWidgetState();
 }
 
-class _SrilankavendorregistrationotpWidgetState
+class SrilankavendorregistrationotpWidgetState
     extends State<SrilankavendorregistrationotpWidget> with WidgetsBindingObserver {
   static const String _assetBase =
       'assets/images/figma/sri_lanka_vendor_register_otp/';
@@ -75,6 +75,26 @@ class _SrilankavendorregistrationotpWidgetState
     }
   }
 
+  void _clearBoxes() {
+    for (final c in _otpControllers) {
+      c.clear();
+    }
+    if (mounted && _otpFocusNodes[0].canRequestFocus) {
+      _otpFocusNodes[0].requestFocus();
+    }
+  }
+
+  /// Called by the parent flow to report a wrong OTP back into this widget.
+  void reportError(String message) {
+    if (!mounted) return;
+    setState(() {
+      _errorMessage = message;
+      _isSubmitting = false;
+      _isSuccess = false;
+    });
+    _clearBoxes();
+  }
+
   Future<void> _handleVerifyOtp() async {
     final otp = _otpControllers.map((c) => c.text).join();
     if (otp.length < 6) {
@@ -85,7 +105,7 @@ class _SrilankavendorregistrationotpWidgetState
     setState(() { _errorMessage = ''; _isSubmitting = true; });
     FocusScope.of(context).unfocus();
     widget.onVerifyOtp?.call(otp);
-    if (mounted) setState(() { _isSubmitting = false; _isSuccess = true; });
+    if (mounted) setState(() { _isSubmitting = false; });
   }
 
   void _handleResend() {

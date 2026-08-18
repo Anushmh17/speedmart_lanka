@@ -33,6 +33,8 @@ class AppConstants {
   /// Secure storage keys
   static const String tokenKey = 'auth_token';
   static const String userKey = 'user_data';
+  static const String rememberedSessionTokenKey = 'remembered_session_token';
+  static const String rememberedSessionUserKey = 'remembered_session_user';
   static const String themeKey = 'theme_mode';
   static const String roleKey = 'user_role';
 
@@ -66,4 +68,3 @@ class AppConstants {
   /// Pagination
   static const int pageSize = 20;
 }
-

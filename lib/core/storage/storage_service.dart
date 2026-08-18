@@ -82,6 +82,45 @@ class StorageService {
     await _secure.delete(key: AppConstants.userKey);
   }
 
+  // ── Remembered session (secure) ─────────────────────────────────────────
+
+  /// Stores a session that the account holder has explicitly approved for OTP
+  /// bypass on this device after logging out.
+  static Future<void> saveRememberedSession({
+    required Map<String, dynamic> userJson,
+    required String token,
+  }) async {
+    await _secure.write(
+      key: AppConstants.rememberedSessionUserKey,
+      value: jsonEncode(userJson),
+    );
+    await _secure.write(
+      key: AppConstants.rememberedSessionTokenKey,
+      value: token,
+    );
+  }
+
+  static Future<({Map<String, dynamic> user, String token})?>
+      getRememberedSession() async {
+    final userRaw =
+        await _secure.read(key: AppConstants.rememberedSessionUserKey);
+    final token =
+        await _secure.read(key: AppConstants.rememberedSessionTokenKey);
+    if (userRaw == null || token == null) return null;
+
+    try {
+      return (user: jsonDecode(userRaw) as Map<String, dynamic>, token: token);
+    } catch (_) {
+      await clearRememberedSession();
+      return null;
+    }
+  }
+
+  static Future<void> clearRememberedSession() async {
+    await _secure.delete(key: AppConstants.rememberedSessionUserKey);
+    await _secure.delete(key: AppConstants.rememberedSessionTokenKey);
+  }
+
   // ── Theme (non-sensitive) ─────────────────────────────────────────────────
 
   static Future<void> saveThemeMode(String mode) async {
@@ -407,5 +446,4 @@ class StorageService {
     if (orders.isNotEmpty) await saveOrders(orders);
   }
 }
-
 

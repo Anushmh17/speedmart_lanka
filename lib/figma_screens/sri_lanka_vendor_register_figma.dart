@@ -674,13 +674,26 @@ class _SrilankavendorregistrationWidgetState
             focusedBorder: InputBorder.none,
           ),
         ),
-        child: Scaffold(
+        child: PopScope(
+          // Intercept back gesture: dismiss keyboard first if it is open,
+          // only allow navigation away when the keyboard is already closed.
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) return;
+            final isKeyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+            if (isKeyboardOpen) {
+              FocusScope.of(context).unfocus();
+            } else {
+              Navigator.of(context).maybePop();
+            }
+          },
+          child: Scaffold(
           backgroundColor: const Color(0xFF020304),
           resizeToAvoidBottomInset: true,
           body: GestureDetector(
             onTap: () => FocusScope.of(context).unfocus(),
             child: SingleChildScrollView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.manual,
               physics: const ClampingScrollPhysics(),
               child: SizedBox(
                 width: w,
@@ -1099,7 +1112,8 @@ class _SrilankavendorregistrationWidgetState
             ),
           ),
         ),
-      ),
+      ), // Scaffold
+      ), // PopScope
     ),
     );
   }

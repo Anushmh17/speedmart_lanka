@@ -17,6 +17,7 @@ import '../features/location/models/sri_lanka_district.dart';
 import '../features/location/services/gps_location_service.dart';
 import '../features/location/services/reverse_geocoding_service.dart';
 import '../shared/models/user_role.dart';
+import '../shared/models/user_model.dart';
 import '../core/routes/route_names.dart';
 import '../core/storage/storage_service.dart';
 
@@ -73,6 +74,8 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
 
   final _customerLoginOtpKey = GlobalKey<SrilankacustomerloginotpWidgetState>();
   final _customerRegisterOtpKey = GlobalKey<SrilankacustomerregistrationotpWidgetState>();
+  final _vendorLoginOtpKey = GlobalKey<SrilankavendorloginotpWidgetState>();
+  final _vendorRegisterOtpKey = GlobalKey<SrilankavendorregistrationotpWidgetState>();
 
 
 
@@ -386,20 +389,33 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
 
     setState(() => _isLoading = true);
     try {
-      final exists = await ref.read(authProvider.notifier).checkCustomerExists(phone);
-      if (!mounted) return;
-      if (!exists) { _showError('No account found for this number. Please register.'); return; }
-
       final wasRemembered = await StorageService.getCustomerRememberMe();
       final reg = ref.read(customerRegistrationProvider.notifier);
       reg.setMode(isLogin: true);
       reg.updatePhone(phone);
 
       if (rememberMe && wasRemembered) {
-        // Skip OTP — sign in directly via Firebase Phone Auth is not possible
-        // without OTP, so just proceed to login with stored session
-        await _onCustomerLoginOtpSuccess('', rememberMe: rememberMe);
-        return;
+        final phoneDigits = phone.replaceAll(RegExp(r'[^0-9]'), '');
+        final restored = await ref
+            .read(authProvider.notifier)
+            .restoreRememberedSession(
+              role: UserRole.customer,
+              matchesAccount: (UserModel user) {
+                final savedDigits = user.phone.replaceAll(RegExp(r'[^0-9]'), '');
+                return phoneDigits.isNotEmpty &&
+                    savedDigits.isNotEmpty &&
+                    (phoneDigits.endsWith(savedDigits.length > 9
+                            ? savedDigits.substring(savedDigits.length - 9)
+                            : savedDigits) ||
+                        savedDigits.endsWith(phoneDigits.length > 9
+                            ? phoneDigits.substring(phoneDigits.length - 9)
+                            : phoneDigits));
+              },
+            );
+        if (restored) {
+          if (mounted) context.go(RouteNames.customerHome);
+          return;
+        }
       }
 
       _pendingCustomerRememberMe = rememberMe;
@@ -436,6 +452,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       await ref.read(authProvider.notifier).loginCustomerOtp(contact: contact);
       if (!mounted) return;
       await StorageService.saveCustomerRememberMe(rememberMe);
+      if (!rememberMe) await StorageService.clearRememberedSession();
       context.go(RouteNames.customerHome);
     } catch (e) {
       if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
@@ -473,8 +490,13 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
             deliveryPreciseAddress: regState.data.preciseAddress,
             deliveryNote: regState.data.deliveryNote,
             deliveryLatitude: regState.data.deliveryLatitude,
-            deliveryLongitude: regState.data.deliveryLongitude,
+          deliveryLongitude: regState.data.deliveryLongitude,
           );
+      if (!mounted) return;
+      // Registration has already completed Firebase Phone OTP verification.
+      // Treat the first signed-in session as opted in to remember me so logout
+      // can offer the customer the choice to skip OTP next time.
+      await StorageService.saveCustomerRememberMe(true);
       if (!mounted) return;
       final user = ref.read(currentUserProvider);
       if (user != null) {
@@ -550,8 +572,19 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       }
       // Skip OTP only if vendor had Remember Me from a PREVIOUS session
       if (rememberMe && wasRemembered) {
-        await _onVendorOtpSuccess('', rememberMe: rememberMe);
-      } else {
+        final restored = await ref
+            .read(authProvider.notifier)
+            .restoreRememberedSession(
+              role: UserRole.vendor,
+              matchesAccount: (user) =>
+                  user.email.toLowerCase() == email.toLowerCase(),
+            );
+        if (restored) {
+          if (mounted) context.go(RouteNames.vendorHome);
+          return;
+        }
+      }
+      {
         final reg = ref.read(customerRegistrationProvider.notifier);
         reg.setMode(isLogin: false);
         reg.updatePhone(result.phone);
@@ -648,7 +681,9 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     final ok = await ref.read(customerRegistrationProvider.notifier).verifyOtp(otp);
     if (!mounted) return;
     if (!ok) {
-      _showError(ref.read(customerRegistrationProvider).error ?? 'Incorrect OTP. Please try again.');
+      final errMsg = ref.read(customerRegistrationProvider).error ?? 'Incorrect OTP. Please try again.';
+      _vendorRegisterOtpKey.currentState?.reportError(errMsg);
+      _showError(errMsg);
       return;
     }
 
@@ -792,6 +827,17 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     final email = _vendorLoginEmailCtrl.text.trim();
     setState(() => _isLoading = true);
     try {
+      if (otp.isNotEmpty) {
+        final ok = await ref.read(customerRegistrationProvider.notifier).verifyOtp(otp);
+        if (!mounted) return;
+        if (!ok) {
+          final errMsg = ref.read(customerRegistrationProvider).error ?? 'Incorrect OTP. Please try again.';
+          _vendorLoginOtpKey.currentState?.reportError(errMsg);
+          _showError(errMsg);
+          return;
+        }
+      }
+      
       await ref.read(authProvider.notifier).loginVendorAfterOtp(email);
       if (!mounted) return;
       final authState = ref.read(authProvider);
@@ -949,7 +995,8 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       case _FigmaAuthPage.customerLogin:
         return SrilankacustomerloginWidget(
           phoneController: _loginPhoneCtrl,
-          onSendOtp: _onSriLankaCustomerSendOtp,
+          isLoading: _isLoading,
+          onSendOtp: _isLoading ? null : _onSriLankaCustomerSendOtp,
           onRegister: () => _go(_FigmaAuthPage.customerRegister),
           onVendorLogin: () => _go(_FigmaAuthPage.vendorLogin),
         );
@@ -1004,6 +1051,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
 
       case _FigmaAuthPage.vendorLoginOtp:
         return SrilankavendorloginotpWidget(
+          key: _vendorLoginOtpKey,
           onVerifyOtp: (otp) => _onVendorOtpSuccess(otp, rememberMe: _pendingVendorRememberMe),
           maskedPhone: _vendorLoginOtpPhone ?? '',
           onBack: () => _go(_FigmaAuthPage.vendorLogin, back: true),
@@ -1033,6 +1081,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
 
       case _FigmaAuthPage.vendorRegisterOtp:
         return SrilankavendorregistrationotpWidget(
+          key: _vendorRegisterOtpKey,
           onVerifyOtp: _onVendorRegisterOtpSuccess,
           onResend: _onVendorRegisterResendOtp,
           maskedPhone: ref.read(customerRegistrationProvider).maskedContact ?? '',

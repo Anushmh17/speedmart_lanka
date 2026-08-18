@@ -46,11 +46,12 @@ service cloud.firestore {
 
     match /users/customers/profiles/{userId} {
       allow get: if isOwner(userId) || isAdmin();
-      // Phone/email lookup during login is handled server-side by the
-      // registerCustomerAccount Cloud Function (authenticated + App Check).
-      // Unauthenticated listing is no longer needed and is a security risk.
+      // List needed for duplicate phone/email/NIC checks during registration.
+      // Only reachable after OTP — unauthenticated queries get PERMISSION_DENIED.
       allow list: if isSignedIn();
-      allow create: if false;
+      // Allow authenticated users to create their own profile document only
+      // when the doc ID matches their Firebase Auth UID (set during Phone OTP).
+      allow create: if isOwner(userId);
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
     }

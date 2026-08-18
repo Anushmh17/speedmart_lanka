@@ -171,8 +171,10 @@ class _VendorHomeScreenState extends ConsumerState<VendorHomeScreen>
     // The actual double-back logic lives in didPopRoute() above.
     return PopScope(
       canPop: false,
-      child: Scaffold(
-        extendBody: true,
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+        child: Scaffold(
+          extendBody: true,
         backgroundColor:
             isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
         body: Column(
@@ -239,6 +241,7 @@ class _VendorHomeScreenState extends ConsumerState<VendorHomeScreen>
             ],
           ),
         ),
+      ),
       ),
     );
   }

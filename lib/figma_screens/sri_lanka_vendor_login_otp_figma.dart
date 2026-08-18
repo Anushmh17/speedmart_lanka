@@ -17,10 +17,10 @@ class SrilankavendorloginotpWidget extends StatefulWidget {
 
   @override
   State<SrilankavendorloginotpWidget> createState() =>
-      _SrilankavendorloginotpWidgetState();
+      SrilankavendorloginotpWidgetState();
 }
 
-class _SrilankavendorloginotpWidgetState
+class SrilankavendorloginotpWidgetState
     extends State<SrilankavendorloginotpWidget> with WidgetsBindingObserver {
   static const String _assetBase =
       'assets/images/figma/sri_lanka_vendor_login_otp/';
@@ -37,6 +37,8 @@ class _SrilankavendorloginotpWidgetState
 
   String _errorMessage = '';
   String _successMessage = '';
+  bool _isSubmitting = false;
+  bool _isSuccess = false;
 
   double _keyboardHeight = 0;
 
@@ -71,6 +73,25 @@ class _SrilankavendorloginotpWidgetState
     }
   }
 
+  void _clearBoxes() {
+    for (final c in _otpControllers) {
+      c.clear();
+    }
+    if (mounted && _otpFocusNodes[0].canRequestFocus) {
+      _otpFocusNodes[0].requestFocus();
+    }
+  }
+
+  /// Called by the parent flow to report a wrong OTP back into this widget.
+  void reportError(String message) {
+    if (!mounted) return;
+    setState(() {
+      _errorMessage = message;
+      _isSubmitting = false;
+    });
+    _clearBoxes();
+  }
+
   Future<void> _handleVerifyOtp() async {
     final otp = _otpControllers.map((controller) => controller.text).join();
 
@@ -81,26 +102,24 @@ class _SrilankavendorloginotpWidgetState
       });
       return;
     }
-    if (otp != '123456') {
-      setState(() {
-        _errorMessage = 'Invalid OTP. Please try again.';
-        _successMessage = '';
-      });
-      return;
-    }
+    
+    if (_isSubmitting || _isSuccess) return;
+    
     setState(() {
       _errorMessage = '';
-      _successMessage = 'OTP verified successfully. Please wait...';
+      _isSubmitting = true;
     });
-    await Future.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
+    FocusScope.of(context).unfocus();
 
     if (widget.onVerifyOtp != null) {
       widget.onVerifyOtp!(otp);
-      return;
     }
-
-    debugPrint('Sri Lanka vendor OTP verified, navigate to vendor dashboard');
+    
+    if (mounted) {
+      setState(() {
+        _isSubmitting = false;
+      });
+    }
   }
 
   void _handleResend() {
@@ -438,7 +457,7 @@ class _SrilankavendorloginotpWidgetState
                             child: SizedBox(
                               height: y(49),
                               child: ElevatedButton(
-                                onPressed: _successMessage.isNotEmpty
+                                onPressed: (_isSubmitting || _isSuccess)
                                     ? null
                                     : _handleVerifyOtp,
                                 style: ElevatedButton.styleFrom(
@@ -450,16 +469,23 @@ class _SrilankavendorloginotpWidgetState
                                     borderRadius: BorderRadius.circular(x(20)),
                                   ),
                                 ),
-                                child: Text(
-                                  'Verify OTP',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontFamily: 'OpenSans',
-                                    fontSize: fs(20),
-                                    fontWeight: FontWeight.w700,
-                                    height: 1,
-                                  ),
-                                ),
+                                child: _isSubmitting
+                                    ? const SizedBox(
+                                        width: 22,
+                                        height: 22,
+                                        child: CircularProgressIndicator(
+                                            color: Colors.white,
+                                            strokeWidth: 2.5))
+                                    : Text(
+                                        'Verify OTP',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontFamily: 'OpenSans',
+                                          fontSize: fs(20),
+                                          fontWeight: FontWeight.w700,
+                                          height: 1,
+                                        ),
+                                      ),
                               ),
                             ),
                           ),

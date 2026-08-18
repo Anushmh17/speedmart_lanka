@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:speedmart_lanka/core/theme/app_colors.dart';
 import 'package:speedmart_lanka/core/theme/app_text_styles.dart';
+import 'package:speedmart_lanka/core/widgets/theme3/theme3_app_button.dart';
 import 'package:speedmart_lanka/features/proposals/models/proposal.dart';
 import 'package:speedmart_lanka/features/proposals/providers/proposal_provider.dart';
 import 'package:speedmart_lanka/features/orders/data/order_repository.dart';
@@ -34,6 +35,7 @@ class VendorOrderDetailsScreen extends ConsumerStatefulWidget {
 class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScreen> with SingleTickerProviderStateMixin {
   final Map<String, bool> _packedItems = {};
   late final AnimationController _packedPulseController;
+  bool _isUpdatingStatus = false;
 
   Widget _buildSummaryChip(String label, Color secondaryText) {
     return Container(
@@ -1085,13 +1087,20 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                       SizedBox(
                         width: double.infinity,
                         height: 52,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.vendorColor,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            elevation: 0,
-                          ),
+                        child: Theme3AppButton(
+                          label: activeOrder.status == OrderStatus.submitted
+                              ? 'Accept Order Request'
+                              : activeOrder.status == OrderStatus.accepted
+                                  ? 'Start Preparing Order'
+                                  : activeOrder.status == OrderStatus.preparing
+                                      ? 'Mark Ready For Delivery'
+                                      : activeOrder.status == OrderStatus.readyForDelivery
+                                          ? 'Mark Out For Delivery'
+                                          : 'Mark Order as Delivered',
+                          isLoading: _isUpdatingStatus,
+                          type: Theme3ButtonType.primary,
                           onPressed: () async {
+                      if (_isUpdatingStatus) return;
                       final online = await ConnectivityService.instance.isOnline();
                       if (!online) {
                         if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -1099,7 +1108,11 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                         );
                         return;
                       }
-                      OrderStatus nextStatus = OrderStatus.accepted;
+                      
+                      setState(() => _isUpdatingStatus = true);
+                      
+                      try {
+                        OrderStatus nextStatus = OrderStatus.accepted;
 
                       if (activeOrder.status == OrderStatus.submitted) {
                         nextStatus = OrderStatus.accepted;
@@ -1158,24 +1171,21 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                             );
                       }
 
-                      if (context.mounted) {
-                        context.pop();
+                        await ref.read(orderProvider.notifier).loadVendorOrders();
+
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Order status updated to ${nextStatus.displayName}!'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                          context.pop();
+                        }
+                      } finally {
+                        if (mounted) setState(() => _isUpdatingStatus = false);
                       }
                     },
-                    child: Text(
-                      activeOrder.status == OrderStatus.submitted
-                          ? 'Accept Order'
-                          : activeOrder.status == OrderStatus.accepted
-                              ? 'Start Preparing Order'
-                              : activeOrder.status == OrderStatus.preparing
-                                  ? 'Mark Ready for Delivery'
-                                  : activeOrder.status == OrderStatus.readyForDelivery
-                                      ? 'Dispatch Order (Out for Delivery)'
-                                      : activeOrder.status == OrderStatus.outForDelivery
-                                          ? 'Confirm Delivery (Mark as Delivered)'
-                                          : 'Mark Complete',
-                      style: AppTextStyles.button(Colors.white),
-                    ),
                   ),
                 ),
               ],

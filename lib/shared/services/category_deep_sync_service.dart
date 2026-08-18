@@ -54,7 +54,7 @@ class CategoryDeepSyncService {
         syncedRequested = filtered;
         hasChanges = true;
 
-        if (syncedRequested != null) {
+        if (syncedRequested.isNotEmpty) {
           final newHasPending = syncedRequested.isNotEmpty;
           if (newHasPending != (user.hasPendingCategoryRequest ?? false)) {
             syncedHasPending = newHasPending;

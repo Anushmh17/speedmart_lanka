@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 /// Single source of truth for all vendor categories.
 /// Categories are stored in normalized lowercase format internally.
 /// Display format uses proper title case capitalization.

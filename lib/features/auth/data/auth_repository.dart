@@ -1,8 +1,7 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show debugPrint, defaultTargetPlatform;
 import 'package:dio/dio.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_core/firebase_core.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/services/firestore_service.dart';
@@ -49,7 +48,11 @@ class AuthRepository {
     }
     
     final updatedUser = user.copyWith(activeSessions: sessions);
-    await _syncUserToFirestore(updatedUser);
+    
+    // Fire and forget so it doesn't block login if network is unstable
+    _syncUserToFirestore(updatedUser).catchError((e) {
+      debugPrint('[Auth] Failed to sync session in background: $e');
+    });
     
     return updatedUser;
   }
@@ -61,7 +64,6 @@ class AuthRepository {
       case UserRole.admin:
         return FirestoreService.collection('users/admins/profiles');
       case UserRole.customer:
-      default:
         return FirestoreService.collection('users/customers/profiles');
     }
   }
@@ -152,7 +154,6 @@ class AuthRepository {
       QuerySnapshot<Map<String, dynamic>> snapshot;
 
       if (values != null && values.isNotEmpty) {
-        // Use whereIn to match multiple normalized variants.
         snapshot = await query.where(field, whereIn: values).limit(1).get();
       } else if (value != null) {
         snapshot = await query.where(field, isEqualTo: value).limit(1).get();
@@ -163,6 +164,12 @@ class AuthRepository {
       return snapshot.docs.isNotEmpty;
     } catch (e) {
       debugPrint('[Auth] _customerExistsInFirestore($field) error: $e');
+      // PERMISSION_DENIED means the user isn't authenticated yet — treat as
+      // unavailable so the caller falls back to local cache instead of crashing.
+      final msg = e.toString();
+      if (msg.contains('permission-denied') || msg.contains('PERMISSION_DENIED')) {
+        throw Exception('firestore_unavailable');
+      }
       rethrow;
     }
   }
@@ -181,80 +188,6 @@ class AuthRepository {
       debugPrint('[Auth] Failed to sync user ${user.id} to Firestore: $e');
       rethrow;
     }
-  }
-
-  Future<({UserModel user, String token})> _registerCustomerServerSide({
-    required String fullName,
-    required String email,
-    required String phone,
-    required bool? verifiedPhone,
-    required bool? verifiedEmail,
-    required String? detectedCountry,
-    required String? detectionSource,
-    required String? riskFlag,
-    required String? nic,
-    required String? deliveryProvince,
-    required String? deliveryDistrict,
-    required String? deliveryApproxArea,
-    required String? deliveryPreciseAddress,
-    required String? deliveryNote,
-    required double? deliveryLatitude,
-    required double? deliveryLongitude,
-  }) async {
-    final currentUser = _firebaseAuth.currentUser;
-    if (currentUser == null) {
-      throw Exception('Please complete phone verification before registering.');
-    }
-
-    final projectId = Firebase.app().options.projectId;
-    if (projectId.isEmpty) {
-      throw Exception('Firebase project ID is not configured.');
-    }
-
-    final idToken = await currentUser.getIdToken(true);
-    final endpoint =
-        'https://us-central1-$projectId.cloudfunctions.net/registerCustomerAccount';
-
-    final response = await Dio().post(
-      endpoint,
-      data: {
-        'fullName': fullName,
-        'email': email,
-        'phone': phone,
-        'verifiedPhone': verifiedPhone ?? true,
-        'verifiedEmail': verifiedEmail ?? false,
-        'detectedCountry': detectedCountry,
-        'detectionSource': detectionSource,
-        'riskFlag': riskFlag,
-        'nic': nic,
-        'deliveryProvince': deliveryProvince,
-        'deliveryDistrict': deliveryDistrict,
-        'deliveryApproxArea': deliveryApproxArea,
-        'deliveryPreciseAddress': deliveryPreciseAddress,
-        'deliveryNote': deliveryNote,
-        'deliveryLatitude': deliveryLatitude,
-        'deliveryLongitude': deliveryLongitude,
-      },
-      options: Options(
-        headers: {
-          'Authorization': 'Bearer $idToken',
-          'Content-Type': 'application/json',
-        },
-      ),
-    );
-
-    final raw = response.data;
-    if (raw is! Map) {
-      throw Exception('Unexpected registration response from server.');
-    }
-
-    final data = Map<String, dynamic>.from(raw);
-    final userJson = Map<String, dynamic>.from(data['user'] as Map);
-    final user = UserModel.fromJson(userJson);
-    final token = data['token'] as String? ??
-        'auth_token_${user.id}_${DateTime.now().millisecondsSinceEpoch}';
-
-    return (user: user, token: token);
   }
 
   Future<void> _createFirebaseUser(String email, String password) async {
@@ -541,37 +474,70 @@ class AuthRepository {
   Future<({UserModel user, String token})> loginCustomerOtp(
       String contact) async {
     await ensureInitialized();
-    await Future.delayed(const Duration(milliseconds: 500));
 
     // Firebase Phone Auth already signed the user in during OTP verification.
     // _firebaseAuth.currentUser is now set with the real phone-linked UID.
     final firebaseUser = _firebaseAuth.currentUser;
     debugPrint('[Auth] loginCustomerOtp: firebaseUser=${firebaseUser?.uid}');
 
-    // Fetch the customer profile from Firestore by phone
-    final fetchedUser = await _fetchCustomerByContact(contact);
+    // Force a fresh ID token so the Firestore SDK has valid auth credentials
+    // before we run any queries. Without this, there is a race condition where
+    // OTP verification completes but the Firestore client hasn't yet received
+    // the updated token — causing PERMISSION_DENIED on the phone query.
+    if (firebaseUser != null) {
+      try {
+        await firebaseUser.getIdToken(true);
+        debugPrint('[Auth] ID token refreshed successfully after OTP');
+      } catch (e) {
+        debugPrint('[Auth] ID token refresh failed (non-fatal): $e');
+      }
+    }
+
+    // Small grace period for Firestore SDK to propagate the new auth token
+    await Future.delayed(const Duration(milliseconds: 800));
+
+    if (firebaseUser == null) {
+      throw Exception('Phone verification did not complete. Please try again.');
+    }
+
+    // Customer profiles are stored with their Firebase Auth UID as the document
+    // ID. Reading that document is allowed by the owner rule and avoids an
+    // account-discovery query during sign-in.
+    final profile = await _collectionForRole(UserRole.customer)
+        .doc(firebaseUser.uid)
+        .get();
+
+    UserModel? fetchedUser;
+    if (profile.exists) {
+      fetchedUser = UserModel.fromJson({...profile.data()!, 'id': profile.id});
+    } else {
+      // Supports profiles created before Firebase UIDs were used as document IDs.
+      // At this point the customer is authenticated, so the rules permit it.
+      fetchedUser = await _fetchCustomerByContact(contact);
+    }
     if (fetchedUser == null) {
       throw Exception('No account found for this phone number. Please register.');
     }
+    final customer = fetchedUser;
 
-    if (!fetchedUser.isActive) {
+    if (!customer.isActive) {
       throw Exception('Your account has been suspended. Contact support.');
     }
 
     // Merge into session cache
-    final index = _sessionUsers.indexWhere((u) => u.id == fetchedUser.id);
+    final index = _sessionUsers.indexWhere((u) => u.id == customer.id);
     if (index >= 0) {
-      _sessionUsers[index] = fetchedUser;
+      _sessionUsers[index] = customer;
     } else {
-      _sessionUsers.add(fetchedUser);
+      _sessionUsers.add(customer);
     }
 
     _currentToken =
-        'auth_token_${fetchedUser.id}_${DateTime.now().millisecondsSinceEpoch}';
-    _currentUserId = fetchedUser.id;
-    _uploadDeviceTokenForUser(fetchedUser);
+        'auth_token_${customer.id}_${DateTime.now().millisecondsSinceEpoch}';
+    _currentUserId = customer.id;
+    _uploadDeviceTokenForUser(customer);
     
-    final updatedUser = await _recordSession(fetchedUser);
+    final updatedUser = await _recordSession(customer);
     return (user: updatedUser, token: _currentToken!);
   }
 
@@ -611,39 +577,6 @@ class AuthRepository {
     String? businessRegistrationNumber,
   }) async {
     await ensureInitialized();
-
-    if (role == UserRole.customer) {
-      final normalizedEmail = email.trim();
-      final rawPhone = phone.trim();
-      final normalizedPhone = rawPhone.isNotEmpty
-          ? SriLankaPhoneHelper.normalizeSriLankaPhoneForStorage(rawPhone)
-          : rawPhone;
-
-      final result = await _registerCustomerServerSide(
-        fullName: fullName.trim(),
-        email: normalizedEmail,
-        phone: normalizedPhone,
-        verifiedPhone: verifiedPhone,
-        verifiedEmail: verifiedEmail,
-        detectedCountry: detectedCountry,
-        detectionSource: detectionSource,
-        riskFlag: riskFlag,
-        nic: nic?.trim(),
-        deliveryProvince: deliveryProvince,
-        deliveryDistrict: deliveryDistrict,
-        deliveryApproxArea: deliveryApproxArea,
-        deliveryPreciseAddress: deliveryPreciseAddress,
-        deliveryNote: deliveryNote,
-        deliveryLatitude: deliveryLatitude,
-        deliveryLongitude: deliveryLongitude,
-      );
-
-      _sessionUsers.add(result.user);
-      _currentUserId = result.user.id;
-      _currentToken = result.token;
-      _uploadDeviceTokenForUser(result.user);
-      return result;
-    }
 
     final normalizedEmail = email.trim();
     final rawPhone = phone.trim();
@@ -739,9 +672,10 @@ class AuthRepository {
     // OTP verification — currentUser.uid is their real phone-linked UID.
     // For vendors: createUserWithEmailAndPassword sets currentUser.
     final firebaseUid = _firebaseAuth.currentUser?.uid;
-    final userId = role == UserRole.customer
-      ? newUser.id
-      : (firebaseUid ?? newUser.id);
+    // Always use the Firebase Auth UID as the Firestore document ID so that
+    // security rules (isOwner check) work correctly. Falling back to the
+    // local generated id is only a last resort for offline scenarios.
+    final userId = firebaseUid ?? newUser.id;
     final userWithFirebaseId = newUser.copyWith(id: userId);
     debugPrint('[Auth] Firebase user created, UID=$userId');
     _sessionUsers.add(userWithFirebaseId);
@@ -812,7 +746,14 @@ class AuthRepository {
   }
 
   // ── Logout ─────────────────────────────────────────────────────────────────
-  Future<void> logout() async {
+  Future<void> logout({bool keepFirebaseSession = false}) async {
+    if (!keepFirebaseSession) {
+      try {
+        await _firebaseAuth.signOut();
+      } catch (e) {
+        debugPrint('[Auth] Firebase sign out error (non-fatal): $e');
+      }
+    }
     await Future.delayed(const Duration(milliseconds: 300));
     _currentToken = null;
     _currentUserId = null;

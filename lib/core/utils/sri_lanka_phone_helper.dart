@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 /// Central helper for Sri Lankan phone number handling
 class SriLankaPhoneHelper {
   static const String countryCode = '+94';

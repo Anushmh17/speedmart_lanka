@@ -34,6 +34,7 @@ class VendorStatusScreen extends ConsumerWidget {
         isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
     final secondaryText =
         isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final isLoading = ref.watch(authLoadingProvider);
 
     // When blocked (pending, approved-but-unassigned), listen to Firestore in real-time
     // and refresh auth state on any change.
@@ -191,9 +192,18 @@ class VendorStatusScreen extends ConsumerWidget {
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
-                onPressed: () => _backToLogin(context, ref),
-                icon: const Icon(Icons.logout_rounded),
-                label: const Text('Back to Login'),
+                onPressed: isLoading ? null : () => _backToLogin(context, ref),
+                icon: isLoading
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          color: AppColors.customerColor,
+                        ),
+                      )
+                    : const Icon(Icons.logout_rounded),
+                label: Text(isLoading ? 'Logging out...' : 'Back to Login'),
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size(0, 48),
                   shape: RoundedRectangleBorder(

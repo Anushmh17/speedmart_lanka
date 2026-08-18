@@ -72,6 +72,20 @@ class AuthNotifier extends StateNotifier<AuthState> {
     final firebaseUid = AuthRepository.instance.currentFirebaseUid;
     
     final userJson = await StorageService.getUser();
+    if (userJson != null) {
+      final savedRole = userJson['role'] as String?;
+      final shouldRestore = switch (savedRole) {
+        'customer' => await StorageService.getCustomerRememberMe(),
+        'vendor' => await StorageService.getVendorRememberMe(),
+        _ => true,
+      };
+      if (!shouldRestore) {
+        await StorageService.clearSession();
+        state = const AuthState.unauthenticated();
+        return;
+      }
+    }
+
     // For vendors/admins signed in with Firebase Auth, ensure stored ID matches Firebase UID.
     if (userJson != null && firebaseUid != null &&
         userJson['id'] != firebaseUid &&
@@ -349,17 +363,61 @@ class AuthNotifier extends StateNotifier<AuthState> {
   }
 
   // ── Logout ─────────────────────────────────────────────────────────────────
-  Future<void> logout() async {
-    // Unsubscribe vendor from FCM topics before clearing session
-    final role = state.user?.role;
-    final shopDistrict = state.user?.shopDistrict;
-    if (role == UserRole.vendor) {
-      await FcmService.unsubscribeVendorFromTopics(shopDistrict: shopDistrict);
+  Future<bool> restoreRememberedSession({
+    required UserRole role,
+    required bool Function(UserModel user) matchesAccount,
+  }) async {
+    final saved = await StorageService.getRememberedSession();
+    if (saved == null) return false;
+
+    final user = UserModel.fromJson(saved.user);
+    if (user.role != role ||
+        !matchesAccount(user) ||
+        _repo.currentFirebaseUid != user.id) {
+      return false;
     }
-    await _repo.logout();
-    await StorageService.clearSession();
-    if (role != null) await StorageService.saveRole(role.name);
-    state = const AuthState.unauthenticated();
+
+    await StorageService.saveToken(saved.token);
+    await StorageService.saveUser(saved.user);
+    await StorageService.saveRole(user.role.name);
+    NotificationRepository.instance.resetForNewSession();
+    state = AuthState.authenticated(user);
+    await _setupSessionListener(user);
+    return true;
+  }
+
+  Future<void> logout({bool keepRememberedSession = false}) async {
+    state = state.copyWith(isLoading: true);
+    try {
+      // Unsubscribe vendor from FCM topics before clearing session
+      final role = state.user?.role;
+      final shopDistrict = state.user?.shopDistrict;
+      if (role == UserRole.vendor) {
+        await FcmService.unsubscribeVendorFromTopics(shopDistrict: shopDistrict);
+      }
+      final user = state.user;
+      final token = await StorageService.getToken();
+      if (keepRememberedSession && user != null && token != null) {
+        await StorageService.saveRememberedSession(
+          userJson: user.toJson(),
+          token: token,
+        );
+      } else {
+        await StorageService.clearRememberedSession();
+      }
+      await _userSubscription?.cancel();
+      _userSubscription = null;
+      await _repo.logout(keepFirebaseSession: keepRememberedSession);
+      await StorageService.clearSession();
+      if (role != null) await StorageService.saveRole(role.name);
+      state = const AuthState.unauthenticated();
+    } catch (e) {
+      debugPrint('[Auth] Logout failed: $e');
+      // If we failed to hit the network, we should still clear local session 
+      // so the user isn't permanently trapped.
+      await StorageService.clearSession();
+      state = const AuthState.unauthenticated();
+    }
   }
 
   // ── Update Profile ────────────────────────────────────────────────────────

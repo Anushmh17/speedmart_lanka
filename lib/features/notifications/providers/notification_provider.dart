@@ -91,12 +91,6 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
       final current = ref.read(currentUserProvider);
       if (current != null && current.id == userId) {
         try {
-          final payload = <String, dynamic>{
-            'type': type.name,
-            'relatedId': relatedId,
-            'notificationId': '',
-          };
-
           // Map notification types to deep links / routes
           String? route;
           dynamic extra;

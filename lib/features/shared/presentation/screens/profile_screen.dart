@@ -356,39 +356,48 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (confirmed != true) return;
 
     final role = ref.read(currentUserProvider)?.role;
+    var retainRememberedSession = false;
 
-    // Step 2: Ask about OTP preference for customer/vendor
+    // Step 2: Ask about OTP preference only if remember me was selected.
     if (role == UserRole.customer || role == UserRole.vendor) {
-      final keep = await showDialog<bool>(
-        context: context,
-        useRootNavigator: true,
-        barrierDismissible: false,
-        builder: (_) => AlertDialog(
-          title: const Text('Stay signed in?'),
-          content: const Text(
-            'Would you like to skip OTP verification next time you log in?',
+      final alreadyRemembered = role == UserRole.customer
+          ? await StorageService.getCustomerRememberMe()
+          : await StorageService.getVendorRememberMe();
+      if (alreadyRemembered) {
+        final keep = await showDialog<bool>(
+          context: context,
+          useRootNavigator: true,
+          barrierDismissible: false,
+          builder: (_) => AlertDialog(
+            title: const Text('Stay signed in?'),
+            content: const Text(
+              'Would you like to skip OTP verification next time you log in?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context, rootNavigator: true).pop(false),
+                child: const Text('No'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context, rootNavigator: true).pop(true),
+                child: const Text('Yes'),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context, rootNavigator: true).pop(false),
-              child: const Text('No'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(context, rootNavigator: true).pop(true),
-              child: const Text('Yes'),
-            ),
-          ],
-        ),
-      );
-      if (keep == null) return;
-      if (role == UserRole.customer) {
-        await StorageService.saveCustomerRememberMe(keep);
-      } else {
-        await StorageService.saveVendorRememberMe(keep);
+        );
+        if (keep == null) return;
+        retainRememberedSession = keep;
+        if (role == UserRole.customer) {
+          await StorageService.saveCustomerRememberMe(keep);
+        } else {
+          await StorageService.saveVendorRememberMe(keep);
+        }
       }
     }
 
-    await ref.read(authProvider.notifier).logout();
+    await ref
+        .read(authProvider.notifier)
+        .logout(keepRememberedSession: retainRememberedSession);
   }
 
   @override
@@ -1752,7 +1761,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           label: 'Logout',
           type: Theme3ButtonType.danger,
           onPressed: isLoading ? null : onLogout,
-          isLoading: false,
+          isLoading: isLoading,
           icon: Icons.logout_rounded,
         ),
       ],

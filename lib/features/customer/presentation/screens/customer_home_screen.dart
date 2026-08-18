@@ -33,7 +33,6 @@ class CustomerHomeScreen extends ConsumerStatefulWidget {
 
 class _CustomerHomeScreenState extends ConsumerState<CustomerHomeScreen>
     with WidgetsBindingObserver {
-  String _currentLocation = RouteNames.customerHome;
   String? _lastSyncedLocation;
 
   @override
@@ -600,7 +599,7 @@ class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
                                   child: SizedBox(
                                     width: double.infinity,
                                     height: double.infinity,
-                                    child: Image(image: avatarImage!, fit: BoxFit.contain),
+                                    child: Image(image: avatarImage, fit: BoxFit.contain),
                                   ),
                                 ),
                                 Positioned(

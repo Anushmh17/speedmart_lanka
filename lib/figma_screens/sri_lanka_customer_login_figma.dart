@@ -8,6 +8,7 @@ class SrilankacustomerloginWidget extends StatefulWidget {
   final VoidCallback? onVendorLogin;
   final VoidCallback? onCountryTap;
   final TextEditingController? phoneController;
+  final bool isLoading;
 
   const SrilankacustomerloginWidget({
     super.key,
@@ -16,6 +17,7 @@ class SrilankacustomerloginWidget extends StatefulWidget {
     this.onVendorLogin,
     this.onCountryTap,
     this.phoneController,
+    this.isLoading = false,
   });
 
   @override
@@ -462,7 +464,7 @@ class _SrilankacustomerloginWidgetState
                           child: SizedBox(
                             height: y(49),
                             child: ElevatedButton(
-                              onPressed: _handleSendOtp,
+                              onPressed: widget.isLoading ? null : _handleSendOtp,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFFFF8213),
                                 foregroundColor: Colors.white,
@@ -472,16 +474,25 @@ class _SrilankacustomerloginWidgetState
                                   borderRadius: BorderRadius.circular(x(20)),
                                 ),
                               ),
-                              child: Text(
-                                'Send OTP',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontFamily: 'OpenSans',
-                                  fontSize: fs(20),
-                                  fontWeight: FontWeight.w700,
-                                  height: 1,
-                                ),
-                              ),
+                              child: widget.isLoading
+                                  ? const SizedBox(
+                                      width: 22,
+                                      height: 22,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.5,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : Text(
+                                      'Send OTP',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontFamily: 'OpenSans',
+                                        fontSize: fs(20),
+                                        fontWeight: FontWeight.w700,
+                                        height: 1,
+                                      ),
+                                    ),
                             ),
                           ),
                         ),

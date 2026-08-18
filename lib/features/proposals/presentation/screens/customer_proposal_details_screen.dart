@@ -11,6 +11,7 @@ import '../../models/proposal.dart';
 import '../../providers/proposal_provider.dart';
 import '../../../customer/proposals/services/proposal_comparison_service.dart';
 import '../../../vendor/proposals/widgets/image_gallery_viewer.dart';
+import '../../../../core/widgets/theme3/theme3_app_button.dart';
 import 'customer_proposal_details_screen_header.dart';
 
 class CustomerProposalDetailsScreen extends ConsumerStatefulWidget {
@@ -561,14 +562,11 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                     Expanded(
                       child: SizedBox(
                         height: 52,
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.customerColor,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                            elevation: 0,
-                          ),
+                        child: Theme3AppButton(
+                          label: 'Accept & Pay',
                           onPressed: _handleAccept,
-                          child: Text('Accept & Pay', style: AppTextStyles.button(Colors.white)),
+                          isLoading: _isProcessingAccept,
+                          type: Theme3ButtonType.primary,
                         ),
                       ),
                     ),
