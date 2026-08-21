@@ -3,8 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chat_message.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../../../shared/models/user_model.dart';
-import '../../../shared/models/user_role.dart';
 
 class ChatState {
   final List<ChatMessage> messages;
@@ -93,23 +91,28 @@ class ChatNotifier extends StateNotifier<ChatState> {
     required String senderName,
     required String text,
   }) async {
-    final senderId = ref.read(authProvider).user?.id;
+    final user = ref.read(authProvider).user;
+    final senderId = user?.id;
     if (senderId == null || senderId.isEmpty) {
       throw StateError('Sign in again before sending a message.');
     }
 
     final masked = maskSensitiveDetails(text);
 
-    final isCustomer = ref.read(authProvider).user?.role == UserRole.customer;
+    // Proposals are always stored in the top-level 'proposals' collection
+    // regardless of the viewer's role — the old 'customer_proposals' lookup
+    // was incorrect and caused a silent null-return for every customer send.
     final proposalDoc = await FirebaseFirestore.instance
-        .collection(isCustomer ? 'customer_proposals' : 'proposals')
+        .collection('proposals')
         .doc(proposalId)
         .get();
     final proposalData = proposalDoc.data();
-    if (proposalData == null) return;
+    if (proposalData == null) {
+      throw StateError('Proposal not found. Please refresh and try again.');
+    }
 
-    final customerId = proposalData['customerId'] as String;
-    final vendorId = proposalData['vendorId'] as String;
+    final customerId = proposalData['customerId'] as String? ?? '';
+    final vendorId = proposalData['vendorId'] as String? ?? '';
 
     final messageData = {
       'proposalId': proposalId,

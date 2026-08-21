@@ -6,6 +6,8 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../providers/chat_provider.dart';
+import '../../../auth/providers/auth_provider.dart';
+import '../../../../shared/models/user_role.dart';
 import 'package:speedmart_lanka/core/utils/error_translator.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
@@ -56,17 +58,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final text = customText ?? _controller.text.trim();
     if (text.isEmpty) return;
 
+    final user = ref.read(currentUserProvider);
+    final senderRole = user?.role == UserRole.vendor ? 'vendor' : 'customer';
+    final senderName = user?.fullName ?? (senderRole == 'vendor' ? 'Vendor' : 'Customer');
+
     try {
       await ref.read(chatProvider.notifier).sendMessage(
             proposalId: widget.proposalId,
-            senderRole: 'customer',
-            senderName: 'Customer',
+            senderRole: senderRole,
+            senderName: senderName,
             text: text,
           );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Message could not be sent. Please try again.')),
+          SnackBar(
+            content: Text(ErrorTranslator.friendly(e)),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+          ),
         );
       }
       return;
@@ -97,7 +107,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
 
-    final messages = ref.read(chatProvider.notifier).getMessagesForProposal(widget.proposalId);
+    // Use ref.watch so the list rebuilds whenever new messages arrive
+    final messages = ref.watch(chatProvider).messages
+        .where((m) => m.proposalId == widget.proposalId)
+        .toList();
 
     // If order is pre-payment/not unlocked, mask real name to protect shop owner
     final displayName = widget.isUnlocked ? widget.vendorName : 'Partner Shop Owner #A3B1';
