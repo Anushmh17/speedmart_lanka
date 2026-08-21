@@ -807,7 +807,7 @@ class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Compare proposals safely.\nVendor details unlock after payment.',
+                    'Compare proposals safely.\nShop owner details unlock after payment.',
                     style: AppTextStyles.bodySmall(
                             Colors.white.withValues(alpha: 0.88))
                         .copyWith(height: 1.4),
@@ -936,16 +936,16 @@ class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
                 ref.watch(nearbyActiveVendorCountProvider).when(
                   data: (count) => Text(
                     count == 0
-                        ? 'No Active Vendors Nearby'
-                        : '$count Active Vendor${count == 1 ? '' : 's'} Nearby',
+                        ? 'No Active Shop Owners Nearby'
+                        : '$count Active Shop Owner${count == 1 ? '' : 's'} Nearby',
                     style: AppTextStyles.labelLarge(primaryText),
                   ),
                   loading: () => Text(
-                    'Finding vendors nearby...',
+                    'Finding shop owners nearby...',
                     style: AppTextStyles.labelLarge(primaryText),
                   ),
                   error: (_, __) => Text(
-                    'No Active Vendors Nearby',
+                    'No Active Shop Owners Nearby',
                     style: AppTextStyles.labelLarge(primaryText),
                   ),
                 ),
@@ -953,12 +953,12 @@ class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
                 ref.watch(nearbyActiveVendorCountProvider).when(
                   data: (count) => Text(
                     count == 0
-                        ? 'Set your delivery location to find vendors'
+                        ? 'Set your delivery location to find shop owners'
                         : 'Ready to fulfill your requests',
                     style: AppTextStyles.caption(secondaryText),
                   ),
                   loading: () => Text('Ready to fulfill your requests', style: AppTextStyles.caption(secondaryText)),
-                  error: (_, __) => Text('Set your delivery location to find vendors', style: AppTextStyles.caption(secondaryText)),
+                  error: (_, __) => Text('Set your delivery location to find shop owners', style: AppTextStyles.caption(secondaryText)),
                 ),
               ],
             ),
@@ -1008,7 +1008,7 @@ class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
                   Icon(Icons.storefront_rounded, color: AppColors.primary, size: 24),
                   const SizedBox(width: AppSpacing.sm),
                   Text(
-                    'Vendors Nearby',
+                    'Shop Owners Nearby',
                     style: AppTextStyles.h2(primaryText),
                   ),
                 ],
@@ -1025,7 +1025,7 @@ class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
                     if (vendors.isEmpty) {
                       return Center(
                         child: Text(
-                          'No vendors found nearby. Try updating your delivery location.',
+                          'No shop owners found nearby. Try updating your delivery location.',
                           style: AppTextStyles.bodyMedium(secondaryText),
                           textAlign: TextAlign.center,
                         ),
@@ -1109,7 +1109,7 @@ class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
                   loading: () => const Center(child: CircularProgressIndicator()),
                   error: (_, __) => Center(
                     child: Text(
-                      'Failed to load nearby vendors.',
+                      'Failed to load nearby shop owners.',
                       style: AppTextStyles.bodyMedium(secondaryText),
                     ),
                   ),
