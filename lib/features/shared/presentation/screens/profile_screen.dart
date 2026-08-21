@@ -32,6 +32,7 @@ import '../../../../core/utils/permission_utils.dart';
 import '../../../../core/utils/sri_lanka_phone_helper.dart';
 import '../../../../core/navigation/bottom_nav_visibility.dart';
 import '../../../../shared/models/vendor_status.dart';
+import '../../../../core/utils/validators.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({
@@ -55,6 +56,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   late TextEditingController _nameCtrl;
   late TextEditingController _phoneCtrl;
+  late TextEditingController _nicCtrl;
   late TextEditingController _businessNameCtrl;
   
   List<String> _requestedCategories = [];
@@ -72,6 +74,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     super.initState();
     _nameCtrl = TextEditingController();
     _phoneCtrl = TextEditingController();
+    _nicCtrl = TextEditingController();
     _businessNameCtrl = TextEditingController();
     _bankNameCtrl = TextEditingController();
     _bankBranchCtrl = TextEditingController();
@@ -117,6 +120,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (user != null) {
       _nameCtrl.text = user.fullName;
       _phoneCtrl.text = user.phone;
+      _nicCtrl.text = user.nic ?? '';
       _businessNameCtrl.text = user.businessName ?? '';
       _requestedCategories = List.from(user.requestedCategories ?? []);
       _bankNameCtrl.text = user.bankName ?? '';
@@ -161,6 +165,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   void dispose() {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
+    _nicCtrl.dispose();
     _businessNameCtrl.dispose();
     _bankNameCtrl.dispose();
     _bankBranchCtrl.dispose();
@@ -234,6 +239,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     final sameName = _nameCtrl.text.trim() == user.fullName;
     final samePhone = _phoneCtrl.text.trim() == user.phone;
+    final sameNic = _nicCtrl.text.trim() == (user.nic ?? '');
     final sameBusinessName = (user.businessName ?? '') == _businessNameCtrl.text.trim();
     final samePickedImage = (_pickedImagePath ?? user.profileImageUrl) == user.profileImageUrl;
     final sameBankName = (user.bankName ?? '') == _bankNameCtrl.text.trim();
@@ -247,6 +253,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     if (user.role == UserRole.vendor) {
       return !sameName ||
           !samePhone ||
+          !sameNic ||
           !sameBusinessName ||
           !samePickedImage ||
           !sameBankName ||
@@ -272,6 +279,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         setState(() => _isEditing = false);
         ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
       }
+      return;
+    }
+
+    final nicText = _nicCtrl.text.trim();
+    if (nicText.isNotEmpty) {
+      final nicErr = Validators.nic(nicText);
+      if (nicErr != null) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(nicErr), backgroundColor: Colors.red));
+        return;
+      }
+    } else if (user.role == UserRole.vendor) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('NIC is required for vendor accounts.'), backgroundColor: Colors.red));
       return;
     }
 
@@ -884,10 +903,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       const SizedBox(height: AppSpacing.md),
       Theme3AppTextField(
         label: 'NIC',
-        controller: TextEditingController(text: user.nic ?? 'Not provided'),
+        controller: _nicCtrl,
         prefixIcon: Icons.badge_outlined,
-        suffixIcon: Icons.lock_outline_rounded,
-        readOnly: true,
       ),
     ];
   }
