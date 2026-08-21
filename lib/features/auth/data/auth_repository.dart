@@ -187,21 +187,31 @@ class AuthRepository {
       debugPrint(
           '[Auth] Synced user ${user.id} to Firestore (${user.role.name})');
 
-      // If this is a vendor, also write public proximity fields to vendor_discovery
-      // so customers can detect nearby shop owners without accessing sensitive data.
+      // If this is a vendor, write public proximity fields to vendor_discovery.
+      // SECURITY: shop_latitude/longitude are stored at 2 decimal places (~1.1km
+      // precision). This is accurate enough for radius detection but too imprecise
+      // to pinpoint the shop — preventing customers from navigating directly to it.
       if (user.role == UserRole.vendor) {
         try {
+          // Round to 2 decimal places to obscure exact location (~1.1km precision)
+          final roundedLat = user.shopLatitude != null
+              ? (user.shopLatitude! * 100).round() / 100
+              : null;
+          final roundedLon = user.shopLongitude != null
+              ? (user.shopLongitude! * 100).round() / 100
+              : null;
+
           await FirestoreService.collection('vendor_discovery').doc(user.id).set({
             'vendor_status': user.vendorStatus?.name,
             'is_active': user.isActive,
             'is_shop_location_assigned': user.isShopLocationAssigned ?? false,
-            'shop_latitude': user.shopLatitude,
-            'shop_longitude': user.shopLongitude,
+            'shop_latitude': roundedLat,
+            'shop_longitude': roundedLon,
             'assigned_radius_km': user.assignedRadiusKm,
             'allowed_categories': user.allowedCategories,
             'vendor_categories': user.vendorCategories,
           }, SetOptions(merge: true));
-          debugPrint('[Auth] Synced vendor_discovery for ${user.id}');
+          debugPrint('[Auth] Synced vendor_discovery for ${user.id} (rounded coords ±1.1km)');
         } catch (e) {
           debugPrint('[Auth] vendor_discovery sync failed (non-fatal): $e');
         }
