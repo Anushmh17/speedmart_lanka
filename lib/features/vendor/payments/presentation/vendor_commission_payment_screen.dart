@@ -12,6 +12,7 @@ import '../../../auth/providers/auth_provider.dart';
 import '../data/vendor_commission_payment_repository.dart';
 import '../models/vendor_commission_payment.dart';
 import '../providers/vendor_commission_payment_provider.dart';
+import 'package:speedmart_lanka/core/utils/error_translator.dart';
 
 /// Fetches Speedmart's admin bank details from Firestore platform_config.
 /// Returns null while loading or if not configured by admin.
@@ -118,7 +119,7 @@ class _VendorCommissionPaymentScreenState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to submit receipt: $e'),
+            content: Text(ErrorTranslator.friendly(e)),
             backgroundColor: AppColors.error,
             behavior: SnackBarBehavior.floating,
           ),
