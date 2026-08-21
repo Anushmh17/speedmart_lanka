@@ -13,7 +13,9 @@ class ProposalComparisonService {
   const ProposalComparisonService();
 
   String maskedVendorName(String vendorId) {
-    return 'Verified Partner';
+    if (vendorId.isEmpty) return 'Verified Partner';
+    final shortId = vendorId.length >= 4 ? vendorId.substring(0, 4).toUpperCase() : vendorId.toUpperCase();
+    return 'Verified Partner #$shortId';
   }
 
   /// Stable mock rating until real vendor reviews exist.

@@ -10,6 +10,8 @@ class ChatMessage {
   final String maskedText;
   final DateTime timestamp;
   final bool isSystemMessage;
+  final bool isRead;
+  final bool isPending;
 
   ChatMessage({
     required this.id,
@@ -20,6 +22,8 @@ class ChatMessage {
     required this.maskedText,
     required this.timestamp,
     this.isSystemMessage = false,
+    this.isRead = false,
+    this.isPending = false,
   });
 
   factory ChatMessage.system({
@@ -35,10 +39,12 @@ class ChatMessage {
       maskedText: text,
       timestamp: DateTime.now(),
       isSystemMessage: true,
+      isRead: false,
+      isPending: false,
     );
   }
 
-  factory ChatMessage.fromJson(Map<String, dynamic> json, String documentId) {
+  factory ChatMessage.fromJson(Map<String, dynamic> json, String documentId, {bool isPending = false}) {
     return ChatMessage(
       id: documentId,
       proposalId: json['proposalId'] as String? ?? '',
@@ -50,6 +56,8 @@ class ChatMessage {
           ? (json['timestamp'] as Timestamp).toDate() 
           : DateTime.now(),
       isSystemMessage: json['isSystemMessage'] as bool? ?? false,
+      isRead: json['isRead'] as bool? ?? false,
+      isPending: isPending,
     );
   }
 
@@ -62,6 +70,7 @@ class ChatMessage {
       'maskedText': maskedText,
       'timestamp': Timestamp.fromDate(timestamp),
       'isSystemMessage': isSystemMessage,
+      'isRead': isRead,
     };
   }
 }

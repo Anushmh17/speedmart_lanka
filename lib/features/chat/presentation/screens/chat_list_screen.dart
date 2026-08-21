@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../providers/chat_provider.dart';
+import '../../../../features/proposals/providers/proposal_provider.dart';
 
 class ChatListScreen extends ConsumerWidget {
   const ChatListScreen({super.key});
@@ -81,9 +82,18 @@ class ChatListScreen extends ConsumerWidget {
                 final entry = convoEntries[index];
                 final proposalId = entry.key;
                 final lastMsg = entry.value.last as dynamic;
-                final vendorName = (entry.value.first as dynamic).senderRole == 'vendor'
-                    ? (entry.value.first as dynamic).senderName
-                    : lastMsg.senderName;
+                final proposals = ref.read(proposalProvider).proposals;
+                final proposal = proposals.where((p) => p.id == proposalId).firstOrNull;
+                
+                String displayTitle = 'Verified Partner';
+                if (proposal != null && proposal.vendorId.isNotEmpty) {
+                  final vId = proposal.vendorId;
+                  final shortId = vId.length >= 4 ? vId.substring(0, 4).toUpperCase() : vId.toUpperCase();
+                  displayTitle = 'Verified Partner #$shortId';
+                } else {
+                  final shortId = proposalId.length >= 4 ? proposalId.substring(0, 4).toUpperCase() : proposalId.toUpperCase();
+                  displayTitle = 'Verified Partner #$shortId';
+                }
 
                 return Container(
                   decoration: BoxDecoration(
@@ -104,7 +114,7 @@ class ChatListScreen extends ConsumerWidget {
                       onTap: () {
                         context.push('/chat', extra: {
                           'proposalId': proposalId,
-                          'vendorName': vendorName ?? 'Partner Shop Owner',
+                          'vendorName': displayTitle,
                           'isUnlocked': false,
                         });
                       },
@@ -116,7 +126,7 @@ class ChatListScreen extends ConsumerWidget {
                             child: const Icon(Icons.storefront_rounded, color: AppColors.customerColor),
                           ),
                           title: Text(
-                            vendorName ?? 'Shop',
+                            displayTitle,
                             style: AppTextStyles.bodyLarge(primaryText).copyWith(fontWeight: FontWeight.w600),
                           ),
                           subtitle: Text(

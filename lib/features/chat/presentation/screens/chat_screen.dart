@@ -32,12 +32,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
 
-  final List<String> _quickSuggestions = [
-    'Is the Keells fresh milk in stock?',
-    'When will the rider deliver to Colombo 05?',
-    'Is the alternative product high quality?',
-    'Can we adjust the price details?',
-  ];
 
   @override
   void initState() {
@@ -111,9 +105,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final messages = ref.watch(chatProvider).messages
         .where((m) => m.proposalId == widget.proposalId)
         .toList();
+        
+    // Mark messages as read automatically when viewing them
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(chatProvider.notifier).markMessagesAsRead(widget.proposalId);
+      }
+    });
 
-    // If order is pre-payment/not unlocked, mask real name to protect shop owner
-    final displayName = widget.isUnlocked ? widget.vendorName : 'Partner Shop Owner #A3B1';
+    // The caller is expected to pass the correctly masked name (e.g. Verified Partner #ID) when locked
+    final displayName = widget.vendorName;
 
     return Scaffold(
       backgroundColor: isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
@@ -194,9 +195,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           ),
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          '${message.senderName} • ${message.timestamp.hour}:${message.timestamp.minute.toString().padLeft(2, '0')}',
-                          style: AppTextStyles.caption(secondaryText),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${message.timestamp.hour}:${message.timestamp.minute.toString().padLeft(2, '0')}',
+                              style: AppTextStyles.caption(secondaryText),
+                            ),
+                            if (isMe) ...[
+                              const SizedBox(width: 4),
+                              Icon(
+                                message.isPending
+                                    ? Icons.schedule_rounded
+                                    : (message.isRead ? Icons.done_all_rounded : Icons.check_rounded),
+                                size: 14,
+                                color: (message.isRead && !message.isPending) 
+                                    ? (isDark ? AppColors.primary : AppColors.customerColor) 
+                                    : secondaryText,
+                              ),
+                            ],
+                          ],
                         ),
                       ],
                     ),
@@ -206,31 +224,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
           ),
 
-          // Pre-defined quick suggestions
-          if (!widget.isUnlocked) ...[
-            Container(
-              height: 44,
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              color: surfaceColor,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: _quickSuggestions.length,
-                itemBuilder: (context, index) {
-                  final suggestion = _quickSuggestions[index];
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8.0),
-                    child: ActionChip(
-                      backgroundColor: cardColor,
-                      side: BorderSide(color: borderColor),
-                      label: Text(suggestion, style: AppTextStyles.caption(AppColors.customerColor).copyWith(fontWeight: FontWeight.bold)),
-                      onPressed: () => _sendMessage(suggestion),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
+
 
           // Input bar
           Container(
@@ -380,6 +374,38 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ],
                 ),
               ],
+            ),
+          ),
+          // View proposal/order shortcut
+          GestureDetector(
+            onTap: () => context.push('/customer/proposals/${widget.proposalId}'),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.customerColor.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: AppColors.customerColor.withValues(alpha: 0.3),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    widget.isUnlocked
+                        ? Icons.local_shipping_rounded
+                        : Icons.receipt_long_rounded,
+                    color: AppColors.customerColor,
+                    size: 14,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    widget.isUnlocked ? 'Order' : 'Proposal',
+                    style: AppTextStyles.caption(AppColors.customerColor)
+                        .copyWith(fontWeight: FontWeight.bold, fontSize: 11),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
