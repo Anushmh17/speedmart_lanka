@@ -14,6 +14,7 @@ import 'package:speedmart_lanka/core/navigation/bottom_nav_visibility.dart';
 import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
 import 'package:speedmart_lanka/features/auth/providers/theme_provider.dart';
 import 'package:speedmart_lanka/features/vendor/providers/nearby_vendors_provider.dart';
+import 'package:speedmart_lanka/features/location/providers/location_provider.dart';
 import 'package:speedmart_lanka/core/widgets/theme3/request_image_carousel.dart';
 import 'package:speedmart_lanka/features/requests/presentation/screens/request_details_screen.dart';
 import 'package:speedmart_lanka/features/requests/providers/request_provider.dart';
@@ -951,12 +952,15 @@ class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
                 ),
                 const SizedBox(height: 2),
                 ref.watch(nearbyActiveVendorCountProvider).when(
-                  data: (count) => Text(
-                    count == 0
-                        ? 'Set your delivery location to find shop owners'
-                        : 'Ready to fulfill your requests',
-                    style: AppTextStyles.caption(secondaryText),
-                  ),
+                  data: (count) {
+                    final hasLocation = ref.read(locationProvider).currentLocation != null;
+                    return Text(
+                      count == 0
+                          ? (hasLocation ? 'We are expanding to your area soon' : 'Set your delivery location to find shop owners')
+                          : 'Ready to fulfill your requests',
+                      style: AppTextStyles.caption(secondaryText),
+                    );
+                  },
                   loading: () => Text('Ready to fulfill your requests', style: AppTextStyles.caption(secondaryText)),
                   error: (_, __) => Text('Set your delivery location to find shop owners', style: AppTextStyles.caption(secondaryText)),
                 ),
@@ -1023,9 +1027,12 @@ class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
                 child: ref.watch(nearbyActiveVendorsProvider).when(
                   data: (vendors) {
                     if (vendors.isEmpty) {
+                      final hasLocation = ref.read(locationProvider).currentLocation != null;
                       return Center(
                         child: Text(
-                          'No shop owners found nearby. Try updating your delivery location.',
+                          hasLocation 
+                              ? 'No shop owners found in your area yet. We are expanding soon!'
+                              : 'No shop owners found. Try setting your delivery location.',
                           style: AppTextStyles.bodyMedium(secondaryText),
                           textAlign: TextAlign.center,
                         ),
