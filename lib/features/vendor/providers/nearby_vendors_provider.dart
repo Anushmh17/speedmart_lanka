@@ -34,19 +34,22 @@ final nearbyActiveVendorCountProvider = FutureProvider<int>((ref) async {
 
   final customerLat = locationState.latitude;
   final customerLon = locationState.longitude;
-  const radiusKm = 5.0;
 
   if (customerLat != null && customerLon != null) {
     return activeVendors.where((v) {
       final vLat = v.shopLatitude;
       final vLon = v.shopLongitude;
       if (vLat == null || vLon == null) return false;
+      
+      // Use the vendor's admin-assigned radius, or default to 5km
+      final vendorRadius = v.assignedRadiusKm ?? 5.0;
+      
       return _distanceCalc.isWithinRadius(
         originLat: customerLat,
         originLon: customerLon,
         targetLat: vLat,
         targetLon: vLon,
-        radiusKm: radiusKm,
+        radiusKm: vendorRadius,
       );
     }).length;
   }
