@@ -248,6 +248,7 @@ class _SrilankavendorregistrationWidgetState
       List<TextInputFormatter>? inputFormatters,
       bool obscureText = false,
       Widget? suffix,
+      bool isRequired = false,
     }) {
       return Positioned(
         top: y(top),
@@ -277,7 +278,38 @@ class _SrilankavendorregistrationWidgetState
                 children: [
                   Expanded(
                     child: Center(
-                      child: TextField(
+                      child: Stack(
+                        alignment: Alignment.centerLeft,
+                        children: [
+                          ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: controller,
+                            builder: (context, value, child) {
+                              if (value.text.isNotEmpty) return const SizedBox.shrink();
+                              return IgnorePointer(
+                                child: RichText(
+                                  text: TextSpan(
+                                    text: hint,
+                                    style: TextStyle(
+                                      color: const Color(0xFFCACACA),
+                                      fontFamily: 'Inter',
+                                      fontSize: fs(15),
+                                      fontWeight: FontWeight.w600,
+                                      height: 1,
+                                      letterSpacing: 0,
+                                    ),
+                                    children: [
+                                      if (isRequired)
+                                        const TextSpan(
+                                          text: ' *',
+                                          style: TextStyle(color: Colors.red),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          TextField(
                         focusNode: focusNode,
                         controller: controller,
                         keyboardType: keyboardType,
@@ -299,7 +331,7 @@ class _SrilankavendorregistrationWidgetState
                           letterSpacing: obscureText ? 1.5 : 0,
                         ),
                         decoration: InputDecoration(
-                          hintText: hint,
+                          hintText: '',
                           hintStyle: TextStyle(
                             color: const Color(0xFFCACACA),
                             fontFamily: 'Inter',
@@ -315,8 +347,10 @@ class _SrilankavendorregistrationWidgetState
                           contentPadding: EdgeInsets.zero,
                         ),
                       ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
                   if (suffix != null) ...[
                     SizedBox(width: x(8)),
                     suffix,
@@ -337,6 +371,8 @@ class _SrilankavendorregistrationWidgetState
       required VoidCallback? onTap,
       bool isSriLanka = false,
       bool showArrow = true,
+      bool isRequired = false,
+      bool hasValue = false,
     }) {
       return Positioned(
         top: y(top),
@@ -367,15 +403,24 @@ class _SrilankavendorregistrationWidgetState
               children: [
                 SizedBox(width: x(13)),
                 Expanded(
-                  child: Text(
-                    title,
+                  child: RichText(
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: const Color(0xFFCACACA),
-                      fontFamily: 'Inter',
-                      fontSize: fs(15),
-                      fontWeight: FontWeight.w600,
-                      height: 1,
+                    text: TextSpan(
+                      text: title,
+                      style: TextStyle(
+                        color: const Color(0xFFCACACA),
+                        fontFamily: 'Inter',
+                        fontSize: fs(15),
+                        fontWeight: FontWeight.w600,
+                        height: 1,
+                      ),
+                      children: [
+                        if (isRequired && !hasValue)
+                          const TextSpan(
+                            text: ' *',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                      ],
                     ),
                   ),
                 ),
@@ -805,6 +850,7 @@ class _SrilankavendorregistrationWidgetState
                               width: 325,
                               height: 40,
                               hint: 'Email Address',
+                              isRequired: true,
                               controller: _emailController,
                               focusNode: _emailFocusNode,
                               keyboardType: TextInputType.emailAddress,
@@ -815,6 +861,7 @@ class _SrilankavendorregistrationWidgetState
                               width: 325,
                               height: 40,
                               hint: 'Full Name',
+                              isRequired: true,
                               controller: _fullNameController,
                               focusNode: _fullNameFocusNode,
                               textCapitalization: TextCapitalization.words,
@@ -825,6 +872,7 @@ class _SrilankavendorregistrationWidgetState
                               width: 325,
                               height: 40,
                               hint: 'Phone Number',
+                              isRequired: true,
                               controller: _phoneController,
                               focusNode: _phoneFocusNode,
                               keyboardType: TextInputType.phone,
@@ -839,6 +887,7 @@ class _SrilankavendorregistrationWidgetState
                               width: 325,
                               height: 40,
                               hint: 'NIC',
+                              isRequired: true,
                               controller: _nicController,
                               focusNode: _nicFocusNode,
                               inputFormatters: [
@@ -871,6 +920,7 @@ class _SrilankavendorregistrationWidgetState
                               width: 325,
                               height: 40,
                               hint: 'Shop Name',
+                              isRequired: true,
                               controller: _shopNameController,
                               focusNode: _shopNameFocusNode,
                               textCapitalization: TextCapitalization.words,
@@ -894,6 +944,8 @@ class _SrilankavendorregistrationWidgetState
                                   ? widget.selectedDistrict!
                                   : 'District',
                               onTap: widget.onDistrictTap,
+                              isRequired: true,
+                              hasValue: widget.selectedDistrict?.isNotEmpty == true,
                             ),
                             dropdownField(
                               top: 408,
@@ -903,6 +955,8 @@ class _SrilankavendorregistrationWidgetState
                                   ? widget.selectedProvince!
                                   : 'Province',
                               onTap: widget.onProvinceTap,
+                              isRequired: true,
+                              hasValue: widget.selectedProvince?.isNotEmpty == true,
                             ),
                             darkField(
                               top: 459,
@@ -910,6 +964,7 @@ class _SrilankavendorregistrationWidgetState
                               width: 325,
                               height: 40,
                               hint: 'Shop Address / Location',
+                              isRequired: true,
                               controller: _shopAddressController,
                               focusNode: _shopAddressFocusNode,
                             ),
@@ -983,6 +1038,7 @@ class _SrilankavendorregistrationWidgetState
                               width: 325,
                               height: 40,
                               hint: 'Password',
+                              isRequired: true,
                               controller: _passwordController,
                               focusNode: _passwordFocusNode,
                               obscureText: !_passwordVisible,
@@ -1007,6 +1063,7 @@ class _SrilankavendorregistrationWidgetState
                               width: 325,
                               height: 40,
                               hint: 'Confirm Password',
+                              isRequired: true,
                               controller: _confirmPasswordController,
                               focusNode: _confirmPasswordFocusNode,
                               obscureText: !_confirmPasswordVisible,
