@@ -464,10 +464,12 @@ class _SrilankacustomerloginWidgetState
                           child: SizedBox(
                             height: y(49),
                             child: ElevatedButton(
-                              onPressed: widget.isLoading ? null : _handleSendOtp,
+                              onPressed: widget.isLoading ? () {} : _handleSendOtp,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFFFF8213),
+                                disabledBackgroundColor: const Color(0xFFFF8213),
                                 foregroundColor: Colors.white,
+                                disabledForegroundColor: Colors.white,
                                 elevation: 0,
                                 padding: EdgeInsets.zero,
                                 shape: RoundedRectangleBorder(
