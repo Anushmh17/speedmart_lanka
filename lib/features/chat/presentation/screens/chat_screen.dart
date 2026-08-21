@@ -105,8 +105,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
 
     // Use ref.watch so the list rebuilds whenever new messages arrive
+    // Reverse the list so the newest message is at index 0 (bottom of the screen)
     final messages = ref.watch(chatProvider).messages
         .where((m) => m.proposalId == widget.proposalId)
+        .toList()
+        .reversed
         .toList();
         
     // Mark messages as read automatically when viewing them
@@ -128,6 +131,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           _buildSecurityBanner(isDark, primaryText),
           Expanded(
             child: ListView.builder(
+              reverse: true,
               controller: _scrollController,
               padding: EdgeInsets.all(AppSpacing.md),
               itemCount: messages.length,
