@@ -7,6 +7,8 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../providers/chat_provider.dart';
 import '../../../../features/proposals/providers/proposal_provider.dart';
+import '../../../../features/orders/providers/order_provider.dart';
+import '../../../../features/orders/models/order_model.dart';
 
 class ChatListScreen extends ConsumerWidget {
   const ChatListScreen({super.key});
@@ -15,6 +17,7 @@ class ChatListScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(chatProvider);
     final messages = state.messages;
+    final orderState = ref.watch(orderProvider);
 
     // Group by proposalId to create conversation entries
     final Map<String, List> grouped = {};
@@ -112,10 +115,19 @@ class ChatListScreen extends ConsumerWidget {
                     child: InkWell(
                       borderRadius: BorderRadius.circular(16),
                       onTap: () {
+                        // Check if the order is out for delivery or completed
+                        final order = orderState.orders.where((o) => o.proposalId == proposalId).firstOrNull;
+                        final isClosed = order != null && (
+                            order.status == OrderStatus.outForDelivery || 
+                            order.status == OrderStatus.delivered || 
+                            order.status == OrderStatus.completed || 
+                            order.status == OrderStatus.cancelled);
+                        
                         context.push('/chat', extra: {
                           'proposalId': proposalId,
                           'vendorName': displayTitle,
-                          'isUnlocked': false,
+                          'isUnlocked': order != null, // If order exists, it's unlocked
+                          'isChatClosed': isClosed,
                         });
                       },
                       child: Padding(

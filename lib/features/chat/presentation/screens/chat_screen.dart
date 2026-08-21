@@ -17,12 +17,15 @@ class ChatScreen extends ConsumerStatefulWidget {
     required this.vendorName,
     required this.isUnlocked,
     this.autoMessage,
+    this.isChatClosed = false,
   });
 
   final String proposalId;
   final String vendorName;
   final bool isUnlocked;
   final String? autoMessage;
+  /// When true, the chat is read-only (e.g. order is out for delivery or delivered).
+  final bool isChatClosed;
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -226,70 +229,87 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
 
 
-          // Input bar
-          Container(
-            padding: EdgeInsets.only(
-              left: 12,
-              right: 12,
-              top: 10,
-              bottom: 12,
-            ),
-            decoration: BoxDecoration(
-              color: surfaceColor,
-              border: Border(top: BorderSide(color: borderColor)),
-            ),
-            child: SafeArea(
-              top: false,
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Material(
-                      color: isDark ? Colors.grey[900] : Colors.grey[100],
-                      elevation: isDark ? 0 : 2,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: TextField(
-                                controller: _controller,
-                                maxLines: null,
-                                style: AppTextStyles.bodyMedium(primaryText),
-                                decoration: InputDecoration(
-                                  hintText: 'Discuss availability, prices...',
-                                  hintStyle: TextStyle(color: secondaryText, fontSize: 14),
-                                  border: InputBorder.none,
-                                  enabledBorder: InputBorder.none,
-                                  focusedBorder: InputBorder.none,
-                                  isDense: true,
-                                  contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                                  // Prevent global InputDecorationTheme from painting a filled white box
-                                  filled: false,
-                                  fillColor: Colors.transparent,
+          // Input bar or closed banner
+          if (widget.isChatClosed)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+                border: Border(top: BorderSide(color: borderColor)),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.lock_outline_rounded, color: secondaryText, size: 16),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Chat is closed — order is out for delivery',
+                      style: AppTextStyles.caption(secondaryText),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.only(left: 12, right: 12, top: 10, bottom: 12),
+              decoration: BoxDecoration(
+                color: surfaceColor,
+                border: Border(top: BorderSide(color: borderColor)),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Material(
+                        color: isDark ? Colors.grey[900] : Colors.grey[100],
+                        elevation: isDark ? 0 : 2,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: TextField(
+                                  controller: _controller,
+                                  maxLines: null,
+                                  style: AppTextStyles.bodyMedium(primaryText),
+                                  decoration: InputDecoration(
+                                    hintText: 'Discuss availability, prices...',
+                                    hintStyle: TextStyle(color: secondaryText, fontSize: 14),
+                                    border: InputBorder.none,
+                                    enabledBorder: InputBorder.none,
+                                    focusedBorder: InputBorder.none,
+                                    isDense: true,
+                                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                                    filled: false,
+                                    fillColor: Colors.transparent,
+                                  ),
+                                  cursorColor: AppColors.customerColor,
                                 ),
-                                cursorColor: AppColors.customerColor,
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  SizedBox(width: AppSpacing.sm),
-                  Material(
-                    color: AppColors.customerColor,
-                    shape: const CircleBorder(),
-                    elevation: 2,
-                    child: IconButton(
-                      onPressed: () => _sendMessage(),
-                      icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                    SizedBox(width: AppSpacing.sm),
+                    Material(
+                      color: AppColors.customerColor,
+                      shape: const CircleBorder(),
+                      elevation: 2,
+                      child: IconButton(
+                        onPressed: () => _sendMessage(),
+                        icon: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
         ],
       ),
     );

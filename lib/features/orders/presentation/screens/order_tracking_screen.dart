@@ -114,6 +114,35 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 16),
+                  // Chat Button
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.customerColor,
+                        side: const BorderSide(color: AppColors.customerColor),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
+                      label: const Text('Chat with Shop Owner', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      onPressed: () {
+                        // Close chat input if out for delivery or beyond
+                        final isClosed = activeOrder.status == OrderStatus.outForDelivery || 
+                                         activeOrder.status == OrderStatus.delivered || 
+                                         activeOrder.status == OrderStatus.completed;
+                        context.push(
+                          '/chat',
+                          extra: {
+                            'proposalId': activeOrder.proposalId,
+                            'vendorName': 'Verified Partner',
+                            'isUnlocked': true,
+                            'isChatClosed': isClosed,
+                          },
+                        );
+                      },
+                    ),
+                  ),
                 ],
               ),
             ),

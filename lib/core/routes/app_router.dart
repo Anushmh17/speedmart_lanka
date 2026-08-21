@@ -380,6 +380,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final vendorName = extraMap['vendorName'] as String;
           final isUnlocked = extraMap['isUnlocked'] as bool;
           final autoMessage = extraMap['autoMessage'] as String?;
+          final isChatClosed = extraMap['isChatClosed'] as bool? ?? false;
           return _buildPage(
               context,
               state,
@@ -388,6 +389,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 vendorName: vendorName,
                 isUnlocked: isUnlocked,
                 autoMessage: autoMessage,
+                isChatClosed: isChatClosed,
               ));
         },
       ),

@@ -243,33 +243,7 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                             ),
                           ],
                         ),
-                        const SizedBox(height: 10),
-                        OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.customerColor,
-                            side: const BorderSide(color: AppColors.customerColor),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          ),
-                          icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
-                          label: const Text('Chat with Shop Owner (Secure Link)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                          onPressed: () {
-                            final item = proposal.items.isNotEmpty
-                                ? proposal.items.first
-                                : null;
-                            final autoMsg = item != null
-                                ? _buildItemChatMessage(item)
-                                : null;
-                            context.push(
-                              '/chat',
-                              extra: {
-                                'proposalId': proposal.id,
-                                'vendorName': maskedVendorName,
-                                'isUnlocked': false,
-                                'autoMessage': autoMsg,
-                              },
-                            );
-                          },
-                        ),
+                        const SizedBox(height: 4),
                       ],
                     ),
                   ),
