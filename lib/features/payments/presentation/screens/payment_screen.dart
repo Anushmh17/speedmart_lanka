@@ -22,6 +22,7 @@ import 'package:speedmart_lanka/features/payments/providers/payment_provider.dar
 import 'package:speedmart_lanka/features/payments/data/checkout_service.dart';
 import 'package:speedmart_lanka/features/payments/data/bank_transfer_instruction_service.dart';
 import 'package:speedmart_lanka/shared/utils/category_constants.dart';
+import 'package:speedmart_lanka/core/utils/error_translator.dart';
 
 class AcceptedVendorGroup {
   final Proposal proposal;
@@ -613,7 +614,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Payment error: ${e.toString()}'),
+            content: Text(ErrorTranslator.friendly(e)),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),

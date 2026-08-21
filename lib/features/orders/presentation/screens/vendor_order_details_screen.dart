@@ -1150,7 +1150,7 @@ Future<void> _launchMaps(double lat, double lng, BuildContext context) async {
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Could not open maps: ${e.toString().replaceFirst('Exception: ', '')}'),
+          content: Text(ErrorTranslator.friendly(e)),
           behavior: SnackBarBehavior.floating,
           backgroundColor: Colors.red.shade400,
         ),
@@ -1304,7 +1304,7 @@ class _BankTransferPanelState extends ConsumerState<_BankTransferPanel> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: ${e.toString().replaceAll('Exception: ', '')}'),
+            content: Text(ErrorTranslator.friendly(e)),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),

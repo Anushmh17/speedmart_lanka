@@ -5,6 +5,7 @@ import 'package:speedmart_lanka/features/location/models/sri_lanka_province.dart
 import '../models/customer_registration_data.dart';
 import '../models/registration_step.dart';
 import '../services/otp_service.dart';
+import 'package:speedmart_lanka/core/utils/error_translator.dart';
 
 // ── State ──────────────────────────────────────────────────────────────────
 
@@ -158,7 +159,7 @@ class CustomerRegistrationNotifier
         );
       }
     } catch (e) {
-      final msg = e.toString();
+      final msg = ErrorTranslator.friendly(e);
       final isNetworkError = msg.contains('SocketException') ||
           msg.contains('NetworkException') ||
           msg.contains('TimeoutException') ||
@@ -202,7 +203,7 @@ class CustomerRegistrationNotifier
         return false;
       }
     } catch (e) {
-      final msg = e.toString();
+      final msg = ErrorTranslator.friendly(e);
       final isNetworkError = msg.contains('SocketException') ||
           msg.contains('NetworkException') ||
           msg.contains('TimeoutException') ||

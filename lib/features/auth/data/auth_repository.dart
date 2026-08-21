@@ -168,7 +168,7 @@ class AuthRepository {
       debugPrint('[Auth] _customerExistsInFirestore($field) error: $e');
       // PERMISSION_DENIED means the user isn't authenticated yet — treat as
       // unavailable so the caller falls back to local cache instead of crashing.
-      final msg = e.toString();
+      final msg = ErrorTranslator.friendly(e);
       if (msg.contains('permission-denied') || msg.contains('PERMISSION_DENIED')) {
         throw Exception('firestore_unavailable');
       }

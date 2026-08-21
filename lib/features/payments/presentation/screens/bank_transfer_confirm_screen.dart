@@ -21,6 +21,7 @@ import '../../../orders/models/order_model.dart';
 import '../../../orders/providers/order_provider.dart';
 import '../../models/payment.dart';
 import '../../providers/payment_provider.dart';
+import 'package:speedmart_lanka/core/utils/error_translator.dart';
 
 class BankTransferConfirmScreen extends ConsumerStatefulWidget {
   const BankTransferConfirmScreen({
@@ -146,7 +147,7 @@ class _BankTransferConfirmScreenState
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error: ${e.toString()}'),
+            content: Text(ErrorTranslator.friendly(e)),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
           ),

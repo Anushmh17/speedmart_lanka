@@ -182,7 +182,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = state.copyWith(isLoading: false);
       return result;
     } catch (e) {
-      state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
+      state = AuthState.withError(ErrorTranslator.friendly(e));
       return null;
     }
   }
@@ -213,7 +213,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState.authenticated(cleanedUser);
       _setupSessionListener(cleanedUser);
     } catch (e) {
-      state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
+      state = AuthState.withError(ErrorTranslator.friendly(e));
     }
   }
 
@@ -251,7 +251,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState.authenticated(cleanedUser);
       _setupSessionListener(cleanedUser);
     } catch (e) {
-      state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
+      state = AuthState.withError(ErrorTranslator.friendly(e));
     }
   }
 
@@ -284,7 +284,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       state = AuthState.authenticated(result.user);
       _setupSessionListener(result.user);
     } catch (e) {
-      state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
+      state = AuthState.withError(ErrorTranslator.friendly(e));
       // Do not rethrow — error is captured in AuthState; callers must not
       // handle provider exceptions directly to avoid unhandled Future errors.
     }
@@ -373,7 +373,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       _setupSessionListener(result.user);
       debugPrint('[Auth] Register success: authenticated user ${result.user.email}');
     } catch (e) {
-      final errorMsg = e.toString().replaceAll('Exception: ', '');
+      final errorMsg = ErrorTranslator.friendly(e);
       debugPrint('[Auth] Register error caught: $errorMsg');
       state = AuthState.withError(errorMsg);
       debugPrint('[Auth] Error state set, hasError=${state.hasError}, error=${state.error}');
@@ -690,7 +690,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       await _repo.resetPassword(email: email, newPassword: newPassword);
       state = state.copyWith(isLoading: false);
     } catch (e) {
-      state = AuthState.withError(e.toString().replaceAll('Exception: ', ''));
+      state = AuthState.withError(ErrorTranslator.friendly(e));
     }
   }
 

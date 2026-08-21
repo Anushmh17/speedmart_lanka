@@ -15,6 +15,7 @@ import '../../../orders/providers/order_provider.dart';
 import '../../../vendor/proposals/widgets/image_gallery_viewer.dart';
 import '../../../../core/widgets/theme3/theme3_app_button.dart';
 import 'customer_proposal_details_screen_header.dart';
+import 'package:speedmart_lanka/core/utils/error_translator.dart';
 
 class CustomerProposalDetailsScreen extends ConsumerStatefulWidget {
   const CustomerProposalDetailsScreen({
@@ -85,7 +86,7 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(e.toString().replaceAll('Exception: ', '')),
+            content: Text(ErrorTranslator.friendly(e)),
             backgroundColor: AppColors.error,
           ),
         );
