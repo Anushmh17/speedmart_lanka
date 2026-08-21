@@ -15,8 +15,9 @@ class LocalNotificationService {
 
   static bool _initialized = false;
 
-  /// Must match android/app/src/main/res/drawable/ic_notification.xml
-  static const String androidIcon = 'ic_notification';
+  /// Uses the main app icon. Note: on Android 5.0+, if the app icon has a solid 
+  /// background, Android will automatically mask it into a solid square/circle.
+  static const String androidIcon = 'ic_launcher';
 
   static Future<void> initialize() async {
     if (_initialized) return;
