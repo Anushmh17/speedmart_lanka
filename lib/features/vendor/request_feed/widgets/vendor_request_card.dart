@@ -60,6 +60,16 @@ class VendorRequestCard extends StatelessWidget {
     }
   }
 
+  String _getItemSummary(List<dynamic> items) {
+    if (items.isEmpty) return 'No items listed';
+    final firstItem = items.first;
+    final firstItemName = firstItem.name ?? 'Unknown item';
+    if (items.length == 1) {
+      return firstItemName;
+    }
+    return '$firstItemName & ${items.length - 1} other item${items.length - 1 > 1 ? 's' : ''}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final primaryText =
@@ -174,28 +184,35 @@ class VendorRequestCard extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              feedRequest.approximateArea,
+                              _getItemSummary(feedRequest.request.items),
                               style: AppTextStyles.subtitle(primaryText),
-                              maxLines: 1,
+                              maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            if (feedRequest.district.isNotEmpty) ...[
-                              const SizedBox(height: AppSpacing.xs),
-                              Row(
-                                children: [
-                                  Icon(
-                                    Icons.map_outlined,
+                            const SizedBox(height: AppSpacing.xs),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2),
+                                  child: Icon(
+                                    Icons.location_on_outlined,
                                     size: 14,
                                     color: secondaryText,
                                   ),
-                                  const SizedBox(width: AppSpacing.xs),
-                                  Text(
-                                    feedRequest.district,
+                                ),
+                                const SizedBox(width: AppSpacing.xs),
+                                Expanded(
+                                  child: Text(
+                                    feedRequest.approximateArea +
+                                        (feedRequest.district.isNotEmpty ? ', ${feedRequest.district}' : ''),
                                     style: AppTextStyles.bodySmall(secondaryText),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                ],
-                              ),
-                            ],
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                       ),

@@ -236,16 +236,10 @@ class VendorRequestFilterService {
         return false;
       }
 
-      // Exclude request only if vendor has already bid on ALL matching categories.
-      final matchingCatsForRequest = filterMatchingItems(request, vendorCategories)
-          .map((i) => VendorCategories.normalize(i.category ?? ''))
-          .where((c) => c.isNotEmpty)
-          .toSet();
+      // Exclude request if the vendor has already submitted a proposal for it.
       final bidCats = bidCategoriesByRequest[request.id] ?? {};
-      final allCatsBid = matchingCatsForRequest.isNotEmpty &&
-          matchingCatsForRequest.every((c) => bidCats.contains(c));
-      if (allCatsBid) {
-        debugPrint('[FeedCategoryFix] hidden reason: vendor_already_bid_all_categories');
+      if (bidCats.isNotEmpty) {
+        debugPrint('[FeedCategoryFix] hidden reason: vendor_already_bid');
         return false;
       }
 

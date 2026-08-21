@@ -154,16 +154,24 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
           proposalCount: request.proposalCount + 1,
           updatedAt: DateTime.now(),
         );
-        await _requestRepo.updateRequest(updatedRequest);
+        try {
+          await _requestRepo.updateRequest(updatedRequest);
+        } catch (e) {
+          debugPrint('[ProposalProvider] Ignoring updateRequest error (expected if vendor): $e');
+        }
         ref.read(requestProvider.notifier).syncRequest(updatedRequest);
         
         // The server-side onNewProposal function creates the customer
         // notification. Client-side notification creates are denied by rules.
       } else {
-        await _requestRepo.updateRequestStatus(
-          proposal.requestId,
-          RequestStatus.proposalSubmitted,
-        );
+        try {
+          await _requestRepo.updateRequestStatus(
+            proposal.requestId,
+            RequestStatus.proposalSubmitted,
+          );
+        } catch (e) {
+          debugPrint('[ProposalProvider] Ignoring updateRequestStatus error: ');
+        }
       }
 
       state = state.copyWith(isLoading: false, selectedProposal: saved);
@@ -456,13 +464,21 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
           proposalCount: newCount,
           updatedAt: DateTime.now(),
         );
-        await _requestRepo.updateRequest(updatedRequest);
+        try {
+          await _requestRepo.updateRequest(updatedRequest);
+        } catch (e) {
+          debugPrint('[ProposalProvider] Ignoring updateRequest error: ');
+        }
         ref.read(requestProvider.notifier).syncRequest(updatedRequest);
       } else if (!hasAccepted && !hasOpenBids) {
-        await _requestRepo.updateRequestStatus(
-          requestId,
-          RequestStatus.waitingForVendor,
-        );
+        try {
+          await _requestRepo.updateRequestStatus(
+            requestId,
+            RequestStatus.waitingForVendor,
+          );
+        } catch (e) {
+          debugPrint('[ProposalProvider] Ignoring updateRequestStatus error: ');
+        }
       }
 
       await loadProposalsForRequest(requestId);

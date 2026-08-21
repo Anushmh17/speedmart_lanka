@@ -192,4 +192,36 @@ class OrderRepository {
       await _persistOrders();
     }
   }
+
+  /// Persist the vendor's packing checklist state for [orderId].
+  /// Uses a targeted Firestore `update` so the full order is not re-written.
+  Future<void> savePackedItems(
+      String orderId, Map<String, bool> packedItems) async {
+    try {
+      await _ordersCollection.doc(orderId).update({
+        'packedItems': packedItems,
+      });
+    } catch (e) {
+      debugPrint('[Order] Failed to save packedItems for $orderId: $e');
+    }
+  }
+
+  /// Load the vendor's packing checklist state for [orderId] from Firestore.
+  Future<Map<String, bool>> loadPackedItems(String orderId) async {
+    try {
+      final doc = await _ordersCollection.doc(orderId).get();
+      if (!doc.exists) return {};
+      final raw = doc.data()?['packedItems'];
+      if (raw == null) return {};
+      return Map<String, bool>.from(
+        (raw as Map<String, dynamic>).map(
+          (k, v) => MapEntry(k, v == true),
+        ),
+      );
+    } catch (e) {
+      debugPrint('[Order] Failed to load packedItems for $orderId: $e');
+      return {};
+    }
+  }
 }
+

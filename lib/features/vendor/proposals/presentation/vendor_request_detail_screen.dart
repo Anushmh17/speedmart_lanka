@@ -89,59 +89,161 @@ class _VendorRequestDetailScreenState
     return Scaffold(
       backgroundColor:
           isDark ? AppColors.backgroundDark : AppColors.backgroundLight,
-      appBar: AppBar(
-        title: const Text('Request details'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded),
-          onPressed: () => context.pop(),
-        ),
-      ),
-      body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.vendorColor),
-            )
-          : SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(
-                AppSpacing.lg,
-                AppSpacing.md,
-                AppSpacing.lg,
-                120,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // ── Custom Header ────────────────────────────────────────────────
+            Container(
+              padding: EdgeInsets.fromLTRB(12, 8, 16, 8),
+              decoration: BoxDecoration(
+                color: isDark ? AppColors.surfaceDark : AppColors.surfaceLight,
+                border: Border(
+                  bottom: BorderSide(
+                    color: isDark ? AppColors.borderDark : AppColors.borderLight,
+                    width: 1,
+                  ),
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
+                  GestureDetector(
+                    onTap: () => context.pop(),
+                    child: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white.withValues(alpha: 0.1) : Colors.black.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isDark ? Colors.white.withValues(alpha: 0.18) : Colors.black.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      child: Icon(Icons.arrow_back_ios_new_rounded, color: primaryText, size: 18),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text('Request details', style: AppTextStyles.subtitle(primaryText)),
+                ],
+              ),
+            ),
+            // ── Content ──────────────────────────────────────────────────────
+            Expanded(
+              child: _loading
+                  ? const Center(
+                      child: CircularProgressIndicator(color: AppColors.vendorColor),
+                    )
+                  : SingleChildScrollView(
+                      padding: EdgeInsets.fromLTRB(
+                        AppSpacing.lg,
+                        AppSpacing.md,
+                        AppSpacing.lg,
+                        120,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                   Container(
                     width: double.infinity,
-                    padding: EdgeInsets.all(AppSpacing.lg),
+                    clipBehavior: Clip.antiAlias,
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                         colors: [
                           AppColors.vendorColor,
                           AppColors.vendorColorDark,
                         ],
                       ),
                       borderRadius: BorderRadius.circular(AppRadius.lg),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          request.vendorVisibleAreaLabel,
-                          style: AppTextStyles.h2(Colors.white),
-                        ),
-                        if (request.deliveryLocation?.district.isNotEmpty ==
-                            true)
-                          Text(
-                            request.deliveryLocation!.district,
-                            style: AppTextStyles.bodyMedium(Colors.white70),
-                          ),
-                        SizedBox(height: AppSpacing.sm),
-                        Text(
-                          'Exact address and phone unlock after customer accepts your bid.',
-                          style: AppTextStyles.caption(Colors.white70),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.vendorColor.withValues(alpha: 0.3),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
                         ),
                       ],
                     ),
+                    child: Stack(
+                      children: [
+                        Positioned(
+                          right: -20,
+                          top: -20,
+                          child: Icon(
+                            Icons.location_on,
+                            size: 120,
+                            color: Colors.white.withValues(alpha: 0.1),
+                          ),
+                        ),
+                        Padding(
+                          padding: EdgeInsets.all(AppSpacing.lg),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: const Icon(Icons.place_outlined, color: Colors.white, size: 20),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          request.vendorVisibleAreaLabel,
+                                          style: AppTextStyles.h2(Colors.white),
+                                        ),
+                                        if (request.deliveryLocation?.district.isNotEmpty == true)
+                                          Text(
+                                            request.deliveryLocation!.district,
+                                            style: AppTextStyles.bodyMedium(Colors.white70),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: AppSpacing.md),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withValues(alpha: 0.2),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.lock_outline_rounded, color: Colors.white70, size: 16),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        'Exact address and phone unlock after customer accepts your bid.',
+                                        style: AppTextStyles.caption(Colors.white70),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: AppSpacing.md),
+                  Row(
+                    children: [
+                      Icon(Icons.access_time_rounded, size: 16, color: secondaryText),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Requested ${request.createdAt.toLocal().toString().split('.')[0].substring(0, 16)}',
+                        style: AppTextStyles.caption(secondaryText),
+                      ),
+                    ],
                   ),
                   SizedBox(height: AppSpacing.md),
                   Wrap(
@@ -151,16 +253,19 @@ class _VendorRequestDetailScreenState
                       _StatusChip(
                         label: request.status.displayName,
                         color: AppColors.vendorColor,
+                        icon: Icons.info_outline_rounded,
                       ),
                       _StatusChip(
                         label: urgency.label,
                         color: urgency == RequestUrgency.high
                             ? AppColors.error
                             : AppColors.vendorColor,
+                        icon: Icons.timer_outlined,
                       ),
                       _StatusChip(
                         label: '${request.items.length} items',
                         color: AppColors.vendorColor,
+                        icon: Icons.shopping_basket_outlined,
                       ),
                     ],
                   ),
@@ -209,6 +314,10 @@ class _VendorRequestDetailScreenState
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+      ),
       bottomNavigationBar: _loading
           ? null
           : SafeArea(
@@ -483,10 +592,12 @@ class _StatusChip extends StatelessWidget {
   const _StatusChip({
     required this.label,
     required this.color,
+    this.icon,
   });
 
   final String label;
   final Color color;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
@@ -500,11 +611,21 @@ class _StatusChip extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppRadius.sm),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
-      child: Text(
-        label,
-        style: AppTextStyles.caption(color),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            label,
+            style: AppTextStyles.caption(color),
+          ),
+        ],
       ),
     );
   }
 }
+
 

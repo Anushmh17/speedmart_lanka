@@ -47,6 +47,31 @@ class _PhoneVerificationSheetState
   Timer? _resendTimer;
 
   @override
+  void initState() {
+    super.initState();
+    _addBackspaceListeners();
+  }
+
+  void _addBackspaceListeners() {
+    for (int i = 0; i < 6; i++) {
+      final index = i;
+      _otpFocusNodes[index].onKeyEvent = (node, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.backspace) {
+          if (_otpControllers[index].text.isNotEmpty) {
+            _otpControllers[index].clear();
+            return KeyEventResult.handled;
+          } else if (index > 0) {
+            _otpFocusNodes[index - 1].requestFocus();
+            return KeyEventResult.handled;
+          }
+        }
+        return KeyEventResult.ignored;
+      };
+    }
+  }
+
+  @override
   void dispose() {
     _phoneCtrl.dispose();
     for (final c in _otpControllers) {
@@ -335,8 +360,6 @@ class _PhoneVerificationSheetState
                         onChanged: (val) {
                           if (val.isNotEmpty && i < 5) {
                             _otpFocusNodes[i + 1].requestFocus();
-                          } else if (val.isEmpty && i > 0) {
-                            _otpFocusNodes[i - 1].requestFocus();
                           }
                           if (i == 5 && val.isNotEmpty) {
                             final entered =

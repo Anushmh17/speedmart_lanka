@@ -66,6 +66,19 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
       vsync: this,
       duration: const Duration(milliseconds: 700),
     );
+    _loadPackedItems();
+  }
+
+  Future<void> _loadPackedItems() async {
+    final saved = await OrderRepository.instance.loadPackedItems(widget.order.id);
+    if (mounted) {
+      setState(() => _packedItems.addAll(saved));
+    }
+  }
+
+  Future<void> _savePackedItem(String itemId, bool value) async {
+    setState(() => _packedItems[itemId] = value);
+    await OrderRepository.instance.savePackedItems(widget.order.id, Map.from(_packedItems));
   }
 
   @override
@@ -843,7 +856,7 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                                             activeColor: AppColors.vendorColor,
                                             onChanged: (val) {
                                               setStateChecklist(() {
-                                                _packedItems[item.requestItemId] = val ?? false;
+                                                _savePackedItem(item.requestItemId, val ?? false);
                                               });
                                             },
                                           ),
@@ -853,7 +866,7 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                                               behavior: HitTestBehavior.translucent,
                                               onTap: () {
                                                 setStateChecklist(() {
-                                                  _packedItems[item.requestItemId] = !isChecked;
+                                                  _savePackedItem(item.requestItemId, !isChecked);
                                                 });
                                               },
                                               child: Column(
@@ -1059,8 +1072,8 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                         nextStatus = OrderStatus.completed;
                       }
 
-                      // Enforce: vendor must check ALL packing checklist items before starting to prepare
-                      if (nextStatus == OrderStatus.preparing) {
+                      // Enforce: vendor must check ALL packing checklist items before marking as ready for delivery
+                      if (nextStatus == OrderStatus.readyForDelivery) {
                         final unchecked = activeOrder.items.where((item) => item.status != ProposalItemStatus.unavailable && (_packedItems[item.requestItemId] ?? false) == false).toList();
                         if (unchecked.isNotEmpty) {
                           if (context.mounted) {
@@ -1068,7 +1081,7 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                               context: context,
                               builder: (ctx) => AlertDialog(
                                 title: const Text('Complete Packing Checklist'),
-                                content: Text('Please check all ${unchecked.length} item(s) in the packing checklist before starting to prepare the order.'),
+                                content: Text('Please check all ${unchecked.length} item(s) in the packing checklist to confirm they are packed before marking the order as ready for delivery.'),
                                 actions: [
                                   TextButton(
                                     onPressed: () => Navigator.of(ctx).pop(),

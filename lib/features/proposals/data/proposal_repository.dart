@@ -69,7 +69,11 @@ class ProposalRepository {
           .where('customerId', isEqualTo: customerId)
           .limit(500);
     }
-    return _proposalsCollection.limit(500);
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) throw StateError('Sign in before loading proposals.');
+    return _proposalsCollection
+        .where('vendorId', isEqualTo: uid)
+        .limit(500);
   }
 
   Map<String, dynamic> _customerVisibleJson(Proposal proposal) => {

@@ -301,21 +301,28 @@ class _VendorProposalDetailScreenState
             ),
             if (_proposal.canEdit) ...[
               const SizedBox(height: 8),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: _busy ? null : _saveMessage,
-                  child: _busy
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.vendorColor),
-                          ),
-                        )
-                      : const Text('Save message'),
-                ),
+              ValueListenableBuilder<TextEditingValue>(
+                valueListenable: _messageController,
+                builder: (context, value, child) {
+                  final text = value.text.trim();
+                  final bool hasChanges = text.isNotEmpty && text != (_proposal.vendorResponse ?? '');
+                  return SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: (_busy || !hasChanges) ? null : _saveMessage,
+                      child: _busy
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(AppColors.vendorColor),
+                              ),
+                            )
+                          : const Text('Save message'),
+                    ),
+                  );
+                },
               ),
             ],
             if (_proposal.vendorResponse != null && _proposal.vendorResponse!.isNotEmpty) ...[
@@ -404,6 +411,23 @@ class _VendorProposalDetailScreenState
                 ),
               ),
             ],
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => context.go(RouteNames.vendorHome),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.vendorColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text('Go to Dashboard', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              ),
+            ),
+            const SizedBox(height: 16),
           ],
         ),
       ),

@@ -506,6 +506,9 @@ class _VendorProposalFormScreenState
       await feedNotifier.loadFeed();
       if (!mounted) return;
 
+      await proposalNotifier.loadVendorProposals();
+      if (!mounted) return;
+
       notificationNotifier.triggerNotification(
         title: _isEditing ? 'Proposal updated' : 'Proposal submitted',
         body: 'Rs. ${proposal.totalPrice.toStringAsFixed(0)} bid sent for ${widget.request.items.length} item(s).',

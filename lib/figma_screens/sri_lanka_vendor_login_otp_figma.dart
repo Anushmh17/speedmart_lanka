@@ -62,11 +62,16 @@ class SrilankavendorloginotpWidgetState
       final index = i;
       _otpFocusNodes[index].onKeyEvent = (node, event) {
         if (event is KeyDownEvent &&
-            event.logicalKey == LogicalKeyboardKey.backspace &&
-            _otpControllers[index].text.isEmpty &&
-            index > 0) {
-          _otpFocusNodes[index - 1].requestFocus();
-          return KeyEventResult.handled;
+            event.logicalKey == LogicalKeyboardKey.backspace) {
+          if (_otpControllers[index].text.isNotEmpty) {
+            // Clear current box and stay on it
+            _otpControllers[index].clear();
+            return KeyEventResult.handled;
+          } else if (index > 0) {
+            // Box is already empty, move to previous
+            _otpFocusNodes[index - 1].requestFocus();
+            return KeyEventResult.handled;
+          }
         }
         return KeyEventResult.ignored;
       };
@@ -403,11 +408,6 @@ class SrilankavendorloginotpWidgetState
                                     onChanged: (value) {
                                       if (value.isNotEmpty && index < 5) {
                                         _otpFocusNodes[index + 1]
-                                            .requestFocus();
-                                      }
-
-                                      if (value.isEmpty && index > 0) {
-                                        _otpFocusNodes[index - 1]
                                             .requestFocus();
                                       }
                                     },
