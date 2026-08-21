@@ -99,11 +99,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     final masked = maskSensitiveDetails(text);
 
-    // Proposals are always stored in the top-level 'proposals' collection
-    // regardless of the viewer's role — the old 'customer_proposals' lookup
-    // was incorrect and caused a silent null-return for every customer send.
+    // Look up proposal from the correct collection per Firestore security rules
+    final collectionName = senderRole == 'customer' ? 'customer_proposals' : 'proposals';
     final proposalDoc = await FirebaseFirestore.instance
-        .collection('proposals')
+        .collection(collectionName)
         .doc(proposalId)
         .get();
     final proposalData = proposalDoc.data();
