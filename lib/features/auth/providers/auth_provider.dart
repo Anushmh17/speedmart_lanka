@@ -442,6 +442,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
   Future<void> updateProfile({
     required String fullName,
     required String phone,
+    String? nic,
     String? businessName,
     String? profileImageUrl,
     List<String>? vendorCategories,
@@ -462,6 +463,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       final updatedUser = currentUser.copyWith(
         fullName: fullName,
         phone: phone,
+        nic: nic ?? currentUser.nic,
         businessName: businessName,
         profileImageUrl: profileImageUrl ?? currentUser.profileImageUrl,
         vendorCategories: vendorCategories,

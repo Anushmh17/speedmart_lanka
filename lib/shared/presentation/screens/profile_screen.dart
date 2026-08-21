@@ -26,6 +26,7 @@ import '../../../shared/utils/category_sync_helper.dart';
 import '../../../core/services/connectivity_service.dart';
 import '../../../core/utils/permission_utils.dart';
 import '../../../core/utils/sri_lanka_phone_helper.dart';
+import '../../../core/utils/validators.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -41,6 +42,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   late TextEditingController _nameCtrl;
   late TextEditingController _phoneCtrl;
   late TextEditingController _businessNameCtrl;
+  late TextEditingController _nicCtrl;
 
   List<String> _selectedCategories = [];
   String? _pickedImagePath; // unsaved pick — local path until saved
@@ -57,6 +59,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return _nameCtrl.text.trim() != user.fullName ||
         normalizedPhone != user.phone ||
         _businessNameCtrl.text.trim() != (user.businessName ?? '') ||
+        _nicCtrl.text.trim() != (user.nic ?? '') ||
         _pickedImagePath != null;
   }
 
@@ -69,6 +72,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _nameCtrl = TextEditingController();
     _phoneCtrl = TextEditingController();
     _businessNameCtrl = TextEditingController();
+    _nicCtrl = TextEditingController();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -105,6 +109,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _nameCtrl.text = user.fullName;
       _phoneCtrl.text = _toLocalDigits(user.phone);
       _businessNameCtrl.text = user.businessName ?? '';
+      _nicCtrl.text = user.nic ?? '';
       _selectedCategories = List.from(
           user.requestedCategories?.isNotEmpty == true
               ? user.requestedCategories!
@@ -129,6 +134,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
     _businessNameCtrl.dispose();
+    _nicCtrl.dispose();
     Future.microtask(() {
       try {
         ref.read(bottomNavVisibilityProvider.notifier).setManualHidden(false);
@@ -299,6 +305,21 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Future<void> _handleSave() async {
     if (!_formKey.currentState!.validate()) return;
 
+    final userx = ref.read(currentUserProvider);
+    if (userx != null) {
+      final nicText = _nicCtrl.text.trim();
+      if (nicText.isNotEmpty) {
+        final nicErr = Validators.nic(nicText);
+        if (nicErr != null) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(nicErr), backgroundColor: Colors.red));
+          return;
+        }
+      } else if (userx.role == UserRole.vendor) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('NIC is required for vendor accounts.'), backgroundColor: Colors.red));
+        return;
+      }
+    }
+
     final online = await ConnectivityService.instance.isOnline();
     if (!online) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(
@@ -340,6 +361,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       await ref.read(authProvider.notifier).updateProfile(
             fullName: _nameCtrl.text.trim(),
             phone: phone,
+            nic: _nicCtrl.text.trim(),
             businessName: user.role == UserRole.vendor
                 ? _businessNameCtrl.text.trim()
                 : null,
@@ -1020,30 +1042,18 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         ),
       ),
-      const SizedBox(height: 12),
-      // NIC — read-only
-      TextFormField(
-        initialValue: user?.nic ?? 'Not provided',
-        enabled: false,
-        style: AppTextStyles.bodyLarge(primaryText),
-        decoration: InputDecoration(
-          labelText: 'NIC Number',
-          labelStyle: TextStyle(color: secondaryText, fontSize: 14),
-          floatingLabelStyle: TextStyle(color: secondaryText, fontSize: 13),
-          prefixIcon: Icon(Icons.badge_outlined, color: secondaryText, size: 22),
-          suffixIcon: Icon(Icons.lock_outline_rounded, color: secondaryText, size: 18),
-          filled: true,
-          fillColor: cardColor.withValues(alpha: 0.5),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-          disabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: borderColor.withValues(alpha: 0.75)),
-          ),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14),
-            borderSide: BorderSide(color: borderColor),
-          ),
-        ),
+      // NIC
+      _buildFieldCard(
+        cardColor: cardColor,
+        borderColor: borderColor,
+        label: 'NIC Number',
+        icon: Icons.badge_outlined,
+        isEditing: _isEditing,
+        controller: _nicCtrl,
+        primaryText: primaryText,
+        secondaryText: secondaryText,
+        primaryColor: primaryColor,
+        onChanged: (_) => setState(() {}),
       ),
       const SizedBox(height: 16),
       Text('Delivery Address', style: AppTextStyles.subtitle(primaryText)),
