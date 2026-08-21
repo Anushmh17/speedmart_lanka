@@ -18,6 +18,7 @@ import '../../widgets/customer_proposal_card.dart';
 import '../../widgets/proposal_comparison_bar.dart';
 import '../../../../requests/models/shopping_request.dart';
 import '../../../../requests/models/request_category_fulfillment.dart';
+import 'package:speedmart_lanka/core/utils/error_translator.dart';
 
 /// Customer-facing proposal comparison screen.
 ///
@@ -192,7 +193,7 @@ class _CustomerProposalComparisonScreenState
         } catch (e) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+              SnackBar(content: Text(ErrorTranslator.friendly(e))),
             );
           }
         } finally {

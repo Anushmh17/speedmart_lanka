@@ -5,6 +5,7 @@ import '../models/notification_model.dart';
 import '../models/notification_type.dart';
 import 'package:speedmart_lanka/core/services/local_notification_service.dart';
 import 'package:speedmart_lanka/core/routes/route_names.dart';
+import 'package:speedmart_lanka/core/utils/error_translator.dart';
 
 class NotificationState {
   final bool isLoading;
@@ -58,7 +59,7 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
         unreadCount: unreadCount,
       );
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
     }
   }
 
@@ -135,7 +136,7 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
         } catch (_) {}
       }
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorTranslator.friendly(e));
     }
   }
 
@@ -146,7 +147,7 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
       await _repo.markAsRead(notificationId);
       await loadNotifications();
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
     }
   }
 
@@ -160,7 +161,7 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
       await _repo.markAllAsReadForUser(user.id);
       await loadNotifications();
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
     }
   }
 
@@ -171,7 +172,7 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
       await _repo.deleteNotification(notificationId);
       await loadNotifications();
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
     }
   }
 
@@ -185,7 +186,7 @@ class NotificationNotifier extends StateNotifier<NotificationState> {
       await _repo.deleteAllForUser(user.id);
       state = state.copyWith(isLoading: false, notifications: []);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
     }
   }
 }

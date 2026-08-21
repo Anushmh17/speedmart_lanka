@@ -430,7 +430,7 @@ class _VendorProposalFormScreenState
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error),
+        SnackBar(content: Text(ErrorTranslator.friendly(e)), backgroundColor: AppColors.error),
       );
     } finally {
       if (mounted) setState(() => _saving = false);
@@ -525,7 +525,7 @@ class _VendorProposalFormScreenState
     } catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error),
+        SnackBar(content: Text(ErrorTranslator.friendly(e)), backgroundColor: AppColors.error),
       );
     } finally {
       if (mounted) setState(() => _saving = false);

@@ -13,6 +13,7 @@ import '../../request_feed/providers/vendor_request_feed_provider.dart';
 import '../widgets/vendor_proposal_status_chip.dart';
 import '../widgets/image_gallery_viewer.dart';
 import 'dart:io';
+import 'package:speedmart_lanka/core/utils/error_translator.dart';
 
 /// View vendor proposal, send notes, edit, or withdraw before acceptance.
 class VendorProposalDetailScreen extends ConsumerStatefulWidget {
@@ -100,7 +101,7 @@ class _VendorProposalDetailScreenState
     } catch (e) {
       messenger.showSnackBar(
         SnackBar(
-          content: Text('Error saving message: ${e.toString()}'),
+          content: Text(ErrorTranslator.friendly(e)),
           backgroundColor: Colors.red,
         ),
       );
@@ -147,7 +148,7 @@ class _VendorProposalDetailScreenState
     } catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text(e.toString()), backgroundColor: AppColors.error),
+        SnackBar(content: Text(ErrorTranslator.friendly(e)), backgroundColor: AppColors.error),
       );
     } finally {
       if (mounted) setState(() => _busy = false);

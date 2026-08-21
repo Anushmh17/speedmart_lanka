@@ -35,6 +35,7 @@ import 'sri_lanka_vendor_forget_password_figma.dart';
 import 'sri_lanka_vendor_forget_password_otp_figma.dart';
 import 'new_password_update_sri_lanka_vendor_figma.dart';
 import '../shared/widgets/auth_loading_overlay.dart';
+import 'package:speedmart_lanka/core/utils/error_translator.dart';
 
 
 enum FigmaAuthRole { customer, vendor }
@@ -374,7 +375,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       if (state.hasError) { _showError(state.error!); return; }
       _go(_FigmaAuthPage.customerRegisterOtp);
     } catch (e) {
-      if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
+      if (mounted) _showError(ErrorTranslator.friendly(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -425,7 +426,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       if (state.hasError) { _showError(state.error!); return; }
       _go(_FigmaAuthPage.customerLoginOtp);
     } catch (e) {
-      if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
+      if (mounted) _showError(ErrorTranslator.friendly(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -455,7 +456,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       if (!rememberMe) await StorageService.clearRememberedSession();
       context.go(RouteNames.customerHome);
     } catch (e) {
-      if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
+      if (mounted) _showError(ErrorTranslator.friendly(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -520,7 +521,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       if (!mounted) return;
       context.go(RouteNames.customerHome);
     } catch (e) {
-      if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
+      if (mounted) _showError(ErrorTranslator.friendly(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -597,7 +598,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
         _go(_FigmaAuthPage.vendorLoginOtp);
       }
     } catch (e) {
-      if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
+      if (mounted) _showError(ErrorTranslator.friendly(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -668,7 +669,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
 
       _go(_FigmaAuthPage.vendorRegisterOtp);
     } catch (e) {
-      if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
+      if (mounted) _showError(ErrorTranslator.friendly(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -729,7 +730,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
         context.go(RouteNames.vendorHome);
       }
     } catch (e) {
-      if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
+      if (mounted) _showError(ErrorTranslator.friendly(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -763,7 +764,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       _previousPassword = await ref.read(authProvider.notifier).getVendorPassword(email);
       _go(otpPage);
     } catch (e) {
-      if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
+      if (mounted) _showError(ErrorTranslator.friendly(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -817,7 +818,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       _showToast('Password updated successfully!');
       _go(loginPage);
     } catch (e) {
-      if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
+      if (mounted) _showError(ErrorTranslator.friendly(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -851,7 +852,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
       await StorageService.saveVendorRememberMe(rememberMe);
       context.go(RouteNames.vendorHome);
     } catch (e) {
-      if (mounted) _showError(e.toString().replaceAll('Exception: ', ''));
+      if (mounted) _showError(ErrorTranslator.friendly(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

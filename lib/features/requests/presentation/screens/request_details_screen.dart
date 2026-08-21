@@ -24,6 +24,7 @@ import '../../../orders/models/order_model.dart';
 import '../../../orders/providers/order_provider.dart';
 import 'request_item_details_screen.dart';
 import '../widgets/category_selector.dart';
+import 'package:speedmart_lanka/core/utils/error_translator.dart';
 
 class RequestDetailsScreen extends ConsumerStatefulWidget {
   final ShoppingRequest request;
@@ -177,7 +178,7 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(e.toString().replaceAll('Exception: ', '')),
+          content: Text(ErrorTranslator.friendly(e)),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -243,7 +244,7 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+        SnackBar(content: Text(ErrorTranslator.friendly(e))),
       );
     } finally {
       if (mounted) {
@@ -291,7 +292,7 @@ class _RequestDetailsScreenState extends ConsumerState<RequestDetailsScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+        SnackBar(content: Text(ErrorTranslator.friendly(e))),
       );
     }
   }

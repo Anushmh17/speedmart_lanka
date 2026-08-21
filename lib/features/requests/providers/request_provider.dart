@@ -16,6 +16,7 @@ import '../../orders/models/order_model.dart';
 import '../models/request_item.dart';
 import '../models/shopping_request.dart';
 import '../../location/models/delivery_location.dart';
+import 'package:speedmart_lanka/core/utils/error_translator.dart';
 
 class RequestState {
   final bool isLoading;
@@ -164,7 +165,7 @@ class RequestNotifier extends StateNotifier<RequestState> {
 
       state = state.copyWith(isLoading: false, requests: hydratedRequests);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
     }
   }
 
@@ -273,7 +274,7 @@ class RequestNotifier extends StateNotifier<RequestState> {
 
       state = state.copyWith(isLoading: false, nearbyRequests: filteredRequests);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
     }
   }
 
@@ -369,7 +370,7 @@ class RequestNotifier extends StateNotifier<RequestState> {
         // debugPrint omitted to keep noise low
       }
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
       rethrow;
     }
   }
@@ -420,7 +421,7 @@ class RequestNotifier extends StateNotifier<RequestState> {
       state = state.copyWith(isLoading: false, requests: updatedList);
       return cancelled;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
       rethrow;
     }
   }
@@ -446,7 +447,7 @@ class RequestNotifier extends StateNotifier<RequestState> {
       
       state = state.copyWith(requests: updatedList);
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorTranslator.friendly(e));
       rethrow;
     }
   }
