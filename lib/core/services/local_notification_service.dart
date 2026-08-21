@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:speedmart_lanka/core/theme/app_colors.dart';
 import 'package:speedmart_lanka/core/routes/app_router.dart';
 import 'package:go_router/go_router.dart';
 
@@ -81,6 +82,7 @@ class LocalNotificationService {
       importance: Importance.defaultImportance,
       playSound: true,
       icon: androidIcon,
+      color: AppColors.primary,
     );
 
     final details = NotificationDetails(android: androidDetails);
