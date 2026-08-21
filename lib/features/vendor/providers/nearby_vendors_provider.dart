@@ -5,6 +5,7 @@ import 'package:speedmart_lanka/features/location/providers/location_provider.da
 import 'package:speedmart_lanka/features/location/services/distance_calculation_service.dart';
 import 'package:speedmart_lanka/shared/models/user_role.dart';
 import 'package:speedmart_lanka/shared/models/vendor_status.dart';
+import 'package:speedmart_lanka/shared/models/user_model.dart';
 
 const _distanceCalc = DistanceCalculationService();
 
