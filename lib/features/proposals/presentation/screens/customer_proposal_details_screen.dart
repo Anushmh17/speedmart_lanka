@@ -32,17 +32,6 @@ class CustomerProposalDetailsScreen extends ConsumerStatefulWidget {
 }
 
 class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposalDetailsScreen> {
-  String? _selectedControlledMsg;
-
-  final List<String> _suggestedMessages = [
-    'I agree with alternative product',
-    'I do not agree with alternative product',
-    'Price is reasonable, please prepare',
-    'Price too high',
-    'Product is different than expected',
-    'Need exact product only',
-  ];
-
   bool _isProcessingAccept = false;
 
   @override
@@ -125,58 +114,73 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
     }
   }
 
-  Future<void> _sendSuggestedMessage() async {
-    if (_selectedControlledMsg == null) return;
-    final online = await ConnectivityService.instance.isOnline();
-    if (!online) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No network. Check your connection and try again.')),
-      );
-      return;
-    }
-    await ref.read(proposalProvider.notifier).sendControlledMessage(
-          _currentProposal.id,
-          customerMsg: _selectedControlledMsg,
-        );
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Sent: "$_selectedControlledMsg"'),
-          backgroundColor: AppColors.customerColor,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      setState(() {
-        _selectedControlledMsg = null;
-      });
-    }
-  }
+
 
   void _showRejectDialog() {
-    final reasons = ['Price too high', 'Product is different', 'Need exact product only', 'Search again'];
+    final reasons = ['Price too high', 'Product is different', 'Need exact product only', 'Search again', 'Other'];
+    String selectedReason = reasons.first;
+    final textController = TextEditingController();
+
     showDialog(
       context: context,
       builder: (ctx) {
-        return AlertDialog(
-          title: const Text('Reject Proposal'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: reasons.map((reason) {
-              return ListTile(
-                title: Text(reason),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _handleReject(reason);
-                },
-              );
-            }).toList(),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
-            ),
-          ],
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Reject Proposal'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Please provide a reason:'),
+                    const SizedBox(height: 12),
+                    ...reasons.map((reason) {
+                      return RadioListTile<String>(
+                        title: Text(reason),
+                        value: reason,
+                        groupValue: selectedReason,
+                        contentPadding: EdgeInsets.zero,
+                        onChanged: (val) {
+                          setDialogState(() {
+                            selectedReason = val!;
+                          });
+                        },
+                      );
+                    }),
+                    if (selectedReason == 'Other') ...[
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: textController,
+                        decoration: const InputDecoration(
+                          hintText: 'Enter your feedback',
+                          border: OutlineInputBorder(),
+                        ),
+                        maxLines: 2,
+                      ),
+                    ]
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    final finalReason = selectedReason == 'Other'
+                        ? (textController.text.trim().isEmpty ? 'Other' : textController.text.trim())
+                        : selectedReason;
+                    _handleReject(finalReason);
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.error, foregroundColor: Colors.white),
+                  child: const Text('Reject'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -237,7 +241,7 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
-                                'Full shop profile and contact details are shielded until order confirmation.',
+                                'Chat with the shop owner will be unlocked after the order payment is verified.',
                                 style: AppTextStyles.caption(AppColors.customerColor),
                               ),
                             ),
@@ -492,56 +496,6 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                     const SizedBox(height: 24),
                   ],
 
-                  // Suggested Predefined Responses (Controlled Communication)
-                  if (canAcceptOrReject) ...[
-                    Text('Send Predefined Response', style: AppTextStyles.h2(primaryText)),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: cardColor,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: borderColor),
-                      ),
-                      child: Column(
-                        children: [
-                          DropdownButtonFormField<String>(
-                            initialValue: _selectedControlledMsg,
-                            hint: const Text('Select suggested response'),
-                            decoration: InputDecoration(
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                            ),
-                            items: _suggestedMessages.map((msg) {
-                              return DropdownMenuItem(
-                                value: msg,
-                                child: Text(msg, overflow: TextOverflow.ellipsis),
-                              );
-                            }).toList(),
-                            onChanged: (val) {
-                              setState(() {
-                                _selectedControlledMsg = val;
-                              });
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: AppColors.customerColor),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                              ),
-                              onPressed: _selectedControlledMsg == null ? null : _sendSuggestedMessage,
-                              icon: const Icon(Icons.send_rounded, size: 18),
-                              label: const Text('Send Response Option'),
-                            ),
-                          )
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 30),
-                  ],
                 ],
               ),
             ),
