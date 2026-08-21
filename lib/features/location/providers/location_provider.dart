@@ -179,7 +179,8 @@ class LocationNotifier extends StateNotifier<LocationState> {
           suburb: user.deliveryApproxArea ?? '',
           approximateAreaText: user.deliveryApproxArea ?? '',
           city: user.deliveryApproxArea ?? '',
-          streetAddress: user.deliveryPreciseAddress,
+          formattedAddress: user.deliveryPreciseAddress ?? user.deliveryApproxArea ?? '',
+          streetAddress: user.deliveryPreciseAddress ?? '',
           preciseAddress: user.deliveryPreciseAddress ?? '',
           deliveryNote: user.deliveryNote ?? '',
           latitude: user.deliveryLatitude,
@@ -188,7 +189,7 @@ class LocationNotifier extends StateNotifier<LocationState> {
         );
         debugPrint('[Location] Auto-restored delivery location from customer profile');
         // Save to local storage for future use
-        unawaited(_repository.saveDeliveryLocation(saved));
+        unawaited(_repository.saveDeliveryLocation(saved!));
       }
     }
 
