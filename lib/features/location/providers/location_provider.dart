@@ -13,6 +13,9 @@ import '../repositories/location_repository.dart';
 import '../services/gps_location_service.dart';
 import '../services/sri_lanka_location_service.dart';
 import '../data/sri_lanka_data.dart';
+import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
+import 'package:speedmart_lanka/shared/models/user_model.dart';
+import 'package:speedmart_lanka/shared/models/user_role.dart';
 
 // ── State ──────────────────────────────────────────────────────────────────
 
@@ -149,19 +152,46 @@ class LocationState {
 class LocationNotifier extends StateNotifier<LocationState> {
   final LocationRepository _repository;
   final SriLankaLocationService _locationService;
+  final UserModel? Function() _getUser;
 
   LocationNotifier({
     required LocationRepository repository,
     required SriLankaLocationService locationService,
+    required UserModel? Function() getUser,
   })  : _repository = repository,
         _locationService = locationService,
+        _getUser = getUser,
         super(const LocationState()) {
     _init();
   }
 
   Future<void> _init() async {
     // 1. Restore previously saved delivery location (fixes vendor count = 0 on restart)
-    final saved = await _repository.loadDeliveryLocation();
+    DeliveryLocation? saved = await _repository.loadDeliveryLocation();
+    
+    // Auto-restore from user profile if local storage is empty (e.g. new device)
+    if (saved == null) {
+      final user = _getUser();
+      if (user != null && user.role == UserRole.customer && user.deliveryDistrict != null && user.deliveryDistrict!.isNotEmpty) {
+        saved = DeliveryLocation(
+          province: user.deliveryProvince ?? '',
+          district: user.deliveryDistrict ?? '',
+          suburb: user.deliveryApproxArea ?? '',
+          approximateAreaText: user.deliveryApproxArea ?? '',
+          city: user.deliveryApproxArea ?? '',
+          streetAddress: user.deliveryPreciseAddress,
+          preciseAddress: user.deliveryPreciseAddress ?? '',
+          deliveryNote: user.deliveryNote ?? '',
+          latitude: user.deliveryLatitude,
+          longitude: user.deliveryLongitude,
+          source: 'profile_sync',
+        );
+        debugPrint('[Location] Auto-restored delivery location from customer profile');
+        // Save to local storage for future use
+        unawaited(_repository.saveDeliveryLocation(saved));
+      }
+    }
+
     if (saved != null) {
       SriLankaProvince? province;
       SriLankaDistrict? district;
@@ -534,6 +564,7 @@ final locationProvider =
   return LocationNotifier(
     repository: ref.watch(locationRepositoryProvider),
     locationService: ref.watch(sriLankaLocationServiceProvider),
+    getUser: () => ref.read(currentUserProvider),
   );
 });
 
