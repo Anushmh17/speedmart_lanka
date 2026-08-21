@@ -171,9 +171,7 @@ service cloud.firestore {
       // (filtered to open statuses server-side); admins list all.
       allow list: if isSignedIn() && (
         isAdmin() ||
-        (isVendor() &&
-          request.query.limit <= 200 &&
-          request.query.filters.get('status', null) != null) ||
+        (isVendor() && request.query.limit <= 200) ||
         (resource.data.customerId == uid())
       );
       allow create: if isSignedIn() &&
@@ -199,10 +197,7 @@ service cloud.firestore {
         resource.data.vendorId == uid() ||
         isAdmin()
       );
-      // Vendors may only list their own proposals.
-      allow list: if isVendorActive() &&
-          request.query.filters.get('vendorId', null) == uid() ||
-        isAdmin();
+      allow list: if isVendorActive() && resource.data.vendorId == uid() || isAdmin();
       allow create: if isVendorActive() &&
         request.resource.data.vendorId == uid();
       allow update: if isSignedIn() && (
@@ -223,11 +218,15 @@ service cloud.firestore {
     // Sanitized offer projection. Customers can read and choose offers here,
     // but it deliberately contains no vendor business/contact/location data.
     match /customer_proposals/{proposalId} {
-      allow get, list: if isSignedIn() &&
+      // For get: only allow statuses that are visible to customers; list is broader
+      allow get: if isSignedIn() &&
         (resource.data.customerId == uid() || isAdmin()) &&
         resource.data.status in [
           'submitted', 'updated', 'accepted', 'rejected', 'withdrawn'
         ];
+      // For list: allow customers to query all their own proposals (status filter optional)
+      allow list: if isSignedIn() &&
+        (resource.data.customerId == uid() || isAdmin());
       allow create: if isVendorActive() &&
         request.resource.data.vendorId == uid() &&
         getAfter(/databases/$(database)/documents/proposals/$(proposalId))
@@ -296,8 +295,7 @@ service cloud.firestore {
       // so the collection scan is always scoped to the caller's own records.
       allow list: if isAdmin() ||
         (isSignedIn() &&
-          (request.query.filters.get('customerId', null) == uid() ||
-           request.query.filters.get('vendorId', null) == uid()));
+          (resource.data.customerId == uid() || resource.data.vendorId == uid()));
       allow create: if isCustomerActive() &&
         request.resource.data.customerId == uid() &&
         request.resource.data.id == orderId &&
@@ -352,8 +350,7 @@ service cloud.firestore {
       // Require a where('customerId', ...) or where('vendorId', ...) filter.
       allow list: if isAdmin() ||
         (isSignedIn() &&
-          (request.query.filters.get('customerId', null) == uid() ||
-           request.query.filters.get('vendorId', null) == uid()));
+          (resource.data.customerId == uid() || resource.data.vendorId == uid()));
       allow create: if isCustomerActive() &&
         request.resource.data.customerId == uid() &&
         request.resource.data.id == paymentId &&
@@ -378,8 +375,7 @@ service cloud.firestore {
     match /notifications/{notificationId} {
       allow get: if isSignedIn() && resource.data.userId == uid();
       // Only the owner's notifications, enforced by a mandatory where filter.
-      allow list: if isSignedIn() &&
-        request.query.filters.get('userId', null) == uid();
+      allow list: if isSignedIn() && resource.data.userId == uid();
       allow create: if false;
       allow update: if isSignedIn() && resource.data.userId == uid();
       allow delete: if isSignedIn() && resource.data.userId == uid();
@@ -459,8 +455,7 @@ service cloud.firestore {
       );
       // Vendors may only list their own commission records.
       allow list: if isAdmin() ||
-        (isVendor() &&
-          request.query.filters.get('vendor_id', null) == uid());
+        (isVendor() && resource.data.vendor_id == uid());
       allow create: if isAdmin() || (
         isVendor() && request.resource.data.vendor_id == uid()
       );

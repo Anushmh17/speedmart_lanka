@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../../../core/services/storage_upload_service.dart';
@@ -200,7 +200,7 @@ class _ImageUploadGridState extends State<ImageUploadGrid> {
 
     try {
       final ImagePicker picker = ImagePicker();
-      // Resize to max 1200px. Do NOT also pass imageQuality â€” StorageUploadService
+      // Resize to max 1200px. Do NOT also pass imageQuality - StorageUploadService
       // compresses quality before upload. Doing both causes double-compression.
       final XFile? image = await picker.pickImage(
         source: source,
@@ -338,7 +338,7 @@ class _ImageUploadGridState extends State<ImageUploadGrid> {
                 ),
               ),
               const SizedBox(width: 4),
-              Text('Uploadingâ€¦', style: AppTextStyles.caption(AppColors.customerColor)),
+              Text('Uploading...', style: AppTextStyles.caption(AppColors.customerColor)),
             ],
           ],
         ),
@@ -356,7 +356,7 @@ class _ImageUploadGridState extends State<ImageUploadGrid> {
             itemCount: widget.imageUrls.length + 1,
             itemBuilder: (context, index) {
               if (index == widget.imageUrls.length) {
-                // "+" Add Image Button â€” shows spinner while uploading
+                // "+" Add Image Button - shows spinner while uploading
                 return GestureDetector(
                   onTap: _uploading ? null : () => _showImageSourceActionSheet(context),
                   child: Container(

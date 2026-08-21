@@ -306,14 +306,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
       child: Row(
         children: [
-          IconButton(
-            onPressed: () => context.pop(),
-            icon: Icon(
-              Icons.arrow_back_ios_new_rounded,
-              color: primaryText,
+          Container(
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withValues(alpha: 0.08) : AppColors.borderLight.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isDark ? Colors.white.withValues(alpha: 0.15) : AppColors.borderLight,
+              ),
             ),
-            style: IconButton.styleFrom(
-              backgroundColor: isDark ? AppColors.surfaceElevatedDark : AppColors.borderLight,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => context.pop(),
+                child: Padding(
+                  padding: const EdgeInsets.all(10.0),
+                  child: Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: primaryText,
+                    size: 20,
+                  ),
+                ),
+              ),
             ),
           ),
           SizedBox(width: AppSpacing.sm),

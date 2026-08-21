@@ -83,7 +83,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
   // Login phone
   final _loginPhoneCtrl = TextEditingController();
 
-  // Vendor login controllers â€” passed into figma login widgets
+  // Vendor login controllers - passed into figma login widgets
   final _vendorLoginEmailCtrl = TextEditingController();
   final _vendorLoginPasswordCtrl = TextEditingController();
 
@@ -98,7 +98,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
   bool _pendingCustomerRememberMe = false; // remember-me value pending OTP verification
   String? _previousPassword;  // current password before reset (for same-password check)
 
-  // Vendor register data â€” collected from onCreateAccountWithData
+  // Vendor register data - collected from onCreateAccountWithData
   Map<String, String>? _pendingVendorRegData;
 
   bool _isLoading = false;
@@ -108,7 +108,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
   bool _isDetectingGps = false;
   double? _detectedLatitude;
   double? _detectedLongitude;
-  // Vendor register pin â€” lifted so it survives SL â†” Intl page switches
+  // Vendor register pin - lifted so it survives SL <-> Intl page switches
   LatLng? _vendorPinPoint;
   bool _isHandlingBack = false;
 
@@ -260,7 +260,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-            child: Text('Select District â€” ${_selectedProvince!.name}',
+            child: Text('Select District - ${_selectedProvince!.name}',
                 style:
                     const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           ),
@@ -639,7 +639,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     final lng = double.tryParse(data['longitude'] ?? '');
     if (lat == null || lng == null) { _showError('Please pin your shop location on the map.'); return; }
 
-    // Store form data and send OTP â€” registration happens after OTP verified
+    // Store form data and send OTP - registration happens after OTP verified
     _pendingVendorRegData = data;
     if (!await _checkOnline()) return;
 
@@ -884,7 +884,7 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
 
   // â”€â”€ Build â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-  // Pages that contain heavy maps â€” kept permanently mounted via Offstage
+  // Pages that contain heavy maps - kept permanently mounted via Offstage
   static const _persistentPages = {_FigmaAuthPage.vendorRegister};
 
   // Returns the page to go back to, or null if this is a root login page

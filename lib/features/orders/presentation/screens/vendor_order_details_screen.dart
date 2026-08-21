@@ -985,7 +985,7 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Text(
-                                    'COD Order â€” Collect cash on delivery',
+                                    'COD Order - Collect cash on delivery',
                                     style: AppTextStyles.bodyMedium(AppColors.warning).copyWith(
                                       fontWeight: FontWeight.w600,
                                     ),
@@ -1086,7 +1086,7 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
 
                       // NOTE: Push notification for every status change is handled
                       // server-side by the onOrderStatusChanged Cloud Function.
-                      // No local notification trigger needed here â€” it would duplicate.
+                      // No local notification trigger needed here - it would duplicate.
 
                       // Special: for bank transfer, notify customer of delivery + verification
                       if (nextStatus == OrderStatus.delivered &&

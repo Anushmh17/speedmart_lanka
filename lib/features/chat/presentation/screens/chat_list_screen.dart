@@ -85,20 +85,53 @@ class ChatListScreen extends ConsumerWidget {
                     ? (entry.value.first as dynamic).senderName
                     : lastMsg.senderName;
 
-                return ListTile(
-                  onTap: () {
-                    context.push('/chat', extra: {
-                      'proposalId': proposalId,
-                      'vendorName': vendorName ?? 'Partner Shop Owner',
-                      'isUnlocked': false,
-                    });
-                  },
-                  leading: CircleAvatar(child: Icon(Icons.storefront_rounded, color: AppColors.customerColor)),
-                  title: Text(vendorName ?? 'Shop', style: AppTextStyles.bodyMedium(primaryText)),
-                  subtitle: Text((lastMsg.text ?? '').toString(), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  trailing: Text(
-                    '${(lastMsg.timestamp as DateTime).hour.toString().padLeft(2, '0')}:${(lastMsg.timestamp as DateTime).minute.toString().padLeft(2, '0')}',
-                    style: AppTextStyles.caption(secondaryText),
+                return Container(
+                  decoration: BoxDecoration(
+                    color: surfaceColor,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: isDark ? Colors.black26 : Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () {
+                        context.push('/chat', extra: {
+                          'proposalId': proposalId,
+                          'vendorName': vendorName ?? 'Partner Shop Owner',
+                          'isUnlocked': false,
+                        });
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: ListTile(
+                          leading: CircleAvatar(
+                            backgroundColor: AppColors.customerColor.withValues(alpha: 0.1),
+                            child: const Icon(Icons.storefront_rounded, color: AppColors.customerColor),
+                          ),
+                          title: Text(
+                            vendorName ?? 'Shop',
+                            style: AppTextStyles.bodyLarge(primaryText).copyWith(fontWeight: FontWeight.w600),
+                          ),
+                          subtitle: Text(
+                            (lastMsg.text ?? '').toString(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.bodyMedium(secondaryText),
+                          ),
+                          trailing: Text(
+                            '${(lastMsg.timestamp as DateTime).hour.toString().padLeft(2, '0')}:${(lastMsg.timestamp as DateTime).minute.toString().padLeft(2, '0')}',
+                            style: AppTextStyles.caption(secondaryText),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 );
               },
