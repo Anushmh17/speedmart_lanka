@@ -145,6 +145,16 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ── Vendor Discovery (Public proximity data only) ──────────────────────────
+    // Contains ONLY: vendor_status, is_active, is_shop_location_assigned,
+    // shop_latitude, shop_longitude, assigned_radius_km, allowed_categories.
+    // NO sensitive data (bank details, phone, email, NIC, etc.).
+    // Any signed-in customer can read this for the "nearby shop owners" feature.
+    match /vendor_discovery/{vendorId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isOwner(vendorId);
+    }
+
     match /users/admins/profiles/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow create: if false;

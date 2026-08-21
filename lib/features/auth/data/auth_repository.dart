@@ -186,6 +186,26 @@ class AuthRepository {
       await doc.set(user.toJson(), SetOptions(merge: true));
       debugPrint(
           '[Auth] Synced user ${user.id} to Firestore (${user.role.name})');
+
+      // If this is a vendor, also write public proximity fields to vendor_discovery
+      // so customers can detect nearby shop owners without accessing sensitive data.
+      if (user.role == UserRole.vendor) {
+        try {
+          await FirestoreService.collection('vendor_discovery').doc(user.id).set({
+            'vendor_status': user.vendorStatus?.name,
+            'is_active': user.isActive,
+            'is_shop_location_assigned': user.isShopLocationAssigned ?? false,
+            'shop_latitude': user.shopLatitude,
+            'shop_longitude': user.shopLongitude,
+            'assigned_radius_km': user.assignedRadiusKm,
+            'allowed_categories': user.allowedCategories,
+            'vendor_categories': user.vendorCategories,
+          }, SetOptions(merge: true));
+          debugPrint('[Auth] Synced vendor_discovery for ${user.id}');
+        } catch (e) {
+          debugPrint('[Auth] vendor_discovery sync failed (non-fatal): $e');
+        }
+      }
     } catch (e) {
       debugPrint('[Auth] Failed to sync user ${user.id} to Firestore: $e');
       rethrow;
