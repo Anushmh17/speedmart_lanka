@@ -12,6 +12,7 @@ import '../../requests/models/request_category_fulfillment.dart';
 import '../../requests/providers/request_provider.dart';
 import '../data/proposal_repository.dart';
 import '../models/proposal.dart';
+import 'package:speedmart_lanka/core/utils/error_translator.dart';
 
 class ProposalState {
   const ProposalState({
@@ -70,7 +71,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
       state = state.copyWith(isLoading: false, proposals: proposals);
       return proposals;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
       return [];
     }
   }
@@ -84,7 +85,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
       final proposals = await _repo.getProposalsForVendor(user.id);
       state = state.copyWith(isLoading: false, proposals: proposals);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
     }
   }
 
@@ -177,7 +178,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
       state = state.copyWith(isLoading: false, selectedProposal: saved);
       return saved;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
       rethrow;
     }
   }
@@ -195,7 +196,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
       state = state.copyWith(isLoading: false, selectedProposal: updated);
       return updated;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
       rethrow;
     }
   }
@@ -209,7 +210,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
       if (updated != null) _upsertInList(updated);
       state = state.copyWith(isLoading: false, selectedProposal: updated);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
       rethrow;
     }
   }
@@ -399,7 +400,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
       await loadProposalsForRequest(requestId);
       state = state.copyWith(isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
       rethrow;
     }
   }
@@ -484,7 +485,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
       await loadProposalsForRequest(requestId);
       state = state.copyWith(isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
       rethrow;
     }
   }
@@ -504,7 +505,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
       final updated = await _repo.getProposalById(proposalId);
       if (updated != null) _upsertInList(updated);
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorTranslator.friendly(e));
     }
   }
 
@@ -513,7 +514,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
     try {
       await _repo.saveProposalToWishlist(proposalId);
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorTranslator.friendly(e));
     }
   }
 
@@ -522,7 +523,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
     try {
       await _repo.removeSavedProposal(proposalId);
     } catch (e) {
-      state = state.copyWith(error: e.toString());
+      state = state.copyWith(error: ErrorTranslator.friendly(e));
     }
   }
 
@@ -648,7 +649,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
       await loadProposalsForRequest(requestId);
       state = state.copyWith(isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
       rethrow;
     }
   }
@@ -671,7 +672,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
       await loadProposalsForRequest(requestId);
       state = state.copyWith(isLoading: false);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
       rethrow;
     }
   }

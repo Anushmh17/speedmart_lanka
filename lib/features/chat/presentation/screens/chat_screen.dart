@@ -6,6 +6,7 @@ import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_radius.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../providers/chat_provider.dart';
+import 'package:speedmart_lanka/core/utils/error_translator.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({

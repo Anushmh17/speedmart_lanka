@@ -3,6 +3,7 @@ import '../../auth/data/auth_repository.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../data/payment_repository.dart';
 import '../models/payment.dart';
+import 'package:speedmart_lanka/core/utils/error_translator.dart';
 
 class PaymentState {
   final bool isLoading;
@@ -47,7 +48,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
       final payments = await _repo.getCustomerPayments(user.id);
       state = state.copyWith(isLoading: false, payments: payments);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
     }
   }
 
@@ -61,7 +62,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
       final payments = await _repo.getVendorPayments(user.id);
       state = state.copyWith(isLoading: false, payments: payments);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
     }
   }
 
@@ -76,7 +77,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
       );
       return created;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
       rethrow;
     }
   }
@@ -98,7 +99,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
       }
       return updated;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
       rethrow;
     }
   }
@@ -120,7 +121,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
       }
       return updated;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
       rethrow;
     }
   }
@@ -142,7 +143,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
       }
       return updated;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
       rethrow;
     }
   }
@@ -170,7 +171,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
       }
       return updated;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
       rethrow;
     }
   }

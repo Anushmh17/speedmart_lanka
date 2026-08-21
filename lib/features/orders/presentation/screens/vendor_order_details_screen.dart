@@ -24,6 +24,7 @@ import 'package:speedmart_lanka/features/requests/models/request_category_fulfil
 import 'package:speedmart_lanka/features/requests/data/request_repository.dart';
 import 'package:speedmart_lanka/features/location/services/location_service.dart';
 import 'package:speedmart_lanka/features/vendor/proposals/widgets/image_gallery_viewer.dart';
+import 'package:speedmart_lanka/core/utils/error_translator.dart';
 
 class VendorOrderDetailsScreen extends ConsumerStatefulWidget {
   const VendorOrderDetailsScreen({super.key, required this.order});

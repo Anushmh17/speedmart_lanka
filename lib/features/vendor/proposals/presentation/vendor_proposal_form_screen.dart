@@ -27,6 +27,7 @@ import '../../../../core/utils/permission_utils.dart';
 import '../../../../core/services/storage_upload_service.dart';
 import '../../../../core/routes/route_names.dart';
 import '../../../../core/widgets/safe_request_image.dart';
+import 'package:speedmart_lanka/core/utils/error_translator.dart';
 /// Create or edit a vendor proposal (quotation) for a customer request.
 class VendorProposalFormScreen extends ConsumerStatefulWidget {
   const VendorProposalFormScreen({

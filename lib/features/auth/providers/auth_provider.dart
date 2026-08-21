@@ -10,6 +10,7 @@ import '../../../shared/models/user_model.dart';
 import '../../../shared/models/user_role.dart';
 import '../data/auth_repository.dart';
 import '../domain/auth_state.dart';
+import 'package:speedmart_lanka/core/utils/error_translator.dart';
 
 /// Riverpod [StateNotifier] that drives all authentication logic.
 /// UI listens to [authProvider]; screens call methods on [authNotifier].
@@ -504,7 +505,7 @@ class AuthNotifier extends StateNotifier<AuthState> {
       // Preserve the authenticated user — only attach the error message.
       // Using AuthState.withError would set user=null and trigger a router
       // redirect to the login screen.
-      state = state.copyWith(error: e.toString().replaceAll('Exception: ', ''));
+      state = state.copyWith(error: ErrorTranslator.friendly(e).replaceAll('Exception: ', ''));
       rethrow;
     }
   }

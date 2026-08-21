@@ -12,6 +12,7 @@ import '../../../shared/models/user_model.dart';
 import '../../../shared/models/user_role.dart';
 import '../../../shared/models/vendor_status.dart';
 import 'package:uuid/uuid.dart';
+import 'package:speedmart_lanka/core/utils/error_translator.dart';
 
 /// Authentication repository — Firebase Auth for credentials, Firestore for user data.
 class AuthRepository {

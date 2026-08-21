@@ -9,6 +9,7 @@ import '../models/vendor_feed_enums.dart';
 import '../models/vendor_feed_request.dart';
 import '../services/vendor_request_filter_service.dart';
 import 'package:speedmart_lanka/shared/providers/category_provider.dart';
+import 'package:speedmart_lanka/core/utils/error_translator.dart';
 
 class VendorRequestFeedState {
   const VendorRequestFeedState({
@@ -213,7 +214,7 @@ class VendorRequestFeedNotifier extends StateNotifier<VendorRequestFeedState> {
       debugPrint('[FeedAudit] ===== VENDOR FEED LOAD COMPLETE: ${sorted.length} requests shown =====');
     } catch (e) {
       debugPrint('[FeedAudit] ===== ERROR: Exception during feed load: $e =====');
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
     }
   }
 

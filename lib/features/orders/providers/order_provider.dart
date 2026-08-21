@@ -9,6 +9,7 @@ import 'package:speedmart_lanka/features/payments/models/payment.dart';
 import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart'
     as notification_feature;
 import 'package:speedmart_lanka/features/notifications/models/notification_type.dart';
+import 'package:speedmart_lanka/core/utils/error_translator.dart';
 
 class OrderState {
   final bool isLoading;
@@ -52,7 +53,7 @@ class OrderNotifier extends StateNotifier<OrderState> {
       final orders = await _repo.getAllOrders();
       state = state.copyWith(isLoading: false, orders: orders);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
     }
   }
 
@@ -67,7 +68,7 @@ class OrderNotifier extends StateNotifier<OrderState> {
       final orders = await _repo.getOrdersForCustomer(user.id);
       state = state.copyWith(isLoading: false, orders: orders);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
     }
   }
 
@@ -81,7 +82,7 @@ class OrderNotifier extends StateNotifier<OrderState> {
       final orders = await _repo.getOrdersForVendor(user.id);
       state = state.copyWith(isLoading: false, orders: orders);
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
     }
   }
 
@@ -113,7 +114,7 @@ class OrderNotifier extends StateNotifier<OrderState> {
 
       return newOrder;
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
       rethrow;
     }
   }
@@ -161,7 +162,7 @@ class OrderNotifier extends StateNotifier<OrderState> {
         state = state.copyWith(isLoading: false);
       }
     } catch (e) {
-      state = state.copyWith(isLoading: false, error: e.toString());
+      state = state.copyWith(isLoading: false, error: ErrorTranslator.friendly(e));
     }
   }
 }
