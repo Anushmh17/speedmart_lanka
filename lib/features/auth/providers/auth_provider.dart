@@ -490,12 +490,70 @@ class AuthNotifier extends StateNotifier<AuthState> {
       } else {
         await StorageService.saveUser(currentUser.toJson());
       }
+
+      // Fix 4: If the vendor changed bank details, refresh all open
+      // bank_transfer_instructions docs so existing proposals show live data.
+      final bankFieldChanged =
+          bankName != null || bankBranch != null ||
+          bankAccountName != null || bankAccountNumber != null ||
+          acceptsBankTransfer != null;
+      if (savedUser.role == UserRole.vendor && bankFieldChanged) {
+        _refreshBankInstructionsForVendor(savedUser.id).ignore();
+      }
     } catch (e) {
       // Preserve the authenticated user — only attach the error message.
       // Using AuthState.withError would set user=null and trigger a router
       // redirect to the login screen.
       state = state.copyWith(error: e.toString().replaceAll('Exception: ', ''));
       rethrow;
+    }
+  }
+
+  /// Re-writes every submitted/updated bank_transfer_instructions document for
+  /// [vendorId] using the vendor's current profile from Firestore.
+  /// Best-effort — any failure is swallowed so the profile save is never blocked.
+  Future<void> _refreshBankInstructionsForVendor(String vendorId) async {
+    try {
+      final db = FirebaseFirestore.instance;
+      final proposalsSnap = await db
+          .collection('proposals')
+          .where('vendorId', isEqualTo: vendorId)
+          .where('status', whereIn: ['submitted', 'updated'])
+          .get();
+      if (proposalsSnap.docs.isEmpty) return;
+
+      final profileSnap = await db
+          .collection('users/vendors/profiles')
+          .doc(vendorId)
+          .get(const GetOptions(source: Source.server));
+      if (!profileSnap.exists) return;
+      final pd = profileSnap.data()!;
+      final accountName = pd['bank_account_name'] as String?;
+      final accountNumber = pd['bank_account_number'] as String?;
+      final enabled = pd['accepts_bank_transfer'] as bool? ?? true;
+
+      final batch = db.batch();
+      for (final doc in proposalsSnap.docs) {
+        final data = doc.data();
+        final ref = db.collection('bank_transfer_instructions').doc(doc.id);
+        batch.set(ref, {
+          'proposalId': doc.id,
+          'customerId': data['customerId'] as String? ?? '',
+          'vendorId': vendorId,
+          'isAvailable': enabled &&
+              (accountName?.trim().isNotEmpty ?? false) &&
+              (accountNumber?.trim().isNotEmpty ?? false),
+          'bankName': pd['bank_name'] as String?,
+          'bankBranch': pd['bank_branch'] as String?,
+          'accountName': accountName,
+          'accountNumber': accountNumber,
+          'updatedAt': DateTime.now().toIso8601String(),
+        });
+      }
+      await batch.commit();
+      debugPrint('[BankSync] Refreshed ${proposalsSnap.docs.length} bank_transfer_instructions for vendor $vendorId');
+    } catch (e) {
+      debugPrint('[BankSync] Failed to refresh bank instructions for vendor $vendorId: $e');
     }
   }
 

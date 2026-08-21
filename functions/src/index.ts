@@ -221,7 +221,6 @@ export const onNewProposal = onDocumentCreated(
 
     const proposalId = event.params.proposalId;
     const customerId = typeof proposal.customerId === "string" ? proposal.customerId : "";
-    const vendorId: string = proposal.vendorId;
     const requestId = typeof proposal.requestId === "string" ? proposal.requestId : "";
 
     if (!customerId) {
@@ -256,23 +255,19 @@ export const onNewProposal = onDocumentCreated(
       }
     }
 
-    // Get vendor name
-    const vendorDoc = await db.doc(`users/vendors/profiles/${vendorId}`).get();
-    const vendorName = vendorDoc.data()?.businessName ?? vendorDoc.data()?.fullName ?? "A shop owner";
-
     await Promise.all([
       createNotification(
         customerId,
         "newProposal",
         "New Proposal Received 💬",
-        `${sanitize(vendorName)} has submitted a proposal for your shopping request.`,
+        "A verified partner has submitted a proposal for your shopping request.",
         proposalId,
         {proposalId, requestId}
       ),
       sendPushNotification(
         customerId,
         "New Proposal 💬",
-        `${sanitize(vendorName)} submitted a proposal. Tap to review.`,
+        "A verified partner submitted a proposal. Tap to review.",
         {route: `/customer/requests/${requestId}`, type: "newProposal", proposalId}
       ),
     ]);

@@ -1018,6 +1018,7 @@ class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
 
   Widget _buildRecentRequestsSection(BuildContext context, WidgetRef ref, dynamic requestState, bool isDark, Color primaryText, Color secondaryText) {
     const orderStatuses = {
+      RequestStatus.customerAccepted,
       RequestStatus.paid,
       RequestStatus.cashOnDeliveryConfirmed,
       RequestStatus.preparingOrder,
@@ -1236,15 +1237,8 @@ class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Order #${order.id.substring(0, 8)}',
+                            _getOrderItemSummary(order),
                             style: AppTextStyles.labelLarge(primaryText),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'from ${order.vendorBusinessName}',
-                            style: AppTextStyles.bodySmall(secondaryText),
-                            maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 6),
@@ -1277,6 +1271,21 @@ class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
           ),
       ],
     );
+  }
+
+  String _getOrderItemSummary(OrderModel order) {
+    if (order.items.isEmpty) {
+      final shortOrderId =
+          order.id.length > 8 ? order.id.substring(0, 8) : order.id;
+      return 'Order #$shortOrderId';
+    }
+
+    final firstItemName = order.items.first.itemName.trim();
+    final itemName = firstItemName.isEmpty ? 'Order item' : firstItemName;
+    final remainingItemCount = order.items.length - 1;
+    return remainingItemCount > 0
+        ? '$itemName +$remainingItemCount more'
+        : itemName;
   }
 
   String _getOrderPrimaryCategory(OrderModel order) {
@@ -1786,7 +1795,7 @@ class CustomerOrdersTab extends ConsumerWidget {
                                                 ),
                                                 const SizedBox(height: 2),
                                                 Text(
-                                                  order.vendorBusinessName,
+                                                  'Verified Partner',
                                                   style: AppTextStyles.bodySmall(secondaryText),
                                                   maxLines: 1,
                                                   overflow: TextOverflow.ellipsis,

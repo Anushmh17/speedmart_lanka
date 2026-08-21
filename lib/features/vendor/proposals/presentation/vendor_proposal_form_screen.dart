@@ -11,6 +11,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../core/services/connectivity_service.dart';
 import '../../../../core/providers/notification_provider.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_spacing.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../shared/utils/category_constants.dart';
 import '../../../auth/providers/auth_provider.dart';
@@ -254,8 +255,14 @@ class _VendorProposalFormScreenState
     final commissionAmount = subtotal * commissionRate;
     final totalPrice = subtotal + _deliveryFee + commissionAmount;
 
-    // Determine categories for this proposal from the (already-filtered) request items
+    // Only claim categories the vendor actually offered. An unavailable item
+    // must not lock the category or be marked paid during checkout.
+    final offeredRequestItemIds = items
+        .where((item) => item.status != ProposalItemStatus.unavailable)
+        .map((item) => item.requestItemId)
+        .toSet();
     final categoriesInProposal = widget.request.items
+        .where((item) => offeredRequestItemIds.contains(item.id))
         .map((i) => i.category)
         .whereType<String>()
         .where((c) => c.isNotEmpty)
@@ -431,6 +438,15 @@ class _VendorProposalFormScreenState
 
   Future<void> _submit() async {
     if (_saving) return;
+    if (_isEditing && !widget.existingProposal!.canEdit) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Accepted proposals cannot be edited.'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
     if (!_formKey.currentState!.validate()) return;
 
     final online = await ConnectivityService.instance.isOnline();
@@ -522,6 +538,28 @@ class _VendorProposalFormScreenState
         : AppColors.textSecondaryLight;
     final cardColor = isDark ? AppColors.cardDark : AppColors.cardLight;
     final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+    final existingProposal = widget.existingProposal;
+
+    // A stale deep link or notification can open this route after acceptance.
+    // Never render editable controls for a proposal the vendor can no longer edit.
+    if (existingProposal != null && !existingProposal.canEdit) {
+      final accepted = existingProposal.status == ProposalStatus.accepted;
+      return Scaffold(
+        appBar: AppBar(title: const Text('Proposal locked')),
+        body: Center(
+          child: Padding(
+            padding: EdgeInsets.all(AppSpacing.xl),
+            child: Text(
+              accepted
+                  ? 'This proposal has been accepted and cannot be edited.'
+                  : 'This proposal can no longer be edited.',
+              textAlign: TextAlign.center,
+              style: AppTextStyles.bodyLarge(primaryText),
+            ),
+          ),
+        ),
+      );
+    }
     final currentUser = ref.read(currentUserProvider);
     final commissionRate = currentUser?.commissionRate ?? 0.0;
     final commissionAmount = _itemsSubtotal * commissionRate;

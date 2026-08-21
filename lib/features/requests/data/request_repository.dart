@@ -34,20 +34,60 @@ class RequestRepository {
       FirestoreService.collection(_requestsCollectionPath);
 
   Future<List<Map<String, dynamic>>> _fetchRequestsFromFirestore() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return [];
     try {
-      final query = await _requestsCollection
-          .limit(500)
-          .get(const GetOptions(source: Source.server));
-      return query.docs.map((doc) {
-        final data = doc.data();
-        return {
-          ...data,
-          'id': doc.id,
-        };
-      }).toList();
+      // Customers: scope to their own requests (rules enforce customerId filter).
+      // Vendors: fetch open marketplace statuses (rules require status filter).
+      // Admins are handled the same as vendors from the client side; the
+      // server-side admin check permits broader access.
+      final isCustomer = await _isCustomerSession();
+      if (isCustomer) {
+        final snap = await _requestsCollection
+            .where('customerId', isEqualTo: user.uid)
+            .limit(500)
+            .get(const GetOptions(source: Source.server));
+        return snap.docs
+            .map((doc) => {...doc.data(), 'id': doc.id})
+            .toList();
+      }
+      // Vendor / admin: fetch the three open statuses for the marketplace feed.
+      final statuses = [
+        'submitted',
+        'waitingForVendor',
+        'proposalSubmitted',
+      ];
+      final seen = <String>{};
+      final results = <Map<String, dynamic>>[];
+      for (final status in statuses) {
+        final snap = await _requestsCollection
+            .where('status', isEqualTo: status)
+            .limit(200)
+            .get(const GetOptions(source: Source.server));
+        for (final doc in snap.docs) {
+          if (seen.add(doc.id)) {
+            results.add({...doc.data(), 'id': doc.id});
+          }
+        }
+      }
+      return results;
     } catch (e) {
       debugPrint('[Request] Failed to load requests from Firestore: $e');
       return [];
+    }
+  }
+
+  /// Returns true when the current Firebase user has a customer profile.
+  Future<bool> _isCustomerSession() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return false;
+    try {
+      final profile = await FirestoreService.collection('users/customers/profiles')
+          .doc(uid)
+          .get(const GetOptions(source: Source.server));
+      return profile.exists;
+    } catch (_) {
+      return false;
     }
   }
 
@@ -93,15 +133,12 @@ class RequestRepository {
   Future<void> refreshFromFirestore() async {
     if (FirebaseAuth.instance.currentUser == null) return;
     try {
-      final query = await _requestsCollection
-          .limit(500)
-          .get(const GetOptions(source: Source.server));
-      final refreshed = query.docs
-          .map((doc) => ShoppingRequest.fromJson({...doc.data(), 'id': doc.id}))
-          .toList();
+      // Delegate to the same scoped fetch used during initialisation so the
+      // correct per-role query (customer vs vendor) is always used.
+      final refreshed = await _fetchRequestsFromFirestore();
       _requests
         ..clear()
-        ..addAll(refreshed);
+        ..addAll(refreshed.map(ShoppingRequest.fromJson));
     } catch (e) {
       debugPrint('[Request] Failed to refresh requests from Firestore: $e');
     }

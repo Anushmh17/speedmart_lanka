@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chat_message.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../../shared/models/user_model.dart';
+import '../../../shared/models/user_role.dart';
 
 class ChatState {
   final List<ChatMessage> messages;
@@ -98,7 +100,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     final masked = maskSensitiveDetails(text);
 
-    final proposalDoc = await FirebaseFirestore.instance.collection('proposals').doc(proposalId).get();
+    final isCustomer = ref.read(authProvider).user?.role == UserRole.customer;
+    final proposalDoc = await FirebaseFirestore.instance
+        .collection(isCustomer ? 'customer_proposals' : 'proposals')
+        .doc(proposalId)
+        .get();
     final proposalData = proposalDoc.data();
     if (proposalData == null) return;
 

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/theme/app_text_styles.dart';
 import '../../../../proposals/models/proposal.dart';
@@ -66,9 +65,6 @@ class VendorProfilePreviewModal extends StatelessWidget {
 
     // Mock data
     final completedOrders = (proposal.vendorId.hashCode.abs() % 500) + 50;
-    final categories = ['Groceries', 'Electronics', 'Home & Kitchen'];
-    final serviceArea = 'Within 3km';
-
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -93,7 +89,7 @@ class VendorProfilePreviewModal extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        proposal.vendorBusinessName,
+                        'Verified Partner',
                         style: AppTextStyles.h2(primaryText),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
@@ -127,9 +123,10 @@ class VendorProfilePreviewModal extends StatelessWidget {
             Divider(color: borderColor, height: 1),
             const SizedBox(height: 20),
 
-            // Shop Info Section
+            // Partner info is intentionally anonymous until the platform's
+            // privacy policy allows disclosure.
             Text(
-              'Shop Information',
+              'Partner Information',
               style: AppTextStyles.subtitle(primaryText),
             ),
             const SizedBox(height: 12),
@@ -164,8 +161,8 @@ class VendorProfilePreviewModal extends StatelessWidget {
             // Service Area
             _InfoRow(
               icon: Icons.location_on_outlined,
-              label: 'Service Area',
-              value: serviceArea,
+              label: 'Delivery coverage',
+              value: 'Available for your request',
               primaryText: primaryText,
               secondaryText: secondaryText,
             ),
@@ -174,8 +171,8 @@ class VendorProfilePreviewModal extends StatelessWidget {
             // Categories
             _InfoRow(
               icon: Icons.category_outlined,
-              label: 'Approved Categories',
-              value: categories.join(', '),
+              label: 'Order fulfillment',
+              value: 'Available',
               primaryText: primaryText,
               secondaryText: secondaryText,
             ),
@@ -195,46 +192,6 @@ class VendorProfilePreviewModal extends StatelessWidget {
             Divider(color: borderColor, height: 1),
             const SizedBox(height: 20),
 
-            // Action Buttons
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => context.push(
-                      '/customer/proposals/detail',
-                      extra: {
-                        'proposal': proposal,
-                        'requestId': requestId,
-                      },
-                    ).then((_) => Navigator.pop(context)),
-                    icon: const Icon(Icons.forum_outlined),
-                    label: const Text('Contact'),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size(0, 44),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => context.push(
-                      '/customer/vendor/shopfront',
-                      extra: {
-                        'vendorName': proposal.vendorBusinessName,
-                        'vendorPhone': '+94 77 555 4321',
-                      },
-                    ).then((_) => Navigator.pop(context)),
-                    icon: const Icon(Icons.storefront_outlined),
-                    label: const Text('Shop'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.customerColor,
-                      minimumSize: const Size(0, 44),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
           ],
         ),
       ),

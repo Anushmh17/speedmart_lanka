@@ -2,6 +2,7 @@
   "name": "speedmart-functions",
   "scripts": {
     "build": "tsc",
+    "backfill:customer-proposals": "npm run build && node lib/scripts/backfill_customer_proposals.js",
     "build:watch": "tsc --watch",
     "serve": "npm run build && firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions",

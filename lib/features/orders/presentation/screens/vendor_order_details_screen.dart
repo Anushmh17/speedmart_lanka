@@ -9,6 +9,7 @@ import 'package:speedmart_lanka/core/widgets/theme3/theme3_app_button.dart';
 import 'package:speedmart_lanka/features/proposals/models/proposal.dart';
 import 'package:speedmart_lanka/features/proposals/providers/proposal_provider.dart';
 import 'package:speedmart_lanka/features/orders/data/order_repository.dart';
+import 'package:speedmart_lanka/features/orders/data/order_workflow_service.dart';
 import 'package:speedmart_lanka/features/orders/models/order_model.dart';
 import 'package:speedmart_lanka/features/orders/providers/order_provider.dart';
 import 'package:speedmart_lanka/features/orders/services/vendor_delivery_access_service.dart';
@@ -84,77 +85,7 @@ class _VendorOrderDetailsScreenState extends ConsumerState<VendorOrderDetailsScr
       );
       return;
     }
-    // Get payment for this order
-    final payment = await PaymentRepository.instance.getPaymentByOrderId(order.id);
-    if (payment == null) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Payment record not found'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return;
-    }
-
-    debugPrint('[CODFlow] vendor mark cash collected start:');
-    debugPrint('[CODFlow] request id: ${order.requestId}');
-    debugPrint('[CODFlow] proposal id: ${order.proposalId}');
-    debugPrint('[CODFlow] payment id: ${payment.id}');
-    debugPrint('[CODFlow] payment before: ${payment.paymentStatus.name}');
-
-    // Update payment status to paid in the payment record
-    await PaymentRepository.instance.updatePaymentStatus(payment.id, PaymentStatus.paid);
-    debugPrint('[CODFlow] payment after: paid');
-
-    // Also update the order record so tracking/UIs show paid for COD deliveries
-    await OrderRepository.instance.updatePaymentStatus(order.id, PaymentStatus.paid);
-    debugPrint('[CODFlow] order payment status updated to paid');
-
-    // Get the request to update category fulfillment
-    final request = await RequestRepository.instance.getRequestById(order.requestId);
-    if (request != null && order.proposalId.isNotEmpty) {
-      // Get proposal to find category
-      final proposal = await ref.read(proposalProvider.notifier).loadProposalById(order.proposalId); // ignore: use_build_context_synchronously
-
-      if (proposal != null && proposal.categoriesNormalized.isNotEmpty) {
-        for (final category in proposal.categoriesNormalized) {
-          final currentFulfillment = request.getFulfillment(category);
-
-          debugPrint('[CODFlow] category: $category');
-          debugPrint('[CODFlow] fulfillment before: ${currentFulfillment?.status.name}');
-
-          if (currentFulfillment != null) {
-            final updatedFulfillments = Map<String, RequestCategoryFulfillment>.from(
-              request.categoryFulfillments,
-            );
-
-            // Update to paid and completed
-            updatedFulfillments[category] = currentFulfillment.copyWith(
-              status: RequestCategoryStatus.paid,
-              paidAt: DateTime.now(),
-              completedAt: DateTime.now(),
-            );
-
-            final updatedRequest = request.copyWith(
-              categoryFulfillments: updatedFulfillments,
-              updatedAt: DateTime.now(),
-            );
-
-            await RequestRepository.instance.updateRequest(updatedRequest);
-            debugPrint('[CODFlow] fulfillment after: paid');
-            debugPrint('[CODFlow] customer UI should now show paid: true');
-          }
-        }
-      }
-    }
-
-    // Update order status to delivered
-    await ref.read(orderProvider.notifier).updateOrderStatus(
-      order.id,
-      OrderStatus.delivered,
-    );
+    await OrderWorkflowService.instance.completeCodDelivery(order.id);
 
     // Notify customer
     ref.read(notificationProvider.notifier).triggerNotification(
@@ -1325,13 +1256,11 @@ class _BankTransferPanelState extends ConsumerState<_BankTransferPanel> {
 
     setState(() => _confirming = true);
     try {
-      // Mark payment as paid
-      await PaymentRepository.instance
-          .updatePaymentStatus(widget.order.id, PaymentStatus.paid);
-
-      // Also mark the order's paymentStatus field
-      await OrderRepository.instance
-          .updatePaymentStatus(widget.order.id, PaymentStatus.paid);
+      final paymentId = widget.order.paymentId;
+      if (paymentId == null || paymentId.isEmpty) {
+        throw StateError('This order has no linked payment record.');
+      }
+      await OrderWorkflowService.instance.confirmBankTransferPayment(paymentId);
 
       // Notify customer their payment has been verified
       await ref

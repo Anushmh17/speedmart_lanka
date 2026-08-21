@@ -314,12 +314,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           final extraMap = state.extra as Map<String, dynamic>;
           final order = extraMap['order'] as OrderModel;
           final payment = extraMap['payment'] as PaymentModel;
+          final remaining = (extraMap['remaining'] as List? ?? const [])
+              .map((item) => Map<String, dynamic>.from(item as Map))
+              .toList();
           return _buildPage(
               context,
               state,
               BankTransferConfirmScreen(
                 order: order,
                 payment: payment,
+                remaining: remaining,
               ));
         },
       ),

@@ -69,23 +69,24 @@ class AuthRepository {
   }
 
   Future<List<Map<String, dynamic>>> _fetchUsersFromFirestore() async {
-    try {
-      final results = await Future.wait([
-        FirestoreService.collection('users/customers/profiles')
-            .limit(500)
-            .get(),
-        FirestoreService.collection('users/vendors/profiles').limit(500).get(),
-        FirestoreService.collection('users/admins/profiles').limit(500).get(),
-      ]);
-      return results
-          .expand((snapshot) => snapshot.docs.map((doc) {
-                return {...doc.data(), 'id': doc.id};
-              }))
-          .toList();
-    } catch (e) {
-      debugPrint('[Auth] Failed to load users from Firestore: $e');
-      return [];
+    Future<List<Map<String, dynamic>>> loadCollection(String path) async {
+      try {
+        final snapshot = await FirestoreService.collection(path).limit(500).get();
+        return snapshot.docs
+            .map((doc) => {...doc.data(), 'id': doc.id})
+            .toList();
+      } catch (_) {
+        // Role-scoped rules intentionally deny some profile collections.
+        return [];
+      }
     }
+
+    final results = await Future.wait([
+      loadCollection('users/customers/profiles'),
+      loadCollection('users/vendors/profiles'),
+      loadCollection('users/admins/profiles'),
+    ]);
+    return results.expand((users) => users).toList();
   }
 
   /// Real-time stream for the user profile document (used for session tracking and live updates)

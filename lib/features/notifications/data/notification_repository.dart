@@ -26,9 +26,13 @@ class NotificationRepository {
       FirestoreService.collection(_notificationsCollectionPath);
 
   Future<List<Map<String, dynamic>>> _fetchNotificationsFromFirestore() async {
-    if (FirebaseAuth.instance.currentUser == null) return [];
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return [];
     try {
-      final query = await _notificationsCollection.limit(500).get();
+      final query = await _notificationsCollection
+          .where('userId', isEqualTo: user.uid)
+          .limit(500)
+          .get(const GetOptions(source: Source.server));
       return query.docs.map((doc) {
         final data = doc.data();
         return {

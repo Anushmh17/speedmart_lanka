@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../core/services/firestore_service.dart';
 import '../../../core/storage/storage_service.dart';
 import '../models/payment.dart';
@@ -25,15 +26,26 @@ class PaymentRepository {
       FirestoreService.collection(_paymentsCollectionPath);
 
   Future<List<Map<String, dynamic>>> _fetchPaymentsFromFirestore() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return [];
     try {
-      final query = await _paymentsCollection.limit(500).get();
-      return query.docs.map((doc) {
-        final data = doc.data();
-        return {
-          ...data,
-          'id': doc.id,
-        };
-      }).toList();
+      // Rules require a customerId or vendorId filter equal to uid().
+      final customerSnap = await _paymentsCollection
+          .where('customerId', isEqualTo: uid)
+          .limit(500)
+          .get();
+      final vendorSnap = await _paymentsCollection
+          .where('vendorId', isEqualTo: uid)
+          .limit(500)
+          .get();
+      final seen = <String>{};
+      final results = <Map<String, dynamic>>[];
+      for (final doc in [...customerSnap.docs, ...vendorSnap.docs]) {
+        if (seen.add(doc.id)) {
+          results.add({...doc.data(), 'id': doc.id});
+        }
+      }
+      return results;
     } catch (e) {
       debugPrint('[Payment] Failed to load payments from Firestore: $e');
       return [];
@@ -88,6 +100,33 @@ class PaymentRepository {
       _payments.map((p) => p.toJson()).toList(),
     );
     await _syncPaymentsToFirestore(_payments);
+  }
+
+  Future<void> refreshFromFirestore() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final customerSnap = await _paymentsCollection
+          .where('customerId', isEqualTo: uid)
+          .limit(500)
+          .get(const GetOptions(source: Source.server));
+      final vendorSnap = await _paymentsCollection
+          .where('vendorId', isEqualTo: uid)
+          .limit(500)
+          .get(const GetOptions(source: Source.server));
+      final seen = <String>{};
+      final merged = <PaymentModel>[];
+      for (final doc in [...customerSnap.docs, ...vendorSnap.docs]) {
+        if (seen.add(doc.id)) {
+          merged.add(PaymentModel.fromJson({...doc.data(), 'id': doc.id}));
+        }
+      }
+      _payments
+        ..clear()
+        ..addAll(merged);
+    } catch (e) {
+      debugPrint('[Payment] Failed to refresh payments from Firestore: $e');
+    }
   }
 
   Future<PaymentModel> createPayment(PaymentModel payment) async {

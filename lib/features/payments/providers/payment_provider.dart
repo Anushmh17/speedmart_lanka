@@ -43,6 +43,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
     await _repo.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
+      await _repo.refreshFromFirestore();
       final payments = await _repo.getCustomerPayments(user.id);
       state = state.copyWith(isLoading: false, payments: payments);
     } catch (e) {
@@ -56,6 +57,7 @@ class PaymentNotifier extends StateNotifier<PaymentState> {
     await _repo.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
+      await _repo.refreshFromFirestore();
       final payments = await _repo.getVendorPayments(user.id);
       state = state.copyWith(isLoading: false, payments: payments);
     } catch (e) {

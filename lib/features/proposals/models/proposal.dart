@@ -220,6 +220,8 @@ class Proposal {
   
   // Category-specific proposal tracking (for multi-category requests)
   final List<String> categoriesNormalized; // The specific categories this proposal addresses
+  /// Kept separate from [items] so customer writes cannot modify the quote.
+  final Map<String, ProposalItemDecision> customerItemDecisions;
   // Commission rate applied at submission time (e.g. 0.10 = 10%)
   final double? commissionRate;
 
@@ -246,6 +248,7 @@ class Proposal {
     this.vendorLatitude = 6.9145,
     this.vendorLongitude = 79.8510,
     this.categoriesNormalized = const [],
+    this.customerItemDecisions = const {},
     this.commissionRate,
   });
 
@@ -302,6 +305,7 @@ class Proposal {
     double? vendorLatitude,
     double? vendorLongitude,
     List<String>? categoriesNormalized,
+    Map<String, ProposalItemDecision>? customerItemDecisions,
     double? commissionRate,
   }) {
     return Proposal(
@@ -328,6 +332,8 @@ class Proposal {
       vendorLatitude: vendorLatitude ?? this.vendorLatitude,
       vendorLongitude: vendorLongitude ?? this.vendorLongitude,
       categoriesNormalized: categoriesNormalized ?? this.categoriesNormalized,
+      customerItemDecisions:
+          customerItemDecisions ?? this.customerItemDecisions,
       commissionRate: commissionRate ?? this.commissionRate,
     );
   }
@@ -357,6 +363,9 @@ class Proposal {
       'vendorLatitude': vendorLatitude,
       'vendorLongitude': vendorLongitude,
       'categoriesNormalized': categoriesNormalized,
+      'customerItemDecisions': customerItemDecisions.map(
+        (id, decision) => MapEntry(id, decision.name),
+      ),
       'commissionRate': commissionRate,
     };
   }
@@ -376,15 +385,28 @@ class Proposal {
   }
 
   factory Proposal.fromJson(Map<String, dynamic> json) {
+    final decisions = (json['customerItemDecisions'] as Map<dynamic, dynamic>? ?? const {})
+        .map((id, value) => MapEntry(
+              id.toString(),
+              ProposalItemDecision.values.firstWhere(
+                (decision) => decision.name == value.toString(),
+                orElse: () => ProposalItemDecision.pending,
+              ),
+            ));
+    final items = (json['items'] as List<dynamic>? ?? [])
+        .map((e) => ProposalItem.fromJson(Map<String, dynamic>.from(e as Map)))
+        .map((item) => item.copyWith(
+              customerDecision:
+                  decisions[item.requestItemId] ?? item.customerDecision,
+            ))
+        .toList();
     return Proposal(
       id: json['id'] as String? ?? '',
       requestId: json['requestId'] as String? ?? '',
       customerId: json['customerId'] as String? ?? '',
       vendorId: json['vendorId'] as String? ?? '',
       vendorBusinessName: json['vendorBusinessName'] as String? ?? '',
-      items: (json['items'] as List<dynamic>? ?? [])
-          .map((e) => ProposalItem.fromJson(Map<String, dynamic>.from(e as Map)))
-          .toList(),
+      items: items,
       missingItemIds: (json['missingItemIds'] as List<dynamic>? ?? [])
           .map((e) => e.toString())
           .toList(),
@@ -415,6 +437,7 @@ class Proposal {
           (json['categoryNormalized'] != null
               ? [json['categoryNormalized'].toString()]
               : []),
+      customerItemDecisions: decisions,
       commissionRate: (json['commissionRate'] as num?)?.toDouble(),
     );
   }

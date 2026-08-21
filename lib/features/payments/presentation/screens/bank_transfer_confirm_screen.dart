@@ -1,7 +1,10 @@
 import 'dart:io';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:speedmart_lanka/features/payments/data/checkout_service.dart';
+import 'package:speedmart_lanka/features/payments/data/bank_transfer_instruction_service.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -24,10 +27,12 @@ class BankTransferConfirmScreen extends ConsumerStatefulWidget {
     super.key,
     required this.order,
     required this.payment,
+    this.remaining = const [],
   });
 
   final OrderModel order;
   final PaymentModel payment;
+  final List<Map<String, dynamic>> remaining;
 
   @override
   ConsumerState<BankTransferConfirmScreen> createState() =>
@@ -38,6 +43,14 @@ class _BankTransferConfirmScreenState
     extends ConsumerState<BankTransferConfirmScreen> {
   String? _localReceiptPath;
   bool _isSubmitting = false;
+  late final Future<BankTransferInstruction?> _instructionFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _instructionFuture = BankTransferInstructionService.instance
+        .getForProposal(widget.payment.proposalId);
+  }
 
   Future<void> _pickReceipt() async {
     if (!await AppPermissionUtils.ensureGalleryPermission(context)) return;
@@ -62,22 +75,33 @@ class _BankTransferConfirmScreenState
     setState(() => _isSubmitting = true);
 
     try {
+      final instruction = await _instructionFuture;
+      if (instruction?.hasRequiredDetails != true) {
+        throw StateError(
+          'Bank details are unavailable for this proposal. Choose another payment method.',
+        );
+      }
+      if (_localReceiptPath == null) {
+        throw StateError('Please upload the bank transfer receipt.');
+      }
       // Upload receipt image if provided
       String? receiptImageUrl;
       if (_localReceiptPath != null) {
+        final customerId = FirebaseAuth.instance.currentUser?.uid;
+        if (customerId == null) throw StateError('User not authenticated.');
         final ts = DateTime.now().millisecondsSinceEpoch;
         receiptImageUrl = await StorageUploadService.instance.uploadImage(
           _localReceiptPath!,
-          'bank_receipts/${widget.payment.id}_$ts.jpg',
+          'bank_receipts/$customerId/${widget.payment.id}_$ts.jpg',
           quality: 80,
         );
       }
 
       // Mark payment as pendingBankTransfer with optional receipt URL
-      await ref.read(paymentProvider.notifier).submitBankTransferReceipt(
-            widget.payment.id,
-            receiptImageUrl: receiptImageUrl,
-          );
+      await CheckoutService.instance.submitBankTransferReceipt(
+        paymentId: widget.payment.id,
+        receiptImageUrl: receiptImageUrl,
+      );
 
       // Reload payment state
       await ref.read(paymentProvider.notifier).loadCustomerPayments();
@@ -98,6 +122,16 @@ class _BankTransferConfirmScreenState
       await ref.read(orderProvider.notifier).loadCustomerOrders();
 
       if (!mounted) return;
+
+      if (widget.remaining.isNotEmpty) {
+        final next = widget.remaining.first;
+        context.pushReplacement('/customer/bank-transfer-confirm', extra: {
+          'order': next['order'],
+          'payment': next['payment'],
+          'remaining': widget.remaining.sublist(1),
+        });
+        return;
+      }
 
       // Navigate to receipt screen
       context.pushReplacement(RouteNames.customerPaymentReceipt, extra: {
@@ -192,6 +226,67 @@ class _BankTransferConfirmScreenState
                   ),
                   const SizedBox(height: 20),
 
+                  FutureBuilder<BankTransferInstruction?>(
+                    future: _instructionFuture,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Padding(
+                          padding: EdgeInsets.only(bottom: 20),
+                          child: LinearProgressIndicator(),
+                        );
+                      }
+                      final instruction = snapshot.data;
+                      if (instruction?.hasRequiredDetails != true) {
+                        return Container(
+                          width: double.infinity,
+                          margin: const EdgeInsets.only(bottom: 20),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: AppColors.error.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: AppColors.error.withValues(alpha: 0.35),
+                            ),
+                          ),
+                          child: Text(
+                            'Bank details are not available for this offer. Please use another payment method.',
+                            style: AppTextStyles.bodyMedium(primaryText),
+                          ),
+                        );
+                      }
+                      return Container(
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(bottom: 20),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: cardColor,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: borderColor),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Vendor Bank Details',
+                              style: AppTextStyles.subtitle(primaryText),
+                            ),
+                            const SizedBox(height: 12),
+                            if (instruction!.bankName?.trim().isNotEmpty == true)
+                              _infoRow('Bank', instruction.bankName!, primaryText,
+                                  secondaryText),
+                            if (instruction.bankBranch?.trim().isNotEmpty == true)
+                              _infoRow('Branch', instruction.bankBranch!, primaryText,
+                                  secondaryText),
+                            _infoRow('Account Holder', instruction.accountName!,
+                                primaryText, secondaryText),
+                            _infoRow('Account Number', instruction.accountNumber!,
+                                primaryText, secondaryText),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+
                   // Amount to transfer
                   Container(
                     width: double.infinity,
@@ -215,7 +310,7 @@ class _BankTransferConfirmScreenState
                         const SizedBox(height: 12),
                         _infoRow('Order ID', widget.order.id, primaryText,
                             secondaryText),
-                        _infoRow('Vendor', widget.order.vendorBusinessName,
+                        _infoRow('Fulfilled by', 'Verified Partner',
                             primaryText, secondaryText),
                         _infoRow(
                             'Reference',
@@ -228,11 +323,11 @@ class _BankTransferConfirmScreenState
                   const SizedBox(height: 20),
 
                   // Receipt upload
-                  Text('Upload Payment Receipt (Optional)',
+                  Text('Upload Payment Receipt',
                       style: AppTextStyles.h2(primaryText)),
                   const SizedBox(height: 8),
                   Text(
-                    'Attach a screenshot or photo of your bank transfer receipt to help the vendor verify faster.',
+                    'Attach a screenshot or photo of your bank transfer receipt. It is required before the vendor can verify payment.',
                     style: AppTextStyles.bodyMedium(secondaryText),
                   ),
                   const SizedBox(height: 12),

@@ -19,9 +19,8 @@ import 'package:speedmart_lanka/features/notifications/providers/notification_pr
     as notification_feature;
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
 import 'package:speedmart_lanka/features/payments/providers/payment_provider.dart';
-import 'package:speedmart_lanka/features/auth/data/auth_repository.dart';
-import 'package:speedmart_lanka/shared/models/user_model.dart';
-import 'package:speedmart_lanka/shared/models/user_role.dart';
+import 'package:speedmart_lanka/features/payments/data/checkout_service.dart';
+import 'package:speedmart_lanka/features/payments/data/bank_transfer_instruction_service.dart';
 import 'package:speedmart_lanka/shared/utils/category_constants.dart';
 
 class AcceptedVendorGroup {
@@ -141,64 +140,31 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     super.dispose();
   }
 
-  Future<UserModel?> _loadVendorProfile(Proposal proposal) async {
-    final repository = AuthRepository.instance;
-    final byId = await repository.getUserById(proposal.vendorId);
-    if (byId != null) return byId;
-
-    final businessName = proposal.vendorBusinessName.trim().toLowerCase();
-    if (businessName.isEmpty) return null;
-
-    final users = await repository.getAllUsers();
-    for (final user in users) {
-      if (user.role == UserRole.vendor &&
-          (user.businessName ?? '').trim().toLowerCase() == businessName) {
-        return user;
-      }
-    }
-    return null;
-  }
-
-  _VendorPaymentAvailability _vendorAvailabilityFor(UserModel vendor) {
-    final acceptsCod = vendor.acceptsCashOnDelivery ?? true;
-    final acceptsBank = vendor.acceptsBankTransfer ?? true;
-    final unavailable = <String>[];
-    if (!acceptsCod)
-      unavailable.add('Cash on Delivery is unavailable for this vendor.');
-    if (!acceptsBank)
-      unavailable.add('Bank Transfer is unavailable for this vendor.');
-    return _VendorPaymentAvailability(
-      acceptsCashOnDelivery: acceptsCod,
-      acceptsBankTransfer: acceptsBank,
-      unavailableMessages: unavailable,
-    );
-  }
-
   Future<_VendorPaymentAvailability> _loadGlobalVendorAvailability(
       List<AcceptedVendorGroup> groups) async {
-    bool acceptsCod = true;
-    bool acceptsBank = true;
+    var acceptsBankTransfer = true;
     final unavailableMessages = <String>[];
-
-    for (final group in groups) {
-      final vendor = await _loadVendorProfile(group.proposal);
-      if (vendor != null) {
-        final availability = _vendorAvailabilityFor(vendor);
-        if (!availability.acceptsCashOnDelivery) {
-          acceptsCod = false;
+    try {
+      for (final group in groups) {
+        final instruction = await BankTransferInstructionService.instance
+            .getForProposal(group.proposal.id);
+        if (instruction?.hasRequiredDetails != true) {
+          acceptsBankTransfer = false;
+          unavailableMessages.add(
+            'Bank Transfer is unavailable for one of the selected offers.',
+          );
         }
-        if (!availability.acceptsBankTransfer) {
-          acceptsBank = false;
-        }
-        unavailableMessages.addAll(availability.unavailableMessages);
       }
+    } catch (_) {
+      acceptsBankTransfer = false;
+      unavailableMessages.add(
+        'Bank Transfer details could not be loaded. Please try again later.',
+      );
     }
-
-    final uniqueMessages = unavailableMessages.toSet().toList();
     return _VendorPaymentAvailability(
-      acceptsCashOnDelivery: acceptsCod,
-      acceptsBankTransfer: acceptsBank,
-      unavailableMessages: uniqueMessages,
+      acceptsCashOnDelivery: true,
+      acceptsBankTransfer: acceptsBankTransfer,
+      unavailableMessages: unavailableMessages.toSet().toList(),
     );
   }
 
@@ -270,6 +236,53 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     });
 
     try {
+      final checkout = await CheckoutService.instance.checkout(
+        requestId: widget.requestId,
+        paymentMethod: _selectedMethod,
+        customerPhone: _phoneController.text.trim(),
+        selections: groups
+            .map(
+              (group) => CheckoutSelection(
+                proposalId: group.proposal.id,
+                requestItemIds: group.acceptedItems
+                    .map((item) => item.requestItemId)
+                    .toList(),
+              ),
+            )
+            .toList(),
+      );
+
+      await ref.read(orderProvider.notifier).loadCustomerOrders();
+      await ref.read(paymentProvider.notifier).loadCustomerPayments();
+      if (!mounted) return;
+
+      setState(() => _isProcessing = false);
+      final checkoutFirstOrder = checkout.orders.first;
+      final checkoutFirstPayment = checkout.payments.first;
+      if (_selectedMethod == PaymentMethod.bankTransfer) {
+        final remaining = List<Map<String, dynamic>>.generate(
+          checkout.orders.length - 1,
+          (index) => {
+            'order': checkout.orders[index + 1],
+            'payment': checkout.payments[index + 1],
+          },
+        );
+        context.pushReplacement('/customer/bank-transfer-confirm', extra: {
+          'order': checkoutFirstOrder,
+          'payment': checkoutFirstPayment,
+          'remaining': remaining,
+        });
+      } else {
+        context.pushReplacement(RouteNames.customerPaymentReceipt, extra: {
+          'order': checkoutFirstOrder,
+          'payment': checkoutFirstPayment,
+        });
+      }
+      return;
+
+      /* Legacy multi-step checkout retained temporarily for reference only.
+         All order, payment, and proposal acceptance writes now go through
+         CheckoutService.checkout above.
       // Refresh before creating payment/order records. This protects against a
       // stale proposal screen being used after the order was already placed.
       await ref.read(orderProvider.notifier).loadCustomerOrders();
@@ -321,7 +334,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                 : 'COD-$ts-$groupIndex';
 
         debugPrint(
-            '[PaymentAudit] ===== PAYMENT CREATION (Group: ${group.proposal.vendorBusinessName}) =====');
+            '[PaymentAudit] ===== PAYMENT CREATION (Group: Verified Partner) =====');
         debugPrint('[PaymentAudit] Subtotal (items): $subtotal');
         debugPrint('[PaymentAudit] Delivery fee: $deliveryFee');
         debugPrint(
@@ -387,8 +400,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           customerId: customer.id,
           vendorId: group.proposal.vendorId,
           vendorBusinessName: group.proposal.vendorBusinessName,
-          vendorPhone: (await _loadVendorProfile(group.proposal))?.phone ??
-              '', // loaded from vendor profile
+          vendorPhone: '',
           customerName: customer.fullName,
           customerPhone: _phoneController.text,
           deliveryAddress: deliveryAddress,
@@ -592,6 +604,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           });
         }
       }
+      */
     } catch (e) {
       setState(() {
         _isProcessing = false;
@@ -703,25 +716,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       }
     }
 
-    bool checkWaveDeliveryCharge(Proposal proposal) {
-      final existingOrdersForVendor = customerOrders
-          .where((o) =>
-              o.requestId == widget.requestId &&
-              o.vendorId == proposal.vendorId &&
-              o.status != OrderStatus.cancelled)
-          .toList();
-
-      if (existingOrdersForVendor.isNotEmpty) {
-        final hasDispatchedOrder = existingOrdersForVendor.any((o) =>
-            o.status == OrderStatus.outForDelivery ||
-            o.status == OrderStatus.delivered ||
-            o.status == OrderStatus.completed);
-        if (!hasDispatchedOrder) {
-          return true;
-        }
-      }
-      return false;
-    }
+    // Checkout creates every selected vendor order atomically, so each vendor
+    // quote has one authoritative delivery charge.
+    bool checkWaveDeliveryCharge(Proposal _) => false;
 
     bool hasExistingOrderForProposal(Proposal proposal) => customerOrders.any(
           (order) =>
@@ -1198,73 +1195,6 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                       const SizedBox(height: 24),
                     ],
 
-                    if (_selectedMethod == PaymentMethod.bankTransfer) ...[
-                      Text('Payment', style: AppTextStyles.h2(primaryText)),
-                      const SizedBox(height: 12),
-                      ...acceptedGroups.map(
-                        (group) => FutureBuilder<UserModel?>(
-                          future: _loadVendorProfile(group.proposal),
-                          builder: (context, snapshot) {
-                            final vendor = snapshot.data;
-                            if (snapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const Padding(
-                                padding: EdgeInsets.only(bottom: 12),
-                                child: LinearProgressIndicator(),
-                              );
-                            }
-
-                            final hasDetails = vendor != null &&
-                                ((vendor.bankName ?? '').isNotEmpty ||
-                                    (vendor.bankBranch ?? '').isNotEmpty ||
-                                    (vendor.bankAccountName ?? '').isNotEmpty ||
-                                    (vendor.bankAccountNumber ?? '')
-                                        .isNotEmpty);
-
-                            return Container(
-                              width: double.infinity,
-                              margin: const EdgeInsets.only(bottom: 12),
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: cardColor,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(color: borderColor),
-                              ),
-                              child: hasDetails
-                                  ? Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        _summaryRow(
-                                            'Bank Name',
-                                            vendor!.bankName ?? '—',
-                                            primaryText),
-                                        _summaryRow(
-                                            'Branch',
-                                            vendor.bankBranch ?? '—',
-                                            primaryText),
-                                        _summaryRow(
-                                            'Account Holder',
-                                            vendor.bankAccountName ?? '—',
-                                            primaryText),
-                                        _summaryRow(
-                                            'Account Number',
-                                            vendor.bankAccountNumber ?? '—',
-                                            primaryText),
-                                      ],
-                                    )
-                                  : Text(
-                                      'Bank details are not available for this proposal.',
-                                      style: AppTextStyles.bodyMedium(
-                                          secondaryText),
-                                    ),
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
-
                     // Pricing breakdown card
                     Container(
                       padding: const EdgeInsets.all(16),
@@ -1287,7 +1217,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    group.proposal.vendorBusinessName,
+                                    'Verified Partner',
                                     style: AppTextStyles.bodyMedium(primaryText)
                                         .copyWith(fontWeight: FontWeight.bold),
                                   ),

@@ -121,9 +121,7 @@ class OrderTrackingMap extends ConsumerWidget {
                             ],
                           ),
                           child: Text(
-                            vendorBusinessName.length > 12
-                                ? '${vendorBusinessName.substring(0, 10)}..'
-                                : vendorBusinessName,
+                            'Verified Partner',
                             style: AppTextStyles.caption(primaryText).copyWith(
                               fontSize: 9,
                               fontWeight: FontWeight.bold,

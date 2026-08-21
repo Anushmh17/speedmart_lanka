@@ -68,7 +68,7 @@ class PaymentReceiptScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _receiptRow('Shop', order.vendorBusinessName, primaryText),
+                  _receiptRow('Fulfilled by', 'Verified Partner', primaryText),
                   _receiptRow('Payment Status', payment.paymentStatus.displayName, primaryText),
                   _receiptRow('Payment Method', payment.paymentMethod.displayName, primaryText),
                   _receiptRow(

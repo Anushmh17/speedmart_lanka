@@ -57,6 +57,72 @@ service cloud.firestore {
         isRequestOwner(proposal.requestId);
     }
 
+    function isCustomerCheckoutUpdate() {
+      return resource.data.customerId == uid() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'itemFulfillments', 'categoryFulfillments', 'status', 'updatedAt'
+        ]) &&
+        (request.resource.data.status == 'customerAccepted' ||
+          request.resource.data.status == 'cashOnDeliveryConfirmed') &&
+        request.resource.data.cancelledAt == resource.data.cancelledAt &&
+        request.resource.data.cancelledBy == resource.data.cancelledBy &&
+        request.resource.data.cancelledReason == resource.data.cancelledReason;
+    }
+
+    function isCustomerPreAcceptanceCancellation() {
+      return resource.data.customerId == uid() &&
+        resource.data.status in [
+          'draft', 'submitted', 'waitingForVendor', 'proposalSubmitted',
+          'customerRejected'
+        ] &&
+        request.resource.data.status == 'cancelled' &&
+        request.resource.data.cancelledBy == 'customer' &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status', 'cancelledAt', 'cancelledBy', 'cancelledReason', 'updatedAt'
+        ]);
+    }
+
+    function isVendorOrderStageUpdate() {
+      return resource.data.vendorId == uid() && isVendorActive() &&
+        !(resource.data.status == 'submitted' &&
+          resource.data.paymentMethod == 'bankTransfer' &&
+          resource.data.paymentStatus != 'paid') &&
+        !(resource.data.status == 'outForDelivery' &&
+          resource.data.paymentMethod == 'cashOnDelivery' &&
+          resource.data.paymentStatus != 'paid') &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'updatedAt']) &&
+        ((resource.data.status == 'submitted' && request.resource.data.status == 'accepted') ||
+          (resource.data.status == 'accepted' && request.resource.data.status == 'preparing') ||
+          (resource.data.status == 'preparing' && request.resource.data.status == 'readyForDelivery') ||
+          (resource.data.status == 'readyForDelivery' && request.resource.data.status == 'outForDelivery') ||
+          (resource.data.status == 'outForDelivery' && request.resource.data.status == 'delivered') ||
+          (resource.data.status == 'delivered' && request.resource.data.status == 'completed'));
+    }
+
+    function isVendorPaymentUpdate() {
+      return resource.data.vendorId == uid() && isVendorActive() &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['paymentStatus', 'paidAt']) &&
+        resource.data.paymentStatus != 'paid' &&
+        request.resource.data.paymentStatus == 'paid' &&
+        (resource.data.paymentMethod == 'cashOnDelivery' ||
+          (resource.data.paymentMethod == 'bankTransfer' &&
+            resource.data.receiptImageUrl != null));
+    }
+
+    function isVendorCodCompletion() {
+      return resource.data.vendorId == uid() && isVendorActive() &&
+        resource.data.status == 'outForDelivery' &&
+        resource.data.paymentMethod == 'cashOnDelivery' &&
+        resource.data.paymentStatus != 'paid' &&
+        request.resource.data.status == 'delivered' &&
+        request.resource.data.paymentStatus == 'paid' &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['status', 'paymentStatus', 'updatedAt']) &&
+        getAfter(/databases/$(database)/documents/payments/$(resource.data.paymentId)).data.paymentStatus == 'paid';
+    }
+
     // ── User Profiles ─────────────────────────────────────────────────────────
 
     match /users/customers/profiles/{userId} {
@@ -73,7 +139,7 @@ service cloud.firestore {
 
     match /users/vendors/profiles/{userId} {
       allow get: if isOwner(userId) || isAdmin() || isVendor();
-      allow list: if isSignedIn();
+      allow list: if isVendor() || isAdmin();
       allow create: if isOwner(userId);
       allow update: if isOwner(userId) || isAdmin();
       allow delete: if isAdmin();
@@ -101,11 +167,28 @@ service cloud.firestore {
         isVendor() ||
         isAdmin()
       );
-      allow list: if isSignedIn();
+      // Customers list only their own; vendors list the open marketplace feed
+      // (filtered to open statuses server-side); admins list all.
+      allow list: if isSignedIn() && (
+        isAdmin() ||
+        (isVendor() &&
+          request.query.limit <= 200 &&
+          request.query.filters.get('status', null) != null) ||
+        (resource.data.customerId == uid())
+      );
       allow create: if isSignedIn() &&
         request.resource.data.customerId == uid();
+      // Checkout runs in a client transaction. The customer may either edit
+      // ordinary request data without lifecycle changes, or atomically lock
+      // fulfillment into the accepted checkout states.
       allow update: if isSignedIn() &&
-        (resource.data.customerId == uid() || isAdmin());
+        (isAdmin() ||
+          (resource.data.customerId == uid() &&
+            request.resource.data.status == resource.data.status &&
+            request.resource.data.itemFulfillments == resource.data.itemFulfillments &&
+            request.resource.data.categoryFulfillments == resource.data.categoryFulfillments) ||
+          isCustomerCheckoutUpdate() ||
+          isCustomerPreAcceptanceCancellation());
       allow delete: if isAdmin();
     }
 
@@ -114,16 +197,64 @@ service cloud.firestore {
     match /proposals/{proposalId} {
       allow get: if isSignedIn() && (
         resource.data.vendorId == uid() ||
-        resource.data.customerId == uid() ||
         isAdmin()
       );
-      allow list: if isSignedIn();
+      // Vendors may only list their own proposals.
+      allow list: if isVendorActive() &&
+          request.query.filters.get('vendorId', null) == uid() ||
+        isAdmin();
       allow create: if isVendorActive() &&
         request.resource.data.vendorId == uid();
       allow update: if isSignedIn() && (
-        (resource.data.vendorId == uid() && isVendorActive()) ||
-        resource.data.customerId == uid() ||
-        isRequestOwner(resource.data.requestId) ||
+        (resource.data.vendorId == uid() && isVendorActive() &&
+          resource.data.status in ['draft', 'submitted', 'updated']) ||
+        (resource.data.customerId == uid() &&
+          resource.data.status in ['draft', 'submitted', 'updated'] &&
+          request.resource.data.status == 'accepted' &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['status', 'updatedAt']) &&
+          getAfter(/databases/$(database)/documents/customer_proposals/$(proposalId))
+            .data.status == 'accepted') ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    // Sanitized offer projection. Customers can read and choose offers here,
+    // but it deliberately contains no vendor business/contact/location data.
+    match /customer_proposals/{proposalId} {
+      allow get, list: if isSignedIn() &&
+        (resource.data.customerId == uid() || isAdmin()) &&
+        resource.data.status in [
+          'submitted', 'updated', 'accepted', 'rejected', 'withdrawn'
+        ];
+      allow create: if isVendorActive() &&
+        request.resource.data.vendorId == uid() &&
+        getAfter(/databases/$(database)/documents/proposals/$(proposalId))
+          .data.vendorId == uid() &&
+        getAfter(/databases/$(database)/documents/proposals/$(proposalId))
+          .data.customerId == request.resource.data.customerId &&
+        getAfter(/databases/$(database)/documents/proposals/$(proposalId))
+          .data.requestId == request.resource.data.requestId;
+      allow update: if isSignedIn() && (
+        (resource.data.vendorId == uid() && isVendorActive() &&
+          request.resource.data.vendorId == uid() &&
+          request.resource.data.customerId ==
+            getAfter(/databases/$(database)/documents/proposals/$(proposalId)).data.customerId &&
+          request.resource.data.requestId ==
+            getAfter(/databases/$(database)/documents/proposals/$(proposalId)).data.requestId &&
+          getAfter(/databases/$(database)/documents/proposals/$(proposalId))
+            .data.vendorId == uid()) ||
+        (resource.data.customerId == uid() &&
+          resource.data.status in ['draft', 'submitted', 'updated'] &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'customerItemDecisions', 'status', 'rejectionReason', 'rejectedAt', 'updatedAt'
+          ]) &&
+          (request.resource.data.status == resource.data.status ||
+            request.resource.data.status == 'rejected' ||
+            (request.resource.data.status == 'accepted' &&
+              getAfter(/databases/$(database)/documents/proposals/$(proposalId))
+                .data.status == 'accepted'))) ||
         isAdmin()
       );
       allow delete: if isAdmin();
@@ -131,21 +262,83 @@ service cloud.firestore {
 
     // ── Orders ────────────────────────────────────────────────────────────────
 
+    // Bank account details are intentionally not part of the customer-visible
+    // proposal. A customer can fetch this one document only for their own
+    // proposal, and the UI uses it only on the bank-transfer confirmation.
+    match /bank_transfer_instructions/{proposalId} {
+      allow get: if isSignedIn() && (
+        (get(/databases/$(database)/documents/customer_proposals/$(proposalId))
+          .data.customerId == uid() &&
+         get(/databases/$(database)/documents/customer_proposals/$(proposalId))
+          .data.status in ['submitted', 'updated', 'accepted']) ||
+        get(/databases/$(database)/documents/proposals/$(proposalId))
+          .data.vendorId == uid() ||
+        isAdmin()
+      );
+      allow list: if false;
+      allow create, update: if isVendorActive() &&
+        request.resource.data.vendorId == uid() &&
+        request.resource.data.customerId ==
+          getAfter(/databases/$(database)/documents/proposals/$(proposalId))
+            .data.customerId &&
+        getAfter(/databases/$(database)/documents/proposals/$(proposalId))
+          .data.vendorId == uid();
+      allow delete: if isAdmin();
+    }
+
     match /orders/{orderId} {
       allow get: if isSignedIn() && (
         resource.data.customerId == uid() ||
         resource.data.vendorId == uid() ||
         isAdmin()
       );
-      allow list: if isSignedIn();
+      // Require a where('customerId', ...) or where('vendorId', ...) filter
+      // so the collection scan is always scoped to the caller's own records.
+      allow list: if isAdmin() ||
+        (isSignedIn() &&
+          (request.query.filters.get('customerId', null) == uid() ||
+           request.query.filters.get('vendorId', null) == uid()));
       allow create: if isCustomerActive() &&
-        request.resource.data.customerId == uid();
-      allow update: if isSignedIn() && (
-        (resource.data.customerId == uid() && isCustomerActive()) ||
-        (resource.data.vendorId == uid() && isVendorActive()) ||
-        isAdmin()
-      );
+        request.resource.data.customerId == uid() &&
+        request.resource.data.id == orderId &&
+        getAfter(/databases/$(database)/documents/request_checkouts/$(request.resource.data.requestId)).data.customerId == uid() &&
+        request.resource.data.requestId ==
+          get(/databases/$(database)/documents/proposals/$(request.resource.data.proposalId)).data.requestId &&
+        request.resource.data.customerId ==
+          get(/databases/$(database)/documents/proposals/$(request.resource.data.proposalId)).data.customerId &&
+        request.resource.data.vendorId ==
+          get(/databases/$(database)/documents/proposals/$(request.resource.data.proposalId)).data.vendorId &&
+        get(/databases/$(database)/documents/proposals/$(request.resource.data.proposalId)).data.status in
+          ['draft', 'submitted', 'updated', 'accepted'] &&
+        getAfter(/databases/$(database)/documents/proposals/$(request.resource.data.proposalId)).data.status == 'accepted' &&
+        getAfter(/databases/$(database)/documents/payments/$(request.resource.data.paymentId)).data.orderId == orderId &&
+        getAfter(/databases/$(database)/documents/payments/$(request.resource.data.paymentId)).data.customerId == uid() &&
+        getAfter(/databases/$(database)/documents/payments/$(request.resource.data.paymentId)).data.proposalId == request.resource.data.proposalId &&
+        getAfter(/databases/$(database)/documents/payments/$(request.resource.data.paymentId)).data.paymentMethod == request.resource.data.paymentMethod &&
+        getAfter(/databases/$(database)/documents/payments/$(request.resource.data.paymentId)).data.paymentStatus == request.resource.data.paymentStatus &&
+        getAfter(/databases/$(database)/documents/payments/$(request.resource.data.paymentId)).data.amount == request.resource.data.totalPrice;
+      allow update: if isAdmin() || isVendorOrderStageUpdate() || isVendorCodCompletion() ||
+        (resource.data.vendorId == uid() && isVendorActive() &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['paymentStatus', 'updatedAt']) &&
+          resource.data.paymentStatus != 'paid' &&
+          request.resource.data.paymentStatus == 'paid' &&
+          getAfter(/databases/$(database)/documents/payments/$(resource.data.paymentId)).data.paymentStatus == 'paid');
       allow delete: if isAdmin();
+    }
+
+    // A request can be checked out only once. Its document is created in the
+    // same transaction as all resulting orders and payments.
+    match /request_checkouts/{requestId} {
+      allow get: if isSignedIn() &&
+        (isRequestOwner(requestId) || resource.data.customerId == uid() || isAdmin());
+      allow list: if false;
+      allow create: if isCustomerActive() &&
+        request.resource.data.id == requestId &&
+        request.resource.data.requestId == requestId &&
+        request.resource.data.customerId == uid() &&
+        get(/databases/$(database)/documents/requests/$(requestId)).data.customerId == uid();
+      allow update, delete: if false;
     }
 
     // ── Payments ──────────────────────────────────────────────────────────────
@@ -156,10 +349,27 @@ service cloud.firestore {
         resource.data.vendorId == uid() ||
         isAdmin()
       );
-      allow list: if isAdmin();
-      allow create: if isSignedIn() &&
-        request.resource.data.customerId == uid();
-      allow update: if isAdmin();
+      // Require a where('customerId', ...) or where('vendorId', ...) filter.
+      allow list: if isAdmin() ||
+        (isSignedIn() &&
+          (request.query.filters.get('customerId', null) == uid() ||
+           request.query.filters.get('vendorId', null) == uid()));
+      allow create: if isCustomerActive() &&
+        request.resource.data.customerId == uid() &&
+        request.resource.data.id == paymentId &&
+        getAfter(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.paymentId == paymentId &&
+        getAfter(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.customerId == uid() &&
+        getAfter(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.vendorId == request.resource.data.vendorId &&
+        getAfter(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.proposalId == request.resource.data.proposalId &&
+        getAfter(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.paymentMethod == request.resource.data.paymentMethod &&
+        getAfter(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.paymentStatus == request.resource.data.paymentStatus &&
+        getAfter(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.totalPrice == request.resource.data.amount;
+      allow update: if isAdmin() || isVendorPaymentUpdate() ||
+        (resource.data.customerId == uid() &&
+          resource.data.paymentMethod == 'bankTransfer' &&
+          request.resource.data.paymentStatus == resource.data.paymentStatus &&
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['receiptImageUrl', 'receiptSubmittedAt']));
       allow delete: if isAdmin();
     }
 
@@ -167,7 +377,9 @@ service cloud.firestore {
 
     match /notifications/{notificationId} {
       allow get: if isSignedIn() && resource.data.userId == uid();
-      allow list: if isSignedIn();
+      // Only the owner's notifications, enforced by a mandatory where filter.
+      allow list: if isSignedIn() &&
+        request.query.filters.get('userId', null) == uid();
       allow create: if false;
       allow update: if isSignedIn() && resource.data.userId == uid();
       allow delete: if isSignedIn() && resource.data.userId == uid();
@@ -245,7 +457,10 @@ service cloud.firestore {
       allow get: if isSignedIn() && (
         resource.data.vendor_id == uid() || isAdmin()
       );
-      allow list: if isVendor() || isAdmin();
+      // Vendors may only list their own commission records.
+      allow list: if isAdmin() ||
+        (isVendor() &&
+          request.query.filters.get('vendor_id', null) == uid());
       allow create: if isAdmin() || (
         isVendor() && request.resource.data.vendor_id == uid()
       );

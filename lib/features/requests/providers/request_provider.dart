@@ -133,6 +133,12 @@ class RequestNotifier extends StateNotifier<RequestState> {
         // have been resolved.
         final isOrderCompleteForRequest = hasConfirmedOrder &&
             (!request.isMultiCategory || !hasOpenCategory);
+        final requestOrders = orders
+            .where((order) =>
+                order.requestId == request.id &&
+                order.status != OrderStatus.cancelled)
+            .toList();
+        final derivedOrderStatus = _requestStatusFromOrders(requestOrders);
         final openProposalCount = proposals
             .where((proposal) =>
                 proposal.requestId == request.id &&
@@ -149,7 +155,7 @@ class RequestNotifier extends StateNotifier<RequestState> {
           proposalCount:
               isOrderCompleteForRequest ? 0 : openProposalCount,
           status: isOrderCompleteForRequest
-              ? RequestStatus.customerAccepted
+              ? (derivedOrderStatus ?? RequestStatus.customerAccepted)
               : shouldShowProposalStatus
                   ? RequestStatus.proposalSubmitted
                   : request.status,
@@ -162,6 +168,54 @@ class RequestNotifier extends StateNotifier<RequestState> {
     }
   }
 
+  RequestStatus? _requestStatusFromOrders(List<OrderModel> orders) {
+    if (orders.isEmpty) return null;
+    if (orders.every((order) => order.status == OrderStatus.completed)) {
+      return RequestStatus.completed;
+    }
+
+    // With multiple vendors, show the least advanced active order. This avoids
+    // claiming the whole request is out for delivery while another vendor has
+    // not yet started preparing its assigned items.
+    final activeOrders = orders
+        .where((order) => order.status != OrderStatus.completed)
+        .toList();
+    final earliest = activeOrders.reduce(
+      (current, candidate) => _orderStageRank(candidate.status) <
+              _orderStageRank(current.status)
+          ? candidate
+          : current,
+    );
+    switch (earliest.status) {
+      case OrderStatus.submitted:
+      case OrderStatus.accepted:
+        return RequestStatus.customerAccepted;
+      case OrderStatus.preparing:
+        return RequestStatus.preparingOrder;
+      case OrderStatus.readyForDelivery:
+        return RequestStatus.readyForDelivery;
+      case OrderStatus.outForDelivery:
+        return RequestStatus.outForDelivery;
+      case OrderStatus.delivered:
+        return RequestStatus.delivered;
+      case OrderStatus.completed:
+        return RequestStatus.completed;
+      case OrderStatus.cancelled:
+        return null;
+    }
+  }
+
+  int _orderStageRank(OrderStatus status) => switch (status) {
+        OrderStatus.submitted => 0,
+        OrderStatus.accepted => 1,
+        OrderStatus.preparing => 2,
+        OrderStatus.readyForDelivery => 3,
+        OrderStatus.outForDelivery => 4,
+        OrderStatus.delivered => 5,
+        OrderStatus.completed => 6,
+        OrderStatus.cancelled => 7,
+      };
+
   void _watchCustomerProposals(String customerId) {
     if (_watchedCustomerId == customerId &&
         _customerProposalSubscription != null) {
@@ -170,7 +224,7 @@ class RequestNotifier extends StateNotifier<RequestState> {
     _customerProposalSubscription?.cancel();
     _watchedCustomerId = customerId;
     _customerProposalSubscription = FirebaseFirestore.instance
-        .collection('proposals')
+        .collection('customer_proposals')
         .where('customerId', isEqualTo: customerId)
         .snapshots()
         .listen(

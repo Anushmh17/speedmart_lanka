@@ -338,7 +338,7 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                     if (p.notes != null && p.notes!.isNotEmpty) ...[
                       const SizedBox(height: 12),
                       Text(
-                        'Shop Owner note',
+                        'Partner note',
                         style: AppTextStyles.caption(secondaryText),
                       ),
                       Text(

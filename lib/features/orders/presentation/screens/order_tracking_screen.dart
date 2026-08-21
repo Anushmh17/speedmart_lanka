@@ -96,7 +96,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          activeOrder.vendorBusinessName,
+                          'Verified Partner',
                           style: AppTextStyles.bodyMedium(primaryText),
                         ),
                       ),
@@ -380,7 +380,7 @@ class _OrderTrackingScreenState extends ConsumerState<OrderTrackingScreen> {
       case OrderStatus.submitted:
         return 'Order Placed';
       case OrderStatus.accepted:
-        return 'Shop Owner Confirmed';
+        return 'Partner Confirmed';
       case OrderStatus.preparing:
         return 'Preparing Your Items';
       case OrderStatus.readyForDelivery:

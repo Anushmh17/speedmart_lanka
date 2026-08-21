@@ -561,7 +561,7 @@ class _CustomerProposalComparisonScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Shop Owner Proposals', style: AppTextStyles.h2(primaryText)),
+                Text('Partner Proposals', style: AppTextStyles.h2(primaryText)),
                 SizedBox(height: AppSpacing.xs),
                 Text(
                   'Choose the best offer for each item',

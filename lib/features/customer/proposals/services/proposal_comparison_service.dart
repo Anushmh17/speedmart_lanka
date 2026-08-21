@@ -13,8 +13,7 @@ class ProposalComparisonService {
   const ProposalComparisonService();
 
   String maskedVendorName(String vendorId) {
-    final code = vendorId.hashCode.abs().toString();
-    return 'Partner Shop Owner #${code.length > 4 ? code.substring(0, 4) : code}';
+    return 'Verified Partner';
   }
 
   /// Stable mock rating until real vendor reviews exist.

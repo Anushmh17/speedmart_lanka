@@ -31,15 +31,25 @@ class OrderRepository {
 
   Future<List<Map<String, dynamic>>> _fetchOrdersFromFirestore() async {
     if (FirebaseAuth.instance.currentUser == null) return [];
+    final uid = FirebaseAuth.instance.currentUser!.uid;
     try {
-      final query = await _ordersCollection.limit(500).get();
-      return query.docs.map((doc) {
-        final data = doc.data();
-        return {
-          ...data,
-          'id': doc.id,
-        };
-      }).toList();
+      // Rules require a customerId or vendorId filter equal to uid().
+      final customerSnap = await _ordersCollection
+          .where('customerId', isEqualTo: uid)
+          .limit(500)
+          .get();
+      final vendorSnap = await _ordersCollection
+          .where('vendorId', isEqualTo: uid)
+          .limit(500)
+          .get();
+      final seen = <String>{};
+      final results = <Map<String, dynamic>>[];
+      for (final doc in [...customerSnap.docs, ...vendorSnap.docs]) {
+        if (seen.add(doc.id)) {
+          results.add({...doc.data(), 'id': doc.id});
+        }
+      }
+      return results;
     } catch (e) {
       debugPrint('[Order] Failed to load orders from Firestore: $e');
       return [];
@@ -87,15 +97,26 @@ class OrderRepository {
   /// existing cache if the server cannot be reached.
   Future<void> refreshFromFirestore() async {
     if (FirebaseAuth.instance.currentUser == null) return;
+    final uid = FirebaseAuth.instance.currentUser!.uid;
     try {
-      final query = await _ordersCollection
+      final customerSnap = await _ordersCollection
+          .where('customerId', isEqualTo: uid)
           .limit(500)
           .get(const GetOptions(source: Source.server));
+      final vendorSnap = await _ordersCollection
+          .where('vendorId', isEqualTo: uid)
+          .limit(500)
+          .get(const GetOptions(source: Source.server));
+      final seen = <String>{};
+      final merged = <OrderModel>[];
+      for (final doc in [...customerSnap.docs, ...vendorSnap.docs]) {
+        if (seen.add(doc.id)) {
+          merged.add(OrderModel.fromJson({...doc.data(), 'id': doc.id}));
+        }
+      }
       _orders
         ..clear()
-        ..addAll(query.docs.map(
-          (doc) => OrderModel.fromJson({...doc.data(), 'id': doc.id}),
-        ));
+        ..addAll(merged);
     } catch (e) {
       debugPrint('[Order] Failed to refresh orders from Firestore: $e');
     }

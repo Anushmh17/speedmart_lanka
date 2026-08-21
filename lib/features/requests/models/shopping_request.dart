@@ -1,6 +1,7 @@
 import '../../location/models/delivery_location.dart';
 import 'request_item.dart';
 import 'request_category_fulfillment.dart';
+import 'request_item_fulfillment.dart';
 import '../../../shared/utils/category_constants.dart';
 
 enum RequestStatus {
@@ -103,6 +104,10 @@ class ShoppingRequest {
   // Multi-category fulfillment tracking
   final Map<String, RequestCategoryFulfillment> categoryFulfillments;
 
+  /// Per-item accepted-order assignment. Category fulfillment is retained as
+  /// a derived summary for existing request screens.
+  final Map<String, RequestItemFulfillment> itemFulfillments;
+
   // Proposal count (updated when vendors submit/withdraw proposals)
   final int proposalCount;
 
@@ -127,11 +132,14 @@ class ShoppingRequest {
     this.longitude = 0.0,
     this.deliveryLocation,
     Map<String, RequestCategoryFulfillment>? categoryFulfillments,
+    Map<String, RequestItemFulfillment>? itemFulfillments,
     this.proposalCount = 0,
     this.cancelledAt,
     this.cancelledReason,
     this.cancelledBy,
-  }) : categoryFulfillments = categoryFulfillments ?? _initializeCategoryFulfillments(items);
+  })  : categoryFulfillments =
+            categoryFulfillments ?? _initializeCategoryFulfillments(items),
+        itemFulfillments = itemFulfillments ?? _initializeItemFulfillments(items);
 
   /// Initialize category fulfillments from request items
   static Map<String, RequestCategoryFulfillment> _initializeCategoryFulfillments(
@@ -154,6 +162,17 @@ class ShoppingRequest {
       ),
     );
   }
+
+  static Map<String, RequestItemFulfillment> _initializeItemFulfillments(
+    List<RequestItem> items,
+  ) => Map.fromEntries(
+        items.map(
+          (item) => MapEntry(
+            item.id,
+            RequestItemFulfillment(requestItemId: item.id),
+          ),
+        ),
+      );
 
   /// Get all categories in this request (normalized)
   List<String> get categories => categoryFulfillments.keys.toList();
@@ -232,6 +251,7 @@ class ShoppingRequest {
     double? longitude,
     DeliveryLocation? deliveryLocation,
     Map<String, RequestCategoryFulfillment>? categoryFulfillments,
+    Map<String, RequestItemFulfillment>? itemFulfillments,
     int? proposalCount,
     DateTime? cancelledAt,
     String? cancelledReason,
@@ -253,6 +273,7 @@ class ShoppingRequest {
       longitude: longitude ?? this.longitude,
       deliveryLocation: deliveryLocation ?? this.deliveryLocation,
       categoryFulfillments: categoryFulfillments ?? this.categoryFulfillments,
+      itemFulfillments: itemFulfillments ?? this.itemFulfillments,
       proposalCount: proposalCount ?? this.proposalCount,
       cancelledAt: cancelledAt ?? this.cancelledAt,
       cancelledReason: cancelledReason ?? this.cancelledReason,
@@ -280,6 +301,9 @@ class ShoppingRequest {
       'categoryFulfillments': categoryFulfillments.map(
         (key, value) => MapEntry(key, value.toJson()),
       ),
+      'itemFulfillments': itemFulfillments.map(
+        (key, value) => MapEntry(key, value.toJson()),
+      ),
       'proposalCount': proposalCount,
       'cancelledAt': cancelledAt?.toIso8601String(),
       'cancelledReason': cancelledReason,
@@ -298,6 +322,20 @@ class ShoppingRequest {
         (key, value) => MapEntry(
           key,
           RequestCategoryFulfillment.fromJson(
+            Map<String, dynamic>.from(value as Map),
+          ),
+        ),
+      );
+    }
+
+    Map<String, RequestItemFulfillment>? itemFulfillments;
+    if (json['itemFulfillments'] != null) {
+      final itemFulfillmentsJson =
+          Map<String, dynamic>.from(json['itemFulfillments'] as Map);
+      itemFulfillments = itemFulfillmentsJson.map(
+        (key, value) => MapEntry(
+          key,
+          RequestItemFulfillment.fromJson(
             Map<String, dynamic>.from(value as Map),
           ),
         ),
@@ -333,6 +371,7 @@ class ShoppingRequest {
             )
           : null,
       categoryFulfillments: fulfillments,
+      itemFulfillments: itemFulfillments,
       proposalCount: json['proposalCount'] as int? ?? 0,
       cancelledAt: json['cancelledAt'] != null
           ? DateTime.tryParse(json['cancelledAt'] as String)

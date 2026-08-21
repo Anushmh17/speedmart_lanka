@@ -17,6 +17,9 @@ class ProposalRepository {
   static final ProposalRepository instance = ProposalRepository._();
 
   static const String _proposalsCollectionPath = 'proposals';
+  static const String _customerProposalsCollectionPath = 'customer_proposals';
+  static const String _bankTransferInstructionsCollectionPath =
+      'bank_transfer_instructions';
 
   late final Future<void> _initFuture;
   bool _isInitialized = false;
@@ -29,13 +32,111 @@ class ProposalRepository {
   CollectionReference<Map<String, dynamic>> get _proposalsCollection =>
       FirestoreService.collection(_proposalsCollectionPath);
 
+  CollectionReference<Map<String, dynamic>> get _customerProposalsCollection =>
+      FirestoreService.collection(_customerProposalsCollectionPath);
+
+  CollectionReference<Map<String, dynamic>> get _bankTransferInstructionsCollection =>
+      FirestoreService.collection(_bankTransferInstructionsCollectionPath);
+
+  Future<bool> _isCustomerSession() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return false;
+    try {
+      final profile = await FirestoreService.collection('users/customers/profiles')
+          .doc(uid)
+          .get(const GetOptions(source: Source.server));
+      return profile.exists;
+    } catch (_) {
+      // Vendor/admin users cannot read customer profiles under the rules.
+      return false;
+    }
+  }
+
+  Future<CollectionReference<Map<String, dynamic>>> _readCollection() async =>
+      (await _isCustomerSession())
+          ? _customerProposalsCollection
+          : _proposalsCollection;
+
+  /// Customer list reads must be constrained by ownership. Firestore Rules
+  /// cannot approve an unfiltered collection query, even if each individual
+  /// returned document would be owned by the current customer.
+  Future<Query<Map<String, dynamic>>> _readProposalQuery() async {
+    final customerSession = await _isCustomerSession();
+    if (customerSession) {
+      final customerId = FirebaseAuth.instance.currentUser?.uid;
+      if (customerId == null) throw StateError('Sign in before loading proposals.');
+      return _customerProposalsCollection
+          .where('customerId', isEqualTo: customerId)
+          .limit(500);
+    }
+    return _proposalsCollection.limit(500);
+  }
+
+  Map<String, dynamic> _customerVisibleJson(Proposal proposal) => {
+        'id': proposal.id,
+        'requestId': proposal.requestId,
+        'customerId': proposal.customerId,
+        // Opaque internal identifier required for choosing and fulfilling an
+        // offer; no business name, phone, location, or private note is copied.
+        'vendorId': proposal.vendorId,
+        // Product information is needed to choose an offer. Vendor-uploaded
+        // image lists and the mutable customerDecision field are deliberately
+        // excluded; decisions are stored separately below.
+        'items': proposal.items.map((item) {
+          final itemJson = item.toJson()
+            ..remove('vendorImageUrls')
+            ..remove('customerDecision');
+          return itemJson;
+        }).toList(),
+        'missingItemIds': proposal.missingItemIds,
+        'deliveryCharge': proposal.deliveryCharge,
+        'estimatedDeliveryTime': proposal.estimatedDeliveryTime,
+        'totalPrice': proposal.totalPrice,
+        'status': proposal.status.name,
+        'createdAt': proposal.createdAt.toIso8601String(),
+        'updatedAt': proposal.updatedAt?.toIso8601String(),
+        'rejectedAt': proposal.rejectedAt?.toIso8601String(),
+        'rejectionReason': proposal.rejectionReason,
+        'categoriesNormalized': proposal.categoriesNormalized,
+        'customerItemDecisions': proposal.customerItemDecisions.map(
+          (id, decision) => MapEntry(id, decision.name),
+        ),
+        'commissionRate': proposal.commissionRate,
+      };
+
+  Future<Map<String, dynamic>> _bankTransferInstructionJson(
+    Proposal proposal,
+  ) async {
+    final profile = await FirestoreService.collection('users/vendors/profiles')
+        .doc(proposal.vendorId)
+        .get(const GetOptions(source: Source.server));
+    final data = profile.data() ?? const <String, dynamic>{};
+    final accountName = data['bank_account_name'] as String?;
+    final accountNumber = data['bank_account_number'] as String?;
+    final enabled = data['accepts_bank_transfer'] as bool? ?? true;
+
+    return {
+      'proposalId': proposal.id,
+      'customerId': proposal.customerId,
+      'vendorId': proposal.vendorId,
+      'isAvailable': enabled &&
+          (accountName?.trim().isNotEmpty ?? false) &&
+          (accountNumber?.trim().isNotEmpty ?? false),
+      'bankName': data['bank_name'] as String?,
+      'bankBranch': data['bank_branch'] as String?,
+      'accountName': accountName,
+      'accountNumber': accountNumber,
+      'updatedAt': DateTime.now().toIso8601String(),
+    };
+  }
+
   Future<List<Map<String, dynamic>>> _fetchProposalsFromFirestore() async {
     if (FirebaseAuth.instance.currentUser == null) return [];
     try {
-      final query = await _proposalsCollection
-          .limit(500)
-          .get(const GetOptions(source: Source.server));
-      return query.docs.map((doc) => {
+      final query = await _readProposalQuery();
+      final snapshot =
+          await query.get(const GetOptions(source: Source.server));
+      return snapshot.docs.map((doc) => {
             ...doc.data(),
             'id': doc.id,
           }).toList();
@@ -47,15 +148,33 @@ class ProposalRepository {
 
   Future<void> _syncProposalToFirestore(Proposal proposal) async {
     await FirestoreService.runAuthenticated(() async {
-      try {
-        await _proposalsCollection.doc(proposal.id).set(proposal.toJson());
-      } catch (e) {
-        debugPrint('[Proposal] Failed to sync proposal ${proposal.id} to Firestore: $e');
+      if (await _isCustomerSession()) {
+        await _customerProposalsCollection
+            .doc(proposal.id)
+            .set(_customerVisibleJson(proposal));
+        return;
       }
+      final batch = FirebaseFirestore.instance.batch();
+      batch.set(_proposalsCollection.doc(proposal.id), proposal.toJson());
+
+      // Fix 5: Only project customer-visible and bank-transfer docs when the
+      // proposal has been submitted. Drafts must not be visible to customers.
+      final shouldProject = proposal.status != ProposalStatus.draft;
+      if (shouldProject) {
+        batch.set(
+          _customerProposalsCollection.doc(proposal.id),
+          _customerVisibleJson(proposal),
+        );
+        batch.set(
+          _bankTransferInstructionsCollection.doc(proposal.id),
+          await _bankTransferInstructionJson(proposal),
+        );
+      }
+      await batch.commit();
     });
   }
 
-  Future<void> _syncProposalsToFirestore(List<Proposal> proposals) async {
+  Future<void> _syncProposalsToFirestore(Iterable<Proposal> proposals) async {
     for (final proposal in proposals) {
       await _syncProposalToFirestore(proposal);
     }
@@ -92,10 +211,10 @@ class ProposalRepository {
   Future<void> refreshFromFirestore() async {
     if (FirebaseAuth.instance.currentUser == null) return;
     try {
-      final query = await _proposalsCollection
-          .limit(500)
-          .get(const GetOptions(source: Source.server));
-      final refreshed = query.docs
+      final query = await _readProposalQuery();
+      final snapshot =
+          await query.get(const GetOptions(source: Source.server));
+      final refreshed = snapshot.docs
           .map((doc) => Proposal.fromJson({...doc.data(), 'id': doc.id}))
           .toList();
       _proposals
@@ -109,6 +228,7 @@ class ProposalRepository {
   /// Patches vendorLatitude/vendorLongitude on loaded proposals using the
   /// vendor's current shopLatitude/shopLongitude from the auth repository.
   Future<List<Proposal>> _patchVendorCoords(List<Proposal> proposals) async {
+    if (await _isCustomerSession()) return proposals;
     final vendorIds = proposals.map((p) => p.vendorId).toSet();
     final coordMap = <String, ({double lat, double lon})>{};
     for (final id in vendorIds) {
@@ -128,8 +248,21 @@ class ProposalRepository {
     }).toList();
   }
 
-  Future<void> _persistProposals() async {
-    await _syncProposalsToFirestore(_proposals);
+  Future<void> _persistProposals([Iterable<Proposal>? proposals]) async {
+    // Avoid replaying the whole in-memory cache, which may contain a proposal
+    // the customer accepted after the vendor last refreshed.
+    await _syncProposalsToFirestore(proposals ?? _proposals);
+  }
+
+  Future<Proposal?> _getProposalFromServer(String proposalId) async {
+    if (FirebaseAuth.instance.currentUser == null) return null;
+
+    final collection = await _readCollection();
+    final doc = await collection.doc(proposalId).get(
+          const GetOptions(source: Source.server),
+        );
+    if (!doc.exists || doc.data() == null) return null;
+    return Proposal.fromJson({...doc.data()!, 'id': doc.id});
   }
 
   Future<List<Proposal>> getProposalsForRequest(String requestId) async {
@@ -211,7 +344,7 @@ class ProposalRepository {
       createdAt: DateTime.now(),
     );
     _proposals.insert(0, newProposal);
-    await _persistProposals();
+    await _persistProposals([newProposal]);
     return newProposal;
   }
 
@@ -220,7 +353,7 @@ class ProposalRepository {
     final index = _proposals.indexWhere((p) => p.id == proposal.id);
     if (index >= 0) {
       _proposals[index] = proposal.copyWith(updatedAt: DateTime.now());
-      await _persistProposals();
+      await _persistProposals([_proposals[index]]);
       return _proposals[index];
     }
     return createProposal(proposal);
@@ -233,7 +366,8 @@ class ProposalRepository {
     if (index == -1) {
       throw Exception('Proposal not found');
     }
-    final existing = _proposals[index];
+    final existing =
+        await _getProposalFromServer(proposal.id) ?? _proposals[index];
     if (!existing.canEdit) {
       throw Exception(
         'Proposal cannot be edited in status ${existing.status.name}',
@@ -249,7 +383,7 @@ class ProposalRepository {
       status: nextStatus,
       updatedAt: DateTime.now(),
     );
-    await _persistProposals();
+    await _persistProposals([_proposals[index]]);
     return _proposals[index];
   }
 
@@ -257,14 +391,16 @@ class ProposalRepository {
     await ensureInitialized();
     final index = _proposals.indexWhere((p) => p.id == proposalId);
     if (index == -1) return;
-    if (!_proposals[index].canWithdraw) {
+    final existing =
+        await _getProposalFromServer(proposalId) ?? _proposals[index];
+    if (!existing.canWithdraw) {
       throw Exception('Proposal cannot be withdrawn');
     }
-    _proposals[index] = _proposals[index].copyWith(
+    _proposals[index] = existing.copyWith(
       status: ProposalStatus.withdrawn,
       updatedAt: DateTime.now(),
     );
-    await _persistProposals();
+    await _persistProposals([_proposals[index]]);
   }
 
   Future<void> cancelProposalsForRequest(String requestId) async {
@@ -282,7 +418,13 @@ class ProposalRepository {
         changed = true;
       }
     }
-    if (changed) await _persistProposals();
+    if (changed) {
+      await _persistProposals(
+        _proposals.where((proposal) =>
+            proposal.requestId == requestId &&
+            proposal.status == ProposalStatus.withdrawn),
+      );
+    }
   }
 
   Future<void> updateProposalStatus(
@@ -300,7 +442,7 @@ class ProposalRepository {
         rejectedAt: status == ProposalStatus.rejected ? DateTime.now() : null,
         updatedAt: DateTime.now(),
       );
-      await _persistProposals();
+      await _persistProposals([_proposals[index]]);
     }
   }
 
@@ -318,7 +460,7 @@ class ProposalRepository {
         vendorResponse: vendorMsg ?? _proposals[index].vendorResponse,
         updatedAt: DateTime.now(),
       );
-      await _persistProposals();
+      await _persistProposals([_proposals[index]]);
     }
   }
 
@@ -365,11 +507,16 @@ class ProposalRepository {
       }
       return item;
     }).toList();
+    final updatedDecisions = {
+      ...proposal.customerItemDecisions,
+      requestItemId: decision,
+    };
 
     _proposals[proposalIndex] = proposal.copyWith(
       items: updatedItems,
+      customerItemDecisions: updatedDecisions,
       updatedAt: DateTime.now(),
     );
-    await _persistProposals();
+    await _persistProposals([_proposals[proposalIndex]]);
   }
 }

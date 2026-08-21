@@ -3,6 +3,7 @@ import 'package:speedmart_lanka/features/auth/providers/auth_provider.dart';
 import 'package:speedmart_lanka/features/requests/data/request_repository.dart';
 import 'package:speedmart_lanka/features/requests/models/shopping_request.dart';
 import 'package:speedmart_lanka/features/orders/data/order_repository.dart';
+import 'package:speedmart_lanka/features/orders/data/order_workflow_service.dart';
 import 'package:speedmart_lanka/features/orders/models/order_model.dart';
 import 'package:speedmart_lanka/features/payments/models/payment.dart';
 import 'package:speedmart_lanka/features/notifications/providers/notification_provider.dart'
@@ -122,31 +123,13 @@ class OrderNotifier extends StateNotifier<OrderState> {
     await _requestRepo.ensureInitialized();
     state = state.copyWith(isLoading: true, clearError: true);
     try {
-      await _repo.updateOrderStatus(orderId, status);
-
-      // Also sync request status if order completes
-      final OrderModel? order = await _repo.getOrderById(orderId);
-      if (order != null) {
-        RequestStatus? reqStatus;
-        if (status == OrderStatus.accepted) {
-          reqStatus = RequestStatus.accepted;
-        } else if (status == OrderStatus.preparing) {
-          reqStatus = RequestStatus.preparingOrder;
-        } else if (status == OrderStatus.readyForDelivery) {
-          reqStatus = RequestStatus.readyForDelivery;
-        } else if (status == OrderStatus.outForDelivery) {
-          reqStatus = RequestStatus.outForDelivery;
-        } else if (status == OrderStatus.delivered) {
-          reqStatus = RequestStatus.delivered;
-        } else if (status == OrderStatus.completed) {
-          reqStatus = RequestStatus.completed;
-        } else if (status == OrderStatus.cancelled) {
-          reqStatus = RequestStatus.cancelled;
-        }
-        if (reqStatus != null) {
-          await _requestRepo.updateRequestStatus(order.requestId, reqStatus);
-        }
+      final serverStatus =
+          await OrderWorkflowService.instance.advanceOrder(orderId);
+      if (serverStatus != status.name) {
+        throw StateError('Order status changed unexpectedly. Please refresh.');
       }
+
+      final OrderModel? order = await _repo.getOrderById(orderId);
 
       // Persist a notification for the customer about the status change
       try {

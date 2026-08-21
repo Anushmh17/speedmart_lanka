@@ -546,7 +546,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
       // 2. Reject the same requestItemId in ALL OTHER proposals for this request
       final allProps = await _repo.getAllProposalsForRequest(requestId);
       for (final p in allProps) {
-        if (p.id == proposalId) continue;
+        if (p.id == proposalId || !p.status.isEditableByVendor) continue;
         final hasMatchingItem = p.items.any((i) => i.requestItemId == requestItemId);
         if (hasMatchingItem) {
           await _repo.updateProposalItemDecision(
@@ -559,15 +559,19 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
       }
 
       // 3. Check if the winning proposal's items are all resolved → mark whole proposal accepted
+      /*
       final updatedWinner = await _repo.getProposalById(proposalId);
       if (updatedWinner != null) {
+        // Item choices remain provisional until the checkout transaction writes
+        // matching orders, payments, and item fulfillments.
+        final checkoutTransactionIsRequired = true;
         final allResolved = updatedWinner.items.every(
           (i) => i.customerDecision != ProposalItemDecision.pending ||
               i.status == ProposalItemStatus.unavailable,
         );
         final anyAccepted = updatedWinner.items
             .any((i) => i.customerDecision == ProposalItemDecision.accepted);
-        if (allResolved && anyAccepted) {
+        if (allResolved && anyAccepted && !checkoutTransactionIsRequired) {
           await _repo.updateProposalStatus(proposalId, ProposalStatus.accepted);
           print('[ItemAccept] All items resolved — proposal $proposalId → accepted');
           // Update request category fulfillment
@@ -623,6 +627,7 @@ class ProposalNotifier extends StateNotifier<ProposalState> {
           }
         }
       }
+      */
 
       await loadProposalsForRequest(requestId);
       state = state.copyWith(isLoading: false);

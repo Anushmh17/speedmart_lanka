@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'dart:io';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/app_text_styles.dart';
 import '../../../../core/theme/app_spacing.dart';
@@ -960,7 +962,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _buildApprovedCategories(user, isDark),
       const SizedBox(height: AppSpacing.md),
       if (isEditing) _buildRequestableCategories(isDark),
-      const SizedBox(height: AppSpacing.md),
+      if (isEditing) const SizedBox(height: AppSpacing.md),
+      if (!isEditing && user.shopLatitude != null && user.shopLongitude != null) ...[
+        _buildShopLocationPreview(user, isDark),
+        const SizedBox(height: AppSpacing.md),
+      ],
       _buildBankDetailsSection(user, isDark, isEditing),
     ];
   }
@@ -1012,6 +1018,86 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShopLocationPreview(dynamic user, bool isDark) {
+    final lat = user.shopLatitude as double;
+    final lng = user.shopLongitude as double;
+    final location = LatLng(lat, lng);
+    final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    
+    return Theme3AppCard(
+      type: Theme3CardType.standard,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.location_on_rounded,
+                size: 20,
+                color: AppColors.vendorColor,
+              ),
+              const SizedBox(width: AppSpacing.sm),
+              Text(
+                'Shop Location',
+                style: AppTextStyles.labelMedium(
+                  isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppSpacing.sm),
+          if (user.shopAddress != null && user.shopAddress!.isNotEmpty) ...[
+            Text(
+              user.shopAddress!,
+              style: AppTextStyles.bodyMedium(primaryText),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: SizedBox(
+              height: 180,
+              width: double.infinity,
+              child: FlutterMap(
+                options: MapOptions(
+                  initialCenter: location,
+                  initialZoom: 16,
+                  interactionOptions: const InteractionOptions(
+                    flags: InteractiveFlag.none,
+                  ),
+                ),
+                children: [
+                  TileLayer(
+                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                    userAgentPackageName: 'com.speedmart.lanka',
+                    retinaMode: false,
+                  ),
+                  MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: location,
+                        width: 48,
+                        height: 48,
+                        alignment: Alignment.topCenter,
+                        child: const Icon(
+                          Icons.location_pin,
+                          color: AppColors.vendorColor,
+                          size: 42,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
