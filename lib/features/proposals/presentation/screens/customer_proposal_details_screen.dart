@@ -384,11 +384,11 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                                 ),
                                 child: Column(
                                   children: [
-                                    _priceRow('Unit Price (incl. commission)', 'Rs. ${proposal.customerUnitPrice(item).toStringAsFixed(2)}', secondaryText, primaryText),
+                                    _priceRow('Unit Price', 'Rs. ${proposal.customerUnitPrice(item).toStringAsFixed(2)}', secondaryText, primaryText),
                                     const SizedBox(height: 4),
                                     _priceRow('Qty × Unit', '${item.quantity} × Rs. ${proposal.customerUnitPrice(item).toStringAsFixed(2)}', secondaryText, secondaryText),
                                     const Divider(height: 14),
-                                    _priceRow('Item Total (incl. commission)', 'Rs. ${proposal.customerItemTotal(item).toStringAsFixed(2)}', primaryText, AppColors.success, bold: true),
+                                    _priceRow('Item Total', 'Rs. ${proposal.customerItemTotal(item).toStringAsFixed(2)}', primaryText, AppColors.success, bold: true),
                                   ],
                                 ),
                               ),
@@ -435,11 +435,11 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                                 ),
                                 child: Column(
                                   children: [
-                                    _priceRow('Unit Price (incl. commission)', 'Rs. ${proposal.customerUnitPrice(item).toStringAsFixed(2)}', secondaryText, primaryText),
+                                    _priceRow('Unit Price', 'Rs. ${proposal.customerUnitPrice(item).toStringAsFixed(2)}', secondaryText, primaryText),
                                     const SizedBox(height: 4),
                                     _priceRow('Qty × Unit', '${item.quantity} × Rs. ${proposal.customerUnitPrice(item).toStringAsFixed(2)}', secondaryText, secondaryText),
                                     const Divider(height: 14),
-                                    _priceRow('Item Total (incl. commission)', 'Rs. ${proposal.customerItemTotal(item).toStringAsFixed(2)}', primaryText, AppColors.warning, bold: true),
+                                    _priceRow('Item Total', 'Rs. ${proposal.customerItemTotal(item).toStringAsFixed(2)}', primaryText, AppColors.warning, bold: true),
                                   ],
                                 ),
                               ),
@@ -470,7 +470,7 @@ class _CustomerProposalDetailsScreenState extends ConsumerState<CustomerProposal
                     ),
                     child: Column(
                       children: [
-                        _priceRow('Items Subtotal (incl. commission)', 'Rs. ${proposal.customerSubtotal.toStringAsFixed(2)}', secondaryText, primaryText),
+                        _priceRow('Items Subtotal', 'Rs. ${proposal.customerSubtotal.toStringAsFixed(2)}', secondaryText, primaryText),
                         const SizedBox(height: 10),
                         _priceRow('Estimated Delivery', proposal.estimatedDeliveryTime, secondaryText, primaryText),
                         const SizedBox(height: 10),

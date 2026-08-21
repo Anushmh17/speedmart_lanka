@@ -318,7 +318,7 @@ class _CustomerProposalCardState extends State<CustomerProposalCard> {
                     const Divider(height: 1),
                     const SizedBox(height: 12),
                     _PricingRow(
-                      label: 'Items subtotal (incl. commission)',
+                      label: 'Items subtotal',
                       value: 'Rs. ${v.subtotal.toStringAsFixed(2)}',
                       isDark: isDark,
                     ),
