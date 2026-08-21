@@ -337,8 +337,10 @@ class _FigmaAuthFlowState extends ConsumerState<FigmaAuthFlow>
     final email = (data['email'] ?? '').trim();
     final preciseAddress = (data['preciseAddress'] ?? '').trim();
 
-    final nicErr = Validators.nic(nic);
-    if (nicErr != null) { _showError(nicErr); return; }
+    if (nic.isNotEmpty) {
+      final nicErr = Validators.nic(nic);
+      if (nicErr != null) { _showError(nicErr); return; }
+    }
     if (fullName.isEmpty) { _showError('Please enter your full name.'); return; }
     final phoneErr = SriLankaPhoneHelper.validateSriLankaMobile(phone);
     if (phoneErr != null) { _showError(phoneErr); return; }

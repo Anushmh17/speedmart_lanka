@@ -207,6 +207,7 @@ class _SrilankacustomerregisteraccountWidgetState
       TextCapitalization textCapitalization = TextCapitalization.none,
       List<TextInputFormatter>? inputFormatters,
       int maxLines = 1,
+      bool isRequired = false,
     }) {
       return Positioned(
         top: y(top),
@@ -238,9 +239,39 @@ class _SrilankacustomerregisteraccountWidgetState
                 ),
                 SizedBox(width: x(12)),
                 Expanded(
-                  child: Material(
-                    color: Colors.transparent,
-                    child: TextField(
+                  child: Stack(
+                    alignment: Alignment.centerLeft,
+                    children: [
+                      ValueListenableBuilder<TextEditingValue>(
+                        valueListenable: controller,
+                        builder: (context, value, child) {
+                          if (value.text.isNotEmpty) return const SizedBox.shrink();
+                          return IgnorePointer(
+                            child: RichText(
+                              text: TextSpan(
+                                text: hint,
+                                style: TextStyle(
+                                  color: const Color(0xFF4F4F4F),
+                                  fontFamily: 'Inter',
+                                  fontSize: fs(14.5),
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.1,
+                                ),
+                                children: [
+                                  if (isRequired)
+                                    const TextSpan(
+                                      text: ' *',
+                                      style: TextStyle(color: Colors.red),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      Material(
+                        color: Colors.transparent,
+                        child: TextField(
                       focusNode: focusNode,
                       controller: controller,
                       keyboardType: keyboardType,
@@ -259,7 +290,7 @@ class _SrilankacustomerregisteraccountWidgetState
                         height: 1.1,
                       ),
                       decoration: InputDecoration(
-                        hintText: hint,
+                        hintText: '',
                         hintStyle: TextStyle(
                           color: const Color(0xFF4F4F4F),
                           fontFamily: 'Inter',
@@ -274,6 +305,8 @@ class _SrilankacustomerregisteraccountWidgetState
                         contentPadding: EdgeInsets.zero,
                       ),
                     ),
+                      ),
+                    ],
                   ),
                 ),
                 SizedBox(width: x(8)),
@@ -400,7 +433,7 @@ class _SrilankacustomerregisteraccountWidgetState
                   top: y(12),
                   left: x(39),
                   child: Text(
-                    'NIC (Sri Lanka)',
+                    'NIC (Optional)',
                     style: TextStyle(
                       color: const Color(0xFF4F4F4F),
                       fontFamily: 'Inter',
@@ -464,6 +497,8 @@ class _SrilankacustomerregisteraccountWidgetState
       required String title,
       required IconData icon,
       required VoidCallback? onTap,
+      bool isRequired = false,
+      bool hasValue = false,
     }) {
       return Positioned(
         top: y(top),
@@ -491,14 +526,23 @@ class _SrilankacustomerregisteraccountWidgetState
                 ),
                 SizedBox(width: x(12)),
                 Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      color: const Color(0xFF4F4F4F),
-                      fontFamily: 'Inter',
-                      fontSize: fs(14.5),
-                      fontWeight: FontWeight.w600,
-                      height: 1,
+                  child: RichText(
+                    text: TextSpan(
+                      text: title,
+                      style: TextStyle(
+                        color: const Color(0xFF4F4F4F),
+                        fontFamily: 'Inter',
+                        fontSize: fs(14.5),
+                        fontWeight: FontWeight.w600,
+                        height: 1,
+                      ),
+                      children: [
+                        if (isRequired && !hasValue)
+                          const TextSpan(
+                            text: ' *',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                      ],
                     ),
                   ),
                 ),
@@ -829,6 +873,7 @@ class _SrilankacustomerregisteraccountWidgetState
                               height: 45,
                               icon: Icons.person_outline_rounded,
                               hint: 'Full Name',
+                              isRequired: true,
                               controller: _fullNameController,
                               focusNode: _fullNameFocusNode,
                               textCapitalization: TextCapitalization.words,
@@ -840,6 +885,7 @@ class _SrilankacustomerregisteraccountWidgetState
                               height: 45,
                               icon: Icons.phone_outlined,
                               hint: 'Phone Number',
+                              isRequired: true,
                               controller: _phoneController,
                               focusNode: _phoneFocusNode,
                               keyboardType: TextInputType.phone,
@@ -855,6 +901,7 @@ class _SrilankacustomerregisteraccountWidgetState
                               height: 45,
                               icon: Icons.email_outlined,
                               hint: 'Email Address',
+                              isRequired: true,
                               controller: _emailController,
                               focusNode: _emailFocusNode,
                               keyboardType: TextInputType.emailAddress,
@@ -886,6 +933,8 @@ class _SrilankacustomerregisteraccountWidgetState
                                   : 'Province',
                               icon: Icons.map_outlined,
                               onTap: widget.onProvinceTap,
+                              isRequired: true,
+                              hasValue: widget.selectedProvince?.isNotEmpty == true,
                             ),
                             dropdownField(
                               top: 357,
@@ -894,6 +943,8 @@ class _SrilankacustomerregisteraccountWidgetState
                                   : 'District',
                               icon: Icons.travel_explore_rounded,
                               onTap: widget.onDistrictTap,
+                              isRequired: true,
+                              hasValue: widget.selectedDistrict?.isNotEmpty == true,
                             ),
                             normalField(
                               top: 408,
@@ -902,6 +953,7 @@ class _SrilankacustomerregisteraccountWidgetState
                               height: 74.5,
                               icon: Icons.place_outlined,
                               hint: 'Precise Delivery Address',
+                              isRequired: true,
                               controller: _addressController,
                               focusNode: _addressFocusNode,
                               maxLines: 2,
