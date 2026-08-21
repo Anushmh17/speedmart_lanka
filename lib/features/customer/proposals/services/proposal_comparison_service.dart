@@ -47,7 +47,13 @@ class ProposalComparisonService {
     final customerLon = (dl?.longitude != null && dl!.longitude != 0) ? dl.longitude! : request.longitude;
 
     if (customerLat == 0 && customerLon == 0) return 0;
-    if (proposal.vendorLatitude == 0 && proposal.vendorLongitude == 0) return 0;
+    
+    // Ignore if vendor location is missing (0.0) or if it's the legacy hardcoded default (6.9145, 79.8510)
+    // which was causing the flawed distance readings for old proposals.
+    if ((proposal.vendorLatitude == 0 && proposal.vendorLongitude == 0) ||
+        (proposal.vendorLatitude == 6.9145 && proposal.vendorLongitude == 79.8510)) {
+      return 0;
+    }
 
     return LocationModel.calculateDistance(
       lat1: customerLat,
