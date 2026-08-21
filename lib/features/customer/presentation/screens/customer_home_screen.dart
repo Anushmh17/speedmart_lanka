@@ -895,6 +895,7 @@ class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
     return Theme3AppCard(
       type: Theme3CardType.standard,
       padding: const EdgeInsets.all(AppSpacing.lg),
+      onTap: () => _showActiveVendorsBottomSheet(context, ref, isDark),
       child: Row(
         children: [
           SizedBox(
@@ -964,6 +965,160 @@ class _CustomerHomeTabState extends ConsumerState<CustomerHomeTab> {
           ),
         ],
       ),
+    );
+  }
+
+  void _showActiveVendorsBottomSheet(BuildContext context, WidgetRef ref, bool isDark) {
+    final primaryText = isDark ? AppColors.textPrimaryDark : AppColors.textPrimaryLight;
+    final secondaryText = isDark ? AppColors.textSecondaryDark : AppColors.textSecondaryLight;
+    final bgColor = isDark ? AppColors.surfaceDark : AppColors.surfaceLight;
+    final borderColor = isDark ? AppColors.borderDark : AppColors.borderLight;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Container(
+          decoration: BoxDecoration(
+            color: bgColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.7,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: AppSpacing.lg),
+                  decoration: BoxDecoration(
+                    color: borderColor,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  Icon(Icons.storefront_rounded, color: AppColors.primary, size: 24),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    'Vendors Nearby',
+                    style: AppTextStyles.h2(primaryText),
+                  ),
+                ],
+              ),
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                'These are the active sellers currently within your delivery radius.',
+                style: AppTextStyles.bodyMedium(secondaryText),
+              ),
+              const SizedBox(height: AppSpacing.lg),
+              Expanded(
+                child: ref.watch(nearbyActiveVendorsProvider).when(
+                  data: (vendors) {
+                    if (vendors.isEmpty) {
+                      return Center(
+                        child: Text(
+                          'No vendors found nearby. Try updating your delivery location.',
+                          style: AppTextStyles.bodyMedium(secondaryText),
+                          textAlign: TextAlign.center,
+                        ),
+                      );
+                    }
+
+                    // Calculate category counts
+                    final Map<String, int> categoryCounts = {};
+                    for (final vendor in vendors) {
+                      // Use allowed categories (source of truth), fallback to requested
+                      final categories = vendor.allowedCategories?.isNotEmpty == true
+                          ? vendor.allowedCategories!
+                          : (vendor.vendorCategories ?? []);
+                      for (final category in categories) {
+                        final formattedCat = category.trim();
+                        if (formattedCat.isEmpty) continue;
+                        categoryCounts[formattedCat] = (categoryCounts[formattedCat] ?? 0) + 1;
+                      }
+                    }
+
+                    // Sort categories by count (descending)
+                    final sortedCategories = categoryCounts.entries.toList()
+                      ..sort((a, b) => b.value.compareTo(a.value));
+
+                    return ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: sortedCategories.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: AppSpacing.sm),
+                      itemBuilder: (context, index) {
+                        final entry = sortedCategories[index];
+                        // Capitalize category name
+                        final catName = entry.key[0].toUpperCase() + entry.key.substring(1);
+                        
+                        return Theme3AppCard(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          type: Theme3CardType.elevated,
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primary.withValues(alpha: 0.1),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(Icons.category_rounded, color: AppColors.primary, size: 20),
+                              ),
+                              const SizedBox(width: AppSpacing.md),
+                              Expanded(
+                                child: Text(
+                                  catName,
+                                  style: AppTextStyles.subtitle(primaryText).copyWith(fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: isDark ? Colors.white12 : Colors.black12,
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '${entry.value}',
+                                      style: AppTextStyles.labelLarge(primaryText),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'Sellers',
+                                      style: AppTextStyles.caption(secondaryText),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    );
+                  },
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (_, __) => Center(
+                    child: Text(
+                      'Failed to load nearby vendors.',
+                      style: AppTextStyles.bodyMedium(secondaryText),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

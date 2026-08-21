@@ -8,9 +8,9 @@ import 'package:speedmart_lanka/shared/models/vendor_status.dart';
 
 const _distanceCalc = DistanceCalculationService();
 
-/// Returns the count of active vendors within 5 km of the customer's
-/// current delivery location. Returns 0 when no location is set.
-final nearbyActiveVendorCountProvider = FutureProvider<int>((ref) async {
+/// Returns the list of active vendors within their respective radii of the customer's
+/// current delivery location. Returns empty list when no location is set.
+final nearbyActiveVendorsProvider = FutureProvider<List<UserModel>>((ref) async {
   final locationState = ref.watch(locationProvider);
   
   // Fetch active, approved vendors from Firestore directly. 
@@ -26,11 +26,11 @@ final nearbyActiveVendorCountProvider = FutureProvider<int>((ref) async {
       firestoreVendors.add(UserModel.fromJson({...doc.data(), 'id': doc.id}));
     }
   } catch (e) {
-    // If it fails (e.g. security rules or offline), return 0
-    return 0;
+    // If it fails (e.g. security rules or offline), return empty list
+    return [];
   }
 
-  final activeVendors = firestoreVendors.where((u) => u.isVendorActive);
+  final activeVendors = firestoreVendors.where((u) => u.isVendorActive).toList();
 
   final customerLat = locationState.latitude;
   final customerLon = locationState.longitude;
@@ -51,10 +51,16 @@ final nearbyActiveVendorCountProvider = FutureProvider<int>((ref) async {
         targetLon: vLon,
         radiusKm: vendorRadius,
       );
-    }).length;
+    }).toList();
   }
 
   // No location set — cannot determine proximity
-  return 0;
+  return [];
+});
+
+/// Returns the count of nearby active vendors for backwards compatibility
+final nearbyActiveVendorCountProvider = FutureProvider<int>((ref) async {
+  final vendors = await ref.watch(nearbyActiveVendorsProvider.future);
+  return vendors.length;
 });
 
